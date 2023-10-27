@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - name: Install lib dependencies
-        run: sudo apt install r-base libcurl4-openssl-dev libsodium-dev pandoc libssl-dev libssl-dev
+        run: sudo apt install r-base libcurl4-openssl-dev libsodium-dev pandoc libssl-dev libssl-dev texlive-latex-base texlive-fonts-recommended texlive-fonts-extra
       - name: Install package dependencies
         run: |
           install.packages(c("remotes", "rcmdcheck"))
