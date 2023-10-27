@@ -28,7 +28,7 @@ jobs:
         run: |
           install.packages(c("remotes", "rcmdcheck"))
           remotes::install_deps(pkgdir="epitweetr", dependencies = TRUE)
-        shell: Rscript {0}
+        shell: sudo Rscript {0}
       - name: Check
         run: rcmdcheck::rcmdcheck(path="epitweetr", args = "--no-manual", error_on = "error")
         shell: Rscript {0}
