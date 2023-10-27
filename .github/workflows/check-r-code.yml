@@ -22,15 +22,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v3
       - name: Install lib dependencies
         run: sudo apt install r-base libcurl4-openssl-dev libsodium-dev pandoc libssl-dev libssl-dev
-      - name: whereami
-        run: ls -hl
       - name: Install package dependencies
         run: |
           install.packages(c("remotes", "rcmdcheck"))
           remotes::install_deps(dependencies = TRUE)
         shell: sudo Rscript {0}
+        working-directory: epitweetr
       - name: Check
         run: rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "error")
         shell: Rscript {0}
+        working-directory: epitweetr
