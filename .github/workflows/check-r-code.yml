@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Install lib dependencies
-        run: sudo apt install r-base libcurl4-openssl-dev libsodium-dev pandoc libssl-de libssl-dev
+        run: sudo apt install r-base libcurl4-openssl-dev libsodium-dev pandoc libssl-dev libssl-dev
       - name: Install package dependencies
         run: |
           install.packages(c("remotes", "rcmdcheck"))
