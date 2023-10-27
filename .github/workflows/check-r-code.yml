@@ -29,8 +29,8 @@ jobs:
           install.packages(c("remotes", "rcmdcheck"))
           remotes::install_deps(dependencies = TRUE)
         shell: sudo Rscript {0}
-        working-directory: ./epitweetr
+        working-directory: epitweetr
       - name: Check
         run: rcmdcheck::rcmdcheck(args = "--no-manual", error_on = "error")
         shell: Rscript {0}
-        working-directory: ./epitweetr
+        working-directory: epitweetr
