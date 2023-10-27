@@ -71,7 +71,6 @@ Imports:
     processx,
     rtweet,
     readxl,
-    rgdal,
     rlang, 
     rmarkdown,
     rnaturalearthdata, 
