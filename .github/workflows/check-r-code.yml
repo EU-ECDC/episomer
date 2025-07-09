@@ -27,6 +27,7 @@ jobs:
         run: sudo apt -y install r-base libcurl4-openssl-dev libsodium-dev pandoc libssl-dev libssl-dev texlive-latex-base texlive-fonts-recommended texlive-fonts-extra pandoc pandoc-citeproc
       - name: Install package dependencies
         run: |
+          options(repos="https://CRAN.R-project.org")
           install.packages(c("remotes", "rcmdcheck", "devtools"))
           devtools::install_deps()
         shell: sudo Rscript {0}
