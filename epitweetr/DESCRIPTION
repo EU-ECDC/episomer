@@ -69,7 +69,6 @@ Imports:
     parallel,
     plotly,
     processx,
-    rtweet,
     readxl,
     rlang, 
     rmarkdown,
@@ -87,7 +86,7 @@ Imports:
     utils,
     xtable,
     xml2
-RoxygenNote: 7.2.0
+RoxygenNote: 7.3.2
 Suggests: 
     taskscheduleR
 VignetteBuilder: knitr

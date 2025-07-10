@@ -1,8 +1,9 @@
 # creating package and installing it
 print(getwd())
+repos = "https://cran.asnr.fr/"
 
 if(!("devtools" %in% installed.packages()[,"Package"]))
-  install.packages("devtools")
+  install.packages("devtools", repos = repos)
 
 #devtools::install_deps()
 devtools::document()
@@ -27,6 +28,7 @@ installer_path <- c(
 )
 install.packages(file.path(installer_path[[2]]), dependencies = FALSE)
 
+renv::snapshot()
 
 #moving installer
 installer_name <- (

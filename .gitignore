@@ -1,6 +1,8 @@
 recover/
 data/
-maual/
+manual/
+epitweetr/renv
+epitweetr/renv.lock
 *.swp
 *.swo
 *.class
@@ -12,6 +14,7 @@ scala/project/build.properties
 scala/project/target
 scala/target
 scala/lib_managed
+scala/.bsp
 scala/null
 *.jar
 epitweetr/java/ecdc-twitter-bundle_2.12-1.0-source.zip

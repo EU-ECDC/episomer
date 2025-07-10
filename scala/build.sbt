@@ -1,11 +1,11 @@
-lazy val sparkVersion = if(System.getenv("SPARK_VERSION")==null) "2.3.2" else System.getenv("SPARK_VERSION")
+lazy val sparkVersion = if(System.getenv("SPARK_VERSION")==null) "3.0.3" else System.getenv("SPARK_VERSION")
 lazy val akkaVersion = "2.6.8"
 lazy val akkaHttpVersion = "10.2.4"
 lazy val luceneVersion = "8.5.0"
 lazy val root = (project in file("."))
   .settings(
     name := "ecdc-twitter-bundle",
-    scalaVersion := "2.12.12",
+    scalaVersion := "2.12.20",
     retrieveManaged := true,
     useCoursier := false, 
     version := "1.0",
