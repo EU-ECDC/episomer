@@ -18,7 +18,7 @@ search_endpoint <-  list(
 # request_new: Whether to force creating a new token
 get_token <- function(request_new = TRUE) {
   token_path <- "~/.rtweet_token.rds"
-  new_rtweet <- exists("rtweet_user", base::asNamespace("rtweet"))
+  #new_rtweet <- exists("rtweet_user", base::asNamespace("rtweet"))
   if(exists("access_token", where = conf$twitter_auth )) {
     if(new_rtweet && (conf$twitter_auth$access_token != "" || conf$twitter_auth$bearer == ""))
       stop("It seems you have updated the rtweet package. You need to reset the twitteer authentication using your app bearer token, fallback to user authentication or downgrade rtweet")
@@ -37,21 +37,21 @@ get_token <- function(request_new = TRUE) {
     else if(!request_new && file.exists(token_path)) {
       token <- readRDS(token_path)
       if(!("bearer" %in% class(conf$token)))
-        token <- rtweet::bearer_token(token)
+         token <- ""# rtweet::bearer_token(token)
     }
     # In other cases we get a new token using rtweet
     else {
       if(file.exists(token_path)) 
         file.remove(token_path)
-      token <- rtweet::create_token(
-        app = conf$twitter_auth$app
-        , consumer_key =conf$twitter_auth$api_key
-        , consumer_secret =conf$twitter_auth$api_secret
-        , access_token =conf$twitter_auth$access_token
-        , access_secret = conf$twitter_auth$access_token_secret
-      )
-      # Removing user context
-      token <- rtweet::bearer_token(token)
+#      token <- rtweet::create_token(
+#        app = conf$twitter_auth$app
+#        , consumer_key =conf$twitter_auth$api_key
+#        , consumer_secret =conf$twitter_auth$api_secret
+#        , access_token =conf$twitter_auth$access_token
+#        , access_secret = conf$twitter_auth$access_token_secret
+#      )
+#      # Removing user context
+#      token <- rtweet::bearer_token(token)
     } 
   } else {
     # Using delegated authentication otherwise, token will be reused if it exists and new one will be requested if it is not set
@@ -59,11 +59,11 @@ get_token <- function(request_new = TRUE) {
        if(interactive() && request_new)
          if(new_rtweet) {
            # new version of rtweet detected using new function
-           t <- rtweet::rtweet_user()
+#          t <- rtweet::rtweet_user()
            saveRDS(t, token_path)
            t
          } else
-           rtweet::get_token()
+           '' #rtweet::get_token()
        else if(file.exists(token_path)){
          readRDS(token_path)
        } else if(request_new){

@@ -74,6 +74,7 @@ search_loop <-  function(data_dir = NA) {
       save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
       Sys.sleep(wait_for)
     }
+
     #getting only the next plan to execute for each topic (it could be a previous unfinished plan)
     next_plans <-lapply(1:length(conf$topics), function(i)  next_plan(plans = conf$topics[[i]]$plan))
 
