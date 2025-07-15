@@ -282,7 +282,7 @@ epitweetr_app <- function(data_dir = NA) {
   ################################################
   ######### CONFIGURATION PAGE####################
   ################################################
-  new_rtweet <- exists("rtweet_user", base::asNamespace("rtweet"))
+  new_rtweet <- F#exists("rtweet_user", base::asNamespace("rtweet"))
   config_page <- 
     shiny::fluidPage(
       shiny::fluidRow(

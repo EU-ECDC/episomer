@@ -5,6 +5,7 @@ sudo apt install libsodium-dev
 sudo apt install pandoc
 sudo apt install texlive-latex-base
 sudo apt install texlive-fonts-recommended
+sudo apt install libharfbuzz-dev libfribidi-dev
 
 echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
 echo "deb https://repo.scala-sbt.org/scalasbt/debian /" | sudo tee /etc/apt/sources.list.d/sbt_old.list

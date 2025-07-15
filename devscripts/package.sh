@@ -13,8 +13,8 @@ cp "$cdir/scala/target/scala-2.12/ecdc-twitter-bundle_2.12-1.0.jar" "$cdir/epitw
 
 git archive --format zip --output "$cdir/epitweetr/java/ecdc-twitter-bundle_2.12-1.0-source.zip" HEAD 
 
-cd "$cdir/epitweetr"
-Rscript ../devscripts/renv.R
-Rscript ../devscripts/package.R
+cd "$cdir"
+Rscript devscripts/renv.R
+Rscript devscripts/package.R
 
 cd "$cdir"

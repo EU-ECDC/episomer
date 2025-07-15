@@ -1,8 +1,8 @@
 recover/
 data/
 manual/
-epitweetr/renv
-epitweetr/renv.lock
+renv
+renv.lock
 *.swp
 *.swo
 *.class
