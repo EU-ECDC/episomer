@@ -68,3 +68,4 @@ vignettes/*.pdf
 #Roxygen managed files
 */man/*.Rd
 NAMESPACE
+/.vs
