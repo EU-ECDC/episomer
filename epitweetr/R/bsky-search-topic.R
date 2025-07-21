@@ -1,4 +1,4 @@
-bsky_search_topic <- function(
+bluesky_search_topic <- function(
   plan,
   query,
   topic,
@@ -104,11 +104,11 @@ bsky_search_topic <- function(
   # Ensuring that query is smaller than 400 character (Twitter API limit)
   #if (nchar(query) < 400) {
   # doing the tweet search and storing the response object to obtain details on resp
-  content <- bsky_search(
-    keyword = query,
-    access_jwt = token,
-    since = plan$research_min_date,
-    until = plan$research_max_date
+  network_search <- get(sprintf("%s_search", network))
+  content <- network_search(
+    query = query,
+    token = token,
+    plan = plan
   )
   json <- content$results
 
@@ -163,7 +163,7 @@ bsky_search_topic <- function(
   got_rows <- get(sprintf("%s_got_rows", network))(content)
   if (got_rows) {
     year <- format(Sys.time(), "%Y")
-    date_min_max <- get(sprintf("%s_got_date_min_max", network))(content)
+    date_min_max <- get(sprintf("%s_get_json_date_min_max", network))(content)
     # If rows were obtained we update the stat file that will stored the posted date period of each gz archive.
     # This is used to improve aggregating performance, by targeting only the files containing tweets for a particular date
     update_file_stats(
@@ -175,11 +175,9 @@ bsky_search_topic <- function(
       conf
     )
     plan <- get(sprintf("%s_update_plan", network))(plan, got_rows, content)
-  } #else {
-  # plan$has_more <- FALSE
-  # plan$end_on <- Sys.time()
-  # ? plan$request <- 0
-  # }
+  } else {
+    plan <- get(sprintf("%s_no_rows_logic", network))(plan)
+  }
   # else {
   # Managing the case when the query is too long
   #     warning(
