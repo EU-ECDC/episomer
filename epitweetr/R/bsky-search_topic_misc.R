@@ -26,22 +26,9 @@ bsky_set_date_boundaries <- function(plan) {
   list(plan = plan, max_text = max_text, min_text = min_text)
 }
 
-
-bsky_update_plan <- function(plan, content, tz = "UTC") {
-  # If a request retrieved no messages, we stop the research
-  # if (is.null(content$newest_message_in_a_query)) {
-  #     plan$research_max_date <- NA
-  #     plan$research_min_date <- NA
-  #     plan$boundaries_date_min <- NA
-  #     plan$boundaries_date_max <- NA
-  #     plan$has_more <- FALSE
-  #     return(plan)
-  # }
-
-  # GOT FROM EPITWEETR
-  # increasing the number of requests
+#' @noRd
+bsky_update_plan <- function(plan, got_rows, content, tz = "UTC") {
   plan$requests <- plan$requests + 1
-  # browser()
 
   if (is.null(plan$start_on)) {
     plan$start_on = lubridate::as_datetime(Sys.time(), tz = tz)
@@ -50,7 +37,6 @@ bsky_update_plan <- function(plan, content, tz = "UTC") {
   if (!content$has_more) {
     plan$end_on <- lubridate::as_datetime(Sys.time(), tz = tz)
   }
-  # END GOT FROM EPITWEETR
 
   plan$newest_messages_from_previous_queries <- c(
     plan$newest_messages_from_previous_queries,
@@ -65,7 +51,6 @@ bsky_update_plan <- function(plan, content, tz = "UTC") {
   # If there are more messages to retrieve, we update the research max date
   if (content$has_more) {
     plan$research_max_date <- content$oldest_message_in_a_query
-    # plan$research_min_date <- NULL
     plan$boundaries_date_min <- min(c(
       plan$boundaries_date_min,
       content$oldest_message_in_a_query
@@ -84,26 +69,24 @@ bsky_update_plan <- function(plan, content, tz = "UTC") {
     ))
     plan$research_min_date <- NULL
     plan$research_max_date <- NULL
-    # plan$newest_messages_from_previous_queries <- NULL
   }
 
   plan$has_more <- content$has_more
   if (!is.null(plan$boundaries_date_max)) {
-    plan$boundaries_date_max <- #as.POSIXct(plan$boundaries_date_max) %>%
-      plan$boundaries_date_max %>%
+    plan$boundaries_date_max <- plan$boundaries_date_max %>%
       lubridate::as_datetime(tz = tz)
   }
   if (!is.null(plan$boundaries_date_min)) {
-    plan$boundaries_date_min <- #as.POSIXct(plan$boundaries_date_min) %>%
-      plan$boundaries_date_min %>% lubridate::as_datetime(tz = tz)
+    plan$boundaries_date_min <- plan$boundaries_date_min %>%
+      lubridate::as_datetime(tz = tz)
   }
   if (!is.null(plan$research_max_date)) {
-    plan$research_max_date <- #as.POSIXct(plan$research_max_date) %>%
-      plan$research_max_date %>% lubridate::as_datetime(tz = tz)
+    plan$research_max_date <- plan$research_max_date %>%
+      lubridate::as_datetime(tz = tz)
   }
   if (!is.null(plan$research_min_date)) {
-    plan$research_min_date <- #as.POSIXct(plan$research_min_date) %>%
-      plan$research_min_date %>% lubridate::as_datetime(tz = tz)
+    plan$research_min_date <- plan$research_min_date %>%
+      lubridate::as_datetime(tz = tz)
   }
 
   if (!is.null(plan$newest_messages_from_previous_queries)) {
@@ -112,11 +95,23 @@ bsky_update_plan <- function(plan, content, tz = "UTC") {
       lubridate::as_datetime(tz = tz)
   }
   if (!is.null(plan$oldest_messages_from_previous_queries)) {
-    plan$oldest_messages_from_previous_queries <- #as.POSIXct(
-      #plan$oldest_messages_from_previous_queries
-      #)
-      plan$oldest_messages_from_previous_queries %>%
+    plan$oldest_messages_from_previous_queries <- plan$oldest_messages_from_previous_queries %>%
       lubridate::as_datetime(tz = tz)
   }
   return(plan)
+}
+
+
+bluesky_got_rows <- function(content) {
+  (exists("posts", content) & length(content$posts) > 0)
+}
+
+bluesky_got_date_min_max <- function(content) {
+  first_date <- bsky_extract_many_posts_created_at(json$posts) %>%
+    unlist() %>%
+    min()
+  last_date <- bsky_extract_many_posts_created_at(json$posts) %>%
+    unlist() %>%
+    max()
+  list(first_date = first_date, last_date = last_date)
 }
