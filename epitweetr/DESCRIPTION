@@ -70,9 +70,9 @@ Imports:
     plotly,
     processx,
     readxl,
-    rlang, 
+    rlang,
     rmarkdown,
-    rnaturalearthdata, 
+    rnaturalearthdata,
     openxlsx,
     plyr,
     shiny,
@@ -85,8 +85,14 @@ Imports:
     tools,
     utils,
     xtable,
-    xml2
+    xml2,
+    digest,
+    httr2,
+    lubridate,
+    purrr
 RoxygenNote: 7.3.2
 Suggests: 
-    taskscheduleR
+    taskscheduleR,
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
+Config/testthat/edition: 3

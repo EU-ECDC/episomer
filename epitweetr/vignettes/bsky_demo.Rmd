@@ -1,0 +1,112 @@
+---
+title: "bsky_demo"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{bsky_demo}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(epitweetr)
+```
+
+
+# Authentification
+
+Your bluesky account is used to authenticate to the API.
+
+The bluesky handle and password are stored in the environment variables `bluesky_id` and `bluesky_pwd`.
+
+```{r, eval=FALSE}
+handle <- Sys.getenv("bluesky_id")
+password <- Sys.getenv("bluesky_pwd")
+
+infos <- bsky_create_session(handle, password)
+token <- infos$access_jwt
+```
+
+# Retrieve posts
+
+## Make a simple request
+
+```{r, eval=FALSE}
+posts <- bsky_search(
+  keyword = "covid19",
+  access_jwt = token,
+  number_of_posts_per_request = 100,
+  since = NULL,
+  until = NULL
+)
+```
+
+### Analyze the content of the posts
+
+```{r, eval=FALSE}
+posts_content <- posts$results$posts
+elements <- bsky_extract_many_posts_elements(posts_content)
+elements[[1]]
+```
+
+`bsky_extract_many_posts_elements` is a function that extracts the elements from the posts.
+
+It calls `bsky_extract_post_elements` for each post, which calls many other functions to extract the elements from the post.
+
+```{r, eval=FALSE}
+bsky_extract_post_elements <- function(post) {
+  list(
+    author_infos = bsky_extract_post_author_infos(post),
+    text = bsky_extract_post_text(post),
+    created_at = extract_post_created_at(post),
+    langs = bsky_extract_post_langs(post),
+    hashtags = bsky_extract_post_hashtags(post),
+    url = bsky_create_post_url(post),
+    id = bsky_create_post_id(post)
+  )
+}
+```
+
+
+## Automatic pagination based on dates
+
+```{r, eval=FALSE}
+posts <- bsky_search_paginated(
+  keyword = "covid19",
+  access_jwt = token,
+  until = "2025-07-10T00:00:00",
+  since = NULL,
+  max_posts = 300
+)
+```
+
+### Analyze the content of the posts
+
+```{r, eval=FALSE}
+posts_content <- posts$posts
+elements <- bsky_extract_many_posts_elements(posts_content)
+elements[[1]]
+```
+
+# Data provided in the package
+
+```{r}
+posts <- jsonlite::read_json(system.file(package = "epitweetr", "bsky_sample", "posts.json"))
+```
+
+```{r}
+elements <- bsky_extract_many_posts_elements(posts)
+elements[[1]]
+```
+
+
+# Search topic
+
+A schema explaining the logic behind the search topic function is available in the file `inst/schema/bsky_search_topic.excalidraw`. Please download this file and drag and drop it in your browser at [excalidraw](https://excalidraw.com/).
+
