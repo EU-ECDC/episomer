@@ -27,7 +27,7 @@ test_that("bluesky_search works with valid parameters", {
       result <- bluesky_search(
         "covid19",
         "mock_token",
-        number_of_posts_per_request = 100
+        plan = list()
       )
 
       expect_type(result, "list")
@@ -61,7 +61,7 @@ test_that("bluesky_search works when retrieving many posts", {
 
   with_mocked_bindings(
     code = {
-      result <- bluesky_search("covid19", "mock_token")
+      result <- bluesky_search("covid19", "mock_token", plan = list())
 
       expect_type(result, "list")
       posts <- result$results$posts
@@ -98,7 +98,11 @@ test_that("bluesky_search handles empty results", {
 
   with_mocked_bindings(
     code = {
-      result <- bluesky_search("nonexistentkeyword", "mock_token")
+      result <- bluesky_search(
+        "nonexistentkeyword",
+        "mock_token",
+        plan = list()
+      )
 
       expect_type(result, "list")
       expect_length(result$results$posts, 0)
@@ -118,7 +122,7 @@ test_that("bluesky_search handles API errors", {
   with_mocked_bindings(
     code = {
       expect_error(
-        bluesky_search("covid19", "invalid_token"),
+        bluesky_search("covid19", "invalid_token", plan = list()),
         "HTTP 401 Unauthorized"
       )
     },
