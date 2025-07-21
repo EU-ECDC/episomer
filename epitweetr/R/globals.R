@@ -1,3 +1,13 @@
-# This global variable is to define .data global variable which is used on dplyr operations
-# This avoids not defined variable warnings
-utils::globalVariables(c(".data"))
+utils::globalVariables(c(
+    ".data",
+    "limit",
+    "URLencode",
+    "conf",
+    "get_scala_tweets_url",
+    "is_secret_set",
+    "last_fs_updates",
+    "resp_header",
+    "search_endpoint",
+    "tail",
+    "twitter_get"
+))
