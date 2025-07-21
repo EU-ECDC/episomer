@@ -24,7 +24,13 @@
 #' @seealso
 #' \code{\link{set_twitter_app_auth}}
 #' @export
-search_loop <- function(data_dir = NA) {
+search_loop <- function(
+  network,
+  data_dir = NA,
+  dev_in_progress = TRUE,
+  conf,
+  kill_after = NULL
+) {
   # Setting or reusing the data directory
   if (is.na(data_dir)) {
     setup_config_if_not_already()
@@ -32,38 +38,43 @@ search_loop <- function(data_dir = NA) {
     setup_config(data_dir = data_dir)
   }
 
-  # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-  register_search_runner()
-
+  if (!dev_in_progress) {
+    # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
+    register_search_runner()
+  }
   # Infinite loop for getting tweets if it is successfully registered as the search runner
   req2Commit <- 0
   last_check <- Sys.time()
   last_save <- Sys.time()
+  first_call <- Sys.time()
   while (TRUE) {
     loop_start <- Sys.time()
-    # Waiting until database system will be running
-    while (!is_fs_running()) {
-      msg("Epitweetr database is not yet running waiting for 5 seconds")
-      Sys.sleep(5)
-    }
-    # Dismissing history if required from shiny app
-    if (conf$dismiss_past_request > conf$dismiss_past_done) {
-      if (
-        length(conf$topics[sapply(conf$topics, function(t) {
-          length(t$plan) == 0 || t$plan[[1]]$requests == 0
-        })]) >
-          0
-      ) {
-        msg(
-          "Dismissing history has to wait until all plans have at least one plan with one request"
-        )
-      } else {
-        msg("Dismissing history requested")
 
-        for (i in 1:length(conf$topics)) {
-          conf$topics[[i]]$plan <- finish_plans(plans = conf$topics[[i]]$plan)
+    # Waiting until database system will be running
+    if (!dev_in_progress) {
+      while (!is_fs_running()) {
+        msg("Epitweetr database is not yet running waiting for 5 seconds")
+        Sys.sleep(5)
+      }
+      # Dismissing history if required from shiny app
+      if (conf$dismiss_past_request > conf$dismiss_past_done) {
+        if (
+          length(conf$topics[sapply(conf$topics, function(t) {
+            length(t$plan) == 0 || t$plan[[1]]$requests == 0
+          })]) >
+            0
+        ) {
+          msg(
+            "Dismissing history has to wait until all plans have at least one plan with one request"
+          )
+        } else {
+          msg("Dismissing history requested")
+
+          for (i in 1:length(conf$topics)) {
+            conf$topics[[i]]$plan <- finish_plans(plans = conf$topics[[i]]$plan)
+          }
+          conf$dismiss_past_done <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
         }
-        conf$dismiss_past_done <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
       }
     }
     # On each iteration this loop will perform one request for each active plans having the minimum number of requests
@@ -77,21 +88,23 @@ search_loop <- function(data_dir = NA) {
 
     # Calculating how the time epitweetr should wait before executing each active plan. If bigger than zero then epitweetr will wait.
     # If waiting happens here, it means that epitweetr is able to collect all tweets under current twitter rate limits, so it could collect more topics or sooner.
-    wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
-      can_wait_for(plans = conf$topics[[i]]$plan)
-    })))
-    if (wait_for > 0) {
-      msg(paste(
-        Sys.time(),
-        ": All done! going to sleep for until",
-        Sys.time() + wait_for,
-        "during",
-        wait_for,
-        "seconds. Consider reducing the schedule_span for getting tweets sooner"
-      ))
-      commit_tweets()
-      save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
-      Sys.sleep(wait_for)
+    if (!dev_in_progress) {
+      wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
+        can_wait_for(plans = conf$topics[[i]]$plan)
+      })))
+      if (wait_for > 0) {
+        msg(paste(
+          Sys.time(),
+          ": All done! going to sleep for until",
+          Sys.time() + wait_for,
+          "during",
+          wait_for,
+          "seconds. Consider reducing the schedule_span for getting tweets sooner"
+        ))
+        commit_tweets()
+        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
+        Sys.sleep(wait_for)
+      }
     }
 
     #getting only the next plan to execute for each topic (it could be a previous unfinished plan)
@@ -111,14 +124,27 @@ search_loop <- function(data_dir = NA) {
       })
     )
 
-    #updating series to aggregate
-    register_series()
+    if (!dev_in_progress) {
+      #updating series to aggregate
+      register_series()
+    }
     #msg(paste("iterating in topics", length(conf$topics), min_requests))
     #performing search only for plans with a minimum number of requests (round robin)
     requests_done <- 0
     for (i in 1:length(conf$topics)) {
       for (j in 1:length(conf$topics[[i]]$plan)) {
+        if (!is.null(kill_after)) {
+          if (difftime(Sys.time(), first_call, units = "secs") > kill_after) {
+            # For unit tests
+            stop("Killing search loop after ", kill_after, " seconds")
+          }
+        }
         plan <- conf$topics[[i]]$plan[[j]]
+        # For debugging
+        # jsonlite::write_json(
+        #   plan,
+        #   paste(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "plan.json")
+        # )
         if (
           plan$requests <= min_requests &&
             (is.null(plan$end_on) || plan$requests == 0)
@@ -130,7 +156,8 @@ search_loop <- function(data_dir = NA) {
               conf$topics[[i]]$plan[[j]] = search_topic(
                 plan = plan,
                 query = conf$topics[[i]]$query,
-                topic = conf$topics[[i]]$topic
+                topic = conf$topics[[i]]$topic,
+                conf = conf
               )
             },
             error = function(e) {
@@ -152,34 +179,38 @@ search_loop <- function(data_dir = NA) {
             }
           )
           req2Commit <- req2Commit + 1
-          if (req2Commit > 100) {
-            commit_tweets()
-            req2Commit <- 0
+          if (!dev_in_progress) {
+            if (req2Commit > 100) {
+              commit_tweets()
+              req2Commit <- 0
+            }
           }
         }
       }
     }
-    #msg("iteration end")
-    #checking at most once per 10 minutes
-    if (difftime(Sys.time(), last_check, units = "mins") > 10) {
-      # epitweetr sanity check and sendig email in case of issued
-      #msg("health checked")
-      last_check <- Sys.time()
-      health_check()
-    }
+    if (!dev_in_progress) {
+      #msg("iteration end")
+      #checking at most once per 10 minutes
+      if (difftime(Sys.time(), last_check, units = "mins") > 10) {
+        # epitweetr sanity check and sendig email in case of issued
+        #msg("health checked")
+        last_check <- Sys.time()
+        health_check()
+      }
 
-    #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds
-    if (difftime(Sys.time(), last_save, units = "secs") > 10) {
-      last_save <- Sys.time()
-      setup_config(data_dir = conf$data_dir, save_first = list("topics"))
-      #msg("config saved and refreshed")
-    }
+      #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds
+      if (difftime(Sys.time(), last_save, units = "secs") > 10) {
+        last_save <- Sys.time()
+        setup_config(data_dir = conf$data_dir, save_first = list("topics"))
+        #msg("config saved and refreshed")
+      }
 
-    if (requests_done == 0) {
-      message(
-        "No requests performed on loop.... something may be wrong, sleeping 1 second"
-      )
-      Sys.sleep(1)
+      if (requests_done == 0) {
+        message(
+          "No requests performed on loop.... something may be wrong, sleeping 1 second"
+        )
+        Sys.sleep(1)
+      }
     }
   }
 }
@@ -214,7 +245,7 @@ search_topic <- function(
   # Tweets are stored on the following folder structure data_folder/tweets/search/topic/year
   # Ensuring that folders for storing tweets are created
   year <- format(Sys.time(), "%Y")
-  create_dirs(topic, year, conf) #, conf
+  create_dirs(network, topic, year, conf) #, conf
 
   # Tweets are stored as gzipped files with the following naming: "YYYY.MM.DD.counter.json.gz"
   # Counter starts with 00001 and it is increased after the last file grows over 100M
@@ -222,7 +253,7 @@ search_topic <- function(
   file_prefix <- paste(format(Sys.time(), "%Y.%m.%d"))
   file_pattern <- paste(format(Sys.time(), "%Y\\.%m\\.%d"))
   # TODO: update folder name
-  dir <- paste(conf$data_dir, "tweets", "search", topic, year, sep = "/")
+  dir <- paste(conf$data_dir, network, "search", topic, year, sep = "/")
 
   # files will contain all files matching the naming pattern the last alphabetically is going to be measured to evaluate if a new file has to be started
   files <- sort(list.files(path = dir, pattern = file_prefix))
@@ -278,14 +309,13 @@ search_topic <- function(
 
   # putting all parts together to get current file name
   # TODO: update folder name
-  dest <- paste(
+  dest <- file.path(
     conf$data_dir,
-    "tweets",
+    network,
     "search",
     topic,
     year,
-    file_name,
-    sep = "/"
+    file_name
   )
 
   # Ensuring that query is smaller than 400 character (Twitter API limit)
@@ -376,7 +406,6 @@ search_topic <- function(
   # }
   #}
   # Update plan boundaries based on search results
-
   plan
 }
 
@@ -537,32 +566,32 @@ can_wait_for <- function(plans) {
 
 
 # create topic directories if they do not exist
-create_dirs <- function(topic = NA, year = NA, conf) {
+create_dirs <- function(network, topic = NA, year = NA, conf) {
   if (!file.exists(paste(conf$data_dir, sep = "/"))) {
     dir.create(paste(conf$data_dir, sep = "/"), showWarnings = FALSE)
   }
-  if (!file.exists(paste(conf$data_dir, "tweets", sep = "/"))) {
-    dir.create(paste(conf$data_dir, "tweets", sep = "/"), showWarnings = FALSE)
+  if (!file.exists(paste(conf$data_dir, network, sep = "/"))) {
+    dir.create(paste(conf$data_dir, network, sep = "/"), showWarnings = FALSE)
   }
-  if (!file.exists(paste(conf$data_dir, "tweets", "search", sep = "/"))) {
+  if (!file.exists(paste(conf$data_dir, network, "search", sep = "/"))) {
     dir.create(
-      paste(conf$data_dir, "tweets", "search", sep = "/"),
+      paste(conf$data_dir, network, "search", sep = "/"),
       showWarnings = FALSE
     )
   }
   if (!is.na(topic) && !is.na(year)) {
     if (
-      !file.exists(paste(conf$data_dir, "tweets", "search", topic, sep = "/"))
+      !file.exists(paste(conf$data_dir, network, "search", topic, sep = "/"))
     ) {
       dir.create(
-        paste(conf$data_dir, "tweets", "search", topic, sep = "/"),
+        paste(conf$data_dir, network, "search", topic, sep = "/"),
         showWarnings = FALSE
       )
     }
     if (
       !file.exists(paste(
         conf$data_dir,
-        "tweets",
+        network,
         "search",
         topic,
         year,
@@ -570,7 +599,7 @@ create_dirs <- function(topic = NA, year = NA, conf) {
       ))
     ) {
       dir.create(
-        paste(conf$data_dir, "tweets", "search", topic, year, sep = "/"),
+        paste(conf$data_dir, network, "search", topic, year, sep = "/"),
         showWarnings = FALSE
       )
     }
