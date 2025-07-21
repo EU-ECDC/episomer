@@ -1,14 +1,10 @@
-#' Search posts for a given keyword
+#' Search posts for a given query
 #'
-#' @param keyword Keyword to search for
-#' @param access_jwt Access token
-#' @param cursor Optional cursor to resume from a specific point
-#' @param sort Sort order for the search
-#' @param since Start date for the search
-#' @param until End date for the search
+#' @param query query to search for
+#' @param token Access token
+#' @param plan Plan object
 #' @param search_url Search URL
 #' @param max_retries Maximum number of retries
-#' @param number_of_posts_per_request Number of posts to retrieve per request
 #' @param errors_for_retries Errors for retries
 #' @param verbose Whether to print progress messages
 #' @details You can find more information about the Bluesky API here: \url{https://docs.bsky.app/docs/api/app-bsky-feed-search-posts}
@@ -18,13 +14,9 @@
 #' @importFrom httr2 request req_url_query req_headers req_perform resp_body_json is_online resp_status last_response req_retry
 #' @importFrom lubridate as_datetime
 bluesky_search <- function(
-  keyword,
-  access_jwt,
-  cursor = NULL,
-  sort = "latest",
-  since = NULL,
-  until = NULL,
-  number_of_posts_per_request = 100,
+  query,
+  token,
+  plan,
   search_url = "https://bsky.social/xrpc/app.bsky.feed.searchPosts",
   max_retries = 20,
   errors_for_retries = c(420, 500, 503),
@@ -33,9 +25,15 @@ bluesky_search <- function(
   if (!is_online()) {
     stop("No internet connection")
   }
+  since <- plan$research_min_date
+  until <- plan$research_max_date
+  cursor <- plan$cursor
+  sort <- "latest"
+  number_of_posts_per_request <- 100
+
   # Make a single request and return results
   req <- request(search_url) |>
-    req_url_query(q = keyword, limit = number_of_posts_per_request, sort = sort)
+    req_url_query(q = query, limit = number_of_posts_per_request, sort = sort)
 
   if (!is.null(cursor)) {
     req <- req |> req_url_query(cursor = cursor)
@@ -50,7 +48,7 @@ bluesky_search <- function(
 
   # Must find a way to check for invalid token
   resp <- req |>
-    req_headers(Authorization = paste("Bearer", access_jwt)) |>
+    req_headers(Authorization = paste("Bearer", token)) |>
     req_retry(
       max_tries = max_retries,
       retry_on_failure = TRUE,
@@ -93,14 +91,11 @@ bluesky_search <- function(
 
 #' Search posts with automatic pagination using purrr::possibly for robustness
 #'
-#' @param keyword Keyword to search for
-#' @param access_jwt Access token
-#' @param until End date for the search
-#' @param since Start date for the search
-#' @param sort Sort order for the search
+#'
+#' @param token Access token
+#' @param plan Plan object
 #' @param max_posts Maximum number of posts to retrieve
 #' @param search_url Search URL
-#' @param number_of_posts_per_request Number of posts to retrieve per request
 #' @param max_retries Maximum number of retries
 #' @param errors_for_retries Errors for retries
 #' @param verbose Whether to print progress messages
@@ -113,13 +108,10 @@ bluesky_search <- function(
 #' @export
 #' @importFrom purrr possibly
 bluesky_search_paginated <- function(
-  keyword,
-  access_jwt,
+  query,
+  token,
+  plan,
   max_posts = NULL,
-  until = NULL,
-  since = NULL,
-  sort = "latest",
-  number_of_posts_per_request = 100,
   search_url = "https://bsky.social/xrpc/app.bsky.feed.searchPosts",
   max_retries = 20,
   errors_for_retries = c(420, 500, 503),
@@ -147,17 +139,13 @@ bluesky_search_paginated <- function(
     request_count <- request_count + 1
 
     if (verbose) {
-      cat("Making request", request_count, "for keyword", keyword, "...\n")
+      cat("Making request", request_count, "for query", query, "...\n")
     }
     # Make a single request with robust error handling
     result <- robust_bluesky_search(
-      keyword = keyword,
-      access_jwt = access_jwt,
-      cursor = NULL,
-      sort = sort,
-      until = current_date_max,
-      since = current_date_min,
-      number_of_posts_per_request = number_of_posts_per_request,
+      query = query,
+      token = token,
+      plan = plan,
       search_url = search_url,
       max_retries = max_retries,
       errors_for_retries = errors_for_retries,
@@ -171,8 +159,8 @@ bluesky_search_paginated <- function(
         cat(
           "Request",
           request_count,
-          "failed for keyword",
-          keyword,
+          "failed for query",
+          query,
           ". Continuing with next request...\n"
         )
       }
@@ -181,8 +169,8 @@ bluesky_search_paginated <- function(
       if (failed_requests >= max_consecutive_failures) {
         if (verbose) {
           cat(
-            "Too many consecutive failures for keyword",
-            keyword,
+            "Too many consecutive failures for query",
+            query,
             ". Stopping.\n"
           )
         }
@@ -203,8 +191,8 @@ bluesky_search_paginated <- function(
 
     if (verbose) {
       cat(
-        "Total posts retrieved so far for keyword",
-        keyword,
+        "Total posts retrieved so far for query",
+        query,
         ":",
         post_count,
         "\n"
@@ -214,14 +202,14 @@ bluesky_search_paginated <- function(
     # Check if we have more posts and should continue
     if (!result$has_more) {
       if (verbose) {
-        cat("No more posts available for keyword", keyword, ".\n")
+        cat("No more posts available for query", query, ".\n")
       }
       break
     }
 
     if (!is.null(max_posts) && post_count >= max_posts) {
       if (verbose) {
-        cat("Reached maximum number of posts for keyword", keyword, ".\n")
+        cat("Reached maximum number of posts for query", query, ".\n")
       }
       break
     }
@@ -241,15 +229,15 @@ bluesky_search_paginated <- function(
 
   if (verbose) {
     cat(
-      "Total posts retrieved for keyword",
-      keyword,
+      "Total posts retrieved for query",
+      query,
       ":",
       length(all_posts),
       "\n"
     )
-    cat("Total requests made for keyword", keyword, ":", request_count, "\n")
+    cat("Total requests made for query", query, ":", request_count, "\n")
     if (failed_requests > 0) {
-      cat("Failed requests for keyword", keyword, ":", failed_requests, "\n")
+      cat("Failed requests for query", query, ":", failed_requests, "\n")
     }
   }
   created_at <- bluesky_extract_many_posts_created_at(all_posts)
