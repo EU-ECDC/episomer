@@ -1,4 +1,4 @@
-bsky_set_date_boundaries <- function(plan) {
+bluesky_set_date_boundaries <- function(plan) {
   # We set the upper bound of the research: if missing we set it to the current time
   max_text <- plan$research_max_date
   if (is.null(plan$research_max_date)) {
@@ -27,7 +27,7 @@ bsky_set_date_boundaries <- function(plan) {
 }
 
 #' @noRd
-bsky_update_plan <- function(plan, got_rows, content, tz = "UTC") {
+bluesky_update_plan <- function(plan, got_rows, content, tz = "UTC") {
   plan$requests <- plan$requests + 1
 
   if (is.null(plan$start_on)) {
@@ -103,14 +103,20 @@ bsky_update_plan <- function(plan, got_rows, content, tz = "UTC") {
 
 
 bluesky_got_rows <- function(content) {
-  (exists("posts", content) & length(content$posts) > 0)
+  (exists("posts", content$results) & length(content$results$posts) > 0)
 }
 
-bluesky_got_date_min_max <- function(content) {
-  first_date <- bsky_extract_many_posts_created_at(json$posts) %>%
+bluesky_no_rows_logic <- function(plan) {
+  plan$has_more <- FALSE
+  plan$end_on <- Sys.time()
+  return(plan)
+}
+
+bluesky_get_json_date_min_max <- function(content) {
+  first_date <- bluesky_extract_many_posts_created_at(content$results$posts) %>%
     unlist() %>%
     min()
-  last_date <- bsky_extract_many_posts_created_at(json$posts) %>%
+  last_date <- bluesky_extract_many_posts_created_at(content$results$posts) %>%
     unlist() %>%
     max()
   list(first_date = first_date, last_date = last_date)
