@@ -17,7 +17,7 @@
 #' @export
 #' @importFrom httr2 request req_url_query req_headers req_perform resp_body_json is_online resp_status last_response req_retry
 #' @importFrom lubridate as_datetime
-bsky_search <- function(
+bluesky_search <- function(
   keyword,
   access_jwt,
   cursor = NULL,
@@ -41,10 +41,10 @@ bsky_search <- function(
     req <- req |> req_url_query(cursor = cursor)
   }
   if (!is.null(since)) {
-    req <- req |> req_url_query(since = bsky_format_date(since))
+    req <- req |> req_url_query(since = bluesky_format_date(since))
   }
   if (!is.null(until)) {
-    req <- req |> req_url_query(until = bsky_format_date(until))
+    req <- req |> req_url_query(until = bluesky_format_date(until))
     message("Will retrieve posts until ", until)
   }
 
@@ -54,8 +54,8 @@ bsky_search <- function(
     req_retry(
       max_tries = max_retries,
       retry_on_failure = TRUE,
-      is_transient = bsky_rate_limited_check,
-      after = bsky_rerun_after_rate_limit
+      is_transient = bluesky_rate_limited_check,
+      after = bluesky_rerun_after_rate_limit
     ) %>%
     req_perform()
 
@@ -63,7 +63,7 @@ bsky_search <- function(
   results <- resp_body_json(resp)
   posts <- results$posts
   next_cursor <- results$cursor
-  created_at <- bsky_extract_many_posts_created_at(posts)
+  created_at <- bluesky_extract_many_posts_created_at(posts)
   if (length(created_at) == 0) {
     min_created_at <- NULL
     max_created_at <- NULL
@@ -112,7 +112,7 @@ bsky_search <- function(
 #' @return List with posts and final cursor
 #' @export
 #' @importFrom purrr possibly
-bsky_search_paginated <- function(
+bluesky_search_paginated <- function(
   keyword,
   access_jwt,
   max_posts = NULL,
@@ -130,9 +130,9 @@ bsky_search_paginated <- function(
     stop("No internet connection")
   }
 
-  # Create a robust version of bsky_search using purrr::possibly
-  robust_bsky_search <- possibly(
-    bsky_search,
+  # Create a robust version of bluesky_search using purrr::possibly
+  robust_bluesky_search <- possibly(
+    bluesky_search,
     otherwise = otherwise
   )
 
@@ -150,7 +150,7 @@ bsky_search_paginated <- function(
       cat("Making request", request_count, "for keyword", keyword, "...\n")
     }
     # Make a single request with robust error handling
-    result <- robust_bsky_search(
+    result <- robust_bluesky_search(
       keyword = keyword,
       access_jwt = access_jwt,
       cursor = NULL,
@@ -252,7 +252,7 @@ bsky_search_paginated <- function(
       cat("Failed requests for keyword", keyword, ":", failed_requests, "\n")
     }
   }
-  created_at <- bsky_extract_many_posts_created_at(all_posts)
+  created_at <- bluesky_extract_many_posts_created_at(all_posts)
 
   return(list(
     posts = all_posts,
@@ -264,7 +264,7 @@ bsky_search_paginated <- function(
 }
 
 #' @noRd
-bsky_rate_limited_check <- function(resp) {
+bluesky_rate_limited_check <- function(resp) {
   if (resp_status(resp) == 429) {
     identical(resp_header(resp, "RateLimit-Remaining"), "0")
   } else if (resp_status(resp) == 503) {
@@ -275,7 +275,7 @@ bsky_rate_limited_check <- function(resp) {
 }
 
 #' @noRd
-bsky_rerun_after_rate_limit <- function(resp) {
+bluesky_rerun_after_rate_limit <- function(resp) {
   if (resp_status(resp) == 429) {
     time <- as.numeric(resp_header(resp, "RateLimit-Reset"))
     time - unclass(Sys.time())

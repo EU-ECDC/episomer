@@ -1,8 +1,8 @@
 ---
-title: "bsky_demo"
+title: "bluesky_demo"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{bsky_demo}
+  %\VignetteIndexEntry{bluesky_demo}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -55,9 +55,9 @@ elements <- bsky_extract_many_posts_elements(posts_content)
 elements[[1]]
 ```
 
-`bsky_extract_many_posts_elements` is a function that extracts the elements from the posts.
+`bluesky_extract_many_posts_elements` is a function that extracts the elements from the posts.
 
-It calls `bsky_extract_post_elements` for each post, which calls many other functions to extract the elements from the post.
+It calls `bluesky_extract_post_elements` for each post, which calls many other functions to extract the elements from the post.
 
 ```{r, eval=FALSE}
 bsky_extract_post_elements <- function(post) {
@@ -97,7 +97,7 @@ elements[[1]]
 # Data provided in the package
 
 ```{r}
-posts <- jsonlite::read_json(system.file(package = "epitweetr", "bsky_sample", "posts.json"))
+posts <- jsonlite::read_json(system.file(package = "epitweetr", "bsky_sample", "posts.json"))"))
 ```
 
 ```{r}
@@ -108,5 +108,5 @@ elements[[1]]
 
 # Search topic
 
-A schema explaining the logic behind the search topic function is available in the file `inst/schema/bsky_search_topic.excalidraw`. Please download this file and drag and drop it in your browser at [excalidraw](https://excalidraw.com/).
+A schema explaining the logic behind the search topic function is available in the file `inst/schema/bluesky_search_topic.excalidraw`. Please download this file and drag and drop it in your browser at [excalidraw](https://excalidraw.com/).
 

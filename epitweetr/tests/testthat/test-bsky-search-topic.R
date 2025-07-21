@@ -1,12 +1,13 @@
-unlink("bsky_session.rds")
+unlink("bluesky_session.rds")
 
 conf <- list()
 conf$data_dir <- tempdir()
 
-test_that("bsky_search_topic works", {
+test_that("bluesky_search_topic works", {
   skip_on_ci()
 
   plan <- list(
+    network = "bluesky",
     research_max_date = "2025-07-15T12:00:00" %>%
       lubridate::as_datetime(tz = "UTC"),
     research_min_date = "2025-07-10T12:00:00" %>%
@@ -17,7 +18,7 @@ test_that("bsky_search_topic works", {
   has_more <- TRUE
   expect_no_error(
     while (has_more) {
-      plan <- bsky_search_topic(
+      plan <- bluesky_search_topic(
         plan,
         "covid19",
         "covid19",
@@ -53,16 +54,17 @@ test_that("bsky_search_topic works", {
   unlink(json_files, recursive = TRUE)
 })
 
-unlink("bsky_session.rds")
+unlink("bluesky_session.rds")
 
 
 conf <- list()
 conf$data_dir <- tempdir()
 
-test_that("bsky_search_topic works when a previous search has been performed", {
+test_that("bluesky_search_topic works when a previous search has been performed", {
   skip_on_ci()
 
   plan <- list(
+    network = "bluesky",
     research_max_date = "2025-07-15T12:00:00" %>%
       lubridate::as_datetime(tz = "UTC"),
     research_min_date = "2025-07-10T12:00:00" %>%
@@ -75,7 +77,7 @@ test_that("bsky_search_topic works when a previous search has been performed", {
   has_more <- TRUE
   expect_no_error(
     while (has_more) {
-      plan <- bsky_search_topic(
+      plan <- bluesky_search_topic(
         plan,
         "covid19",
         "covid19",
@@ -98,16 +100,17 @@ test_that("bsky_search_topic works when a previous search has been performed", {
   unlink(json_files, recursive = TRUE)
 })
 
-unlink("bsky_session.rds")
+unlink("bluesky_session.rds")
 
 
 conf <- list()
 conf$data_dir <- tempdir()
 
-test_that("bsky_search_topic works with a fake topic", {
+test_that("bluesky_search_topic works with a fake topic", {
   skip_on_ci()
 
   plan <- list(
+    network = "bluesky",
     research_max_date = "2025-07-15T00:00:00" %>%
       lubridate::as_datetime(tz = "UTC"),
     research_min_date = "2025-07-10T00:00:00" %>%
@@ -122,7 +125,7 @@ test_that("bsky_search_topic works with a fake topic", {
   )
   expect_no_error(
     while (has_more) {
-      plan <- bsky_search_topic(
+      plan <- bluesky_search_topic(
         plan,
         random_topic,
         random_topic,
@@ -146,4 +149,4 @@ test_that("bsky_search_topic works with a fake topic", {
 })
 
 
-unlink("bsky_session.rds")
+unlink("bluesky_session.rds")

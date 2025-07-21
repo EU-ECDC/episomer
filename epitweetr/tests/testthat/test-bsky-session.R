@@ -1,4 +1,4 @@
-test_that("bsky_create_session works with valid credentials", {
+test_that("bluesky_create_session works with valid credentials", {
   mock_response <- list(
     handle = "test.bsky.app",
     accessJwt = "mock_access_token_123",
@@ -8,7 +8,7 @@ test_that("bsky_create_session works with valid credentials", {
 
   with_mocked_bindings(
     code = {
-      result <- bsky_create_session("test.bsky.app", "password123")
+      result <- bluesky_create_session("test.bsky.app", "password123")
 
       expect_type(result, "list")
       expect_named(
@@ -29,11 +29,11 @@ test_that("bsky_create_session works with valid credentials", {
   )
 })
 
-test_that("bsky_create_session fails with no internet connection", {
+test_that("bluesky_create_session fails with no internet connection", {
   with_mocked_bindings(
     code = {
       expect_error(
-        bsky_create_session("test.bsky.app", "password123"),
+        bluesky_create_session("test.bsky.app", "password123"),
         "No internet connection"
       )
     },
@@ -41,16 +41,16 @@ test_that("bsky_create_session fails with no internet connection", {
   )
 })
 
-test_that("bsky_create_session fails with missing handle", {
+test_that("bluesky_create_session fails with missing handle", {
   with_mocked_bindings(
     code = {
       expect_error(
-        bsky_create_session(handle = NULL, password = "password123"),
+        bluesky_create_session(handle = NULL, password = "password123"),
         "Handle and password are required"
       )
 
       expect_error(
-        bsky_create_session(handle = "", password = "password123"),
+        bluesky_create_session(handle = "", password = "password123"),
         "Handle is required"
       )
     },
@@ -58,16 +58,16 @@ test_that("bsky_create_session fails with missing handle", {
   )
 })
 
-test_that("bsky_create_session fails with missing password", {
+test_that("bluesky_create_session fails with missing password", {
   with_mocked_bindings(
     code = {
       expect_error(
-        bsky_create_session(handle = "test.bsky.app", password = NULL),
+        bluesky_create_session(handle = "test.bsky.app", password = NULL),
         "Handle and password are required"
       )
 
       expect_error(
-        bsky_create_session(handle = "test.bsky.app", password = ""),
+        bluesky_create_session(handle = "test.bsky.app", password = ""),
         "Password is required"
       )
     },
@@ -75,11 +75,11 @@ test_that("bsky_create_session fails with missing password", {
   )
 })
 
-test_that("bsky_create_session fails with empty login URL", {
+test_that("bluesky_create_session fails with empty login URL", {
   with_mocked_bindings(
     code = {
       expect_error(
-        bsky_create_session(
+        bluesky_create_session(
           "test.bsky.app",
           "password123",
           login_url = ""
@@ -91,11 +91,11 @@ test_that("bsky_create_session fails with empty login URL", {
   )
 })
 
-test_that("bsky_create_session handles API errors", {
+test_that("bluesky_create_session handles API errors", {
   with_mocked_bindings(
     code = {
       expect_error(
-        bsky_create_session("test.bsky.app", "wrongpassword"),
+        bluesky_create_session("test.bsky.app", "wrongpassword"),
         "HTTP 401 Unauthorized"
       )
     },
@@ -109,4 +109,4 @@ test_that("bsky_create_session handles API errors", {
   )
 })
 
-unlink("bsky_session.rds")
+unlink("bluesky_session.rds")
