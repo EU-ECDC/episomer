@@ -108,5 +108,5 @@ elements[[1]]
 
 # Search topic
 
-A schema explaining the logic behind the search topic function is available in the file `inst/schema/bluesky_search_topic.excalidraw`. Please download this file and drag and drop it in your browser at [excalidraw](https://excalidraw.com/).
+A schema explaining the logic behind the search topic function is available in the file `inst/schema/search_topic.excalidraw`. Please download this file and drag and drop it in your browser at [excalidraw](https://excalidraw.com/).
 

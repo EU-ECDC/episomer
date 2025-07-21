@@ -184,31 +184,44 @@ search_loop <- function(data_dir = NA) {
   }
 }
 
-# Getting tweets for a particular plan, query and topic
-# This function is called by the search_loop
-# plan: contains the id range that is being collected and the last tweet obtained. This will allow epitweetr to target the tweets to obtain on current request
-# query: contains the text query to be sent to twitter
-# topic: the topic to register the results on
-# returns the updated plan after search
-search_topic <- function(plan, query, topic) {
+
+search_topic <- function(
+  plan,
+  query,
+  topic,
+  output_in_scala = FALSE,
+  conf
+) {
+  #, conf
+  network <- plan$network
+
+  token <- get(sprintf("%s_get_token", network))()
+  # Set date boundaries for the search
+  boundaries <- get(sprintf("%s_set_date_boundaries", network))(plan)
+  plan <- boundaries$plan
+  max_text <- boundaries$max_text
+  min_text <- boundaries$min_text
+
   msg(paste(
     "searching for topic",
     topic,
     "from",
-    plan$since_target,
+    min_text,
     "until",
-    if (is.null(plan$since_id)) "(last tweet)" else plan$since_id
+    max_text
   ))
+
   # Tweets are stored on the following folder structure data_folder/tweets/search/topic/year
   # Ensuring that folders for storing tweets are created
   year <- format(Sys.time(), "%Y")
-  create_dirs(topic, year)
+  create_dirs(topic, year, conf) #, conf
 
   # Tweets are stored as gzipped files with the following naming: "YYYY.MM.DD.counter.json.gz"
   # Counter starts with 00001 and it is increased after the last file grows over 100M
   # getting prefix and regular expression for tweet archive name
   file_prefix <- paste(format(Sys.time(), "%Y.%m.%d"))
   file_pattern <- paste(format(Sys.time(), "%Y\\.%m\\.%d"))
+  # TODO: update folder name
   dir <- paste(conf$data_dir, "tweets", "search", topic, year, sep = "/")
 
   # files will contain all files matching the naming pattern the last alphabetically is going to be measured to evaluate if a new file has to be started
@@ -230,10 +243,19 @@ search_topic <- function(plan, query, topic) {
       last
     } else {
       #Try to get current index after date as integer and increasing it by one, if not possible a 00001 index will be added
-      parts <- strsplit(gsub(".json.gz", "", last), split = "\\.")[[1]]
-      if (length(parts) <= 3 || is.na(as.integer(parts[[length(parts)]]))) {
+      parts <- strsplit(gsub(".json.gz", "", last), split = "\\.")[[
+        1
+      ]]
+      if (
+        length(parts) <= 3 ||
+          is.na(as.integer(parts[[length(parts)]]))
+      ) {
         paste(
-          c(parts, formatC(1, width = 5, format = "d", flag = "0"), "json.gz"),
+          c(
+            parts,
+            formatC(1, width = 5, format = "d", flag = "0"),
+            "json.gz"
+          ),
           collapse = "."
         )
       } else {
@@ -255,6 +277,7 @@ search_topic <- function(plan, query, topic) {
   })
 
   # putting all parts together to get current file name
+  # TODO: update folder name
   dest <- paste(
     conf$data_dir,
     "tweets",
@@ -266,17 +289,20 @@ search_topic <- function(plan, query, topic) {
   )
 
   # Ensuring that query is smaller than 400 character (Twitter API limit)
-  if (nchar(query) < 400) {
-    # doing the tweet search and storing the response object to obtain details on resp
-    content <- twitter_search(
-      q = query,
-      max_id = plan$since_id,
-      since_id = plan$since_target
-    )
+  #if (nchar(query) < 400) {
+  # doing the tweet search and storing the response object to obtain details on resp
+  network_search <- get(sprintf("%s_search", network))
+  content <- network_search(
+    query = query,
+    token = token,
+    plan = plan
+  )
+  json <- content$results
+
+  if (output_in_scala) {
     # Interpreting the content as JSON and storing the results on json (nested list with dataframes)
     # interpreting is necessary to know the number of obtained tweets and the id of the oldest tweet found and to keep tweet collecting stats
     # Saving uninterpreted content as a gzip archive
-    json <- jsonlite::fromJSON(content)
     tries <- 3
     done <- FALSE
     while (!done) {
@@ -291,14 +317,18 @@ search_topic <- function(plan, query, topic) {
               "&geolocate=true"
             ),
             httr::content_type_json(),
-            body = content,
+            body = content$results,
             encode = "raw",
             encoding = "UTF-8",
             httr::timeout((4 - tries) * 5)
           )
           if (httr::status_code(post_result) != 200) {
             print(substring(
-              httr::content(post_result, "text", encoding = "UTF-8"),
+              httr::content(
+                post_result,
+                "text",
+                encoding = "UTF-8"
+              ),
               1,
               100
             ))
@@ -314,88 +344,42 @@ search_topic <- function(plan, query, topic) {
         }
       )
     }
-    # evaluating if rows are obtained if not rows are obtained it means that the plan is finished
-    # plan end can be because all tweets were already collected no more tweets are available because of twitter history limits
-    got_rows <- ((exists("statuses", json) &&
-      is.data.frame(json$statuses) &&
-      nrow(json$statuses) > 0) ||
-      (exists("data", json) && is.data.frame(json$data) && nrow(json$data) > 0))
-
-    # new since_id is the oldest tweet obtained by the request. It is normally provided by the response metadata, but we calculate it because sometimes is missing
-    new_since_id =
-      if (!got_rows) {
-        plan$since_target
-      } else if (exists("statuses", json)) {
-        Reduce(
-          function(x, y) if (x < y) x else y,
-          lapply(json$statuses$id_str, function(x) bit64::as.integer64(x) - 1)
-        )
-      } else {
-        Reduce(
-          function(x, y) if (x < y) x else y,
-          lapply(json$data$id, function(x) bit64::as.integer64(x) - 1)
-        )
-      }
-    max_id =
-      if (!got_rows) {
-        plan$since_target
-      } else if (exists("statuses", json)) {
-        Reduce(
-          function(x, y) if (x > y) x else y,
-          lapply(json$statuses$id_str, function(x) bit64::as.integer64(x))
-        )
-      } else {
-        Reduce(
-          function(x, y) if (x > y) x else y,
-          lapply(json$data$id, function(x) bit64::as.integer64(x))
-        )
-      }
-    if (got_rows) {
-      year <- format(Sys.time(), "%Y")
-      # If rows were obtained we update the stat file that will stored the posted date period of each gz archive.
-      # This is used to improve aggregating performance, by targeting only the files containing tweets for a particular date
-      update_file_stats(
-        filename = gsub(".gz", "", file_name),
-        topic = topic,
-        year = year,
-        first_date = min(
-          if (exists("statuses", json)) {
-            parse_date(json$statuses$created_at)
-          } else {
-            strptime(
-              json$data$created_at,
-              format = "%Y-%m-%dT%H:%M:%OS",
-              tz = "UTC"
-            )
-          }
-        ),
-        last_date = max(
-          if (exists("statuses", json)) {
-            parse_date(json$statuses$created_at)
-          } else {
-            strptime(
-              json$data$created_at,
-              format = "%Y-%m-%dT%H:%M:%OS",
-              tz = "UTC"
-            )
-          }
-        )
-      )
-    }
-    # updating the plan data (new since_id, progress, number of collected tweets, etc.
-    request_finished(
-      plan,
-      got_rows = got_rows,
-      max_id = max_id,
-      since_id = new_since_id
-    )
-  } else {
-    # Managing the case when the query is too long
-    warning(paste("Query too long for API for topic", topic), immediate. = TRUE)
-    plan$requests = plan$requests
-    plan
   }
+
+  # evaluating if rows are obtained
+  got_rows <- get(sprintf("%s_got_rows", network))(content)
+  if (got_rows) {
+    year <- format(Sys.time(), "%Y")
+    date_min_max <- get(sprintf("%s_get_json_date_min_max", network))(content)
+    # If rows were obtained we update the stat file that will stored the posted date period of each gz archive.
+    # This is used to improve aggregating performance, by targeting only the files containing tweets for a particular date
+    update_file_stats(
+      filename = gsub(".gz", "", file_name),
+      topic = topic,
+      year = year,
+      first_date = date_min_max$first_date,
+      last_date = date_min_max$last_date,
+      conf
+    )
+    plan <- get(sprintf("%s_update_plan", network))(plan, got_rows, content)
+  } else {
+    plan <- get(sprintf("%s_no_rows_logic", network))(plan)
+  }
+  # else {
+  # Managing the case when the query is too long
+  #     warning(
+  #         paste("Query too long for API for topic", topic),
+  #         immediate. = TRUE
+  #     )
+  #     plan$requests = plan$requests
+  #     return(plan)
+  # }
+  #}
+  # Update plan boundaries based on search results
+
+  plan
 }
+
 
 # Updating statistic files
 # This function is called after each successful tweet request
