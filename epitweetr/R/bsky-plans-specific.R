@@ -1,3 +1,4 @@
+#' @noRd
 bluesky_get_plan_elements <- function(...) {
     elements_to_add <- list(...)
     expected_names <- c(
@@ -80,10 +81,30 @@ bluesky_get_plan_elements <- function(...) {
     )
 }
 
+#' @noRd
 bluesky_new_plan_logic_if_previous_has_passed <- function(plans) {
     return(
         list(
             "research_max_date" = plans[[1]]$boundaries_date_min
         )
+    )
+}
+
+#' @noRd
+bluesky_finish_plan_logic <- function(p) {
+    list(
+        "research_max_date" = NULL,
+        "research_min_date" = NULL,
+        "boundaries_date_min" = strftime(
+            p$boundaries_date_min,
+            "%Y-%m-%d %H:%M:%S"
+        ),
+        "boundaries_date_max" = strftime(
+            p$boundaries_date_max,
+            "%Y-%m-%d %H:%M:%S"
+        ),
+        "newest_messages_from_previous_queries" = NULL,
+        "oldest_messages_from_previous_queries" = NULL,
+        "has_more" = FALSE
     )
 }

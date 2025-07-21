@@ -100,9 +100,13 @@ update_plans <- function(plans = list(), schedule_span) {
     ) {
         # creating a new plan if expected end has passed
         new_plan_network_specific_logic <- get(
-            sprintf("%s_new_plan_logic_if_has_passed", plans[[1]]$network)
+            sprintf(
+                "%s_new_plan_logic_if_previous_has_passed",
+                plans[[1]]$network
+            )
         )
         params <- list(
+            network = plans[[1]]$network,
             expected_end = if (
                 Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
             ) {
@@ -113,8 +117,7 @@ update_plans <- function(plans = list(), schedule_span) {
         )
         params <- c(
             params,
-            new_plan_network_specific_logic(plans),
-            "network" = plans[[1]]$network
+            new_plan_network_specific_logic(plans)
         )
         first <- do.call(get_plan, params)
         # removing ended plans
@@ -146,7 +149,8 @@ finish_plans <- function(plans = list()) {
     } else {
         # creating a new plan if expected end has passed
         lapply(plans, function(p) {
-            get_plan(
+            plan_common_elements <- list(
+                network = p$network,
                 expected_end = strftime(
                     if (is.null(p$end_on)) {
                         Sys.time() - conf$schedule_span * 60
@@ -172,12 +176,14 @@ finish_plans <- function(plans = list()) {
                     },
                     "%Y-%m-%d %H:%M:%S"
                 ),
-                max_id = p$max_id,
-                since_id = p$since_target,
-                since_target = p$since_target,
                 requests = p$requests,
                 progress = 1.0
             )
+            network_specific_logic <- get(
+                sprintf("%s_finish_plan_logic", p$network)
+            )
+            params <- c(plan_common_elements, network_specific_logic(p))
+            do.call(get_plan, params)
         })
     }
 }
