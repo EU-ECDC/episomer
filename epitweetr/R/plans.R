@@ -26,18 +26,18 @@
 # @rdname get_plan
 # @importFrom bit64 as.integer64
 get_plan <- function(
+    network,
     expected_end,
     scheduled_for = Sys.time(),
     start_on = NULL,
     end_on = NULL,
-    max_id = NULL,
-    since_id = NULL,
-    since_target = NULL,
     results_span = 0,
     requests = 0,
-    progress = 0.0
+    progress = 0.0,
+    ...
 ) {
-    me <- list(
+    common_elements <- list(
+        "network" = network,
         "expected_end" = if (!is.null(unlist(expected_end))) {
             strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S")
         } else {
@@ -58,24 +58,13 @@ get_plan <- function(
         } else {
             NULL
         },
-        "max_id" = if (!is.null(unlist(max_id))) {
-            bit64::as.integer64(unlist(max_id))
-        } else {
-            NULL
-        },
-        "since_id" = if (!is.null(unlist(since_id))) {
-            bit64::as.integer64(unlist(since_id))
-        } else {
-            NULL
-        },
-        "since_target" = if (!is.null(unlist(since_target))) {
-            bit64::as.integer64(unlist(since_target))
-        } else {
-            NULL
-        },
         "requests" = unlist(requests),
         "progress" = unlist(progress)
     )
+    specific_elements <- get(
+        sprintf("%s_get_plan_elements", network)
+    )(...)
+    me <- c(common_elements, specific_elements)
     class(me) <- append(class(me), "get_plan")
     return(me)
 }
