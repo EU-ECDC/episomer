@@ -6,9 +6,11 @@ bsky_search_topic <- function(
   conf
 ) {
   #, conf
-  token <- bsky_get_token()
+  network <- plan$network
+
+  token <- get(sprintf("%s_get_token", network))()
   # Set date boundaries for the search
-  boundaries <- bsky_set_date_boundaries(plan)
+  boundaries <- get(sprintf("%s_set_date_boundaries", network))(plan)
   plan <- boundaries$plan
   max_text <- boundaries$max_text
   min_text <- boundaries$min_text
@@ -158,39 +160,26 @@ bsky_search_topic <- function(
   }
 
   # evaluating if rows are obtained
-  got_rows <- (exists("posts", json) & length(json$posts) > 0)
+  got_rows <- get(sprintf("%s_got_rows", network))(content)
   if (got_rows) {
     year <- format(Sys.time(), "%Y")
-    first_date <- bsky_extract_many_posts_created_at(json$posts) %>%
-      unlist() %>%
-      min()
-    last_date <- bsky_extract_many_posts_created_at(json$posts) %>%
-      unlist() %>%
-      max()
+    date_min_max <- get(sprintf("%s_got_date_min_max", network))(content)
     # If rows were obtained we update the stat file that will stored the posted date period of each gz archive.
     # This is used to improve aggregating performance, by targeting only the files containing tweets for a particular date
     update_file_stats(
       filename = gsub(".gz", "", file_name),
       topic = topic,
       year = year,
-      first_date = strptime(
-        first_date,
-        format = "%Y-%m-%dT%H:%M:%OS",
-        tz = "UTC"
-      ),
-      last_date = strptime(
-        last_date,
-        format = "%Y-%m-%dT%H:%M:%OS",
-        tz = "UTC"
-      ),
+      first_date = date_min_max$first_date,
+      last_date = date_min_max$last_date,
       conf
     )
-    plan <- bsky_update_plan(plan, content)
-  } else {
-    plan$has_more <- FALSE
-    plan$end_on <- Sys.time()
-    # ? plan$request <- 0
-  }
+    plan <- get(sprintf("%s_update_plan", network))(plan, got_rows, content)
+  } #else {
+  # plan$has_more <- FALSE
+  # plan$end_on <- Sys.time()
+  # ? plan$request <- 0
+  # }
   # else {
   # Managing the case when the query is too long
   #     warning(
