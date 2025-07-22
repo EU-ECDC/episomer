@@ -215,7 +215,7 @@ search_loop <- function(
   }
 }
 
-
+#' @noRd
 search_topic <- function(
   plan,
   query,
@@ -223,7 +223,6 @@ search_topic <- function(
   output_in_scala = FALSE,
   conf
 ) {
-  #, conf
   network <- plan$network
 
   token <- get(sprintf("%s_get_token", network))()
@@ -253,7 +252,7 @@ search_topic <- function(
   file_prefix <- paste(format(Sys.time(), "%Y.%m.%d"))
   file_pattern <- paste(format(Sys.time(), "%Y\\.%m\\.%d"))
   # TODO: update folder name
-  dir <- paste(conf$data_dir, network, "search", topic, year, sep = "/")
+  dir <- file.path(conf$data_dir, network, "search", topic, year)
 
   # files will contain all files matching the naming pattern the last alphabetically is going to be measured to evaluate if a new file has to be started
   files <- sort(list.files(path = dir, pattern = file_prefix))
@@ -499,54 +498,53 @@ parse_date <- function(str_date) {
 # since_id: id of the oldest targeted tweet
 # max_id: id of the newest targeted tweet
 # result_type: sort criteria for tweets (recent, popular and mix)
-twitter_search <- function(
-  q,
-  since_id = NULL,
-  max_id = NULL,
-  result_type = "recent",
-  count = 100
-) {
-  search_url = list()
-  #usont v1 endpoint when delegated authentication if user set to use it
-  if (!is_secret_set("app") || "1.1" %in% conf$api_version) {
-    search_url[["1.1"]] <- paste(
-      search_endpoint[["1.1"]],
-      "?q=",
-      URLencode(q, reserved = T),
-      if (!is.null(since_id)) "&since_id=" else "",
-      if (!is.null(since_id)) since_id else "",
-      if (!is.null(max_id)) "&max_id=" else "",
-      if (!is.null(max_id)) max_id else "",
-      "&result_type=",
-      result_type,
-      "&count=",
-      count,
-      "&include_entities=true",
-      sep = ""
-    )
-  }
-  if (is_secret_set("app") && "2" %in% conf$api_version) {
-    search_url[["2"]] <- paste(
-      search_endpoint[["2"]],
-      "?query=",
-      URLencode(gsub(" AND ", " ", q), reserved = T),
-      if (!is.null(since_id)) "&since_id=" else "",
-      if (!is.null(since_id)) since_id - 1 else "",
-      if (!is.null(max_id)) "&until_id=" else "",
-      if (!is.null(max_id)) max_id + 1 else "",
-      "&max_results=",
-      count,
-      "&expansions=author_id,geo.place_id,referenced_tweets.id,referenced_tweets.id.author_id",
-      "&place.fields=country,country_code,full_name,name,place_type",
-      "&tweet.fields=author_id,context_annotations,entities,created_at,geo,id,in_reply_to_user_id,lang,possibly_sensitive,referenced_tweets,source,text", #,geo.coordinates
-      "&user.fields=description,id,location,name,username",
-      sep = ""
-    )
-  }
-  res <- twitter_get(search_url)
-  return(res)
-}
-
+# twitter_search <- function(
+#   q,
+#   since_id = NULL,
+#   max_id = NULL,
+#   result_type = "recent",
+#   count = 100
+# ) {
+#   search_url = list()
+#   #usont v1 endpoint when delegated authentication if user set to use it
+#   if (!is_secret_set("app") || "1.1" %in% conf$api_version) {
+#     search_url[["1.1"]] <- paste(
+#       search_endpoint[["1.1"]],
+#       "?q=",
+#       URLencode(q, reserved = T),
+#       if (!is.null(since_id)) "&since_id=" else "",
+#       if (!is.null(since_id)) since_id else "",
+#       if (!is.null(max_id)) "&max_id=" else "",
+#       if (!is.null(max_id)) max_id else "",
+#       "&result_type=",
+#       result_type,
+#       "&count=",
+#       count,
+#       "&include_entities=true",
+#       sep = ""
+#     )
+#   }
+#   if (is_secret_set("app") && "2" %in% conf$api_version) {
+#     search_url[["2"]] <- paste(
+#       search_endpoint[["2"]],
+#       "?query=",
+#       URLencode(gsub(" AND ", " ", q), reserved = T),
+#       if (!is.null(since_id)) "&since_id=" else "",
+#       if (!is.null(since_id)) since_id - 1 else "",
+#       if (!is.null(max_id)) "&until_id=" else "",
+#       if (!is.null(max_id)) max_id + 1 else "",
+#       "&max_results=",
+#       count,
+#       "&expansions=author_id,geo.place_id,referenced_tweets.id,referenced_tweets.id.author_id",
+#       "&place.fields=country,country_code,full_name,name,place_type",
+#       "&tweet.fields=author_id,context_annotations,entities,created_at,geo,id,in_reply_to_user_id,lang,possibly_sensitive,referenced_tweets,source,text", #,geo.coordinates
+#       "&user.fields=description,id,location,name,username",
+#       sep = ""
+#     )
+#   }
+#   res <- twitter_get(search_url)
+#   return(res)
+# }
 
 # Calculating how long in seconds should epitweetr wait before executing one of the plans in the list which would be the case only if all plans are finished before the end of the search span
 can_wait_for <- function(plans) {

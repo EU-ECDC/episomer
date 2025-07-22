@@ -180,7 +180,7 @@ finish_plans <- function(plans = list()) {
                 progress = 1.0
             )
             network_specific_logic <- get(
-                sprintf("%s_finish_plan_logic", p$network)
+                sprintf("%s_finish_plan", p$network)
             )
             params <- c(plan_common_elements, network_specific_logic(p))
             do.call(get_plan, params)
@@ -199,65 +199,64 @@ next_plan <- function(plans) {
     }
 }
 
-
 # next plan generic function
-request_finished <- function(current, got_rows, max_id, since_id = NULL) {
-    UseMethod("request_finished", current)
-}
+# request_finished <- function(current, got_rows, max_id, since_id = NULL) {
+#     UseMethod("request_finished", current)
+# }
 
 # Update a plan after search request is done
 # If first request, started and max will be set
 # If results are non-empty result span, since_id and max id are set
 # If results are less than requested the search is supposed to be finished
 # If results are equals to the requested limit, more tweets are expected. In that case if the expected end has not yet arrived and we can estimate the remaining number of requests the next schedule will be set to an estimation of the necessary requests to finish. If we do not know, the current schedule will be left untouched.
-request_finished.get_plan <- function(
-    current,
-    got_rows,
-    max_id,
-    since_id = NULL
-) {
-    # increasing the number of requests
-    current$requests <- current$requests + 1
+# request_finished.get_plan <- function(
+#     current,
+#     got_rows,
+#     max_id,
+#     since_id = NULL
+# ) {
+#     # increasing the number of requests
+#     current$requests <- current$requests + 1
 
-    # setting the start date after first request and max id that will be obtained by this plan
-    if (is.null(current$start_on)) {
-        current$start_on = Sys.time()
-        current$max_id = bit64::as.integer64(max_id)
-    }
-    # setting the oldest id obtained by this plan (which should not go before since_target)
-    if (!is.null(since_id)) {
-        current$since_id <- bit64::as.integer64(since_id)
-    }
-    # calculating progress
-    if (
-        !is.null(current$since_target) &&
-            !is.null(current$since_id) &&
-            !is.null(current$max_id)
-    ) {
-        current$progress <- as.double(current$max_id - current$since_id) /
-            as.double(current$max_id - current$since_target)
-    }
-    # Setting the end of the plan if no lines have been obtained
-    if (
-        !got_rows ||
-            (!is.null(current$since_target) &&
-                current$max_id == current$since_target)
-    ) {
-        current$end_on <- Sys.time()
-        #current$progress <- 1.0
-    } else {
-        if (Sys.time() < current$expected_end && current$progress > 0.0) {
-            # this property was designed to delay plans that cab quickly finish, but it has finally not been used.
-            progressByRequest <- current$progress / current$requests
-            requestsToFinish <- (1.0 - current$progress) / progressByRequest
-            current$scheduled_for = Sys.time() +
-                as.integer(difftime(
-                    current$expected_end,
-                    Sys.time(),
-                    units = "secs"
-                )) /
-                    requestsToFinish
-        }
-    }
-    return(current)
-}
+#     # setting the start date after first request and max id that will be obtained by this plan
+#     if (is.null(current$start_on)) {
+#         current$start_on = Sys.time()
+#         current$max_id = bit64::as.integer64(max_id)
+#     }
+#     # setting the oldest id obtained by this plan (which should not go before since_target)
+#     if (!is.null(since_id)) {
+#         current$since_id <- bit64::as.integer64(since_id)
+#     }
+#     # calculating progress
+#     if (
+#         !is.null(current$since_target) &&
+#             !is.null(current$since_id) &&
+#             !is.null(current$max_id)
+#     ) {
+#         current$progress <- as.double(current$max_id - current$since_id) /
+#             as.double(current$max_id - current$since_target)
+#     }
+#     # Setting the end of the plan if no lines have been obtained
+#     if (
+#         !got_rows ||
+#             (!is.null(current$since_target) &&
+#                 current$max_id == current$since_target)
+#     ) {
+#         current$end_on <- Sys.time()
+#         #current$progress <- 1.0
+#     } else {
+#         if (Sys.time() < current$expected_end && current$progress > 0.0) {
+#             # this property was designed to delay plans that cab quickly finish, but it has finally not been used.
+#             progressByRequest <- current$progress / current$requests
+#             requestsToFinish <- (1.0 - current$progress) / progressByRequest
+#             current$scheduled_for = Sys.time() +
+#                 as.integer(difftime(
+#                     current$expected_end,
+#                     Sys.time(),
+#                     units = "secs"
+#                 )) /
+#                     requestsToFinish
+#         }
+#     }
+#     return(current)
+# }
