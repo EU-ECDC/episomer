@@ -24,7 +24,13 @@
 #' @seealso
 #' \code{\link{set_twitter_app_auth}}
 #' @export
-search_loop <- function(data_dir = NA) {
+search_loop <- function(
+  network,
+  data_dir = NA,
+  dev_in_progress = TRUE,
+  conf,
+  kill_after = NULL
+) {
   # Setting or reusing the data directory
   if (is.na(data_dir)) {
     setup_config_if_not_already()
@@ -32,38 +38,43 @@ search_loop <- function(data_dir = NA) {
     setup_config(data_dir = data_dir)
   }
 
-  # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-  register_search_runner()
-
+  if (!dev_in_progress) {
+    # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
+    register_search_runner()
+  }
   # Infinite loop for getting tweets if it is successfully registered as the search runner
   req2Commit <- 0
   last_check <- Sys.time()
   last_save <- Sys.time()
+  first_call <- Sys.time()
   while (TRUE) {
     loop_start <- Sys.time()
-    # Waiting until database system will be running
-    while (!is_fs_running()) {
-      msg("Epitweetr database is not yet running waiting for 5 seconds")
-      Sys.sleep(5)
-    }
-    # Dismissing history if required from shiny app
-    if (conf$dismiss_past_request > conf$dismiss_past_done) {
-      if (
-        length(conf$topics[sapply(conf$topics, function(t) {
-          length(t$plan) == 0 || t$plan[[1]]$requests == 0
-        })]) >
-          0
-      ) {
-        msg(
-          "Dismissing history has to wait until all plans have at least one plan with one request"
-        )
-      } else {
-        msg("Dismissing history requested")
 
-        for (i in 1:length(conf$topics)) {
-          conf$topics[[i]]$plan <- finish_plans(plans = conf$topics[[i]]$plan)
+    # Waiting until database system will be running
+    if (!dev_in_progress) {
+      while (!is_fs_running()) {
+        msg("Epitweetr database is not yet running waiting for 5 seconds")
+        Sys.sleep(5)
+      }
+      # Dismissing history if required from shiny app
+      if (conf$dismiss_past_request > conf$dismiss_past_done) {
+        if (
+          length(conf$topics[sapply(conf$topics, function(t) {
+            length(t$plan) == 0 || t$plan[[1]]$requests == 0
+          })]) >
+            0
+        ) {
+          msg(
+            "Dismissing history has to wait until all plans have at least one plan with one request"
+          )
+        } else {
+          msg("Dismissing history requested")
+
+          for (i in 1:length(conf$topics)) {
+            conf$topics[[i]]$plan <- finish_plans(plans = conf$topics[[i]]$plan)
+          }
+          conf$dismiss_past_done <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
         }
-        conf$dismiss_past_done <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
       }
     }
     # On each iteration this loop will perform one request for each active plans having the minimum number of requests
@@ -77,21 +88,23 @@ search_loop <- function(data_dir = NA) {
 
     # Calculating how the time epitweetr should wait before executing each active plan. If bigger than zero then epitweetr will wait.
     # If waiting happens here, it means that epitweetr is able to collect all tweets under current twitter rate limits, so it could collect more topics or sooner.
-    wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
-      can_wait_for(plans = conf$topics[[i]]$plan)
-    })))
-    if (wait_for > 0) {
-      msg(paste(
-        Sys.time(),
-        ": All done! going to sleep for until",
-        Sys.time() + wait_for,
-        "during",
-        wait_for,
-        "seconds. Consider reducing the schedule_span for getting tweets sooner"
-      ))
-      commit_tweets()
-      save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
-      Sys.sleep(wait_for)
+    if (!dev_in_progress) {
+      wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
+        can_wait_for(plans = conf$topics[[i]]$plan)
+      })))
+      if (wait_for > 0) {
+        msg(paste(
+          Sys.time(),
+          ": All done! going to sleep for until",
+          Sys.time() + wait_for,
+          "during",
+          wait_for,
+          "seconds. Consider reducing the schedule_span for getting tweets sooner"
+        ))
+        commit_tweets()
+        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
+        Sys.sleep(wait_for)
+      }
     }
 
     #getting only the next plan to execute for each topic (it could be a previous unfinished plan)
@@ -111,14 +124,27 @@ search_loop <- function(data_dir = NA) {
       })
     )
 
-    #updating series to aggregate
-    register_series()
+    if (!dev_in_progress) {
+      #updating series to aggregate
+      register_series()
+    }
     #msg(paste("iterating in topics", length(conf$topics), min_requests))
     #performing search only for plans with a minimum number of requests (round robin)
     requests_done <- 0
     for (i in 1:length(conf$topics)) {
       for (j in 1:length(conf$topics[[i]]$plan)) {
+        if (!is.null(kill_after)) {
+          if (difftime(Sys.time(), first_call, units = "secs") > kill_after) {
+            # For unit tests
+            stop("Killing search loop after ", kill_after, " seconds")
+          }
+        }
         plan <- conf$topics[[i]]$plan[[j]]
+        # For debugging
+        # jsonlite::write_json(
+        #   plan,
+        #   paste(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "plan.json")
+        # )
         if (
           plan$requests <= min_requests &&
             (is.null(plan$end_on) || plan$requests == 0)
@@ -130,7 +156,8 @@ search_loop <- function(data_dir = NA) {
               conf$topics[[i]]$plan[[j]] = search_topic(
                 plan = plan,
                 query = conf$topics[[i]]$query,
-                topic = conf$topics[[i]]$topic
+                topic = conf$topics[[i]]$topic,
+                conf = conf
               )
             },
             error = function(e) {
@@ -152,64 +179,81 @@ search_loop <- function(data_dir = NA) {
             }
           )
           req2Commit <- req2Commit + 1
-          if (req2Commit > 100) {
-            commit_tweets()
-            req2Commit <- 0
+          if (!dev_in_progress) {
+            if (req2Commit > 100) {
+              commit_tweets()
+              req2Commit <- 0
+            }
           }
         }
       }
     }
-    #msg("iteration end")
-    #checking at most once per 10 minutes
-    if (difftime(Sys.time(), last_check, units = "mins") > 10) {
-      # epitweetr sanity check and sendig email in case of issued
-      #msg("health checked")
-      last_check <- Sys.time()
-      health_check()
-    }
+    if (!dev_in_progress) {
+      #msg("iteration end")
+      #checking at most once per 10 minutes
+      if (difftime(Sys.time(), last_check, units = "mins") > 10) {
+        # epitweetr sanity check and sendig email in case of issued
+        #msg("health checked")
+        last_check <- Sys.time()
+        health_check()
+      }
 
-    #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds
-    if (difftime(Sys.time(), last_save, units = "secs") > 10) {
-      last_save <- Sys.time()
-      setup_config(data_dir = conf$data_dir, save_first = list("topics"))
-      #msg("config saved and refreshed")
-    }
+      #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds
+      if (difftime(Sys.time(), last_save, units = "secs") > 10) {
+        last_save <- Sys.time()
+        setup_config(data_dir = conf$data_dir, save_first = list("topics"))
+        #msg("config saved and refreshed")
+      }
 
-    if (requests_done == 0) {
-      message(
-        "No requests performed on loop.... something may be wrong, sleeping 1 second"
-      )
-      Sys.sleep(1)
+      if (requests_done == 0) {
+        message(
+          "No requests performed on loop.... something may be wrong, sleeping 1 second"
+        )
+        Sys.sleep(1)
+      }
     }
   }
 }
 
-# Getting tweets for a particular plan, query and topic
-# This function is called by the search_loop
-# plan: contains the id range that is being collected and the last tweet obtained. This will allow epitweetr to target the tweets to obtain on current request
-# query: contains the text query to be sent to twitter
-# topic: the topic to register the results on
-# returns the updated plan after search
-search_topic <- function(plan, query, topic) {
+
+search_topic <- function(
+  plan,
+  query,
+  topic,
+  output_in_scala = FALSE,
+  conf
+) {
+  #, conf
+  network <- plan$network
+
+  token <- get(sprintf("%s_get_token", network))()
+  # Set date boundaries for the search
+  boundaries <- get(sprintf("%s_set_date_boundaries", network))(plan)
+  plan <- boundaries$plan
+  max_text <- boundaries$max_text
+  min_text <- boundaries$min_text
+
   msg(paste(
     "searching for topic",
     topic,
     "from",
-    plan$since_target,
+    min_text,
     "until",
-    if (is.null(plan$since_id)) "(last tweet)" else plan$since_id
+    max_text
   ))
+
   # Tweets are stored on the following folder structure data_folder/tweets/search/topic/year
   # Ensuring that folders for storing tweets are created
   year <- format(Sys.time(), "%Y")
-  create_dirs(topic, year)
+  create_dirs(network, topic, year, conf) #, conf
 
   # Tweets are stored as gzipped files with the following naming: "YYYY.MM.DD.counter.json.gz"
   # Counter starts with 00001 and it is increased after the last file grows over 100M
   # getting prefix and regular expression for tweet archive name
   file_prefix <- paste(format(Sys.time(), "%Y.%m.%d"))
   file_pattern <- paste(format(Sys.time(), "%Y\\.%m\\.%d"))
-  dir <- paste(conf$data_dir, "tweets", "search", topic, year, sep = "/")
+  # TODO: update folder name
+  dir <- paste(conf$data_dir, network, "search", topic, year, sep = "/")
 
   # files will contain all files matching the naming pattern the last alphabetically is going to be measured to evaluate if a new file has to be started
   files <- sort(list.files(path = dir, pattern = file_prefix))
@@ -230,10 +274,19 @@ search_topic <- function(plan, query, topic) {
       last
     } else {
       #Try to get current index after date as integer and increasing it by one, if not possible a 00001 index will be added
-      parts <- strsplit(gsub(".json.gz", "", last), split = "\\.")[[1]]
-      if (length(parts) <= 3 || is.na(as.integer(parts[[length(parts)]]))) {
+      parts <- strsplit(gsub(".json.gz", "", last), split = "\\.")[[
+        1
+      ]]
+      if (
+        length(parts) <= 3 ||
+          is.na(as.integer(parts[[length(parts)]]))
+      ) {
         paste(
-          c(parts, formatC(1, width = 5, format = "d", flag = "0"), "json.gz"),
+          c(
+            parts,
+            formatC(1, width = 5, format = "d", flag = "0"),
+            "json.gz"
+          ),
           collapse = "."
         )
       } else {
@@ -255,28 +308,31 @@ search_topic <- function(plan, query, topic) {
   })
 
   # putting all parts together to get current file name
-  dest <- paste(
+  # TODO: update folder name
+  dest <- file.path(
     conf$data_dir,
-    "tweets",
+    network,
     "search",
     topic,
     year,
-    file_name,
-    sep = "/"
+    file_name
   )
 
   # Ensuring that query is smaller than 400 character (Twitter API limit)
-  if (nchar(query) < 400) {
-    # doing the tweet search and storing the response object to obtain details on resp
-    content <- twitter_search(
-      q = query,
-      max_id = plan$since_id,
-      since_id = plan$since_target
-    )
+  #if (nchar(query) < 400) {
+  # doing the tweet search and storing the response object to obtain details on resp
+  network_search <- get(sprintf("%s_search", network))
+  content <- network_search(
+    query = query,
+    token = token,
+    plan = plan
+  )
+  json <- content$results
+
+  if (output_in_scala) {
     # Interpreting the content as JSON and storing the results on json (nested list with dataframes)
     # interpreting is necessary to know the number of obtained tweets and the id of the oldest tweet found and to keep tweet collecting stats
     # Saving uninterpreted content as a gzip archive
-    json <- jsonlite::fromJSON(content)
     tries <- 3
     done <- FALSE
     while (!done) {
@@ -291,14 +347,18 @@ search_topic <- function(plan, query, topic) {
               "&geolocate=true"
             ),
             httr::content_type_json(),
-            body = content,
+            body = content$results,
             encode = "raw",
             encoding = "UTF-8",
             httr::timeout((4 - tries) * 5)
           )
           if (httr::status_code(post_result) != 200) {
             print(substring(
-              httr::content(post_result, "text", encoding = "UTF-8"),
+              httr::content(
+                post_result,
+                "text",
+                encoding = "UTF-8"
+              ),
               1,
               100
             ))
@@ -314,88 +374,41 @@ search_topic <- function(plan, query, topic) {
         }
       )
     }
-    # evaluating if rows are obtained if not rows are obtained it means that the plan is finished
-    # plan end can be because all tweets were already collected no more tweets are available because of twitter history limits
-    got_rows <- ((exists("statuses", json) &&
-      is.data.frame(json$statuses) &&
-      nrow(json$statuses) > 0) ||
-      (exists("data", json) && is.data.frame(json$data) && nrow(json$data) > 0))
-
-    # new since_id is the oldest tweet obtained by the request. It is normally provided by the response metadata, but we calculate it because sometimes is missing
-    new_since_id =
-      if (!got_rows) {
-        plan$since_target
-      } else if (exists("statuses", json)) {
-        Reduce(
-          function(x, y) if (x < y) x else y,
-          lapply(json$statuses$id_str, function(x) bit64::as.integer64(x) - 1)
-        )
-      } else {
-        Reduce(
-          function(x, y) if (x < y) x else y,
-          lapply(json$data$id, function(x) bit64::as.integer64(x) - 1)
-        )
-      }
-    max_id =
-      if (!got_rows) {
-        plan$since_target
-      } else if (exists("statuses", json)) {
-        Reduce(
-          function(x, y) if (x > y) x else y,
-          lapply(json$statuses$id_str, function(x) bit64::as.integer64(x))
-        )
-      } else {
-        Reduce(
-          function(x, y) if (x > y) x else y,
-          lapply(json$data$id, function(x) bit64::as.integer64(x))
-        )
-      }
-    if (got_rows) {
-      year <- format(Sys.time(), "%Y")
-      # If rows were obtained we update the stat file that will stored the posted date period of each gz archive.
-      # This is used to improve aggregating performance, by targeting only the files containing tweets for a particular date
-      update_file_stats(
-        filename = gsub(".gz", "", file_name),
-        topic = topic,
-        year = year,
-        first_date = min(
-          if (exists("statuses", json)) {
-            parse_date(json$statuses$created_at)
-          } else {
-            strptime(
-              json$data$created_at,
-              format = "%Y-%m-%dT%H:%M:%OS",
-              tz = "UTC"
-            )
-          }
-        ),
-        last_date = max(
-          if (exists("statuses", json)) {
-            parse_date(json$statuses$created_at)
-          } else {
-            strptime(
-              json$data$created_at,
-              format = "%Y-%m-%dT%H:%M:%OS",
-              tz = "UTC"
-            )
-          }
-        )
-      )
-    }
-    # updating the plan data (new since_id, progress, number of collected tweets, etc.
-    request_finished(
-      plan,
-      got_rows = got_rows,
-      max_id = max_id,
-      since_id = new_since_id
-    )
-  } else {
-    # Managing the case when the query is too long
-    warning(paste("Query too long for API for topic", topic), immediate. = TRUE)
-    plan$requests = plan$requests
-    plan
   }
+
+  # evaluating if rows are obtained
+  got_rows <- get(sprintf("%s_got_rows", network))(content)
+  if (got_rows) {
+    year <- format(Sys.time(), "%Y")
+    date_min_max <- get(sprintf("%s_get_json_date_min_max", network))(content)
+    # If rows were obtained we update the stat file that will stored the posted date period of each gz archive.
+    # This is used to improve aggregating performance, by targeting only the files containing tweets for a particular date
+    update_file_stats(
+      filename = gsub(".gz", "", file_name),
+      topic = topic,
+      year = year,
+      first_date = date_min_max$first_date,
+      last_date = date_min_max$last_date,
+      conf
+    )
+    plan <- get(sprintf("%s_update_plan", network))(plan, got_rows, content)
+  } else {
+    plan <- get(sprintf("%s_no_rows_logic", network))(plan)
+  }
+  # else {
+  # Managing the case when the query is too long
+  #     warning(
+  #         paste("Query too long for API for topic", topic),
+  #         immediate. = TRUE
+  #     )
+  #     plan$requests = plan$requests
+  #     return(plan)
+  # }
+  #}
+  # Update plan boundaries based on search results
+  plan
 }
+
 
 # Updating statistic files
 # This function is called after each successful tweet request
@@ -535,202 +548,6 @@ twitter_search <- function(
 }
 
 
-# @title get_plan S3 class constructor
-# @description Create a new 'get plan' for importing tweets using the Search API
-# @param expected_end Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the target end datetime of this plan
-# @param scheduled_for Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the expected datetime for next execution, default: Sys.time()
-# @param start_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan was first executed, default: NULL
-# @param end_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan has finished, default: NULL
-# @param max_id Integer(64), the newest tweet collected by this plan represented by its tweet id. This value is defined after the first successful request is done and does not change by request, default: NULL
-# @param since_id Integer(64) the oldest tweet that has currently been collected by this plan, this value is updated after each request, default: NULL
-# @param since_target Interger(64), the oldest tweet id that is expected to be obtained by this plan, this value is set as the max_id from the previous plan + 1, default: NULL
-# @param results_span Number of minutes after which this plan expires counting from start date, default: 0
-# @param requests Integer, number of requests successfully executed, default: 0
-# @param progress Numeric, percentage of progress of current plan defined when since_target_id is known or when a request returns no more results, default: 0
-# @return The get_plan object defined by input parameters
-# @details A plan is an S3 class representing a commitment to download tweets from the search API
-# It targets a specific time frame defined from the last tweet collected by the previous plan, if any, and the last tweet collected on its first request
-# This commitment will be valid during a period of time defined from the time of its first execution until the end_on parameter
-# a plan will perform several requests to the search API and each time a request is performed the number of requests will be increased.
-# The field scheduled_for indicates the time when the next request is expected to be executed.
-# @examples
-# if(FALSE){
-#  #creating the default plan
-#  get_plan()
-# }
-# @seealso
-#  \code{\link[bit64]{as.integer64.character}}
-# @rdname get_plan
-# @importFrom bit64 as.integer64
-get_plan <- function(
-  expected_end,
-  scheduled_for = Sys.time(),
-  start_on = NULL,
-  end_on = NULL,
-  max_id = NULL,
-  since_id = NULL,
-  since_target = NULL,
-  results_span = 0,
-  requests = 0,
-  progress = 0.0
-) {
-  me <- list(
-    "expected_end" = if (!is.null(unlist(expected_end))) {
-      strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S")
-    } else {
-      NULL
-    },
-    "scheduled_for" = if (!is.null(unlist(scheduled_for))) {
-      strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S")
-    } else {
-      NULL
-    },
-    "start_on" = if (!is.null(unlist(start_on))) {
-      strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S")
-    } else {
-      NULL
-    },
-    "end_on" = if (!is.null(unlist(end_on))) {
-      strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S")
-    } else {
-      NULL
-    },
-    "max_id" = if (!is.null(unlist(max_id))) {
-      bit64::as.integer64(unlist(max_id))
-    } else {
-      NULL
-    },
-    "since_id" = if (!is.null(unlist(since_id))) {
-      bit64::as.integer64(unlist(since_id))
-    } else {
-      NULL
-    },
-    "since_target" = if (!is.null(unlist(since_target))) {
-      bit64::as.integer64(unlist(since_target))
-    } else {
-      NULL
-    },
-    "requests" = unlist(requests),
-    "progress" = unlist(progress)
-  )
-  class(me) <- append(class(me), "get_plan")
-  return(me)
-}
-
-
-# @title Update get plans
-# @description Updating plans for a particular topic
-# @param plans The existing plans for the topic, default: list()
-# @param schedule_target target minutes for finishing a plan
-# @return updated list of 'get_plan'
-# @details
-# This function will update the plan list of a topic taking in consideration the search span
-# This function is called at the beginning of each search loop iteration applying the following rules
-# If no plans are set, a new plan for getting all possible tweets will be set
-# If current plan has started and the expected end has passed, a new plan will be added for collecting new tweets (previous plan will be stored for future execution if possible)
-# Any finished plans after the first will be discharged. Note that after 7 days, all plans should be discharged because of empty results and as a measure of precaution, a maximum of 100 plans are kept)
-# @returns the updated list of plans
-# @examples
-# if(FALSE){
-#  #Getting default plan
-#  update_plans(plans = list(), schedule_span = 120)
-#  #Updating topics for first topic
-#  update_plans(plans = conf$topics[[1]]$plan, schedule_span = conf$collect_span)
-# }
-# @rdname update_plans
-update_plans <- function(plans = list(), schedule_span) {
-  # Testing if there are plans present
-  if (length(plans) == 0) {
-    # Getting default plan for when no existing plans are present setting the expected end
-    return(list(get_plan(expected_end = Sys.time() + 60 * schedule_span)))
-  } else if (plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()) {
-    # creating a new plan if expected end has passed
-    first <-
-      get_plan(
-        expected_end = if (
-          Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
-        ) {
-          Sys.time() + 60 * schedule_span
-        } else {
-          plans[[1]]$expected_end + 60 * schedule_span
-        },
-        since_target = plans[[1]]$max_id + 1
-      )
-    # removing ended plans
-    non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
-    # removing plans if more of 100 plans are activeff
-    return(append(
-      list(first),
-      if (length(non_ended) < 100) non_ended else non_ended[1:100]
-    ))
-  } else {
-    first <- plans[[1]]
-    rest <- plans[-1]
-    # removing ended plans
-    non_ended <- rest[unlist(sapply(rest, function(x) is.null(x$end_on)))]
-    # removing ended plans
-    return(append(
-      list(first),
-      if (length(non_ended) < 100) non_ended else non_ended[1:100]
-    ))
-  }
-}
-
-# Get next plan to plan to download
-next_plan <- function(plans) {
-  plans <- if ("get_plan" %in% class(plans)) list(plans) else plans
-  non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
-  if (length(non_ended) == 0) {
-    return(NULL)
-  } else {
-    return(non_ended[[1]])
-  }
-}
-
-# finish the provided plans
-finish_plans <- function(plans = list()) {
-  # Testing if there are plans present
-  if (length(plans) == 0) {
-    list()
-  } else {
-    # creating a new plan if expected end has passed
-    lapply(plans, function(p) {
-      get_plan(
-        expected_end = strftime(
-          if (is.null(p$end_on)) {
-            Sys.time() - conf$schedule_span * 60
-          } else {
-            p$end_on
-          },
-          "%Y-%m-%d %H:%M:%S"
-        ),
-        scheduled_for = strftime(p$scheduled_for, "%Y-%m-%d %H:%M:%S"),
-        start_on = strftime(
-          if (is.null(p$start_on)) {
-            Sys.time() - conf$schedule_span * 60
-          } else {
-            p$start_on
-          },
-          "%Y-%m-%d %H:%M:%S"
-        ),
-        end_on = strftime(
-          if (is.null(p$end_on)) {
-            Sys.time() - conf$schedule_span * 60
-          } else {
-            p$end_on
-          },
-          "%Y-%m-%d %H:%M:%S"
-        ),
-        max_id = p$max_id,
-        since_id = p$since_target,
-        since_target = p$since_target,
-        requests = p$requests,
-        progress = 1.0
-      )
-    })
-  }
-}
-
 # Calculating how long in seconds should epitweetr wait before executing one of the plans in the list which would be the case only if all plans are finished before the end of the search span
 can_wait_for <- function(plans) {
   plans <- if ("get_plan" %in% class(plans)) list(plans) else plans
@@ -748,90 +565,33 @@ can_wait_for <- function(plans) {
 }
 
 
-# next plan generic function
-request_finished <- function(current, got_rows, max_id, since_id = NULL) {
-  UseMethod("request_finished", current)
-}
-
-# Update a plan after search request is done
-# If first request, started and max will be set
-# If results are non-empty result span, since_id and max id are set
-# If results are less than requested the search is supposed to be finished
-# If results are equals to the requested limit, more tweets are expected. In that case if the expected end has not yet arrived and we can estimate the remaining number of requests the next schedule will be set to an estimation of the necessary requests to finish. If we do not know, the current schedule will be left untouched.
-request_finished.get_plan <- function(
-  current,
-  got_rows,
-  max_id,
-  since_id = NULL
-) {
-  # increasing the number of requests
-  current$requests <- current$requests + 1
-
-  # setting the start date after first request and max id that will be obtained by this plan
-  if (is.null(current$start_on)) {
-    current$start_on = Sys.time()
-    current$max_id = bit64::as.integer64(max_id)
-  }
-  # setting the oldest id obtained by this plan (which should not go before since_target)
-  if (!is.null(since_id)) {
-    current$since_id <- bit64::as.integer64(since_id)
-  }
-  # calculating progress
-  if (
-    !is.null(current$since_target) &&
-      !is.null(current$since_id) &&
-      !is.null(current$max_id)
-  ) {
-    current$progress <- as.double(current$max_id - current$since_id) /
-      as.double(current$max_id - current$since_target)
-  }
-  # Setting the end of the plan if no lines have been obtained
-  if (
-    !got_rows ||
-      (!is.null(current$since_target) && current$max_id == current$since_target)
-  ) {
-    current$end_on <- Sys.time()
-    #current$progress <- 1.0
-  } else {
-    if (Sys.time() < current$expected_end && current$progress > 0.0) {
-      # this property was designed to delay plans that cab quickly finish, but it has finally not been used.
-      progressByRequest <- current$progress / current$requests
-      requestsToFinish <- (1.0 - current$progress) / progressByRequest
-      current$scheduled_for = Sys.time() +
-        as.integer(difftime(current$expected_end, Sys.time(), units = "secs")) /
-          requestsToFinish
-    }
-  }
-  return(current)
-}
-
 # create topic directories if they do not exist
-create_dirs <- function(topic = NA, year = NA, conf) {
+create_dirs <- function(network, topic = NA, year = NA, conf) {
   if (!file.exists(paste(conf$data_dir, sep = "/"))) {
     dir.create(paste(conf$data_dir, sep = "/"), showWarnings = FALSE)
   }
-  if (!file.exists(paste(conf$data_dir, "tweets", sep = "/"))) {
-    dir.create(paste(conf$data_dir, "tweets", sep = "/"), showWarnings = FALSE)
+  if (!file.exists(paste(conf$data_dir, network, sep = "/"))) {
+    dir.create(paste(conf$data_dir, network, sep = "/"), showWarnings = FALSE)
   }
-  if (!file.exists(paste(conf$data_dir, "tweets", "search", sep = "/"))) {
+  if (!file.exists(paste(conf$data_dir, network, "search", sep = "/"))) {
     dir.create(
-      paste(conf$data_dir, "tweets", "search", sep = "/"),
+      paste(conf$data_dir, network, "search", sep = "/"),
       showWarnings = FALSE
     )
   }
   if (!is.na(topic) && !is.na(year)) {
     if (
-      !file.exists(paste(conf$data_dir, "tweets", "search", topic, sep = "/"))
+      !file.exists(paste(conf$data_dir, network, "search", topic, sep = "/"))
     ) {
       dir.create(
-        paste(conf$data_dir, "tweets", "search", topic, sep = "/"),
+        paste(conf$data_dir, network, "search", topic, sep = "/"),
         showWarnings = FALSE
       )
     }
     if (
       !file.exists(paste(
         conf$data_dir,
-        "tweets",
+        network,
         "search",
         topic,
         year,
@@ -839,7 +599,7 @@ create_dirs <- function(topic = NA, year = NA, conf) {
       ))
     ) {
       dir.create(
-        paste(conf$data_dir, "tweets", "search", topic, year, sep = "/"),
+        paste(conf$data_dir, network, "search", topic, year, sep = "/"),
         showWarnings = FALSE
       )
     }

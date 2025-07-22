@@ -1,7 +1,7 @@
-test_that("bsky_set_date_boundaries works", {
+test_that("bluesky_set_date_boundaries works", {
   plan <- list()
 
-  boundaries <- bsky_set_date_boundaries(plan)
+  boundaries <- bluesky_set_date_boundaries(plan)
   plan_new <- boundaries$plan
   max_text <- boundaries$max_text
   min_text <- boundaries$min_text
@@ -16,7 +16,7 @@ test_that("bsky_set_date_boundaries works", {
   expect_equal(min_text, "first message")
 })
 
-test_that("bsky_set_date_boundaries works with a plan updated by a previous search in a given query", {
+test_that("bluesky_set_date_boundaries works with a plan updated by a previous search in a given query", {
   # We have a plan updated by a previous search in a given query
   plan <- list(
     boundaries_date_min = lubridate::as_datetime(
@@ -29,7 +29,7 @@ test_that("bsky_set_date_boundaries works with a plan updated by a previous sear
     )
   )
 
-  boundaries <- bsky_set_date_boundaries(plan)
+  boundaries <- bluesky_set_date_boundaries(plan)
   plan_new <- boundaries$plan
 
   expect_equal(
@@ -41,7 +41,7 @@ test_that("bsky_set_date_boundaries works with a plan updated by a previous sear
   expect_equal(boundaries$min_text, plan$boundaries_date_max)
 })
 
-test_that("bsky_set_date_boundaries fails when we want to retrieve data that we already have", {
+test_that("bluesky_set_date_boundaries fails when we want to retrieve data that we already have", {
   # We have a plan updated by a previous search in a given query
   plan <- list(
     boundaries_date_min = lubridate::as_datetime(
@@ -59,12 +59,12 @@ test_that("bsky_set_date_boundaries fails when we want to retrieve data that we 
   )
 
   expect_error(
-    bsky_set_date_boundaries(plan),
+    bluesky_set_date_boundaries(plan),
     "We already have all the data we need"
   )
 })
 
-test_that("bsky_update_plan works", {
+test_that("bluesky_update_plan works", {
   # We mimic a full search
   # Query 1: we have a full research to perform
 
@@ -92,7 +92,7 @@ test_that("bsky_update_plan works", {
 
   newest_message_ever <- content$newest_message_in_a_query
 
-  plan_new <- bsky_update_plan(plan_initial, content)
+  plan_new <- bluesky_update_plan(plan_initial, got_rows = TRUE, content)
 
   # We expect the next search to start from the oldest message in the previous search
   expect_equal(
@@ -140,7 +140,7 @@ test_that("bsky_update_plan works", {
     has_more = TRUE
   )
 
-  plan_new <- bsky_update_plan(plan_new, content)
+  plan_new <- bluesky_update_plan(plan_new, got_rows = TRUE, content)
   # We expect the next search to start from the oldest message in the previous search
   expect_equal(
     plan_new$research_max_date,
@@ -186,7 +186,7 @@ test_that("bsky_update_plan works", {
     has_more = FALSE
   )
 
-  plan_new <- bsky_update_plan(plan_new, content)
+  plan_new <- bluesky_update_plan(plan_new, got_rows = FALSE, content)
 
   # We expect the next search to start from the oldest message in the previous search
   expect_true(
@@ -225,7 +225,7 @@ test_that("bsky_update_plan works", {
   # What happens if we start a new research with the last plan
   plan_to_restart_with <- plan_new
 
-  boundaries <- bsky_set_date_boundaries(plan_to_restart_with)
+  boundaries <- bluesky_set_date_boundaries(plan_to_restart_with)
   plan_new <- boundaries$plan
 
   ## We want our future research to start from the last message retrieved

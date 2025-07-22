@@ -11,10 +11,10 @@
 #' @rdname session
 #' @examples
 #' \dontrun{
-#' bsky_create_session()
+#' bluesky_create_session()
 #' }
 #'
-bsky_create_session <- function(
+bluesky_create_session <- function(
   handle = Sys.getenv("bluesky_id"),
   password = Sys.getenv("bluesky_pwd"),
   login_url = "https://bsky.social/xrpc/com.atproto.server.createSession"
@@ -52,7 +52,7 @@ bsky_create_session <- function(
     refreshJwt = session$refreshJwt,
     created = Sys.time()
   )
-  saveRDS(session, "bsky_session.rds")
+  saveRDS(session, "bluesky_session.rds")
   return(session)
 }
 
@@ -61,23 +61,23 @@ bsky_create_session <- function(
 #' @return Token
 #' @export
 #' @rdname session
-bsky_get_token <- function() {
-  if (file.exists("bsky_session.rds")) {
-    session <- readRDS("bsky_session.rds")
-    access_jwt <- bsky_check_token_validity(session$access_jwt)
+bluesky_get_token <- function() {
+  if (file.exists("bluesky_session.rds")) {
+    session <- readRDS("bluesky_session.rds")
+    access_jwt <- bluesky_check_token_validity(session$access_jwt)
     if (session$created < Sys.time() - 3600) {
-      session <- bsky_create_session()
+      session <- bluesky_create_session()
       access_jwt <- session$access_jwt
     }
     return(access_jwt)
   }
-  return(bsky_create_session()$access_jwt)
+  return(bluesky_create_session()$access_jwt)
 }
 
 #' @noRd
 #' @rdname session
 #' @importFrom httr2 request req_url_query req_headers req_error req_perform resp_status
-bsky_check_token_validity <- function(
+bluesky_check_token_validity <- function(
   access_jwt,
   search_url = "https://bsky.social/xrpc/app.bsky.feed.searchPosts"
 ) {
@@ -88,7 +88,7 @@ bsky_check_token_validity <- function(
     req_perform()
   if (resp_status(simple_request) == 401) {
     message("Invalid token. Creating a new session.")
-    access_jwt <- bsky_create_session()$access_jwt
+    access_jwt <- bluesky_create_session()$access_jwt
   }
   return(access_jwt)
 }
