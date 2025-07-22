@@ -38,47 +38,6 @@ test_that("bluesky_get_plan_elements works", {
 })
 
 
-test_that("bluesky_new_plan_logic_if_has_passed works", {
-  schedule_span <- 10
-  plan <- list(
-    list(
-      expected_end = Sys.time(),
-      boundaries_date_min = "2025-01-01 00:00:00"
-    )
-  )
-
-  bluesky_logic <- bluesky_new_plan_logic_if_previous_has_passed(plan)
-  expect_equal(bluesky_logic$research_max_date, plan[[1]]$boundaries_date_min)
-})
-
-test_that("bluesky_new_plan_logic_if_has_passed integrates within update_plan", {
-  schedule_span <- 10
-  plan <- list(
-    list(
-      expected_end = Sys.time(),
-      boundaries_date_min = "2025-01-01 00:00:00"
-    )
-  )
-
-  bluesky_logic <- bluesky_new_plan_logic_if_previous_has_passed(plan)
-
-  params <- list(
-    expected_end = if (
-      Sys.time() > plan[[1]]$expected_end + 60 * schedule_span
-    ) {
-      Sys.time() + 60 * schedule_span
-    } else {
-      plan[[1]]$expected_end + 60 * schedule_span
-    },
-    network = "bluesky"
-  )
-
-  params <- c(params, bluesky_logic)
-
-  expect_no_error(do.call(get_plan, params))
-})
-
-
 test_that("bluesky_finish_plan works", {
   plan <- list(
     list(

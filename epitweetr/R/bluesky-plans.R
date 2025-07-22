@@ -82,15 +82,17 @@ bluesky_get_plan_elements <- function(...) {
 }
 
 #' @noRd
-bluesky_new_plan_logic_if_previous_has_passed <- function(plans) {
-    return(
-        list(
-            "research_max_date" = plans[[1]]$boundaries_date_min,
-            "research_min_date" = plans[[1]]$research_min_date,
-            "boundaries_date_max" = plans[[1]]$boundaries_date_max
-        )
-    )
-}
+# bluesky_new_plan_logic_if_previous_has_passed <- function(plans) {
+#     return(
+#         list(
+#             #"research_max_date" = plans[[1]]$boundaries_date_min,
+#             "research_max_date" = plans[[1]]$research_max_date,
+#             "research_min_date" = plans[[1]]$research_min_date,
+#             "boundaries_date_max" = plans[[1]]$boundaries_date_max,
+#             "boundaries_date_min" = plans[[1]]$boundaries_date_min
+#         )
+#     )
+# }
 
 #' @noRd
 bluesky_finish_plan <- function(p) {
