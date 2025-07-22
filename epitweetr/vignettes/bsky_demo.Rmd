@@ -39,11 +39,12 @@ token <- infos$access_jwt
 
 ```{r, eval=FALSE}
 posts <- bluesky_search(
-  keyword = "covid19",
-  access_jwt = token,
-  number_of_posts_per_request = 100,
-  since = NULL,
-  until = NULL
+  query = "covid19",
+  token = token,
+  plan = list(
+    since = NULL,
+    until = NULL
+  )
 )
 ```
 
