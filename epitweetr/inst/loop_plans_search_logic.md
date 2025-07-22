@@ -5,7 +5,7 @@ Functions regarding the Bluesky data logic are prefixed with `bluesky-` in the `
 All functions names are prefixed with `bluesky_`.
 
 - `bluesky-api.R` contains the functions to interact with the Bluesky API.
-- `bluesky-clean-results.R` contains the functions to clean the results from the Bluesky API and extract the elements from the posts.
+- `bluesky-extract-elements.R` contains the functions to extract the relevant elements from the results from the Bluesky API and extract the elements from the posts.
 - `bluesky-plans.R` contains the functions to the Bluesky specific logic to get, update and finish the plans.
   - `bluesky_get_plan_elements()` is used to get the elements from the plan.
   - `bluesky_update_plan()` is used to update the plan.
@@ -108,3 +108,6 @@ Please run `pkgload::load_all()` to load the package before running the unit tes
 
 
 
+# To be modified
+
+- boundaries_date_min: probably useless
