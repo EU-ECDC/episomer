@@ -29,7 +29,7 @@ The bluesky handle and password are stored in the environment variables `bluesky
 handle <- Sys.getenv("bluesky_id")
 password <- Sys.getenv("bluesky_pwd")
 
-infos <- bsky_create_session(handle, password)
+infos <- bluesky_create_session(handle, password)
 token <- infos$access_jwt
 ```
 
@@ -38,7 +38,7 @@ token <- infos$access_jwt
 ## Make a simple request
 
 ```{r, eval=FALSE}
-posts <- bsky_search(
+posts <- bluesky_search(
   keyword = "covid19",
   access_jwt = token,
   number_of_posts_per_request = 100,
@@ -51,7 +51,7 @@ posts <- bsky_search(
 
 ```{r, eval=FALSE}
 posts_content <- posts$results$posts
-elements <- bsky_extract_many_posts_elements(posts_content)
+elements <- bluesky_extract_many_posts_elements(posts_content)
 elements[[1]]
 ```
 
@@ -60,15 +60,15 @@ elements[[1]]
 It calls `bluesky_extract_post_elements` for each post, which calls many other functions to extract the elements from the post.
 
 ```{r, eval=FALSE}
-bsky_extract_post_elements <- function(post) {
+bluesky_extract_post_elements <- function(post) {
   list(
-    author_infos = bsky_extract_post_author_infos(post),
-    text = bsky_extract_post_text(post),
+    author_infos = bluesky_extract_post_author_infos(post),
+    text = bluesky_extract_post_text(post),
     created_at = extract_post_created_at(post),
-    langs = bsky_extract_post_langs(post),
-    hashtags = bsky_extract_post_hashtags(post),
-    url = bsky_create_post_url(post),
-    id = bsky_create_post_id(post)
+    langs = bluesky_extract_post_langs(post),
+    hashtags = bluesky_extract_post_hashtags(post),
+    url = bluesky_create_post_url(post),
+    id = bluesky_create_post_id(post)
   )
 }
 ```
@@ -77,7 +77,7 @@ bsky_extract_post_elements <- function(post) {
 ## Automatic pagination based on dates
 
 ```{r, eval=FALSE}
-posts <- bsky_search_paginated(
+posts <- bluesky_search_paginated(
   keyword = "covid19",
   access_jwt = token,
   until = "2025-07-10T00:00:00",
@@ -90,18 +90,18 @@ posts <- bsky_search_paginated(
 
 ```{r, eval=FALSE}
 posts_content <- posts$posts
-elements <- bsky_extract_many_posts_elements(posts_content)
+elements <- bluesky_extract_many_posts_elements(posts_content)
 elements[[1]]
 ```
 
 # Data provided in the package
 
 ```{r}
-posts <- jsonlite::read_json(system.file(package = "epitweetr", "bsky_sample", "posts.json"))"))
+posts <- jsonlite::read_json(system.file(package = "epitweetr", "bsky_sample", "posts.json"))
 ```
 
 ```{r}
-elements <- bsky_extract_many_posts_elements(posts)
+elements <- bluesky_extract_many_posts_elements(posts)
 elements[[1]]
 ```
 
