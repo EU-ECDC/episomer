@@ -44,3 +44,5 @@ test_that("search_loop works", {
     paste0("Killing search loop after ", kill_after, " seconds")
   )
 })
+
+unlink("bluesky_session.rds", recursive = TRUE)

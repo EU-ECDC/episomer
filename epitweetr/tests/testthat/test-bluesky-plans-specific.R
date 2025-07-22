@@ -79,7 +79,7 @@ test_that("bluesky_new_plan_logic_if_has_passed integrates within update_plan", 
 })
 
 
-test_that("bluesky_finish_plan_logic works", {
+test_that("bluesky_finish_plan works", {
   plan <- list(
     list(
       boundaries_date_min = "2025-01-01 00:00:00",
@@ -87,7 +87,7 @@ test_that("bluesky_finish_plan_logic works", {
     )
   )
 
-  results <- bluesky_finish_plan_logic(plan[[1]])
+  results <- bluesky_finish_plan(plan[[1]])
 
   expect_equal(results$research_max_date, NULL)
   expect_equal(results$research_min_date, NULL)
@@ -98,7 +98,7 @@ test_that("bluesky_finish_plan_logic works", {
   expect_equal(results$has_more, FALSE)
 })
 
-test_that("bluesky_finish_plan_logic integrates within finish_plans", {
+test_that("bluesky_finish_plan integrates within finish_plans", {
   p <-
     list(
       boundaries_date_min = "2025-01-01 00:00:00",
@@ -146,7 +146,7 @@ test_that("bluesky_finish_plan_logic integrates within finish_plans", {
     progress = 1.0
   )
 
-  network_specific_logic <- bluesky_finish_plan_logic(p)
+  network_specific_logic <- bluesky_finish_plan(p)
 
   params <- c(plan_common_elements, network_specific_logic)
 

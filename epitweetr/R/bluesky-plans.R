@@ -93,7 +93,7 @@ bluesky_new_plan_logic_if_previous_has_passed <- function(plans) {
 }
 
 #' @noRd
-bluesky_finish_plan_logic <- function(p) {
+bluesky_finish_plan <- function(p) {
     list(
         "research_max_date" = NULL,
         "research_min_date" = NULL,
@@ -109,4 +109,79 @@ bluesky_finish_plan_logic <- function(p) {
         "oldest_messages_from_previous_queries" = NULL,
         "has_more" = FALSE
     )
+}
+
+#' @noRd
+bluesky_update_plan <- function(plan, got_rows, content, tz = "UTC") {
+    plan$requests <- plan$requests + 1
+
+    if (is.null(plan$start_on)) {
+        plan$start_on = lubridate::as_datetime(Sys.time(), tz = tz)
+    }
+
+    if (!content$has_more) {
+        plan$end_on <- lubridate::as_datetime(Sys.time(), tz = tz)
+    }
+
+    plan$newest_messages_from_previous_queries <- c(
+        plan$newest_messages_from_previous_queries,
+        content$newest_message_in_a_query
+    )
+
+    plan$oldest_messages_from_previous_queries <- c(
+        plan$oldest_messages_from_previous_queries,
+        content$oldest_message_in_a_query
+    )
+
+    # If there are more messages to retrieve, we update the research max date
+    if (content$has_more) {
+        plan$research_max_date <- content$oldest_message_in_a_query
+        plan$boundaries_date_min <- min(c(
+            plan$boundaries_date_min,
+            content$oldest_message_in_a_query
+        ))
+    }
+
+    # If there are no more messages to retrieve, we set the boundaries_date_max to the newest message retrieved in the entire research
+    if (!content$has_more) {
+        plan$boundaries_date_max <- max(c(
+            plan$boundaries_date_max,
+            plan$newest_messages_from_previous_queries
+        ))
+        plan$boundaries_date_min <- min(c(
+            plan$boundaries_date_min,
+            content$oldest_message_in_a_query
+        ))
+        plan$research_min_date <- NULL
+        plan$research_max_date <- NULL
+    }
+
+    plan$has_more <- content$has_more
+    if (!is.null(plan$boundaries_date_max)) {
+        plan$boundaries_date_max <- plan$boundaries_date_max %>%
+            lubridate::as_datetime(tz = tz)
+    }
+    if (!is.null(plan$boundaries_date_min)) {
+        plan$boundaries_date_min <- plan$boundaries_date_min %>%
+            lubridate::as_datetime(tz = tz)
+    }
+    if (!is.null(plan$research_max_date)) {
+        plan$research_max_date <- plan$research_max_date %>%
+            lubridate::as_datetime(tz = tz)
+    }
+    if (!is.null(plan$research_min_date)) {
+        plan$research_min_date <- plan$research_min_date %>%
+            lubridate::as_datetime(tz = tz)
+    }
+
+    if (!is.null(plan$newest_messages_from_previous_queries)) {
+        plan$newest_messages_from_previous_queries <-
+            plan$newest_messages_from_previous_queries %>%
+            lubridate::as_datetime(tz = tz)
+    }
+    if (!is.null(plan$oldest_messages_from_previous_queries)) {
+        plan$oldest_messages_from_previous_queries <- plan$oldest_messages_from_previous_queries %>%
+            lubridate::as_datetime(tz = tz)
+    }
+    return(plan)
 }
