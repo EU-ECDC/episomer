@@ -99,28 +99,13 @@ update_plans <- function(plans = list(), schedule_span) {
         plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()
     ) {
         # creating a new plan if expected end has passed
-        # new_plan_network_specific_logic <- get(
-        #     sprintf(
-        #         "%s_new_plan_logic_if_previous_has_passed",
-        #         plans[[1]]$network
-        #     )
-        # )
-        # params <- list(
-        #     network = plans[[1]]$network,
-        #     expected_end = if (
-        #         Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
-        #     ) {
-        #         Sys.time() + 60 * schedule_span
-        #     } else {
-        #         plans[[1]]$expected_end + 60 * schedule_span
-        #     }
-        # )
-        # params <- c(
-        #     params,
-        #     new_plan_network_specific_logic(plans)
-        # )
-        # first <- do.call(get_plan, params)
-        first <- get_plan(
+        new_plan_network_specific_logic <- get(
+            sprintf(
+                "%s_new_plan_creation_based_on_previous_one_values",
+                plans[[1]]$network
+            )
+        )
+        params <- list(
             network = plans[[1]]$network,
             expected_end = if (
                 Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
@@ -130,6 +115,12 @@ update_plans <- function(plans = list(), schedule_span) {
                 plans[[1]]$expected_end + 60 * schedule_span
             }
         )
+        params <- c(
+            params,
+            new_plan_network_specific_logic(plans)
+        )
+        first <- do.call(get_plan, params)
+
         # removing ended plans
         non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
         # removing plans if more of 100 plans are activeff

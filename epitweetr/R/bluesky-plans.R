@@ -82,17 +82,23 @@ bluesky_get_plan_elements <- function(...) {
 }
 
 #' @noRd
-# bluesky_new_plan_logic_if_previous_has_passed <- function(plans) {
-#     return(
-#         list(
-#             #"research_max_date" = plans[[1]]$boundaries_date_min,
-#             "research_max_date" = plans[[1]]$research_max_date,
-#             "research_min_date" = plans[[1]]$research_min_date,
-#             "boundaries_date_max" = plans[[1]]$boundaries_date_max,
-#             "boundaries_date_min" = plans[[1]]$boundaries_date_min
-#         )
-#     )
-# }
+bluesky_new_plan_creation_based_on_previous_one_values <- function(plans) {
+    return(
+        list(
+            "research_max_date" = plans[[1]]$research_max_date,
+            "research_min_date" = plans[[1]]$research_min_date,
+            "boundaries_date_max" = plans[[1]]$boundaries_date_max,
+            "boundaries_date_min" = plans[[1]]$boundaries_date_min,
+            "has_more" = plans[[1]]$has_more,
+            "newest_messages_from_previous_queries" = plans[[
+                1
+            ]]$newest_messages_from_previous_queries,
+            "oldest_messages_from_previous_queries" = plans[[
+                1
+            ]]$oldest_messages_from_previous_queries
+        )
+    )
+}
 
 #' @noRd
 bluesky_finish_plan <- function(p) {
@@ -156,6 +162,8 @@ bluesky_update_plan <- function(plan, got_rows, content, tz = "UTC") {
         ))
         plan$research_min_date <- NULL
         plan$research_max_date <- NULL
+        plan$newest_messages_from_previous_queries <- NULL
+        plan$oldest_messages_from_previous_queries <- NULL
     }
 
     plan$has_more <- content$has_more
