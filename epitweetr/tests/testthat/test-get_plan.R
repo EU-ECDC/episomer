@@ -22,6 +22,53 @@ test_that("get_plan works with basic parameters", {
   # Check that scheduled_for is set (should be close to current time)
   expect_true(!is.null(plan$scheduled_for))
   expect_true(abs(as.numeric(plan$scheduled_for) - as.numeric(Sys.time())) < 10)
+
+  # Check we can update the plan and keep the rest as it is
+  plan$research_max_date <- "2025-01-01 12:00:00"
+  plan$research_min_date <- "2025-01-01 08:00:00"
+  plan$boundaries_date_max <- "2025-01-01 11:00:00"
+  plan$boundaries_date_min <- "2025-01-01 09:00:00"
+
+  new_plan_network_specific_logic <- get(
+    sprintf(
+      "%s_new_plan_creation_based_on_previous_one_values",
+      plan$network
+    )
+  )
+
+  params <- list(
+    network = plan$network,
+    expected_end = plan$expected_end + 10
+  )
+  params <- c(
+    params,
+    new_plan_network_specific_logic(list(plan))
+  )
+
+  plan2 <- do.call(get_plan, params)
+
+  expect_equal(
+    as.character(plan2$research_max_date),
+    as.character(plan$research_max_date)
+  )
+  expect_equal(
+    as.character(plan2$research_min_date),
+    as.character(plan$research_min_date)
+  )
+  expect_equal(
+    as.character(plan2$boundaries_date_max),
+    as.character(plan$boundaries_date_max)
+  )
+  expect_equal(
+    as.character(plan2$boundaries_date_min),
+    as.character(plan$boundaries_date_min)
+  )
+
+  expect_equal(plan2$requests, plan$requests)
+  expect_equal(
+    as.character(plan2$expected_end),
+    as.character(plan$expected_end + 10)
+  )
 })
 
 test_that("get_plan works with all parameters", {
