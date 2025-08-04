@@ -5,4 +5,4 @@ install-dependencies:
 package:
 	devscripts/package.sh
 launch:
-	cd epitweetr && ../devscripts/app.sh
+	devscripts/app.sh
