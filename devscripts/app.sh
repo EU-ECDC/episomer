@@ -11,6 +11,7 @@ export ecdc_wtitter_tool_kr_password=$pass
 expect -c '
 spawn R
 expect ">"
+send "devtools::load_all(\"epitweetr\")\r"
 send "epitweetr::setup_config(\"'$EPI_HOME'\")\r" 
 send "epitweetr::epitweetr_app()\r"
 interact'
