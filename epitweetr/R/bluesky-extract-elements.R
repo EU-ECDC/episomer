@@ -26,8 +26,8 @@ bluesky_extract_post_elements <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_elements <- function(posts) {
   posts %>%
-    map(bluesky_extract_post_elements) %>%
-    setNames(map(posts, bluesky_create_post_id))
+    purrr::map(bluesky_extract_post_elements) %>%
+    setNames(purrr::map(posts, bluesky_create_post_id))
 }
 
 #' Extract author information from a post
@@ -53,7 +53,7 @@ bluesky_extract_post_author_infos <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_author_infos <- function(posts) {
   posts %>%
-    map(bluesky_extract_post_author_infos)
+    purrr::map(bluesky_extract_post_author_infos)
 }
 
 #' Extract text from a post
@@ -75,7 +75,7 @@ bluesky_extract_post_text <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_text <- function(posts) {
   posts %>%
-    map(bluesky_extract_post_text)
+    purrr::map(bluesky_extract_post_text)
 }
 
 #' Extract created at from a post
@@ -97,7 +97,7 @@ extract_post_created_at <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_created_at <- function(posts) {
   posts %>%
-    map(extract_post_created_at)
+    purrr::map(extract_post_created_at)
 }
 
 #' Extract langs from a post
@@ -121,7 +121,7 @@ bluesky_extract_post_langs <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_langs <- function(posts) {
   posts %>%
-    map(bluesky_extract_post_langs)
+    purrr::map(bluesky_extract_post_langs)
 }
 
 #' Extract hashtags from a post
@@ -133,8 +133,8 @@ bluesky_extract_many_posts_langs <- function(posts) {
 #' @rdname extract_elements
 bluesky_extract_post_hashtags <- function(post) {
   post$record$facets %>%
-    map("features") %>%
-    map(function(.x) map(.x, "tag")) %>%
+    purrr::map("features") %>%
+    purrr::map(function(.x) purrr::map(.x, "tag")) %>%
     unlist()
 }
 
@@ -147,7 +147,7 @@ bluesky_extract_post_hashtags <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_hashtags <- function(posts) {
   posts %>%
-    map(bluesky_extract_post_hashtags)
+    purrr::map(bluesky_extract_post_hashtags)
 }
 
 #' Create post URL
@@ -185,7 +185,7 @@ bluesky_create_post_url <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_url <- function(posts) {
   posts %>%
-    map(bluesky_create_post_url)
+    purrr::map(bluesky_create_post_url)
 }
 
 #' Create post ID
@@ -215,5 +215,5 @@ bluesky_create_post_id <- function(post) {
 #' @rdname extract_elements
 bluesky_extract_many_posts_id <- function(posts) {
   posts %>%
-    map(bluesky_create_post_id)
+    purrr::map(bluesky_create_post_id)
 }

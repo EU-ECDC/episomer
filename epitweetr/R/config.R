@@ -5,7 +5,7 @@ conf <- new.env()
 get_package_name <- function() environmentName(environment(setup_config))
 
 # Get the keyring for the provided backend or a platform dependent default if backend is null
-# this function is used to save the twitter and smtp credentials on a secure store when saving properties
+# this function is used to save the social media and smtp credentials on a secure store when saving properties
 # this function uses the keyring R package which provides a common interface for accessing system dependent keyring
 # backend: backend name to use it will be guessed based on user OS if not defined.
 get_key_ring <- function(backend = NULL) {
@@ -116,10 +116,8 @@ get_empty_config <- function(data_dir) {
   ret$smtp_password <- ""
   ret$smtp_insecure <- FALSE
   ret$force_date_format <- ""
-  ret$twitter_auth_mode <- ""
   ret$maven_repo <- "https://repo1.maven.org/maven2"
   ret$winutils_url <- "https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe"
-  ret$api_version <- "1.1"
   ret$fs_port <- 8080
   ret$fs_batch_timeout <- 60*60 
   ret$fs_query_timeout <- 60
@@ -152,12 +150,12 @@ get_empty_config <- function(data_dir) {
 #' }
 #'
 #' When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
-#' This behaviour can be changed by setting the environment variable 'ecdc_twitter_tool_kr_password' with the password.
+#' This behaviour can be changed by setting the environment variable 'ecdc_social_tool_kr_password' with the password.
 #' 
 #' Changes made to conf can be stored permanently (except for 'data_dir') using:
 #' \itemize{
 #'   \item{\code{\link{save_config}}, or}
-#'    \item{\code{\link{set_twitter_app_auth}}}
+#'    \item{\code{\link{set_bsky_auth}}}
 #' }
 #' @examples
 #' if(FALSE){
@@ -168,7 +166,7 @@ get_empty_config <- function(data_dir) {
 #' }
 #' @seealso
 #' \code{\link{save_config}}
-#' \code{\link{set_twitter_app_auth}}
+#' \code{\link{set_bsky_auth}}
 #' \code{\link{epitweetr_app}}
 #' \code{\link{search_loop}}
 #' \code{\link{detect_loop}}
@@ -250,10 +248,8 @@ setup_config <- function(
     conf$smtp_login <- temp$smtp_login
     conf$smtp_insecure <- temp$smtp_insecure
     conf$force_date_format <- temp$force_date_format
-    conf$twitter_auth_mode <- temp$twitter_auth_mode
     conf$maven_repo <- temp$maven_repo
     conf$winutils_url <- temp$winutils_url
-    conf$api_version <- temp$api_version
     conf$fs_port <- temp$fs_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
@@ -344,11 +340,11 @@ setup_config <- function(
   #Setting up keyring
   if(!ignore_keyring) {
     kr <- get_key_ring(conf$keyring)
-    conf$twitter_auth <- list()
+    conf$auth <- list()
     # Fetching and updating variables from keyring
-    for(v in c("app", "access_token", "access_token_secret", "api_key", "api_secret", "bearer")) {
+    for(v in c("bsky_user", "bsky_password")) {
       if(is_secret_set(v)) {
-        conf$twitter_auth[[v]] <- get_secret(v)
+        conf$auth[[v]] <- get_secret(v)
       }
     }
     if(is_secret_set("smtp_password")) {
@@ -392,7 +388,7 @@ copy_plans_from <- function(temp) {
 #' @param topics Whether to save topic download plans to the topics.json file, default: TRUE
 #' @return Nothing
 #' @details Permanently saves configuration changes to the data folder (excluding Twitter credentials, but not SMTP credentials)
-#' to save Twitter credentials please use \code{\link{set_twitter_app_auth}}
+#' to save Twitter credentials please use \code{\link{set_bsky_auth}}
 #' @examples 
 #' if(FALSE){
 #'    library(epitweetr)
@@ -407,7 +403,7 @@ copy_plans_from <- function(temp) {
 #' @rdname save_config
 #' @seealso
 #' \code{\link{setup_config}}
-#' \code{\link{set_twitter_app_auth}}
+#' \code{\link{set_bsky_auth}}
 #' @export 
 save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRUE) {
   # creating data directory if it does not exists
@@ -453,10 +449,8 @@ save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRU
     if(!is.null(conf$smtp_password) && conf$smtp_password != "") set_secret("smtp_password", conf$smtp_password)
     temp$smtp_insecure <- conf$smtp_insecure
     temp$force_date_format <- conf$force_date_format
-    temp$twitter_auth_mode <- conf$twitter_auth_mode
     temp$maven_repo <- conf$maven_repo
     temp$winutils_url <- conf$winutils_url
-    temp$api_version <- conf$api_version
     temp$fs_port <- conf$fs_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
@@ -484,44 +478,28 @@ save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRU
   }
 }
 
-#' @title Save Twitter App credentials
-#' @description Update Twitter authentication tokens in a configuration object
-#' @param app Application name
-#' @param access_token Access token as provided by Twitter
-#' @param access_token_secret Access token secret as provided by Twitter
-#' @param api_key API key as provided by Twitter 
-#' @param api_secret API secret as provided by Twitter
-#' @param bearer the bearer token of the application
-#' @return Nothing
+#' @title Save Blusky credentials (login and password) and store them securely
+#' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
+#' @param bsky_user Username
+#' @param bsky_password Password
 #' @details Update Twitter authentication tokens in configuration object
 #' @examples 
 #' if(FALSE){
 #'  #Setting the configuration values
-#'    set_twitter_app_auth(
-#'      app = "my super app", 
-#'      access_token = "123456", 
-#'      access_token_secret = "123456", 
-#'      api_key = "123456", 
-#'      api_secret = "123456"
-#'    )
-#'    set_twitter_app_auth(
-#'      bearer = "123456"
+#'    set_bsky_auth(
+#'      bsky_user = "your user here", 
+#'      bsky_password = "your password", 
 #'    )
 #' }
 #' @seealso
 #' \code{\link{save_config}}
-#' @rdname set_twitter_app_auth
+#' @rdname set_bsky_auth
 #' @export 
-set_twitter_app_auth <- function(app = "", access_token = "", access_token_secret = "", api_key = "", api_secret = "", bearer = "") {
-  conf$twitter_auth$app <- app
-  conf$twitter_auth$access_token <- access_token
-  conf$twitter_auth$access_token_secret <- access_token_secret
-  conf$twitter_auth$api_key <- api_key
-  conf$twitter_auth$api_secret <- api_secret
-  conf$twitter_auth$bearer <- bearer
-  for(v in c("app", "access_token", "access_token_secret", "api_key", "api_secret", "bearer")) {
-    set_secret(v, conf$twitter_auth[[v]])
-  }
+set_bsky_auth <- function(bsky_user = "", bsky_password = "") {
+  conf$auth$bsky_user <- bsky_user
+  conf$auth$bsky_password <- bsky_password
+  set_secret("bsky_user", bsky_user)
+  set_secret("bsky_password", bsky_password)
 }
 
 # Merging two or more configuration files as a list, latest takes precedence over firsts
