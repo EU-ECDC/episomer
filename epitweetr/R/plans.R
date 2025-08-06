@@ -4,11 +4,8 @@
 # @param scheduled_for Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the expected datetime for next execution, default: Sys.time()
 # @param start_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan was first executed, default: NULL
 # @param end_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan has finished, default: NULL
-# @param max_id Integer(64), the newest tweet collected by this plan represented by its tweet id. This value is defined after the first successful request is done and does not change by request, default: NULL
-# @param since_id Integer(64) the oldest tweet that has currently been collected by this plan, this value is updated after each request, default: NULL
-# @param since_target Interger(64), the oldest tweet id that is expected to be obtained by this plan, this value is set as the max_id from the previous plan + 1, default: NULL
-# @param results_span Number of minutes after which this plan expires counting from start date, default: 0
 # @param requests Integer, number of requests successfully executed, default: 0
+# @param got_rowa Boolean, if the plan has collected rows, default: FALSE
 # @param progress Numeric, percentage of progress of current plan defined when since_target_id is known or when a request returns no more results, default: 0
 # @return The get_plan object defined by input parameters
 # @details A plan is an S3 class representing a commitment to download tweets from the search API
@@ -25,50 +22,72 @@
 #  \code{\link[bit64]{as.integer64.character}}
 # @rdname get_plan
 # @importFrom bit64 as.integer64
-get_plan <- function(
+parse_plan_elements <- function(
     network,
     expected_end,
     scheduled_for = Sys.time(),
     start_on = NULL,
     end_on = NULL,
-    results_span = 0,
     requests = 0,
+    got_rows = FALSE,
     progress = 0.0,
     ...
 ) {
     common_elements <- list(
         "network" = network,
-        "expected_end" = if (!is.null(unlist(expected_end))) {
-            strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S")
-        } else {
-            NULL
-        },
-        "scheduled_for" = if (!is.null(unlist(scheduled_for))) {
-            strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S")
-        } else {
-            NULL
-        },
-        "start_on" = if (!is.null(unlist(start_on))) {
-            strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S")
-        } else {
-            NULL
-        },
-        "end_on" = if (!is.null(unlist(end_on))) {
-            strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S")
-        } else {
-            NULL
-        },
+	"expected_end" = if (!is.null(unlist(expected_end))) strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S") else NULL,
+        "scheduled_for" = if (!is.null(unlist(scheduled_for))) strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S") else NULL,
+        "start_on" = if (!is.null(unlist(start_on))) strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S") else NULL,
+        "end_on" = if (!is.null(unlist(end_on))) strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S") else NULL,
         "requests" = unlist(requests),
+        "got_rows" = unlist(got_rows),
         "progress" = unlist(progress)
     )
     specific_elements <- get(
-        sprintf("%s_get_plan_elements", network)
+        sprintf("%s_parse_plan_elements", network)
     )(...)
     me <- c(common_elements, specific_elements)
-    class(me) <- append(class(me), "get_plan")
     return(me)
 }
 
+request_got_rows <- function(plan, results) { get(sprintf("%s_got_rows", plan$network))(results) }
+get_plan_progress <- function(plan) { get(sprintf("%s_get_plan_progress", plan$network))(plan) }
+update_plan_after_request_by_network <- function(plan, results) { get(sprintf("%s_update_plan_after_request", plan$network))(plan, results) }
+
+# Update a plan after search request is done
+# If first request, started and max will be set
+# If results are non-empty the current social media cursor is updated
+# If no results are obtained the search is supposed to be finished
+update_plan_after_request <- function(plan, results) {
+    # increasing the number of requests
+    plan$requests <- plan$requests + 1
+
+    # setting the start date if not set
+    if (is.null(plan$start_on)) {
+        plan$start_on = Sys.time()
+    }
+
+    # check is the current request got rows
+    req_got_rows <- request_got_rows(plan, results)
+    if(req_got_rows) {
+        # set got rows for this plan
+	plan$got_rows <- TRUE
+
+    	# updating plan by network parameters
+        plan <- update_plan_after_request_by_network(plan, results)
+	# setting plan progress
+	plan$progress <- get_plan_progress(plan) 
+    } else {
+        # if no rows have been obtained then we consider the plan has ended
+        plan$end_on <- Sys.time()
+	plan$progress <- 1.0 
+    }
+    return(plan)
+} 
+
+
+first_plan_element_by_network <- function(network) { get(sprintf("%s_first_plan_elements", network))() }
+next_plan_element_by_network <- function(network, plans) { get(sprintf("%s_first_plan_elements", network))(plans) }
 
 # @title Update get plans
 # @description Updating plans for a particular topic
@@ -90,11 +109,20 @@ get_plan <- function(
 #  update_plans(plans = conf$topics[[1]]$plan, schedule_span = conf$collect_span)
 # }
 # @rdname update_plans
-update_plans <- function(plans = list(), schedule_span) {
+update_plans <- function(plans = list(), network, schedule_span) {
     # Testing if there are plans present
     if (length(plans) == 0) {
         # Getting default plan for when no existing plans are present setting the expected end
-        return(list(get_plan(expected_end = Sys.time() + 60 * schedule_span)))
+	elems <- list(
+            network = network,
+            expected_end = strftime(Sys.time() + 60 * schedule_span, "%Y-%m-%d %H:%M:%S")
+	)
+        elems <- c(
+            elems,
+	    first_plan_element_by_network(network)
+	)
+	new_plan <- do.call(parse_plan_elements, elems)
+        return(list(new_plan))
     } else if (
         plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()
     ) {
@@ -105,21 +133,22 @@ update_plans <- function(plans = list(), schedule_span) {
                 plans[[1]]$network
             )
         )
-        params <- list(
+        elems <- list(
             network = plans[[1]]$network,
-            expected_end = if (
+            # expected end should be 'schedule_span' minutes after previous plan expected en unless this is in the past in which case the span would cound from now
+	    expected_end = if (
                 Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
             ) {
-                Sys.time() + 60 * schedule_span
+                strftime(Sys.time() + 60 * schedule_span, "%Y-%m-%d %H:%M:%S") 
             } else {
-                plans[[1]]$expected_end + 60 * schedule_span
+                strftime(plans[[1]]$expected_end + 60 * schedule_span, "%Y-%m-%d %H:%M:%S")
             }
         )
-        params <- c(
-            params,
-            new_plan_network_specific_logic(plans)
+        elems <- c(
+            elems,
+            next_plan_element_by_network(network, plans)
         )
-        first <- do.call(get_plan, params)
+        first <- do.call(parse_plan_elements, elems)
 
         # removing ended plans
         non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
@@ -180,84 +209,11 @@ finish_plans <- function(plans = list()) {
                 requests = p$requests,
                 progress = 1.0
             )
-            network_specific_logic <- get(
-                sprintf("%s_finish_plan", p$network)
-            )
+            network_specific_logic <- get(sprintf("%s_finish_plan", p$network))
             params <- c(plan_common_elements, network_specific_logic(p))
             do.call(get_plan, params)
         })
     }
 }
 
-# Get next plan to plan to download
-next_plan <- function(plans) {
-    plans <- if ("get_plan" %in% class(plans)) list(plans) else plans
-    non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
-    if (length(non_ended) == 0) {
-        return(NULL)
-    } else {
-        return(non_ended[[1]])
-    }
-}
 
-# next plan generic function
-# request_finished <- function(current, got_rows, max_id, since_id = NULL) {
-#     UseMethod("request_finished", current)
-# }
-
-# Update a plan after search request is done
-# If first request, started and max will be set
-# If results are non-empty result span, since_id and max id are set
-# If results are less than requested the search is supposed to be finished
-# If results are equals to the requested limit, more tweets are expected. In that case if the expected end has not yet arrived and we can estimate the remaining number of requests the next schedule will be set to an estimation of the necessary requests to finish. If we do not know, the current schedule will be left untouched.
-# request_finished.get_plan <- function(
-#     current,
-#     got_rows,
-#     max_id,
-#     since_id = NULL
-# ) {
-#     # increasing the number of requests
-#     current$requests <- current$requests + 1
-
-#     # setting the start date after first request and max id that will be obtained by this plan
-#     if (is.null(current$start_on)) {
-#         current$start_on = Sys.time()
-#         current$max_id = bit64::as.integer64(max_id)
-#     }
-#     # setting the oldest id obtained by this plan (which should not go before since_target)
-#     if (!is.null(since_id)) {
-#         current$since_id <- bit64::as.integer64(since_id)
-#     }
-#     # calculating progress
-#     if (
-#         !is.null(current$since_target) &&
-#             !is.null(current$since_id) &&
-#             !is.null(current$max_id)
-#     ) {
-#         current$progress <- as.double(current$max_id - current$since_id) /
-#             as.double(current$max_id - current$since_target)
-#     }
-#     # Setting the end of the plan if no lines have been obtained
-#     if (
-#         !got_rows ||
-#             (!is.null(current$since_target) &&
-#                 current$max_id == current$since_target)
-#     ) {
-#         current$end_on <- Sys.time()
-#         #current$progress <- 1.0
-#     } else {
-#         if (Sys.time() < current$expected_end && current$progress > 0.0) {
-#             # this property was designed to delay plans that cab quickly finish, but it has finally not been used.
-#             progressByRequest <- current$progress / current$requests
-#             requestsToFinish <- (1.0 - current$progress) / progressByRequest
-#             current$scheduled_for = Sys.time() +
-#                 as.integer(difftime(
-#                     current$expected_end,
-#                     Sys.time(),
-#                     units = "secs"
-#                 )) /
-#                     requestsToFinish
-#         }
-#     }
-#     return(current)
-# }

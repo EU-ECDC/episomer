@@ -282,7 +282,6 @@ epitweetr_app <- function(data_dir = NA) {
   ################################################
   ######### CONFIGURATION PAGE####################
   ################################################
-  new_rtweet <- F#exists("rtweet_user", base::asNamespace("rtweet"))
   config_page <- 
     shiny::fluidPage(
       shiny::fluidRow(
@@ -351,66 +350,13 @@ epitweetr_app <- function(data_dir = NA) {
             shiny::fluidRow(shiny::column(3, "Winutils URL"), shiny::column(9,  shiny::textInput("conf_winutils_url", label = NULL, value = conf$winutils_url)))
           ),
           shiny::fluidRow(shiny::column(3, "Region disclaimer"), shiny::column(9, shiny::textAreaInput("conf_regions_disclaimer", label = NULL, value = conf$regions_disclaimer))),
-          shiny::h2("Twitter authentication"),
-          shiny::fluidRow(shiny::column(3, "Mode"), shiny::column(9
-            , shiny::radioButtons(
-              "twitter_auth"
-              , label = NULL
-              , choices = list("User account" = "delegated", "App" = "app")
-              , selected = if(cd$app_auth) "app" else "delegated" 
-              ))
-          ),
-          shiny::conditionalPanel(
-            condition = "input.twitter_auth == 'delegated'",
-            shiny::fluidRow(shiny::column(12, "When choosing 'Twitter account' authentication you will have to use your Twitter credentials to authorize the Twitter application for the rtweet package (https://rtweet.info/) to access Twitter on your behalf (full rights provided).")), 
-            shiny::fluidRow(shiny::renderText("&nbsp;")), 
-            shiny::fluidRow(shiny::column(12, "DISCLAIMER: rtweet has no relationship with epitweetr and you have to evaluate by yourself if the provided security framework fits your needs.")),
-            shiny::fluidRow(shiny::renderText("&nbsp;")) 
-          ),
-          if(new_rtweet) {
-            shiny::conditionalPanel(
-              condition = "input.twitter_auth == 'app'",
-              shiny::fluidRow(shiny::column(3, "Bearer Token"), shiny::column(9, 
-                shiny::passwordInput("twitter_bearer", label = NULL, value = if(is_secret_set("bearer")) get_secret("bearer") else NULL))
-              )
-            )
-          }
-          else {
-            shiny::conditionalPanel(
-              condition = "input.twitter_auth == 'app'",
-              shiny::fluidRow(shiny::column(3, "App name"), shiny::column(9, shiny::textInput("twitter_app", label = NULL, value = if(is_secret_set("app")) get_secret("app") else NULL))), 
-              shiny::fluidRow(shiny::column(3, "API key"), shiny::column(9, shiny::passwordInput("twitter_api_key", label = NULL, value = if(is_secret_set("api_key")) get_secret("api_key") else NULL))),
-              shiny::fluidRow(shiny::column(3, "API secret"), shiny::column(9, shiny::passwordInput("twitter_api_secret", label = NULL, value = if(is_secret_set("api_secret")) get_secret("api_secret") else NULL))), 
-              shiny::fluidRow(shiny::column(3, "Access token"), shiny::column(9, 
-                shiny::passwordInput("twitter_access_token", label = NULL, value = if(is_secret_set("access_token")) get_secret("access_token") else NULL))
-              ), 
-              shiny::fluidRow(shiny::column(3, "Token secret"), shiny::column(9, 
-                shiny::passwordInput("twitter_access_token_secret", label = NULL, value = if(is_secret_set("access_token_secret")) get_secret("access_token_secret") else NULL))
-              )
-            )
-          }, 
-          shiny::conditionalPanel(
-            condition = "input.twitter_auth == 'delegated'",
-            shiny::fluidRow(
-              shiny::column(3, "Twitter API version"), 
-              shiny::column(9, "Only v1.1 is supported for user authentication")
-            )
-          ),
-          shiny::conditionalPanel(
-            condition = "input.twitter_auth == 'app'",
-            shiny::fluidRow(
-              shiny::column(3, "Twitter API version"), 
-              shiny::column(9, 
-                shiny::checkboxGroupInput(
-                  "conf_api_version"
-                  , label = NULL
-                  , choices = list("v1.1" = "1.1", "V2" = "2")
-                  , selected = conf$api_version
-                  , inline = T 
-                )
-              )
-            )
-          ),
+          shiny::h2("Bluesky authentication"),
+          shiny::fluidRow(shiny::column(3, "Bluesky user"), shiny::column(9, 
+	     shiny::textInput("bsky_user", label = NULL, value = conf$bsky_user))
+	  ), 
+          shiny::fluidRow(shiny::column(3, "Bluesky Password"), shiny::column(9, 
+	    shiny::passwordInput("bsky_password", label = NULL, value = if(is_secret_set("bsky_password")) get_secret("bsky_password") else NULL))
+	  ), 
           shiny::h2("Email authentication (SMTP)"),
           shiny::fluidRow(shiny::column(3, "Server"), shiny::column(9, shiny::textInput("smtp_host", label = NULL, value = conf$smtp_host))), 
           shiny::fluidRow(shiny::column(3, "Port"), shiny::column(9, shiny::numericInput("smtp_port", label = NULL, value = conf$smtp_port))), 
@@ -1470,7 +1416,6 @@ epitweetr_app <- function(data_dir = NA) {
       conf$geonames_url <- input$conf_geonames_url 
       conf$maven_repo <- input$conf_maven_repo 
       conf$winutils_url <- input$conf_winutils_url 
-      conf$api_version <- input$conf_api_version
       conf$geonames_simplify <- input$conf_geonames_simplify 
       conf$regions_disclaimer <- input$conf_regions_disclaimer 
       conf$alert_alpha <- input$conf_alpha 
@@ -1481,24 +1426,10 @@ epitweetr_app <- function(data_dir = NA) {
       conf$alert_with_bonferroni_corection <- input$conf_with_bonferroni_correction
       conf$alert_with_retweets <- input$conf_with_retweets
       # Setting secrets
-      if(input$twitter_auth == "app") {
-        conf$twitter_auth_mode = "app"
-        if(new_rtweet) {
-          set_twitter_app_auth(bearer = input$twitter_bearer)
-        }
-        else
-          set_twitter_app_auth(
-            app = input$twitter_app, 
-            api_key = input$twitter_api_key, 
-            api_secret = input$twitter_api_secret, 
-            access_token = input$twitter_access_token, 
-            access_token_secret = input$twitter_access_token_secret
-          )
-      }
-      else {
-        conf$twitter_auth_mode = "delegated"
-        get_token()
-      }
+      set_bsky_auth(
+        bsky_user = input$bsky_user, 
+        bsky_password = input$bsky_password 
+      )
       conf$smtp_host <- input$smtp_host
       conf$smtp_port <- input$smtp_port
       conf$smtp_from <- input$smtp_from
@@ -1509,8 +1440,6 @@ epitweetr_app <- function(data_dir = NA) {
       conf$force_date_format <- input$force_date_format
 
       # Saving properties.json
-      if(input$twitter_auth != "app")
-        conf$api_version = "1.1"
       save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
 
       # Forcing update on properties dependant refresh (e.g. time slots)
@@ -2497,13 +2426,6 @@ refresh_config_data <- function(e = new.env(), limit = list("langs", "topics", "
       tasks <- get_tasks()
       sorted_tasks <- order(sapply(tasks, function(l) l$order)) 
       e$tasks <- tasks[sorted_tasks] 
-      e$app_auth <- (
-        if(conf$twitter_auth_mode != "")
-          conf$twitter_auth_mode == "app"
-        else
-          exists('app', where = conf$twitter_auth) && conf$twitter_auth$app != ''
-      )
-      e$api_version <- conf$api_version
       e$tasks_df <- data.frame(
         Task = sapply(e$tasks, function(t) t$task), 
         Status = sapply(e$tasks, function(t) if(in_pending_status(t)) "pending" else t$status), 
