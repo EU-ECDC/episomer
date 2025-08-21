@@ -16,7 +16,7 @@
 # @examples
 # if(FALSE){
 #  #creating the default plan
-#  get_plan()
+#  parse_plan_elements()
 # }
 # @seealso
 #  \code{\link[bit64]{as.integer64.character}}
@@ -50,6 +50,10 @@ parse_plan_elements <- function(
     return(me)
 }
 
+format_plan <- function(plan) {
+   get(sprintf("%s_format_plan", plan$network))(plan)
+}
+
 request_got_rows <- function(plan, results) { get(sprintf("%s_got_rows", plan$network))(results) }
 get_plan_progress <- function(plan) { get(sprintf("%s_get_plan_progress", plan$network))(plan) }
 update_plan_after_request_by_network <- function(plan, results) { get(sprintf("%s_update_plan_after_request", plan$network))(plan, results) }
@@ -75,8 +79,9 @@ update_plan_after_request <- function(plan, results) {
 
     	# updating plan by network parameters
         plan <- update_plan_after_request_by_network(plan, results)
+	
 	# setting plan progress
-	plan$progress <- get_plan_progress(plan) 
+	plan$progress <- get_plan_progress(plan)
     } else {
         # if no rows have been obtained then we consider the plan has ended
         plan$end_on <- Sys.time()
@@ -87,7 +92,7 @@ update_plan_after_request <- function(plan, results) {
 
 
 first_plan_element_by_network <- function(network) { get(sprintf("%s_first_plan_elements", network))() }
-next_plan_element_by_network <- function(network, plans) { get(sprintf("%s_first_plan_elements", network))(plans) }
+next_plan_element_by_network <- function(network, plans) { get(sprintf("%s_next_plan_elements", network))(plans) }
 
 # @title Update get plans
 # @description Updating plans for a particular topic
@@ -127,12 +132,6 @@ update_plans <- function(plans = list(), network, schedule_span) {
         plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()
     ) {
         # creating a new plan if expected end has passed
-        new_plan_network_specific_logic <- get(
-            sprintf(
-                "%s_new_plan_creation_based_on_previous_one_values",
-                plans[[1]]$network
-            )
-        )
         elems <- list(
             network = plans[[1]]$network,
             # expected end should be 'schedule_span' minutes after previous plan expected en unless this is in the past in which case the span would cound from now

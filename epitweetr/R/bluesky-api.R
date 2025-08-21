@@ -32,7 +32,7 @@ bluesky_search <- function(
     req <- req |> httr2::req_url_query(since = bluesky_format_date(plan$plan_min_date))
   }
   if (!is.null(plan$current_min_date)) {
-    req <- req |> httr2::req_url_query(until = bluesky_format_date(plan$current_min_date))
+    req <- req |> httr2::req_url_query(until = bluesky_format_date(plan$current_min_date - 0.000001))
   } else {
     req <- req |> httr2::req_url_query(until = bluesky_format_date(plan$plan_max_date))
   }
@@ -47,7 +47,6 @@ bluesky_search <- function(
       after = bluesky_rerun_after_rate_limit
     ) %>%
     httr2::req_perform()
-
   # Get results
   results <- httr2::resp_body_json(resp)
   posts <- results$posts

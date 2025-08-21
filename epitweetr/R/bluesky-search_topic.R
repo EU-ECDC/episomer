@@ -1,3 +1,15 @@
+bluesky_translate_query <- function(parts, excluded) {
+    queries = list()
+    comb = do.call(expand.grid, parts)
+    if(nrow(comb) > 0) {
+        ret <- lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i,])))
+        if(length(excluded) > 0)
+          ret <- paste(ret, do.call(paste, as.list(paste0("-", excluded))))
+	ret
+    } else {
+      list()
+    }
+}
 #bluesky_set_date_boundaries <- function(plan) {
 #  # We set the upper bound of the research: if missing we set it to the current time
 #  max_text <- plan$research_max_date
