@@ -97,6 +97,8 @@ get_empty_config <- function(data_dir) {
   }
   ret$spark_memory <- "4g"
   ret$onthefly_api <-  .Platform$OS.type != "windows"
+  ret$sm_enabled <- list("bluesky")
+  ret$sm_alerts <- list("bluesky")
   ret$topics <- list()
   ret$topics_md5 <- ""
   ret$alert_alpha <- 0.025
@@ -195,7 +197,7 @@ setup_config <- function(
   # paths contains two files storing configuration data: 
   # props which contains properties set on the Shiny App is stored on data_dir/properties.json
   # and data_dir/topics.json which stores search progress and is updated by the search loop
-  paths <- list(props = get_properties_path(), topics = get_plans_path())
+  props_path = get_properties_path()
   
   #topics_path is the path to the excel file containing the topics provided by the user or epitweetr default ones
   topics_path <- get_topics_path(data_dir)
@@ -207,11 +209,11 @@ setup_config <- function(
   #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing
   temp <- get_empty_config(data_dir)
   
-  if(!ignore_properties && exists("props", where = paths)) {
+  if(!ignore_properties) {
     # refreshing properties (if requested)
-    if(file.exists(paths$props)) {
+    if(file.exists(props_path)) {
       #merging default values with those stored in the properties.json file
-      temp = merge_configs(list(temp, jsonlite::read_json(paths$props, simplifyVector = FALSE, auto_unbox = TRUE)))
+      temp = merge_configs(list(temp, jsonlite::read_json(props_path, simplifyVector = FALSE, auto_unbox = TRUE)))
     }
     #Setting config  variables filled only from json file  
     conf$keyring <- temp$keyring
@@ -230,6 +232,8 @@ setup_config <- function(
     conf$known_users <- temp$known_users
     conf$spark_cores <- temp$spark_cores
     conf$spark_memory <- temp$spark_memory
+    conf$sm_enabled <- temp$sm_enabled
+    conf$sm_alerts <- temp$sm_alerts
     conf$onthefly_api <- temp$onthefly_api
     conf$geolocation_threshold <- temp$geolocation_threshold
     conf$alert_alpha <- temp$alert_alpha
@@ -257,12 +261,19 @@ setup_config <- function(
     conf$dismiss_past_request <- temp$dismiss_past_request
 
   }
-  if(!ignore_topics && exists("topics", where = paths)){
+  if(!ignore_topics) {
+    plans_path = get_plans_paths()
     # updating plans and topics if requested 
-    if(file.exists(paths$topics)) {
-      # merging initial + properties.json data with plans
-      temp = merge_configs(list(temp, jsonlite::read_json(paths$topics, simplifyVector = FALSE, auto_unbox = TRUE)))
-    }
+    topics_plans <- lapply(plans_path, function(p) {
+        if(file.exists(p))
+	    jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE)
+        else
+	    list()
+    })
+    merged_topics <- merge_config_lists(topics_plans, "topics")
+    # merging initial + properties.json data with plans
+    temp = merge_configs(list(temp, merged_topics))
+    
     #Getting topics from excel topics files if it has changed since last load this is identified by checking the md5 signature
     #If user has not overwritten 
     topics_changed <- FALSE
@@ -278,7 +289,7 @@ setup_config <- function(
     
     #Merging topics from config json and topic excel topics if this last one has changed
     #Each time a topic is found on file, all its occurrences will be processed at the same time, to ensure consistent multi query topics updates based on position
-    if(exists("df", where = topics)) {
+    if(topics_changed && exists("df", where = topics) && length(conf$sm_enabled) > 0) {
       distinct_topics <- as.list(unique(topics$df$Topic))
       adjusted_topics <- list()
       i_adjusted <- 1
@@ -288,40 +299,46 @@ setup_config <- function(
         if(!grepl("^[A-Za-z_0-9][A-Za-z_0-9 \\-]*$", topic)) {
           stop(paste("topic name", topic, "is invalid, it must contains only by alphanumeric letters, digits spaces '-' and '_' and not start with spaces, '-' or '_'", sep = " "))
         }
-        i_tmp <- 1
         queries <- topics$df[topics$df$Topic == topic, ]
-        #For each distinct query on Excel file on current topic
-        for(i_query in 1:nrow(queries)) {
-          #Looking for the next matching entry in json file
-          while(i_tmp <= length(temp$topics) && temp$topics[[i_tmp]]$topic != topic) { i_tmp <- i_tmp + 1 }
-          if(i_tmp <= length(temp$topics)) {
-            #reusing an existing query
-            adjusted_topics[[i_adjusted]] <- temp$topics[[i_tmp]]
-            adjusted_topics[[i_adjusted]]$query <- queries$Query[[i_query]]
-            adjusted_topics[[i_adjusted]]$label <- queries$Label[[i_query]]
-            adjusted_topics[[i_adjusted]]$alpha <-  if(!is.null(queries$Alpha[[i_query]]) && !is.na(queries$Alpha[[i_query]])) queries$Alpha[[i_query]] else conf$alert_alpha
-            adjusted_topics[[i_adjusted]]$alpha_outlier <-  (
-              if(!is.null(queries$`Outliers Alpha`[[i_query]]) && !is.na(queries$`Outliers Alpha`[[i_query]])) 
-                queries$`Outliers Alpha`[[i_query]] 
-              else 
-                conf$alert_alpha_outlier
-            )
-          } else {
-            #creating a new query  
-            adjusted_topics[[i_adjusted]] <- list()
-            adjusted_topics[[i_adjusted]]$query <- queries$Query[[i_query]]
-            adjusted_topics[[i_adjusted]]$topic <- queries$Topic[[i_query]]
-            adjusted_topics[[i_adjusted]]$label <- queries$Label[[i_query]]
-            adjusted_topics[[i_adjusted]]$alpha <- if(!is.null(queries$Alpha[[i_query]]) && !is.na(queries$Alpha[[i_query]])) queries$Alpha[[i_query]] else conf$alert_alpha
-            adjusted_topics[[i_adjusted]]$alpha_outlier <- (
-              if(!is.null(queries$`Outliers Alpha`[[i_query]]) && !is.na(queries$`Outliers Alpha`[[i_query]])) 
-                queries$`Outliers Alpha`[[i_query]] 
-              else 
-                conf$alert_alpha_outlier
-            )
-          }
-          i_adjusted <- i_adjusted + 1
-          i_tmp <- i_tmp + 1
+        for(sm in conf$sm_enabled) {
+	  i_tmp <- 1
+          #For each distinct query on Excel file on current topic
+          for(i_query in 1:nrow(queries)) {
+            for(translated_query in translate_query(sm, queries$Query[[i_query]])) {
+              #Looking for the next matching entry in json file
+              while(i_tmp <= length(temp$topics) && ((temp$topics[[i_tmp]]$topic != topic && temp$topics[[i_tmp]]$network == sm) || temp$topics[[i_tmp]]$network != sm)) { i_tmp <- i_tmp + 1 }
+              if(i_tmp <= length(temp$topics)) {
+                #reusing an existing query
+                adjusted_topics[[i_adjusted]] <- temp$topics[[i_tmp]]
+                adjusted_topics[[i_adjusted]]$network <- sm
+                adjusted_topics[[i_adjusted]]$query <- translated_query
+                adjusted_topics[[i_adjusted]]$label <- queries$Label[[i_query]]
+                adjusted_topics[[i_adjusted]]$alpha <-  if(!is.null(queries$Alpha[[i_query]]) && !is.na(queries$Alpha[[i_query]])) queries$Alpha[[i_query]] else conf$alert_alpha
+                adjusted_topics[[i_adjusted]]$alpha_outlier <-  (
+                  if(!is.null(queries$`Outliers Alpha`[[i_query]]) && !is.na(queries$`Outliers Alpha`[[i_query]])) 
+                    queries$`Outliers Alpha`[[i_query]] 
+                  else 
+                    conf$alert_alpha_outlier
+                )
+              } else {
+                #creating a new query  
+                adjusted_topics[[i_adjusted]] <- list()
+                adjusted_topics[[i_adjusted]]$network <- sm
+                adjusted_topics[[i_adjusted]]$query <- translated_query
+                adjusted_topics[[i_adjusted]]$topic <- queries$Topic[[i_query]]
+                adjusted_topics[[i_adjusted]]$label <- queries$Label[[i_query]]
+                adjusted_topics[[i_adjusted]]$alpha <- if(!is.null(queries$Alpha[[i_query]]) && !is.na(queries$Alpha[[i_query]])) queries$Alpha[[i_query]] else conf$alert_alpha
+                adjusted_topics[[i_adjusted]]$alpha_outlier <- (
+                  if(!is.null(queries$`Outliers Alpha`[[i_query]]) && !is.na(queries$`Outliers Alpha`[[i_query]])) 
+                    queries$`Outliers Alpha`[[i_query]] 
+                  else 
+                    conf$alert_alpha_outlier
+                )
+              }
+              i_tmp <- i_tmp + 1
+              i_adjusted <- i_adjusted + 1
+	    }
+	  }
         }
       }
       temp$topics <- adjusted_topics
@@ -333,6 +350,7 @@ setup_config <- function(
     conf$topics <- temp$topics
     conf$dismiss_past_done <- temp$dismiss_past_done
     copy_plans_from(temp)
+    # updating topic keywords, necessary for ignoring keywords in top words charts
     if(topics_changed)
       update_topic_keywords()
   } 
@@ -364,18 +382,8 @@ copy_plans_from <- function(temp) {
       else {
         conf$topics[[i]]$plan <- ( 
         lapply(1:length(temp$topics[[i]]$plan), 
-          function(j) get_plan(
-            expected_end = temp$topics[[i]]$plan[[j]]$expected_end
-            , scheduled_for = temp$topics[[i]]$plan[[j]]$scheduled_for
-            , start_on = temp$topics[[i]]$plan[[j]]$start_on
-            , end_on = temp$topics[[i]]$plan[[j]]$end_on
-            , max_id = temp$topics[[i]]$plan[[j]]$max_id
-            , since_id = temp$topics[[i]]$plan[[j]]$since_id
-            , since_target = temp$topics[[i]]$plan[[j]]$since_target
-            , results_span = temp$topics[[i]]$plan[[j]]$results_span
-            , requests = temp$topics[[i]]$plan[[j]]$requests
-            , progress = temp$topics[[i]]$plan[[j]]$progress
-        )))
+          function(j) do.call(parse_plan_elements, args = temp$topics[[i]]$plan[[j]])
+        ))
       }
     }
   }
@@ -429,6 +437,8 @@ save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRU
     temp$known_users <- conf$known_users
     temp$spark_cores <- conf$spark_cores
     temp$spark_memory <- conf$spark_memory
+    temp$sm_enabled <- conf$sm_enabled
+    temp$sm_alerts <- conf$sm_alerts
     temp$onthefly_api <- conf$onthefly_api
     temp$geolocation_threshold <- conf$geolocation_threshold
     temp$geolocation_threshold <- conf$geolocation_threshold
@@ -456,26 +466,29 @@ save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRU
     temp$fs_query_timeout <- conf$fs_query_timeout
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
+    temp$topics_md5 <- conf$topics_md5
+    temp$dismiss_past_done <- conf$dismiss_past_done
     # writing the json file
     write_json_atomic(temp, get_properties_path(), pretty = TRUE, force = TRUE, auto_unbox = TRUE)
   }
   if(topics) {
     # saving topics on topics.json file 
-    temp <- list()
-    temp$topics <- conf$topics
-    temp$topics_md5 <- conf$topics_md5
-    temp$dismiss_past_done <- conf$dismiss_past_done
-    # Transforming Int64 to string to ensure not losing precision on reading
-    for(i in 1:length(conf$topics)) {         
-      for(j in 1:length(conf$topics[[i]]$plan)) {
-        temp$topics[[i]]$plan[[j]]$since_id = as.character(conf$topics[[i]]$plan[[j]]$since_id)
-        temp$topics[[i]]$plan[[j]]$max_id = as.character(conf$topics[[i]]$plan[[j]]$max_id)
-        temp$topics[[i]]$plan[[j]]$since_target = as.character(conf$topics[[i]]$plan[[j]]$since_target)
-      }
+    paths = get_plans_paths()
+    for(sm in names(paths)) {
+        sm_topics =  conf$topics[sapply(1:length(conf$topics), function(j) conf$topics[[j]]$network == sm)]
+        temp <- list()
+        temp$topics <- format_topics(sm_topics)
+        # writing plan files per social media
+        write_json_atomic(temp, paths[[sm]], pretty = TRUE, force = TRUE, auto_unbox = TRUE)
     }
-    # writing the json file
-    write_json_atomic(temp, get_plans_path(), pretty = TRUE, force = TRUE, auto_unbox = TRUE)
   }
+}
+
+format_topics <- function(topics) {
+    lapply(topics, function(t) {
+        t$plan <- lapply(t$plan, format_plan)
+        t	
+    })
 }
 
 #' @title Save Blusky credentials (login and password) and store them securely
@@ -514,6 +527,29 @@ merge_configs <- function(configs) {
     keys <- unique(c(names(first), names(rest)))
     as.list(setNames(mapply(function(x, y) if(is.null(y)) x else y, first[keys], rest[keys]), keys))
   }
+}
+
+merge_config_lists <- function(configs, property) {
+  nested <- lapply(configs, function(cc) {
+    if(exists(property, where = cc))
+       cc[[property]]
+    else
+       list()    
+  })
+  ret <- list()
+  ret[[property]] <- as.list(Reduce(c, nested))
+  ret
+}
+
+# parse topic query and translate it to particular social media quert language
+translate_query <- function(sm, q) {
+  q_parts <- trimws(strsplit(q, "[,\n]+")[[1]])
+  q_parts <- q_parts[q_parts != ""]
+  neg_parts <- q_parts[startsWith(q_parts, "-")]
+  neg_parts <- substr(neg_parts, 2, 1000)
+  pos_parts <- q_parts[!startsWith(q_parts, "-")]  
+  pos_parts <- strsplit(pos_parts, "/")
+  do.call(paste(sm, "translate_query", sep = "_"), list(parts = pos_parts, excluded = neg_parts)) 
 }
 
 # Get topics data frame as displayed on the Shiny configuration tab

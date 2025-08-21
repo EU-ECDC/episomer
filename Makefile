@@ -1,7 +1,4 @@
 SHELL = bash
-#ifndef EPI_HOME
-#	$(error EPI_HOME is undefined)
-#endif
 
 define check_epi_home
 	@if [ $(origin EPI_HOME) == undefined ]; then echo "please set EPI_HOME is unset"; exit 1; fi
@@ -27,4 +24,6 @@ search-sandboxed:
 	$(call set_kr_pass)
 	@export ecdc_wtitter_tool_kr_password=`pass epitools/ecdc_kr_pwd` && \
 	R -e "devtools::load_all('epitweetr');epitweetr::setup_config('$$EPI_HOME');epitweetr::search_loop(sandboxed=TRUE)"
-		
+
+r-interpreter:
+	devscripts/r-interpreter.sh

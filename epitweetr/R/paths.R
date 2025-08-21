@@ -11,8 +11,21 @@ get_search_archive_path <- function() file.path(conf$data_dir, "tweets", "search
 # Get path of properties files (written by Shiny app)
 get_properties_path <- function() file.path(conf$data_dir, "properties.json")
 
-# Get path of properties files (written by search loop)
+# Get path of plan base file (written by search loop)
 get_plans_path <- function() file.path(conf$data_dir, "topics.json")
+
+# Get paths of plans by sm (written by search loop)
+get_plans_paths <- function() {
+    if(length(conf$sm_enabled) > 0) {
+	ret <- conf$sm_enabled
+        names(ret) = ret
+        sapply(ret, function(sm) {
+            gsub(".json", paste0(".", sm, ".json"), get_plans_path())
+	})
+    } else {
+       character(0)
+    }
+}
 
 # Get task path (written by detect pipeline)
 get_tasks_path <- function() file.path(conf$data_dir, "tasks.json")

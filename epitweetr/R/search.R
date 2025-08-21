@@ -81,7 +81,7 @@ search_loop <- function(
     }
 
     # On each iteration this loop will perform one request for each active plans having the minimum number of requests
-    # Creating plans for each topic if collect span is expired and calculating next execution time for each plan.
+    # Creating plans for each topic if collect span is expired and calculating next execution time for each olan.
     for (i in 1:length(conf$topics)) {
       conf$topics[[i]]$plan <- update_plans(
 	network = network,
@@ -136,7 +136,7 @@ search_loop <- function(
             if (plan$requests <= min_requests && is.null(plan$end_on)) {
               requests_done <- requests_done + 1
               #if search is performed on the first plan and we get an too old error, we will retry without time limit
-              tryCatch(
+	      tryCatch(
                 {
                   conf$topics[[i]]$plan[[j]] = search_topic(
                     plan = plan,
@@ -209,9 +209,7 @@ search_topic <- function(
   sandboxed = FALSE
 ) {
   network <- plan$network
-
   token <- get(sprintf("%s_get_token", network))()
-  # Set date boundaries for the search
   info <- get(sprintf("%s_next_search_info", network))(plan)
 
   msg(paste(
@@ -277,7 +275,11 @@ search_topic <- function(
   }
 
   # updating plan after result
+  #if( query == "\"2019-ncov\"")
+  #	  browser() 
   plan <- update_plan_after_request(plan,  results)
+  #if( query == "\"2019-ncov\"")
+  #	  browser()
   plan
 }
 
