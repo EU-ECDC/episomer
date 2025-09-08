@@ -382,7 +382,7 @@ copy_plans_from <- function(temp) {
       else {
         conf$topics[[i]]$plan <- ( 
         lapply(1:length(temp$topics[[i]]$plan), 
-          function(j) do.call(parse_plan_elements, args = temp$topics[[i]]$plan[[j]])
+          function(j) do.call(parse_plan_attributes, args = temp$topics[[i]]$plan[[j]])
         ))
       }
     }
@@ -549,7 +549,7 @@ translate_query <- function(sm, q) {
   neg_parts <- substr(neg_parts, 2, 1000)
   pos_parts <- q_parts[!startsWith(q_parts, "-")]  
   pos_parts <- strsplit(pos_parts, "/")
-  do.call(paste(sm, "translate_query", sep = "_"), list(parts = pos_parts, excluded = neg_parts)) 
+  sm_api_translate_query(network = sm, parts = pos_parts, excluded = neg_parts) 
 }
 
 # Get topics data frame as displayed on the Shiny configuration tab

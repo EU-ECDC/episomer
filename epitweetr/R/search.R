@@ -83,7 +83,7 @@ search_loop <- function(
     # On each iteration this loop will perform one request for each active plans having the minimum number of requests
     # Creating plans for each topic if collect span is expired and calculating next execution time for each olan.
     for (i in 1:length(conf$topics)) {
-      conf$topics[[i]]$plan <- update_plans(
+      conf$topics[[i]]$plan <- update_plans_schedule(
 	network = network,
         plans = conf$topics[[i]]$plan,
         schedule_span = conf$collect_span
@@ -208,9 +208,8 @@ search_topic <- function(
   topic,
   sandboxed = FALSE
 ) {
-  network <- plan$network
-  token <- get(sprintf("%s_get_token", network))()
-  info <- get(sprintf("%s_next_search_info", network))(plan)
+  token <- sm_api_get_token(plan$network)
+  info <- sm_plan_next_search_info(plan)
 
   msg(paste(
     "searching for topic",
@@ -218,11 +217,8 @@ search_topic <- function(
     info
   ))
 
-  # Ensuring that query is smaller than 400 character (Twitter API limit)
-  #if (nchar(query) < 400) {
   # doing the tweet search and storing the response object to obtain details on resp
-  network_search <- get(sprintf("%s_search", network))
-  results <- network_search(
+  results <- sm_api_search(
     query = query,
     token = token,
     plan = plan
@@ -274,13 +270,7 @@ search_topic <- function(
     }
   }
 
-  # updating plan after result
-  #if( query == "\"2019-ncov\"")
-  #	  browser() 
-  plan <- update_plan_after_request(plan,  results)
-  #if( query == "\"2019-ncov\"")
-  #	  browser()
-  plan
+  update_plan_after_request(plan,  results)
 }
 
 

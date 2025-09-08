@@ -5,7 +5,7 @@
 # @param start_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan was first executed, default: NULL
 # @param end_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan has finished, default: NULL
 # @param requests Integer, number of requests successfully executed, default: 0
-# @param got_rowa Boolean, if the plan has collected rows, default: FALSE
+# @param got_rows Boolean, if the plan has collected rows, default: FALSE
 # @param progress Numeric, percentage of progress of current plan defined when since_target_id is known or when a request returns no more results, default: 0
 # @return The get_plan object defined by input parameters
 # @details A plan is an S3 class representing a commitment to download tweets from the search API
@@ -16,13 +16,13 @@
 # @examples
 # if(FALSE){
 #  #creating the default plan
-#  parse_plan_elements()
+#  parse_plan_attributes()
 # }
 # @seealso
 #  \code{\link[bit64]{as.integer64.character}}
 # @rdname get_plan
 # @importFrom bit64 as.integer64
-parse_plan_elements <- function(
+parse_plan_attributes <- function(
     network,
     expected_end,
     scheduled_for = Sys.time(),
@@ -33,7 +33,7 @@ parse_plan_elements <- function(
     progress = 0.0,
     ...
 ) {
-    common_elements <- list(
+    common_attributes <- list(
         "network" = network,
 	"expected_end" = if (!is.null(unlist(expected_end))) strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S") else NULL,
         "scheduled_for" = if (!is.null(unlist(scheduled_for))) strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S") else NULL,
@@ -43,20 +43,14 @@ parse_plan_elements <- function(
         "got_rows" = unlist(got_rows),
         "progress" = unlist(progress)
     )
-    specific_elements <- get(
-        sprintf("%s_parse_plan_elements", network)
-    )(...)
-    me <- c(common_elements, specific_elements)
+    specific_attributes <- sm_plan_parse_attributes(network, ...)
+    me <- c(common_attributes, specific_attributes)
     return(me)
 }
 
-format_plan <- function(plan) {
-   get(sprintf("%s_format_plan", plan$network))(plan)
+format_plan <- function(p) {
+   sm_plan_format(p)
 }
-
-request_got_rows <- function(plan, results) { get(sprintf("%s_got_rows", plan$network))(results) }
-get_plan_progress <- function(plan) { get(sprintf("%s_get_plan_progress", plan$network))(plan) }
-update_plan_after_request_by_network <- function(plan, results) { get(sprintf("%s_update_plan_after_request", plan$network))(plan, results) }
 
 # Update a plan after search request is done
 # If first request, started and max will be set
@@ -72,16 +66,16 @@ update_plan_after_request <- function(plan, results) {
     }
 
     # check is the current request got rows
-    req_got_rows <- request_got_rows(plan, results)
+    req_got_rows <- sm_api_got_rows(plan, results)
     if(req_got_rows) {
         # set got rows for this plan
 	plan$got_rows <- TRUE
 
     	# updating plan by network parameters
-        plan <- update_plan_after_request_by_network(plan, results)
+        plan <- sm_api_update_plan_after_request(plan, results)
 	
 	# setting plan progress
-	plan$progress <- get_plan_progress(plan)
+	plan$progress <- sm_plan_get_progress(plan)
     } else {
         # if no rows have been obtained then we consider the plan has ended
         plan$end_on <- Sys.time()
@@ -90,11 +84,12 @@ update_plan_after_request <- function(plan, results) {
     return(plan)
 } 
 
+merge_plans <- function(p1, p2) {
+    keys <- unique(c(names(p1), names(p2)))
+    as.list(setNames(mapply(function(x, y) if(is.null(y)) x else y, p1[keys], p2[keys]), keys))
+}
 
-first_plan_element_by_network <- function(network) { get(sprintf("%s_first_plan_elements", network))() }
-next_plan_element_by_network <- function(network, plans) { get(sprintf("%s_next_plan_elements", network))(plans) }
-
-# @title Update get plans
+# @title Update plans schedule
 # @description Updating plans for a particular topic
 # @param plans The existing plans for the topic, default: list()
 # @param schedule_target target minutes for finishing a plan
@@ -114,7 +109,7 @@ next_plan_element_by_network <- function(network, plans) { get(sprintf("%s_next_
 #  update_plans(plans = conf$topics[[1]]$plan, schedule_span = conf$collect_span)
 # }
 # @rdname update_plans
-update_plans <- function(plans = list(), network, schedule_span) {
+update_plans_schedule <- function(plans = list(), network, schedule_span) {
     # Testing if there are plans present
     if (length(plans) == 0) {
         # Getting default plan for when no existing plans are present setting the expected end
@@ -124,9 +119,9 @@ update_plans <- function(plans = list(), network, schedule_span) {
 	)
         elems <- c(
             elems,
-	    first_plan_element_by_network(network)
+	    plan_first_attributes(network)
 	)
-	new_plan <- do.call(parse_plan_elements, elems)
+	new_plan <- do.call(parse_plan_attributes, elems)
         return(list(new_plan))
     } else if (
         plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()
@@ -145,9 +140,9 @@ update_plans <- function(plans = list(), network, schedule_span) {
         )
         elems <- c(
             elems,
-            next_plan_element_by_network(network, plans)
+            sm_plan_next_attributes(network, plans)
         )
-        first <- do.call(parse_plan_elements, elems)
+        first <- do.call(parse_plan_attributes, elems)
 
         # removing ended plans
         non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
@@ -178,7 +173,7 @@ finish_plans <- function(plans = list()) {
     } else {
         # creating a new plan if expected end has passed
         lapply(plans, function(p) {
-            plan_common_elements <- list(
+            attr <- list(
                 network = p$network,
                 expected_end = strftime(
                     if (is.null(p$end_on)) {
@@ -208,9 +203,9 @@ finish_plans <- function(plans = list()) {
                 requests = p$requests,
                 progress = 1.0
             )
-            network_specific_logic <- get(sprintf("%s_finish_plan", p$network))
-            params <- c(plan_common_elements, network_specific_logic(p))
-            do.call(get_plan, params)
+            
+            updated <- do.call(parse_plan, attrs)
+	    merge_plans(p, updated)
         })
     }
 }
