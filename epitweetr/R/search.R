@@ -25,12 +25,51 @@
 #' \code{\link{set_twitter_app_auth}}
 #' @export
 search_loop <- function(
-  network = "bluesky",
+  data_dir = NA,
+  sandboxed = FALSE,
+  max_requests = 0
+) {
+    if (!sandboxed) {
+        # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
+        register_search_runner()
+    }
+    sms <- active_social_media()
+    cores <- as.numeric(length(sms))
+    cl <- parallel::makePSOCKcluster(cores, outfile="")
+    on.exit(parallel::stopCluster(cl))
+    data_dir <- conf$data_dir
+    parallel::clusterExport(cl, 
+      list(
+	#"conf",
+        #"setup_config",
+        #"search_loop_worker",
+        #"get_properties_path",
+        #"get_user_topics_path",
+        #"get_default_topics_path"
+      )
+      , envir=rlang::current_env()
+    )
+    
+    # running search loops
+    alerts <- parallel::parLapply(cl, sms, function(sm) {
+	epitweetr::setup_config(data_dir)
+        m <- paste("Running search agent for ",sm, Sys.time())
+        message(m)
+        epitweetr::search_loop_worker(sm, data_dir, sandboxed, max_requests)
+    })
+    stop("All search loop proccesses ended, which is unexpected")
+  
+}
+
+#' @export
+search_loop_worker <- function(
+  network,
   data_dir = NA,
   sandboxed = FALSE,
   max_requests = 0
 
 ) {
+  message(sprintf("Starting runner for %s", network))
   # Setting or reusing the data directory
   if (is.na(data_dir)) {
     setup_config_if_not_already()
@@ -40,7 +79,7 @@ search_loop <- function(
 
   if (!sandboxed) {
       # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-      register_search_runner()
+      register_search_runner(network)
   }
   # Infinite loop for getting tweets if it is successfully registered as the search runner
   req2Commit <- 0
@@ -106,7 +145,7 @@ search_loop <- function(
           "seconds. Consider reducing the schedule_span for getting tweets sooner"
         ))
         commit_tweets()
-        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
+        save_config(data_dir = conf$data_dir, sm_topics = list(network), properties = FALSE)
         Sys.sleep(wait_for)
       }
     }
@@ -133,7 +172,7 @@ search_loop <- function(
       for (j in 1:length(conf$topics[[i]]$plan)) {
         if (max_requests == 0 || requests_done <= max_requests) {
             plan <- conf$topics[[i]]$plan[[j]]
-            if (plan$requests <= min_requests && is.null(plan$end_on)) {
+            if (plan$requests <= min_requests && is.null(plan$end_on) && plan$network == network) {
               requests_done <- requests_done + 1
               #if search is performed on the first plan and we get an too old error, we will retry without time limit
 	      tryCatch(
@@ -187,7 +226,7 @@ search_loop <- function(
     #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds
     if (difftime(Sys.time(), last_save, units = "secs") > 10) {
       last_save <- Sys.time()
-      setup_config(data_dir = conf$data_dir, save_first = list("topics"))
+      setup_config(data_dir = conf$data_dir, save_topics_first = list(network))
       #msg("config saved and refreshed")
     }
 

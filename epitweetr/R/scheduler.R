@@ -1,7 +1,11 @@
 # registers the tweet collection task (by writing search.PID file) for the current process or stops if no configuration has been set or if it is already running
-register_search_runner <- function() {
+register_search_runner <- function(network = NULL) {
   stop_if_no_config(paste("Cannot check running status for search without configuration setup")) 
-  register_runner("search")
+  name <- "search"
+  if(!is.null(network)) {
+      name <- sprintf("search.%s", network)
+  }
+  register_runner(name)
 }
 
 

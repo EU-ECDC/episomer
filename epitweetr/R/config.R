@@ -97,8 +97,6 @@ get_empty_config <- function(data_dir) {
   }
   ret$spark_memory <- "4g"
   ret$onthefly_api <-  .Platform$OS.type != "windows"
-  ret$sm_enabled <- list("bluesky")
-  ret$sm_alerts <- list("bluesky")
   ret$topics <- list()
   ret$topics_md5 <- ""
   ret$alert_alpha <- 0.025
@@ -124,6 +122,8 @@ get_empty_config <- function(data_dir) {
   ret$fs_batch_timeout <- 60*60 
   ret$fs_query_timeout <- 60
   ret$admin_email <- ""
+  ret$sm_alerts_bluesky <- TRUE
+  ret$sm_activated_bluesky <- TRUE
   ret$dismiss_past_request <- "1971-01-01 00:00:00"
   ret$dismiss_past_done <- "2000-01-01 00:00:00"
   return(ret)
@@ -188,7 +188,8 @@ setup_config <- function(
   , ignore_keyring = FALSE
   , ignore_properties = FALSE
   , ignore_topics = FALSE
-  , save_first = list()
+  , save_properties_first = FALSE
+  , save_topics_first = list()
 ) 
 {
   #setting the data_dir which is a read only property
@@ -200,11 +201,11 @@ setup_config <- function(
   props_path = get_properties_path()
   
   #topics_path is the path to the excel file containing the topics provided by the user or epitweetr default ones
-  topics_path <- get_topics_path(data_dir)
+  user_topics_path <- get_user_topics_path(data_dir)
 
   # save_first may be used by a function which is responsible for a part of the configuration to save changes on its perimeter before refreshing
-  if(length(save_first) > 0) {
-    save_config(data_dir = data_dir, properties = "props" %in% save_first, "topics" %in% save_first)
+  if(save_properties_first || length(save_topics_first) > 0) {
+    save_config(data_dir = data_dir, properties = save_properties_first, sm_topics = save_topics_first)
   }
   #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing
   temp <- get_empty_config(data_dir)
@@ -232,8 +233,6 @@ setup_config <- function(
     conf$known_users <- temp$known_users
     conf$spark_cores <- temp$spark_cores
     conf$spark_memory <- temp$spark_memory
-    conf$sm_enabled <- temp$sm_enabled
-    conf$sm_alerts <- temp$sm_alerts
     conf$onthefly_api <- temp$onthefly_api
     conf$geolocation_threshold <- temp$geolocation_threshold
     conf$alert_alpha <- temp$alert_alpha
@@ -259,7 +258,8 @@ setup_config <- function(
     conf$fs_query_timeout <- temp$fs_query_timeout
     conf$admin_email <- temp$admin_email
     conf$dismiss_past_request <- temp$dismiss_past_request
-
+    conf$sm_alerts_bluesky <- temp$sm_alerts_bluesky
+    conf$sm_activated_bluesky <- temp$sm_activated_bluesky
   }
   if(!ignore_topics) {
     plans_path = get_plans_paths()
@@ -270,6 +270,7 @@ setup_config <- function(
         else
 	    list()
     })
+    # merging topics from different SM
     merged_topics <- merge_config_lists(topics_plans, "topics")
     # merging initial + properties.json data with plans
     temp = merge_configs(list(temp, merged_topics))
@@ -279,9 +280,9 @@ setup_config <- function(
     topics_changed <- FALSE
     topics <- {
       t <- list()
-      t$md5 <- as.vector(tools::md5sum(topics_path))
+      t$md5 <- as.vector(tools::md5sum(user_topics_path))
       if(t$md5 != temp$topics_md5) { 
-        t$df <- readxl::read_excel(topics_path)
+        t$df <- readxl::read_excel(user_topics_path)
         topics_changed <- TRUE
       }
       t
@@ -289,7 +290,7 @@ setup_config <- function(
     
     #Merging topics from config json and topic excel topics if this last one has changed
     #Each time a topic is found on file, all its occurrences will be processed at the same time, to ensure consistent multi query topics updates based on position
-    if(topics_changed && exists("df", where = topics) && length(conf$sm_enabled) > 0) {
+    if(topics_changed && exists("df", where = topics) && length(active_social_media()) > 0) {
       distinct_topics <- as.list(unique(topics$df$Topic))
       adjusted_topics <- list()
       i_adjusted <- 1
@@ -300,7 +301,9 @@ setup_config <- function(
           stop(paste("topic name", topic, "is invalid, it must contains only by alphanumeric letters, digits spaces '-' and '_' and not start with spaces, '-' or '_'", sep = " "))
         }
         queries <- topics$df[topics$df$Topic == topic, ]
-        for(sm in conf$sm_enabled) {
+	active_sm <- active_social_media()
+	# For each active social media
+        for(sm in active_sm) {
 	  i_tmp <- 1
           #For each distinct query on Excel file on current topic
           for(i_query in 1:nrow(queries)) {
@@ -413,11 +416,14 @@ copy_plans_from <- function(temp) {
 #' \code{\link{setup_config}}
 #' \code{\link{set_bsky_auth}}
 #' @export 
-save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRUE) {
+save_config <- function(data_dir = conf$data_dir, properties= TRUE, sm_topics = NULL) {
   # creating data directory if it does not exists
   if(!file.exists(conf$data_dir)){
     dir.create(conf$data_dir, showWarnings = FALSE)
-  }  
+  }
+  if(is.null(sm_topics)) {
+    sm_topics <- active_social_media() 
+  }
 
   if(properties) {
     # saving properties on properties.json file
@@ -437,8 +443,6 @@ save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRU
     temp$known_users <- conf$known_users
     temp$spark_cores <- conf$spark_cores
     temp$spark_memory <- conf$spark_memory
-    temp$sm_enabled <- conf$sm_enabled
-    temp$sm_alerts <- conf$sm_alerts
     temp$onthefly_api <- conf$onthefly_api
     temp$geolocation_threshold <- conf$geolocation_threshold
     temp$geolocation_threshold <- conf$geolocation_threshold
@@ -466,18 +470,20 @@ save_config <- function(data_dir = conf$data_dir, properties= TRUE, topics = TRU
     temp$fs_query_timeout <- conf$fs_query_timeout
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
+    temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
+    temp$sm_activated_bluesky <- conf$sm_activated_bluesky
     temp$topics_md5 <- conf$topics_md5
     temp$dismiss_past_done <- conf$dismiss_past_done
     # writing the json file
     write_json_atomic(temp, get_properties_path(), pretty = TRUE, force = TRUE, auto_unbox = TRUE)
   }
-  if(topics) {
+  if(length(sm_topics) > 0) {
     # saving topics on topics.json file 
     paths = get_plans_paths()
-    for(sm in names(paths)) {
-        sm_topics =  conf$topics[sapply(1:length(conf$topics), function(j) conf$topics[[j]]$network == sm)]
+    for(sm in sm_topics) {
+        topics_in_sm =  conf$topics[sapply(1:length(conf$topics), function(j) conf$topics[[j]]$network == sm)]
         temp <- list()
-        temp$topics <- format_topics(sm_topics)
+        temp$topics <- format_topics(topics_in_sm)
         # writing plan files per social media
         write_json_atomic(temp, paths[[sm]], pretty = TRUE, force = TRUE, auto_unbox = TRUE)
     }
@@ -671,6 +677,14 @@ add_config_language <- function(code, name) {
 # Get current known users list from the important users files
 get_known_users <- function() {
   gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])
+}
+
+active_social_media <- function() {
+    props <- names(conf)
+    sm_props <- props[grepl("^sm_activated", props)]
+    active_sm_props <- sm_props[sapply(sm_props, function(sm_prop) conf[[sm_prop]])]
+    active_sm <- gsub("sm_activated_", "", active_sm_props)
+    active_sm
 }
 
 # Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers

@@ -461,7 +461,7 @@ update_languages <- function(tasks = get_tasks()) {
     }
     # Indexing languages after changes
     # using the Spark job with entry point updateLanguages 
-    update_languages_task(tasks, "running", "updating training set & indexing")
+    tasks <- update_languages_task(tasks, "running", "updating training set & indexing")
     update_geotraining_df()
     retrain_languages()
     update_geotraining_df()

@@ -8,6 +8,12 @@ define set_kr_pass
 	@export pa=`pass epitools/ecdc_kr_pwd` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_kr_pwd; fi
 endef
 
+init:
+	rm -rf renv/
+	rm -f .Rprofile
+	rm -f renv.lock
+	Rscript devscripts/renv.R
+
 
 install-dependencies:
 	devscripts/install-dependencies.sh

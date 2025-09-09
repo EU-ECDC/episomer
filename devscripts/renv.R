@@ -4,5 +4,7 @@ repos = "https://cran.asnr.fr/"
 if(!("renv" %in% installed.packages()[,"Package"]))
   install.packages("renv", repos = repos)
 
-if(!dir.exists(file.path("renv")))
-  renv::init(bare = T, settings = list("ignored.packages" = c("epitweetr", "gtools", "taskscheduleR")))
+renv::init(bare = F, settings = list("ignored.packages" = c("epitweetr", "gtools", "taskscheduleR")))
+renv::install("devtools")
+devtools::install_local("./epitweetr", dependencies=F)
+renv::snapshot()
