@@ -328,6 +328,9 @@ get_country_index_map <- function() {
 #' @importFrom utils download.file unzip 
 update_geonames <- function(tasks = get_tasks()) {
   stop_if_no_config()
+  old <- options()
+  on.exit(options(old))
+  options(timeout = 900)
   tasks <- tryCatch({
     tasks <- update_geonames_task(tasks, "running", "downloading", start = TRUE)
     # Create geo folder if it does not exist
@@ -428,6 +431,9 @@ update_geonames <- function(tasks = get_tasks()) {
 #' @importFrom utils download.file 
 update_languages <- function(tasks = get_tasks()) {
   stop_if_no_config()
+  old <- options()
+  on.exit(options(old))
+  options(timeout = 900)
   tasks <- tryCatch({
     tasks <- update_languages_task(tasks, "running", "downloading", start = TRUE)
 
@@ -775,6 +781,9 @@ update_geotraining_df <- function(tweets_to_add = 100, progress = function(a, b)
 # retrain the language classifiers for entity recognition with the current set of annotations
 retrain_languages <- function() {
   `%>%` <- magrittr::`%>%`
+  old <- options()
+  on.exit(options(old))
+  options(timeout = 1800)
   body <- get_geotraining_df() %>% jsonlite::toJSON()
   post_result <- httr::POST(url=get_scala_geotraining_url(), httr::content_type_json(), body=body, encode = "raw", encoding = "UTF-8")
   if(httr::status_code(post_result) != 200) {
