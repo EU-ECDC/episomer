@@ -112,13 +112,11 @@ twitter_get <- function(urls, i = 0, retries = 20, tryed = list()) {
       }, warning = function(warning_condition) {
         message(paste("retrying because of warning ", warning_condition))
         towait = i * i
-        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
         Sys.sleep(towait)  
         return(twitter_get(urls, i = i + 1, retries = retries))
       }, error = function(error_condition) {
         message(paste("retrying because of error ", error_condition))
         towait = i * i
-        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
         Sys.sleep(towait)  
         return(twitter_get(urls, i = i + 1, retries = retries))
         
@@ -143,12 +141,10 @@ twitter_get <- function(urls, i = 0, retries = 20, tryed = list()) {
         } else {
           towait = towait + 5  
         }
-        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
         Sys.sleep(towait)  
       } else {
         # If no waiting time has been provided (should not happen) waiting 15 minutes which is the default rate limit window
         towait <- 15*60 
-        save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
         message(paste("The Twitter application endpoint ",last_get$api_ver ,"is about to reach its rate limit, but no waiting instruction has been detected. Waiting", towait,"seconds until", Sys.time()+towait))
         Sys.sleep(towait)  
       }
@@ -158,7 +154,6 @@ twitter_get <- function(urls, i = 0, retries = 20, tryed = list()) {
   else if(res$status_code == 420 && i <= retries) {
     # Adding 60 seconds wait if application is being requested to slow down, and retries is less than limit
     message("The Twitter application is slowing down (rate limited) by Twitter, waiting 1 minute before continuing")
-    save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
     Sys.sleep(60)
     conf$token = NULL
     return(twitter_get(urls, i = i + 1, retries = retries, tryed = tryed))
@@ -181,13 +176,11 @@ twitter_get <- function(urls, i = 0, retries = 20, tryed = list()) {
       tryed <- list()
       rm("api_ver", envir = last_get)
 
-      save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
       Sys.sleep(towait)  
     } else {
       # Waiting 15 minutes before retry if no waiting instruction is identified
       towait <- 15*60 
       message(paste("The Twitter application endpoint has reached its rate limit, but no waiting instruction has been detected. Waiting", towait,"seconds"))
-      save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
       Sys.sleep(towait + 10)  
     }
     conf$token = NULL
@@ -214,7 +207,6 @@ twitter_get <- function(urls, i = 0, retries = 20, tryed = list()) {
       # Other non-expected cases, retrying with a quadratic waiting rule at most (retries - i) more times
       message(paste("Error status code ",res$status_code,"returned by Twitter API waiting for", i*i, "seconds before retry with a new token"))  
       message(httr::content(res,as="text"))
-      save_config(data_dir = conf$data_dir, topics = TRUE, properties = FALSE)
       Sys.sleep(i * i)
       conf$token = NULL
       return(twitter_get(urls, i = i + 1, retries = retries, tryed = tryed))

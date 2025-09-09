@@ -40,7 +40,7 @@ epitweetr_app <- function(data_dir = NA) {
     setup_config(data_dir)
   }
   if(!file.exists(get_properties_path())) {
-    save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+    save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
     save_tasks(get_tasks())
   }
   # Loading data for dashboard and configuration
@@ -350,13 +350,6 @@ epitweetr_app <- function(data_dir = NA) {
             shiny::fluidRow(shiny::column(3, "Winutils URL"), shiny::column(9,  shiny::textInput("conf_winutils_url", label = NULL, value = conf$winutils_url)))
           ),
           shiny::fluidRow(shiny::column(3, "Region disclaimer"), shiny::column(9, shiny::textAreaInput("conf_regions_disclaimer", label = NULL, value = conf$regions_disclaimer))),
-          shiny::h2("Bluesky authentication"),
-          shiny::fluidRow(shiny::column(3, "Bluesky user"), shiny::column(9, 
-	     shiny::textInput("bsky_user", label = NULL, value = conf$bsky_user))
-	  ), 
-          shiny::fluidRow(shiny::column(3, "Bluesky Password"), shiny::column(9, 
-	    shiny::passwordInput("bsky_password", label = NULL, value = if(is_secret_set("bsky_password")) get_secret("bsky_password") else NULL))
-	  ), 
           shiny::h2("Email authentication (SMTP)"),
           shiny::fluidRow(shiny::column(3, "Server"), shiny::column(9, shiny::textInput("smtp_host", label = NULL, value = conf$smtp_host))), 
           shiny::fluidRow(shiny::column(3, "Port"), shiny::column(9, shiny::numericInput("smtp_port", label = NULL, value = conf$smtp_port))), 
@@ -382,6 +375,33 @@ epitweetr_app <- function(data_dir = NA) {
             shiny::column(3, shiny::actionButton("request_alerts", "Run alerts"))
           ),
           DT::dataTableOutput("tasks_df"),
+          ################################################
+          ######### SOCIAL MEDIA PANDEL###################
+          ################################################
+          shiny::h2("Social medias"),
+          shiny::fluidRow(
+	     shiny::column(4, "Social Media"),
+	     shiny::column(8, "Configuration"),
+	     style = "font-weight:bold"
+	  ), 
+          shiny::fluidRow(
+	     shiny::column(4, shiny::checkboxInput("conf_sm_activated_bluesky", label = "Bluesky", value = conf$sm_activated_bluesky)),
+	     shiny::column(8,
+                 shiny::conditionalPanel(
+                     condition = "input.conf_sm_activated_bluesky == true",
+	             shiny::checkboxInput("conf_sm_alerts_bluesky", label = "Calculate alerts", value = conf$sm_alerts_bluesky),
+                     shiny::fluidRow(
+		         shiny::column(3,"User"), 
+		         shiny::column(9, shiny::textInput("bsky_user", label = NULL, value = if(is_secret_set("bsky_user")) get_secret("bsky_user") else NULL))
+		     ),
+                     shiny::fluidRow(
+		         shiny::column(3,"Password"), 
+	                 shiny::column(9, shiny::passwordInput("bsky_password", label = NULL, value = if(is_secret_set("bsky_password")) get_secret("bsky_password") else NULL))
+		     )
+                 )
+	     ), 
+	     style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
+	  ), 
           ################################################
           ######### TOPICS PANEL ######################
           ################################################
@@ -1339,7 +1359,7 @@ epitweetr_app <- function(data_dir = NA) {
       # Forcing refresh of tasks
       cd$tasks_refresh_flag(Sys.time())
       # saving properties to ensure the Requirements & alerts pipeline can see the changes and start running the tasks
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
 
       # registering the scheduled task
       register_detect_runner_task()
@@ -1361,7 +1381,7 @@ epitweetr_app <- function(data_dir = NA) {
       # forcing a task refresh :TODO test if this is still necessary 
       cd$tasks_refresh_flag(Sys.time())
       # saving configuration so the Requirements & alerts pipeline will see the changes
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       # refreshing the tasks data
       refresh_config_data(cd, list("tasks"))
     })
@@ -1373,7 +1393,7 @@ epitweetr_app <- function(data_dir = NA) {
       # forcing a task refresh 
       cd$tasks_refresh_flag(Sys.time())
       # saving configuration so the Requirements & alerts pipeline will see the changes
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       # refreshing the tasks data
       refresh_config_data(cd, list("tasks"))
     })
@@ -1385,7 +1405,7 @@ epitweetr_app <- function(data_dir = NA) {
       # forcing a task refresh 
       cd$tasks_refresh_flag(Sys.time())
       # saving configuration so the Requirements & alerts pipeline will see the changes
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       # refreshing the tasks data
       refresh_config_data(cd, list("tasks"))
     })
@@ -1397,7 +1417,7 @@ epitweetr_app <- function(data_dir = NA) {
       # forcing a task refresh 
       cd$tasks_refresh_flag(Sys.time())
       # saving configuration so the Requirements & alerts pipeline will see the changes
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       # refreshing the tasks data
       refresh_config_data(cd, list("tasks"))
     })
@@ -1425,11 +1445,6 @@ epitweetr_app <- function(data_dir = NA) {
       conf$alert_same_weekday_baseline <- input$conf_same_weekday_baseline 
       conf$alert_with_bonferroni_corection <- input$conf_with_bonferroni_correction
       conf$alert_with_retweets <- input$conf_with_retweets
-      # Setting secrets
-      set_bsky_auth(
-        bsky_user = input$bsky_user, 
-        bsky_password = input$bsky_password 
-      )
       conf$smtp_host <- input$smtp_host
       conf$smtp_port <- input$smtp_port
       conf$smtp_from <- input$smtp_from
@@ -1438,9 +1453,16 @@ epitweetr_app <- function(data_dir = NA) {
       conf$smtp_password <- input$smtp_password
       conf$admin_email <- input$admin_email
       conf$force_date_format <- input$force_date_format
+      # Saving Bluesky propertes
+      set_bsky_auth(
+        bsky_user = input$bsky_user, 
+        bsky_password = input$bsky_password 
+      )
+      conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
+      conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
 
       # Saving properties.json
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
 
       # Forcing update on properties dependant refresh (e.g. time slots)
       cd$properties_refresh_flag(Sys.time())
@@ -1517,14 +1539,14 @@ epitweetr_app <- function(data_dir = NA) {
     # adding the current language
     shiny::observeEvent(input$conf_lang_add, {
       add_config_language(input$lang_items, cd$lang_names[input$lang_items])
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       refresh_config_data(e = cd, limit = list("langs"))
     })
     
     #removing a language
     shiny::observeEvent(input$conf_lang_remove, {
       remove_config_language(input$lang_items)
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       refresh_config_data(e = cd, limit = list("langs"))
     })
     
@@ -1565,7 +1587,7 @@ epitweetr_app <- function(data_dir = NA) {
     output$conf_topics_download <- shiny::downloadHandler(
       filename = function() "topics.xlsx",
       content = function(file) { 
-        file.copy(get_topics_path(), file) 
+        file.copy(get_user_topics_path(), file) 
       }
     )
 
@@ -1591,7 +1613,7 @@ epitweetr_app <- function(data_dir = NA) {
       # Setting values on the configuration so the search loop knows history needs to be dismissed
       conf$dismiss_past_request <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
       # saving configuration so the Requirements & alerts pipeline will see the changes
-      save_config(data_dir = conf$data_dir, properties= TRUE, topics = FALSE)
+      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
       # refreshing the tasks data
     })
 
@@ -2393,9 +2415,9 @@ refresh_config_data <- function(e = new.env(), limit = list("langs", "topics", "
       e$plans_refresh_flag <- shiny::reactiveVal(0)
       update <- TRUE
     } 
-    if(!update && file.exists(get_topics_path()) && file.info(get_topics_path())$mtime != e$topics_refresh_flag()) {
+    if(!update && file.exists(get_user_topics_path()) && file.info(get_user_topics_path())$mtime != e$topics_refresh_flag()) {
       update <- TRUE
-      e$topics_refresh_flag(file.info(get_topics_path())$mtime)
+      e$topics_refresh_flag(file.info(get_user_topics_path())$mtime)
     } 
     if(!update && file.exists(get_plans_path()) && file.info(get_plans_path())$mtime != e$plans_refresh_flag()) {
       update <- TRUE

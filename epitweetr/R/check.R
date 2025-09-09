@@ -687,7 +687,7 @@ create_snapshot <- function(
         items,
         list(
           "properties.json" = get_properties_path(),
-          "topics.xlsx" = get_topics_path(),
+          "topics.xlsx" = get_user_topics_path(),
           "tasks.json" = get_tasks_path(),
           "subscribers.xlsx" = get_subscribers_path(),
           "countries.xlsx" = get_countries_path(),

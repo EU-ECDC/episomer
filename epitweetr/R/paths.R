@@ -16,8 +16,9 @@ get_plans_path <- function() file.path(conf$data_dir, "topics.json")
 
 # Get paths of plans by sm (written by search loop)
 get_plans_paths <- function() {
-    if(length(conf$sm_enabled) > 0) {
-	ret <- conf$sm_enabled
+    sms <- active_social_media()
+    if( length(sms) > 0) {
+	ret <- sms
         names(ret) = ret
         sapply(ret, function(sm) {
             gsub(".json", paste0(".", sm, ".json"), get_plans_path())
@@ -93,7 +94,7 @@ get_known_users_path <- function(data_dir = conf$data_dir) {
 get_default_topics_path <- function() system.file("extdata", "topics.xlsx", package = get_package_name())
 
 # Get topics file path either from user or package location (written by Shiny app)
-get_topics_path <- function(data_dir = conf$data_dir) {
+get_user_topics_path <- function(data_dir = conf$data_dir) {
     topics_path <- paste(data_dir, "topics.xlsx", sep = "/")
     if(!file.exists(topics_path))
       topics_path <- get_default_topics_path()
