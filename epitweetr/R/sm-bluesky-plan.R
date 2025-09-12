@@ -45,9 +45,9 @@ sm_plan_get_progress_bluesky <- function(plan) {
 }
 
 #' @noRd
-sm_api_update_plan_after_request_bluesky <- function(plan, result) {
-    if(!is.null(result$query_min_date)) { 
-        plan$current_min_date <- result$query_min_date
+sm_api_update_plan_after_request_bluesky <- function(plan, results) {
+    if(!is.null(results$pagination$min_created_at)) { 
+        plan$current_min_date <- results$pagination$min_created_at
     }
     return(plan)
 }
