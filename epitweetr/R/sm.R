@@ -19,6 +19,5 @@ sm_api_search <- function(query, token, plan) { get(sprintf("sm_api_search_%s", 
 
 sm_api_update_plan_after_request <- function(plan, results) { get(sprintf("sm_api_update_plan_after_request_%s", plan$network))(plan, results) }
 
-sm_api_got_rows <- function(plan, results) { get(sprintf("sm_api_got_rows_%s", plan$network))(results) }
 
 

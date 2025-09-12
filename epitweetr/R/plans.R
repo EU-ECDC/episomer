@@ -66,7 +66,7 @@ update_plan_after_request <- function(plan, results) {
     }
 
     # check is the current request got rows
-    req_got_rows <- sm_api_got_rows(plan, results)
+    req_got_rows <- results$count > 0
     if(req_got_rows) {
         # set got rows for this plan
 	plan$got_rows <- TRUE

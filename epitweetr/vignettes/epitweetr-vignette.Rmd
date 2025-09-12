@@ -111,7 +111,7 @@ ECDC performs Epidemic Intelligence (El) activities aiming at rapidly detecting 
 
 More information and an online tutorial are available:
 
-[EI sources](https://www.ecdc.europa.eu/en/training-and-tools/surveillance-and-outbreak-tools/information-sources-epidemic-intelligence-and)
+[EI sources](https://www.ecdc.europa.eu/en/threats-and-outbreaks/epidemic-intelligence)
 
 [EI tutorial](https://eva.ecdc.europa.eu/enrol/index.php?id=519) 
 
@@ -192,7 +192,7 @@ Before using `epitweetr`, the following items need to be installed:
 
     -   Open Blas (BLAS optimizer), which will speed up some of the geolocation processes: [*https://www.openblas.net/*] Installation instructions: [*https://github.com/fommil/netlib-Java*]
 
-    -   **or** Intel MKL 
+    -   **or** Intel MKL ([*https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/onemkl.html*])
 
 -   A scheduler
 
@@ -259,33 +259,36 @@ R --vanilla -e epitweetr::epitweetr\_app("data\_dir")
 
 You can check that all requirements are properly installed in the troubleshoot page. More information is available in section *The interactive user application (Shiny app)>Dashboard:The interactive user interface for visualisation>The troubleshoot page*
 
-### Migrating to epitweetr v2
-Migrating epitweetr from previous versions (before January 2022) to version 2.0.0 or higher is possible without any data loss. In this section, we will describe the necessary steps to perform the migration. 
+### Adding a new new social media
+EpiSoMeR is designed to support multiple social media data collection.
 
-**This migration is not necessary if you are installing epitweetr for the first time**.
+#### Common post format
+In order to support multiple social media, epiSoMeR transforms each response containing posts into a standardised common format. This format simplifies the handling of distinc types of social media.
 
-In epitweetr v2, we redesigned the way how tweets and series are stored. In previous versions, tweets were saved as compressed JSON files and series as RDS data frames in 'tweets' and 'series' folder, respectively. In epitweetr v2 or higher, we have moved to a different storage system allowing epitweetr to work as a search engine and allowing efficient updates, deletions and faster aggregation of data. For doing so, data is stored using Apache Lucene indexes in the 'fs' folder. Note that during migration, Twitter data are moved to the 'fs' folder and series are left as it is. Epitweetr reports will combine data from older and new storage system.
+The common post format is defined as follow
 
-If you have an existing installation that contains data in the previous format, you have to migrate it following the steps detailed in this section. This applies to any epitweetr version before v2.0.0. You can also check this by looking in 'tweets/geo' or 'tweets/search' folders. If there is a json.gz file, migration is needed.
 
-The migration steps are the following:
-
--   Make sure the 'Data collection & processing' and 'Requirements & alerts' pipelines are stopped (you can see the status in the Shiny configuration page). If you are using Windows and you have launched the tasks using the activate buttons, you have to manually open the Windows task scheduler and disable these two epitweetr tasks or force these to stop by using the 'stop' button in the configuratio page.
--   Close the Shiny App.
--   Install the new epitweetr version (if you have not yet done it).
--   Go to the configuration page in the Shiny app.
--   Click on the 'Run dependencies' button.
--   Activate the 'Requirements & alerts' pipeline If you are in Windows, you can click on the activate button or you can run on a new R session executing the following command: 
-     -     epitweetr::detect_loop("data_dir")
--   In the line of the dependencies tasks under 'Requirements & alerts' table, there will be a message reporting the status of the migration and download of necessary dependencies from the selected maven mirror. It will indicate whether some of the epitweetr tasks must be stopped or activated to complete migration and download of dependencies.
--   First, it will download the dependencies for which the embedded epitweetr database should be stopped. If the embedded database is running, a message will appear asking you to stop the database ('epitweetr database' pipeline).
--   After all dependencies have been downloaded, a message will appear asking to activate the embedded database ('epitweetr database'). Please refer to the section 'Setting up tweet collection and the alert detection loop' for details.
--   Once the epitweetr database is running, the migration will start. Epitweetr will report the estimated remaining time to finish the migration. Be aware that depending on the size of your data folder, this can take several days for which the machine running epitweetr cannot be turned off.
--   As files are migrated to the new storage system, these are moved from the folder 'tweets/search' and 'tweets/geo' to 'tweets/search\_archive' and 'tweets/geo\_archive'.
--   Once the migration is done, you can backup and delete the \_archive folders.
--   You can test that your data has been successfully migrated by searching for tweets in particular periods using the 'Data protection' page.
--   Click on the button 'Run GeoNames' and 'Run languages' and wait for them to finish.
--   You can now activate the 'Data collection & processing'.
+- Response attributes
+  - network: string
+  - posts: [...]
+  - count: number, 
+  - pagination":\{...\}
+- post in posts
+    - id: string
+    - uri: string
+    - created\_at: datetime
+    - user\_name: string
+    - text: string
+    - lang: string
+    - quoted\_text: string
+    - quoted\_lang: string
+    - tags: [...]
+    - urls: [...]
+    - categories: [...]
+- tag in post.tags: string
+- url in post.urls: string
+- category in post.categories: string
+- pagination: attributes used for paginating requests
 
 ### Setting up tweet collection and the alert detection loop
 
@@ -619,9 +622,9 @@ The geolocation of the match is stored as a country code (using the ISO 3166 sta
 
   - URLs: URLs present in tweets. URLs are then aggregated in the URLs time series
 
-  - Entities: Entities are automatically extracted and identified by the Twitter API v2. These are then aggregated in the entities time series. This information is only available when the API v2 is activated and properly configured. As per [*Twitter documentation*](https://developer.twitter.com/en/docs/twitter-api/annotations/overview) "Entities are comprised of people, places, products, and organizations [...]. They are programmatically assigned based on what is explicitly mentioned in the tweet text".  
+  - Entities: Entities are automatically extracted and identified by the Twitter API v2. These are then aggregated in the entities time series. This information is only available when the API v2 is activated and properly configured. As per [*Twitter documentation*](https://developer.twitter.com/en/docs/labs/annotations) "Entities are comprised of people, places, products, and organizations [...]. They are programmatically assigned based on what is explicitly mentioned in the tweet text".  
 
-  - Contexts: Contexts are automatically extracted and identified by the Twitter API v2. These are then aggregated in the contexts time series. This information is only available when the API v2 is activated and properly configured. As per [*Twitter documentation*](https://developer.twitter.com/en/docs/twitter-api/annotations/overview) "[Context are] derived from the analysis of a tweet’s text and will include a domain and entity pairing which can be used to discover tweets on topics that may have been previously difficult to surface [...]. [It uses] a list of 50+ domains to categorize tweets".  
+  - Contexts: Contexts are automatically extracted and identified by the Twitter API v2. These are then aggregated in the contexts time series. This information is only available when the API v2 is activated and properly configured. As per [*Twitter documentation*](https://developer.twitter.com/en/docs/labs/annotations) "[Context are] derived from the analysis of a tweet’s text and will include a domain and entity pairing which can be used to discover tweets on topics that may have been previously difficult to surface [...]. [It uses] a list of 50+ domains to categorize tweets".  
 
 Note that, differently to the other visualisation figures, the most frequent elements found in and extracted from tweets are always based on the geolocation related to “tweet location” and not to “user location” regardless of the filter selected in the dashboard. Topwords & hashtags and entities & contexts are shown in the same figure, respectively.
 
