@@ -31,5 +31,8 @@ search-sandboxed:
 	@export ecdc_wtitter_tool_kr_password=`pass epitools/ecdc_kr_pwd` && \
 	R -e "devtools::load_all('epitweetr');epitweetr::setup_config('$$EPI_HOME');epitweetr::search_loop(sandboxed=TRUE)"
 
-r-interpreter:
+R:
 	devscripts/r-interpreter.sh
+
+spark:
+	devscripts/spark-interpreter.sh

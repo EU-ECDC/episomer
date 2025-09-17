@@ -1,112 +1,21 @@
 # Get the SQL-like expression to extract tweet geolocation variables and apply prioritisation
 # This function is used on aggregate tweets for translating variables names into SQL valid columns of geotag tweets
-get_tweet_location_var <- function(varname) {
-  if(varname == "longitude" || varname == "latitude")
-    paste("coalesce("
-      , "text_loc.geo_", varname
-      , ", linked_text_loc.geo_", varname
-      , ")"
-      , sep = ""
-    )
-  else
+get_location_var <- function(varname) {
     paste("coalesce("
       , "text_loc.", varname
-      , ", linked_text_loc.", varname
+      , ", quoted_text_loc.", varname
       , ")"
       , sep = ""
     )
 }
 
 # It gets used columns for tweet geolocation. This is used for limiting columns to extract from json files
-get_tweet_location_columns <- function(table) {
-  if(table == "tweet")
-    list(
-    )
-  else
+get_location_columns <- function(table) {
     list(
       "text_loc"
-      ,"linked_text_loc"
+      ,"quoted_text_loc"
     )
 }
-# Get the SQL like expression to extract user geolocation variables and applying prioritisation
-# This function is used on aggregate tweets for translating variables names into SQL valid columns of geotag tweets
-get_user_location_var <- function(varname) {
-  if(varname == "longitude" || varname == "latitude")
-    paste("coalesce("
-      , "tweet_", varname
-      , ", place_", varname
-      , ", place_full_name_loc.geo_",varname
-      , ", linked_place_", varname
-      , ", linked_place_full_name_loc.geo_",varname
-      , ", user_location_loc.geo_", varname
-      , ", user_description_loc.geo_", varname
-      , ")"
-      , sep = ""
-    )
-  else
-    paste("coalesce("
-      , "place_full_name_loc.",varname
-      , ", linked_place_full_name_loc.",varname
-      , ", user_location_loc.", varname
-      , ", user_description_loc.", varname
-      , ")"
-      , sep = ""
-    )
-}
-
-# Get used columns for user geolocation. This is used for limiting columns to extract from json files
-get_user_location_columns <- function(table) {
-  if(table == "tweet")
-    list(
-      "tweet_longitude"
-      , "tweet_latitude"
-      , "place_longitude"
-      , "place_latitude"
-      , "linked_place_longitude"
-      , "linked_place_latitude"
-    )
-  else
-    list(
-      "user_location_loc"
-      , "user_description_loc"
-      , "place_full_name_loc"
-      , "linked_place_full_name_loc"
-      , "place_full_name_loc"
-      , "linked_place_full_name_loc"
-      )
-}
-
-#' @title Get a sample of latest tweet geolocations (deprecated)
-#' @description This function was removed from epitweetr v1.0.1. Please use search_tweets instead
-#' @param limit Size of the sample, default: 100
-#' @param text_col Name of the tweet field to geolocate it should be one of the following ("text", "linked_text", "user_description", "user_location", "place_full_name", "linked_place_full_name"),
-#' default: 'text'
-#' @param lang_col Name of the tweet variable containing the language to evaluate. It should be one of the following ("lang", "linked_lang", NA), default: "lang"
-#' @return Data frame containing the sampled tweets and the geolocation metrics
-#' @details This function was removed from epitweetr v1.0.1. Please use search_tweets instead.
-#' @examples 
-#' if(FALSE){
-#'    library(epitweetr)
-#'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
-#'    setup_config(file.choose())
-#'
-#'    # geolocating today's tweets
-#'    show(get_todays_sample_tweets())
-#' }
-#' @rdname get_todays_sample_tweets
-#' @seealso
-#'  \code{\link{download_dependencies}}
-#'
-#'  \code{\link{update_geonames}}
-#'
-#'  \code{\link{update_languages}}
-#'
-#' @export 
-get_todays_sample_tweets <- function(limit = 1000, text_col = "text", lang_col = "lang") {
-  lifecycle::deprecate_stop("1.0.1", "get_todays_sample_tweets()", "search_tweets()")
-}
-
 
 # Get raw countries data frame from Excel file
 get_raw_countries <- function() {

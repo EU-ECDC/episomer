@@ -13,11 +13,11 @@ get_scala_alert_training_url <- function() {
 }
 
 get_scala_tweets_url <- function() {
-  paste(get_scala_api_endpoint(), "tweets", sep ="")
+  paste(get_scala_api_endpoint(), "posts", sep ="")
 }
 
 get_scala_geolocated_tweets_url <- function() {
-  paste(get_scala_api_endpoint(), "geolocated-tweets", sep = "")
+  paste(get_scala_api_endpoint(), "geolocated-posts", sep = "")
 }
 
 get_scala_commit_url <- function() {

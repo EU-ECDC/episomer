@@ -118,28 +118,30 @@ bluesky_parse_date <-function(date_input) {
 #' @noRd
 bluesky_parse_response <- function(response) {
   first <- function(x) unlist(x[min(1,length(x))])
-
   ret = list(network="bluesky", count=length(response$posts), pagination = list(min_created_at=NULL))
   ret[["posts"]] = lapply(response$posts, function(post) {
-     record = post$record 
-     quote = bluesky_parse_quoted(post)
-     features = bluesky_parse_features(post)
+     record <- post$record 
+     quote <- bluesky_parse_quoted(post)
+     features <- bluesky_parse_features(post)
+     urls <- unique(c(features$urls, quote$urls))
      list(
         id = unlist(post$cid),
         uri = sprintf("https://bsky.app/profile/%s/post/%s", post$author$did, sub(".*/", "", post$uri)),
-        created_at = bluesky_parse_date(record$createdAt),
+        created_at = bluesky_format_date(bluesky_parse_date(record$createdAt)),
 	user_name = gsub(".bsky.social", "", post$author$handle),
 	text = unlist(record$text),
 	lang = first(record$langs),
+	is_quote = !is.null(quote$text) && nchar(quote$text) > 0,
         quoted_text = quote$text,
 	quoted_lang = quote$lang,
 	tags = features$tags,
-	urls = features$urls,
+	urls = urls,
 	categories = features$categories
       )  
   })
   if(length(ret$posts) > 0) {
-      ret$pagination$min_created_at <- Reduce(function(x, y) if(x<y) x else y,  lapply(ret$posts, `[[`, "created_at")) 
+      ret$pagination$min_created_at <- Reduce(function(x, y) if(x<y) x else y,  lapply(ret$posts, `[[`, "created_at"))
+      ret$posts <- ret$posts[sapply(ret$posts, function(p) !is.null(p$lang))]
   }
   ret 
 }
@@ -155,6 +157,7 @@ bluesky_parse_quoted <- function(post) {
         embeds = list()
         records = list()
 	images = list()
+	urls = list()
 
 	if("record" %in% names(post$embed) && "embeds" %in% names(post$embed$record)) {
 	    embeds = post$embed$record$embeds
@@ -173,6 +176,9 @@ bluesky_parse_quoted <- function(post) {
                   text = paste(texts[!is.null(texts)], collapse="\n"),
                   lang = NULL
               )))
+	      if("uri" %in% names(embed$external)) {
+	          urls = c(urls, embed$external$uri)
+	      }
             } 
         }
         # case 2: quoted post
@@ -195,13 +201,14 @@ bluesky_parse_quoted <- function(post) {
 	#         post$embed$images[[1]]$alt
         #         post$embed$media$images[[1]]$alt 
         if("images" %in% names(post$embed)) {
+	    found <- TRUE
 	    images = c(images, post$embed$images)
 	}
         if("media" %in% names(post$embed) && "images" %in% names(post$embed$media)) {
+	    found <- TRUE
 	    images = c(images, post$embed$media$images)
 	}
         for(image in images) {
-	    found <- TRUE
             if( "alt" %in% names(image) && nchar(image$alt)>0) {
                 quoted_texts = c(quoted_texts, list(list(
                      text = image$alt,
@@ -213,8 +220,11 @@ bluesky_parse_quoted <- function(post) {
         if("playlist" %in% names(post$embed)) {
              found <- TRUE
 	}
-	# case 4: not Found (not considered)
-        if("record" %in% names(post$embed) && "notFound" %in% names(post$embed$record)) {
+	# case 5: not Found, blocked or detached (not considered)
+        if("record" %in% names(post$embed) && length(intersect(c("notFound", "blocked", "detached"),  names(post$embed$record)))> 0) {
+             found <- TRUE
+	}
+        if("record" %in% names(post$embed) && length(intersect(c("notFound", "blocked", "detached"),  names(post$embed$record$record)))> 0) {
              found <- TRUE
 	}
 
@@ -224,7 +234,8 @@ bluesky_parse_quoted <- function(post) {
         } else {
            list(
                 text = paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n"),
-                lang = mode(sapply(quoted_texts, `[[`, "lang"))
+                lang = mode(sapply(quoted_texts, `[[`, "lang")),
+		urls = unique(urls)
            )
         }
     } else {
@@ -245,6 +256,8 @@ bluesky_parse_features <- function(post) {
 		   } else if(ftype == "app.bsky.richtext.facet#link") {
                        ret$urls <- c(ret$urls, feature[["uri"]])
 		   } else if(ftype == "app.bsky.richtext.facet#mention") {
+		      #pass
+		   } else if(ftype == "app.bsky.richtext.facet#format") {
 		      #pass
 		   } else {
 		       jsonlite::write_json(post, "/tmp/badpost.json")

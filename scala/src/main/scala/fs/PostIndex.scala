@@ -29,8 +29,8 @@ object QuerySort {
   val indexReverse = new Sort(new SortField(null, SortField.Type.DOC, true))
 }
 
-object TweetIndex {
-  def apply(indexPath:String, writeEnabled:Boolean=false):TweetIndex = {
+object PostIndex {
+  def apply(indexPath:String, writeEnabled:Boolean=false):PostIndex = {
     val analyzer = new StandardAnalyzer()
     val indexDir = Files.createDirectories(Paths.get(s"${indexPath}"))
     val index = new MMapDirectory(indexDir, org.apache.lucene.store.SimpleFSLockFactory.INSTANCE)
@@ -61,11 +61,11 @@ object TweetIndex {
         case Failure(f) => throw(f)
       }*/
     val searcher = new IndexSearcher(reader)
-      TweetIndex(reader = reader, writer = writer, searcher = searcher, index = index, writeEnabled)
+      PostIndex(reader = reader, writer = writer, searcher = searcher, index = index, writeEnabled)
   }
 }
 
-case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var searcher:IndexSearcher, index:FSDirectory, writeEnabled:Boolean){
+case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var searcher:IndexSearcher, index:FSDirectory, writeEnabled:Boolean){
   def isOpen = {
     if(writeEnabled)
       this.writer.get.isOpen
@@ -99,51 +99,28 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
     this
   }
 
-  def tweetDoc(tweet:TweetV1, topic:String) = { 
+  def postDoc(post:Post, topic:String, network:String) = { 
       val doc = new Document()
-      doc.add(new StringField("topic", s"${topic}", Field.Store.YES))  
-      doc.add(new StringField("topic_tweet_id", s"${topic.toLowerCase}_${tweet.tweet_id}", Field.Store.YES))  
-      doc.add(new StringField("hash", s"${Math.abs(tweet.tweet_id.toString.hashCode).toInt.toString}", Field.Store.YES))  
-      doc.add(new LongPoint("tweet_id", tweet.tweet_id))
-      doc.add(new StoredField("tweet_id", tweet.tweet_id))
-      doc.add(new TextField("text", tweet.text, Field.Store.YES))  
-      tweet.linked_text.map(text => doc.add(new TextField("linked_text", text, Field.Store.YES)))  
-      doc.add(new StringField("user_description", tweet.user_description, Field.Store.YES))  
-      tweet.linked_user_description.map(desc => doc.add(new StringField("linked_user_description", desc, Field.Store.YES)))  
-      doc.add(new StringField("is_retweet", if(tweet.is_retweet) "true" else "false", Field.Store.NO)) 
-      doc.add(new StoredField("is_retweet", Array(if(tweet.is_retweet) 1.toByte else 0.toByte )))  
-      doc.add(new StringField("screen_name", tweet.screen_name, Field.Store.YES))
-      doc.add(new StringField("user_name", tweet.user_name, Field.Store.YES))
-      doc.add(new LongPoint("user_id", tweet.user_id))
-      doc.add(new StoredField("user_id", tweet.user_id))
-      doc.add(new StoredField("user_location", tweet.user_location))
-      tweet.linked_user_name.map(value => doc.add(new StringField("linked_user_name", value, Field.Store.YES))) 
-      tweet.linked_screen_name.map(value => doc.add(new StringField("linked_screen_name", value, Field.Store.YES))) 
-      tweet.linked_user_location.map(value => doc.add(new StoredField("linked_user_location", value))) 
-      doc.add(new LongPoint("created_timestamp", tweet.created_at.toEpochMilli()))
-      doc.add(new StringField("created_at", tweet.created_at.toString().toLowerCase, Field.Store.NO)) 
-      doc.add(new StoredField("created_at", tweet.created_at.toString()))
-      doc.add(new StringField("created_date", tweet.created_at.toString().take(10), Field.Store.YES)) 
-      doc.add(new StringField("lang", tweet.lang, Field.Store.YES)) 
-      tweet.linked_lang.map(value => doc.add(new StoredField("linked_lang", value))) 
-      tweet.tweet_longitude.map(value => doc.add(new StoredField("tweet_longitude", value))) 
-      tweet.tweet_latitude.map(value => doc.add(new StoredField("tweet_latitude", value))) 
-      tweet.linked_longitude.map(value => doc.add(new StoredField("linked_longitude", value))) 
-      tweet.linked_latitude.map(value => doc.add(new StoredField("linded_latitude", value))) 
-      tweet.place_type.map(value => doc.add(new StoredField("place_type", value))) 
-      tweet.place_name.map(value => doc.add(new StringField("place_name", value, Field.Store.YES))) 
-      tweet.place_full_name.map(value => doc.add(new StringField("place_full_name", value, Field.Store.YES))) 
-      tweet.linked_place_full_name.map(value => doc.add(new StoredField("linked_place_full_name", value))) 
-      tweet.place_country_code.map(value => doc.add(new StoredField("place_country_code", value))) 
-      tweet.place_country.map(value => doc.add(new StoredField("place_country", value))) 
-      tweet.place_longitude.map(value => doc.add(new StoredField("place_longitude", value))) 
-      tweet.place_latitude.map(value => doc.add(new StoredField("place_latitude", value)))
-      tweet.linked_place_longitude.map(value => doc.add(new StoredField("linked_place_longitude", value))) 
-      tweet.linked_place_latitude.map(value => doc.add(new StoredField("linked_place_latitude", value)))
-      tweet.hashtags.map(arr => {if(arr.size > 0) doc.add(new StoredField("hashtags", arr.mkString("\n")))})
-      tweet.urls.map(arr => {if(arr.size > 0) doc.add(new StoredField("urls", arr.mkString("\n")))})
-      tweet.contexts.map(arr => {if(arr.size > 0) doc.add(new StoredField("contexts", arr.mkString("\n")))})
-      tweet.entities.map(arr => {if(arr.size > 0) doc.add(new StoredField("entities", arr.mkString("\n")))})
+      doc.add(new StringField("network", network, Field.Store.YES))  
+      doc.add(new StringField("topic", topic, Field.Store.YES))  
+      doc.add(new StringField("topic_post_id", s"${topic.toLowerCase}_${post.id}_${network}", Field.Store.YES))  
+      doc.add(new StringField("hash", s"${Math.abs(post.id.toString.hashCode).toInt.toString}", Field.Store.YES))  
+      doc.add(new StringField("id", post.id, Field.Store.YES))
+      doc.add(new StringField("uri", post.uri, Field.Store.YES)) 
+      doc.add(new StringField("created_at", post.created_at.toString().toLowerCase, Field.Store.NO)) 
+      doc.add(new StoredField("created_at", post.created_at.toString()))
+      doc.add(new StringField("created_date", post.created_at.toString().take(10), Field.Store.YES)) 
+      doc.add(new LongPoint("created_timestamp", post.created_at.toEpochMilli()))
+      doc.add(new StringField("user_name", post.user_name, Field.Store.YES))
+      doc.add(new TextField("text", post.text, Field.Store.YES))  
+      doc.add(new StringField("lang", post.lang, Field.Store.YES)) 
+      doc.add(new StringField("is_quote", if(post.is_quote) "true" else "false", Field.Store.NO)) 
+      doc.add(new StoredField("is_quote", Array(if(post.is_quote) 1.toByte else 0.toByte )))  
+      post.quoted_text.map(text => doc.add(new TextField("quoted_text", text, Field.Store.YES)))  
+      post.quoted_lang.map(value => doc.add(new StoredField("quoted_lang", value))) 
+      post.tags.map(arr => {if(arr.size > 0) doc.add(new StoredField("tags", arr.mkString("\n")))})
+      post.urls.map(arr => {if(arr.size > 0) doc.add(new StoredField("urls", arr.mkString("\n")))})
+      post.categories.map(arr => {if(arr.size > 0) doc.add(new StoredField("categories", arr.mkString("\n")))})
       doc
   }
   def sparkRowDoc(row:Row, pk:Option[Seq[String]]=None, textFields:Set[String]=Set[String](), oldDoc:Option[Document], aggr:Map[String, String]) = {
@@ -238,12 +215,12 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
       (value + oldDoc.get.getField(fieldName).numericValue.floatValue())/2
     else value
   }
-  def indexTweet(tweet:TweetV1, topic:String) {
-    val doc = tweetDoc(tweet, topic)
-    // we call uptadedocuent do tweet is only updated if existing already for the particular topic
+  def indexPost(post:Post, topic:String, network:String) {
+    val doc = postDoc(post, topic, network)
+    // we call uptadedocuent do post is only updated if existing already for the particular topic
     if(!writeEnabled)
       throw new Exception("Cannot index  on a read only index")
-    this.writer.get.updateDocument(new Term("topic_tweet_id", s"${topic.toLowerCase}_${tweet.tweet_id}"), doc)
+    this.writer.get.updateDocument(new Term("topic_post_id", s"${topic.toLowerCase}_${post.id}_${network}"), doc)
   }
   def indexSparkRow(row:Row, pk:Seq[String], textFields:Set[String]=Set[String](), aggr:Map[String, String] =Map[String, String]() ) = {
     val oldDoc = searchRow(row, pk)
@@ -262,18 +239,17 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
     this.writer.get.updateDocument(pkTerm, doc)
   }
 
-  def searchTweetV1(id:Long, topic:String) = {
+  def searchPostToGeo(id:String, topic:String, network:String) = {
     implicit val searcher = this.useSearcher()
     Try{
-      val res = search(new TermQuery(new Term("topic_tweet_id", s"${topic.toLowerCase}_${id}")), maxHits = 1, sort = QuerySort.index)
+      val res = search(new TermQuery(new Term("topic_post_id", s"${topic.toLowerCase}_${id}_${network}")), maxHits = 1, sort = QuerySort.index)
       val doc = if(res.scoreDocs.size == 0) {
         None
       } else {
          Some(searcher.getIndexReader.document(res.scoreDocs(0).doc))
       }
-      doc.map(d => (d, d.getField("topic").stringValue))
-        .map{case (d, t) => (EpiSerialisation.luceneDocFormat.customWrite(d, asArray = Set("hashtags","urls", "contexts","entities")), t)}
-        .map{case (json, t) => (EpiSerialisation.tweetV1Format.read(json), t)}
+      doc.map{d => EpiSerialisation.luceneDocFormat.customWrite(d, asArray = Set("tags","urls","categories"))}
+        .map{json => EpiSerialisation.postFormat.read(json)}
     } match {
       case Success(r) =>
         this.releaseSearcher(searcher)
@@ -284,17 +260,16 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
     }
   }
 
-  def searchTweet(id:Long, topic:String) = {
+  def searchPostAsJSON(id:String, topic:String, network:String) = {
     implicit val searcher = this.useSearcher()
     Try{
-      val res = search(new TermQuery(new Term("topic_tweet_id", s"${topic.toLowerCase}_${id}")), maxHits = 1, sort = QuerySort.index)
+      val res = search(new TermQuery(new Term("topic_post_id", s"${topic.toLowerCase}_${id}_${network}")), maxHits = 1, sort = QuerySort.index)
       val doc = if(res.scoreDocs.size == 0) {
-        //searchTweetV1(id, topic)
         None
       } else {
          Some(searcher.getIndexReader.document(res.scoreDocs(0).doc))
       }
-      doc.map(d => EpiSerialisation.luceneDocFormat.customWrite(d, asArray = Set("hashtags","urls", "contexts","entities")).toString)
+      doc.map(d => EpiSerialisation.luceneDocFormat.customWrite(d, asArray = Set("tags","urls", "categories")).toString)
     } match {
       case Success(r) =>
         this.releaseSearcher(searcher)
@@ -341,27 +316,24 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
     }
   }
 
-  def indexGeolocated(geo:GeolocatedTweet) = {
-    searchTweetV1(geo.id, geo.topic).orElse({geo.topic = geo.topic.toLowerCase;searchTweetV1(geo.id, geo.topic)}) match {
-      case Some((tweet, t))  => 
-        val doc = tweetDoc(tweet, t)
+  def indexGeolocated(geo:GeolocatedPost) = {
+    searchPostToGeo(geo.id, geo.topic, geo.network) match {
+      case Some(post)  => 
+        val doc = postDoc(post, geo.topic, geo.network)
         val fields = Seq(  
             new StringField("is_geo_located", if(geo.is_geo_located) "true" else "false", Field.Store.NO), 
             new StoredField("is_geo_located", Array(if(geo.is_geo_located) 1.toByte else 0.toByte )) 
           ) ++  
-            geo.linked_place_full_name_loc.map(l => getLocationFields(field = "linked_place_full_name_loc", loc = l)).getOrElse(Seq[Field]()) ++ 
-            geo.linked_text_loc.map(l => getLocationFields(field = "linked_text_loc", loc = l)).getOrElse(Seq[Field]()) ++
-            geo.place_full_name_loc.map(l => getLocationFields(field = "place_full_name_loc", loc = l)).getOrElse(Seq[Field]()) ++
             geo.text_loc.map(l => getLocationFields(field = "text_loc", loc = l)).getOrElse(Seq[Field]()) ++
-            geo.user_description_loc.map(l => getLocationFields(field = "user_description_loc", loc = l)).getOrElse(Seq[Field]()) ++
-            geo.user_location_loc.map(l => getLocationFields(field = "user_location_loc", loc = l)).getOrElse(Seq[Field]())
+            geo.quoted_text_loc.map(l => getLocationFields(field = "quoted_text_loc", loc = l)).getOrElse(Seq[Field]())
        
           fields.foreach(f => doc.add(f))
           if(!writeEnabled)
             throw new Exception("Cannot index on a read only index")
-          this.writer.get.updateDocument(new Term("topic_tweet_id", s"${geo.topic.toLowerCase}_${geo.id}"), doc)
+          this.writer.get.updateDocument(new Term("topic_post_id", s"${geo.topic.toLowerCase}_${geo.id}_${geo.network}"), doc)
           true
       case _ =>
+        print("mmmmmmmmmmmmmmmmmm..... ")
         false
     }     
   }
@@ -409,10 +381,10 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
     }
     docs
   }
-  def parseAndSearchTweets(query:String, max:Option[Int] = None, doCount:Boolean=false, sort:Sort=QuerySort.index):Iterator[(Document, Long)]  = {
-    searchTweets(parseQuery(query), max = max, doCount = doCount, sort = sort)
+  def parseAndSearchPosts(query:String, max:Option[Int] = None, doCount:Boolean=false, sort:Sort=QuerySort.index):Iterator[(Document, Long)]  = {
+    searchPosts(parseQuery(query), max = max, doCount = doCount, sort = sort)
   }
-  def searchTweets(query:Query, max:Option[Int] = None, doCount:Boolean=false, sort:Sort=QuerySort.index, topFieldLimit:Option[(String, String)] = None):Iterator[(Document, Long)]  = {
+  def searchPosts(query:Query, max:Option[Int] = None, doCount:Boolean=false, sort:Sort=QuerySort.index, topFieldLimit:Option[(String, String)] = None):Iterator[(Document, Long)]  = {
     val tops = HashMap[String, Double]()
     var refinedQ = None.asInstanceOf[Option[Query]]
     Seq(query)
@@ -474,7 +446,7 @@ case class TweetIndex(var reader:IndexReader, writer:Option[IndexWriter], var se
                 case Success(p) => Some(p)
                 case Failure(f) => 
                   if(iTry >=2) {
-                    l.msg(s"Too many retries of tweet search\n ${f}")
+                    l.msg(s"Too many retries of post search\n ${f}")
                     throw f
                   }
                   None
