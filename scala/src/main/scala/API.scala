@@ -1,6 +1,6 @@
 package org.ecdc.epitweetr
 
-import org.ecdc.epitweetr.fs.{LuceneActor, TopicTweetsV1, AlertClassification, TaggedAlert, AlertRun}
+import org.ecdc.epitweetr.fs.{LuceneActor, TopicPosts, AlertClassification, TaggedAlert, AlertRun}
 import org.ecdc.epitweetr.geo.{GeonamesActor, GeoTrainings }
 import org.ecdc.epitweetr.alert.{AlertActor}
 import akka.actor.{ActorSystem, Actor, Props}
@@ -59,7 +59,7 @@ object API {
         path("ping") {
           complete("pong")
         } ~
-        path("tweets") { // checks if path/url starts with model
+        path("posts") { // checks if path/url starts with model
           get {
             parameters("q".?, 
               "topic".?,
@@ -84,7 +84,7 @@ object API {
                 , completionMatcher = {case Done => CompletionStrategy.immediately}
                 , failureMatcher = PartialFunction.empty
               )
-              val topics = topic.map(cc => cc.split("(\\s|;)+").toSeq)
+              val topics = topic.map(cc => cc.toLowerCase.split("(\\s|;)+").toSeq)
               val countryCodes = countryCode.map(cc => cc.split("(\\s|;)+").toSeq)
               val mentions = mentioning.map(cc => cc.split("(\\s|;|@)+").toSeq)
               val users = user.map(cc => cc.split("(\\s|;|@)+").toSeq)
@@ -100,12 +100,12 @@ object API {
           } ~
           post {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
-              parameters("topic", "geolocate".as[Boolean]?true) { (topic, geolocate) =>
+              parameters("topic", "network", "geolocate".as[Boolean]?true) { (topic, network, geolocate) =>
                 entity(as[JsValue]) { json  =>
                   implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
-                  Try(tweetsV1Format.read(json)) match {
-                    case Success(tweets) =>
-                       val fut = (luceneRunner ? TopicTweetsV1(topic, tweets))
+                  Try(postsFormat.read(json)) match {
+                    case Success(posts) =>
+                       val fut = (luceneRunner ? TopicPosts(network, topic.toLowerCase, posts))
                          .map{
                             case LuceneActor.DatesProcessed(m, dates) => 
                               if(geolocate) {
@@ -114,7 +114,7 @@ object API {
                                     LuceneActor.DatesProcessed("Geolocate or aggregate is too slow. One of the geolocating or aggregating files in geo folder is bigger than the predefined limit of 500MB, stopping for safety reasons")
                                   )
                                 else {
-                                  luceneRunner ! LuceneActor.GeolocateTweetsRequest(TopicTweetsV1(topic, tweets))
+                                  luceneRunner ! LuceneActor.GeolocatePostsRequest(TopicPosts(network, topic.toLowerCase, posts))
                                   (StatusCodes.OK, LuceneActor.DatesProcessed(m, dates))
                                 }
                               }
@@ -124,8 +124,8 @@ object API {
                           }
                        complete(fut) 
                      case Failure(e) =>
-                       println(s"Cannot interpret the provided body as a respose of the Tweet Search API v1.1:\n $e, ${e.getStackTrace.mkString("\n")}") 
-                       complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a respose of the Tweet Search API v1.1:\n $e")) 
+                       println(s"Cannot interpret the provided body as a respose of the Post Search API v1.1:\n ${json} $e\n, ${e.getStackTrace.mkString("\n")}") 
+                       complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a respose of the Post Search API v1.1:\n $e")) 
                   } 
                 } ~ 
                   entity(as[String]) { value  => 
@@ -159,7 +159,7 @@ object API {
                 , failureMatcher = PartialFunction.empty
               )
               val (actorRef, matSource) = source.preMaterialize()
-              luceneRunner ! LuceneActor.AggregatedRequest(collection, oTopic, from, to, filters, topField.map(tfi => topFrequency.map(tfr => (tfi, tfr))).flatten, jsonnl, actorRef) 
+              luceneRunner ! LuceneActor.AggregatedRequest(collection, oTopic.map(_.toLowerCase), from, to, filters, topField.map(tfi => topFrequency.map(tfr => (tfi, tfr))).flatten, jsonnl, actorRef) 
               complete(Chunked.fromData(ContentTypes.`application/json`, matSource.map{m =>
                 if(m.startsWith(ByteString(s"[Stream--error]:"))) 
                   throw new Exception(m.decodeString("UTF-8"))
@@ -182,58 +182,7 @@ object API {
             } ~  entity(as[String]) { value  => 
                complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
             }
-          }/* ~ get {
-            entity(as[JsValue]) { json  =>
-              Try(aggregationFormat.read(json)) match {
-                case Success(aggr) =>
-                  withRequestTimeout(conf.fsBatchTimeout.seconds) {
-                    parameters("q".?, "jsonnl".as[Boolean]?false, "from", "to") { 
-                    (q, jsonnl, fromStr, toStr) =>
-                       
-                      val mask = "YYYY-MM-DDT00:00:00.000Z"
-                      val from =  Instant.parse(s"${fromStr}${mask.substring(fromStr.size)}")
-                      val to =  Instant.parse(s"${toStr}${mask.substring(toStr.size)}")
-                      implicit val timeout: Timeout = conf.fsBatchTimeout.seconds //For ask property
-                      val source: Source[akka.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
-                        ackMessage = ByteString("ok")
-                        , completionMatcher = {case Done => CompletionStrategy.immediately}
-                        , failureMatcher = PartialFunction.empty
-                      ).backpressureTimeout(FiniteDuration(conf.fsBatchTimeout, "seconds"))
-                      .idleTimeout(FiniteDuration(conf.fsBatchTimeout, "seconds"))
-                      val (actorRef, matSource) = source.preMaterialize()
-                      luceneRunner ! LuceneActor.AggregateRequest(
-                        q, 
-                        from, 
-                        to, 
-                        aggr.columns 
-                           .map(v => aggr.params.map(qPars => qPars.foldLeft(v)((curr, iter) => curr.replace(s"@${iter._1}", iter._2))).getOrElse(v)),
-                        aggr.groupBy.getOrElse(Seq[String]()) 
-                           .map(v => aggr.params.map(qPars => qPars.foldLeft(v)((curr, iter) => curr.replace(s"@${iter._1}", iter._2))).getOrElse(v)),
-                        aggr.filterBy.getOrElse(Seq[String]()) 
-                           .map(v => aggr.params.map(qPars => qPars.foldLeft(v)((curr, iter) => curr.replace(s"@${iter._1}", iter._2))).getOrElse(v)),
-                        aggr.sortBy.getOrElse(Seq[String]())
-                           .map(v => aggr.params.map(qPars => qPars.foldLeft(v)((curr, iter) => curr.replace(s"@${iter._1}", iter._2))).getOrElse(v)),
-                        aggr.sourceExpressions.getOrElse(Seq[String]())
-                           .map(v => aggr.params.map(qPars => qPars.foldLeft(v)((curr, iter) => curr.replace(s"@${iter._1}", iter._2))).getOrElse(v)),
-                        jsonnl, 
-                        actorRef
-                      ) 
-                      complete(Chunked.fromData(ContentTypes.`application/json`, matSource.map{m =>
-                        if(m.startsWith(ByteString(s"[Stream--error]:"))) 
-                          throw new Exception(m.decodeString("UTF-8"))
-                        else 
-                          m
-                      }))
-                    }
-                  }
-                case Failure(e) =>
-                  println(s"Cannot interpret the provided body as an aggregation request:\n $e, ${e.getStackTrace.mkString("\n")}\n${json}") 
-                  complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided JSON body as an aggregate request:\n $e ${json}")) 
-              }
-            } ~  entity(as[String]) { value  => 
-               complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
-            }
-          }*/
+          }
         } ~ path("period") { // checks if path/url starts with model
           get {
             parameters("serie") { (collection) => 
@@ -260,7 +209,7 @@ object API {
               complete(fut) 
             }
           }
-        } ~ path("geolocated-tweets") { 
+        } ~ path("geolocated-posts") { 
           post {
             parameters("created".as[String].*) { createdStr => 
               val mask = "YYYY-MM-DDT00:00:00.000Z"
@@ -268,9 +217,9 @@ object API {
               if(createdStr.size > 0) {
                 entity(as[JsValue]) { json  =>
                   implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
-                  Try(geolocatedTweetsFormat.read(json)) match {
+                  Try(geolocatedPostsFormat.read(json)) match {
                     case Success(geolocateds) =>
-                       val fut = (luceneRunner ? LuceneActor.GeolocatedTweetsCreated(geolocateds, dates.toSeq))
+                       val fut = (luceneRunner ? LuceneActor.GeolocatedPostsCreated(geolocateds, dates.toSeq))
                          .map{
                             case EpitweetrActor.Success(m) => (StatusCodes.OK, EpitweetrActor.Success(m))
                             case EpitweetrActor.Failure(m) => (StatusCodes.NotAcceptable, EpitweetrActor.Success(m))
@@ -286,11 +235,11 @@ object API {
                   complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
                 }
               } else {
-                complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Missing parameter created with reference dates of geolocated tweets")) 
+                complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Missing parameter created with reference dates of geolocated posts")) 
               }
             }
           }
-        } ~ path("commit") { // commit the tweets sent
+        } ~ path("commit") { // commit the posts sent
           post {
             withRequestTimeout(conf.fsBatchTimeout.seconds) {
             implicit val timeout: Timeout = conf.fsBatchTimeout.seconds //For ask property

@@ -134,8 +134,8 @@ get_aggregates <- function(dataset = "country_counts", cache = TRUE, filter = li
         q_url <- paste0(q_url, "&filter=", URLencode(field, reserved = T), ":", URLencode(paste0(filter[[field]], collapse=";"), reserved = T))
     }
 
-    #measure_time <- function(f) {start.time <- Sys.time();ret <- f();end.time <- Sys.time();time.taken <- end.time - start.time;message(time.taken); ret}
-    #message(q_url)
+    measure_time <- function(f) {start.time <- Sys.time();ret <- f();end.time <- Sys.time();time.taken <- end.time - start.time;message(time.taken); ret}
+    message(q_url)
     agg_df = (
       if(conf$onthefly_api)
         jsonlite::stream_in(url(q_url), verbose = FALSE)
@@ -160,62 +160,12 @@ get_aggregates <- function(dataset = "country_counts", cache = TRUE, filter = li
       agg_df$created_date <- NULL
     }
     #add possible missing columns removed by json null management
-    agg_df <- add_missing(agg_df, dataset)
+    ret <- add_missing(agg_df, dataset)
     
-    ret <- rbind(agg_df, get_aggregates_rds(dataset, cache = cache, filter = filter))
     cached[[dataset]] <- ret
     ret
   }
 }
-
-get_aggregates_rds <- function(dataset = "country_counts", cache = TRUE, filter = list()) {
-  # No cache hit getting from aggregated files
-  # starting by listing all series files
-  `%>%` <- magrittr::`%>%`
-  # getting the name for cache lookup dataset dependancy
-  files <- list.files(path = file.path(conf$data_dir, "series"), recursive=TRUE, pattern = paste(dataset, ".*\\.Rds", sep=""))
-  if(length(files) == 0) {
-    return (data.frame(created_date=as.Date(character()),topic=character()))
-  }
-  else {
-    # Limiting files by the selected period based on week name and file names if filtering for date
-    if(exists("period", where = filter)) {
-      from <- filter$period[[1]]
-      until <- filter$period[[2]]
-      files <- files[
-        sapply(files, function(f) {
-          weekstr <- strsplit(f, "/")[[1]][[1]]
-          day <- as.Date(tail(strsplit(gsub(".Rds", "", f), "_")[[1]], n = 1), "%Y.%m.%d")
-          strftime(from, "%G.%V")<=weekstr && 
-            strftime(until, "%G.%V") >= weekstr && 
-            (is.na(day) || from <= day && until >= day)
-        })
-      ]
-    }
-
-    # Extracting data from aggregated files
-    dfs <- lapply(files, function (file) {
-      message(paste("reading", file))
-      readRDS(file.path(conf$data_dir, "series", file)) %>% 
-        dplyr::mutate(topic = stringr::str_replace_all(.data$topic, "%20", " ")) %>% #putting back espaces from %20 to " "
-        dplyr::filter(
-          (if(exists("topic", where = filter)) .data$topic %in% filter$topic else TRUE) & 
-          (if(exists("period", where = filter)) .data$created_date >= filter$period[[1]] & .data$created_date <= filter$period[[2]] else TRUE)
-        )
-    })
-    
-    #Joining data extracts if any or otherwise returning empty dataset
-    ret <- 
-      if(length(files) > 0)
-        jsonlite::rbind_pages(dfs)
-      else 
-        readRDS(tail(list.files(file.path(conf$data_dir, "series"), full.names=TRUE, recursive=TRUE, pattern="*.Rds"), 1)) %>% dplyr::filter(1 == 0)
-    if(dataset == "topwords" && "tokens" %in% colnames(ret)) {
-      ret <- ret %>% dplyr::rename("token" = .data$tokens) 
-    }
-    return(ret)
-  }
-} 
 
 # This function registers the aggregated series that are computed by epitweetr.
 # Each series is defined by a name a date column, primary keys columns, variables columns, group by columns and sources expressions
@@ -227,32 +177,27 @@ register_series <- function() {
   set_aggregated_tweets(
     name = "geolocated"
     , dateCol = "created_date"
-    , pks = list("created_date", "topic", "user_geo_country_code", "tweet_geo_country_code", "user_geo_code", "tweet_geo_code", "user_geo_name", "tweet_geo_name")
-    , aggr = list(tweet_longitude = "avg", tweet_latitude = "avg", user_longitude = "avg", user_latitude = "avg", retweets = "sum", tweets = "sum") 
+    , pks = list("created_date", "topic", "geo_country_code", "geo_code", "geo_name", "geo_name", "network")
+    , aggr = list(longitude = "avg", latitude = "avg", quotes = "sum", posts = "sum") 
     , sources_exp = c(
-        "topic"
-         , list("date_format(created_at, 'yyyy-MM-dd') as created_date", "is_retweet")
-         , get_user_location_columns("tweet")
-         , get_tweet_location_columns("geo") 
-         , get_user_location_columns("geo") 
+         "network"
+         , "topic"
+         , list("date_format(created_at, 'yyyy-MM-dd') as created_date", "is_quote")
+         , get_location_columns() 
     )
     , vars = list(
-        paste("avg(", get_tweet_location_var("longitude"), ") as tweet_longitude") 
-        , paste("avg(", get_tweet_location_var("latitude"), ") as tweet_latitude")
-        , paste("avg(", get_user_location_var("longitude"), ") as user_longitude") 
-        , paste("avg(", get_user_location_var("latitude"), ") as user_latitude")
-        , "cast(sum(case when is_retweet then 1 else 0 end) as Integer) as retweets"
-        , "cast(sum(case when is_retweet then 0 else 1 end) as Integer) as tweets"
+        paste("avg(", get_location_var("geo_longitude"), ") as longitude") 
+        , paste("avg(", get_location_var("geo_latitude"), ") as latitude")
+        , "cast(sum(case when is_quote then 1 else 0 end) as Integer) as quotes"
+        , "cast(sum(case when is_quote then 0 else 1 end) as Integer) as posts"
     )
     , group_by = list(
-      "topic"
+      "network"
+      , "topic"
       , "created_date" 
-      , paste(get_user_location_var("geo_country_code"), "as user_geo_country_code") 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
-      , paste(get_user_location_var("geo_code"), "as user_geo_code")
-      , paste(get_tweet_location_var("geo_code"), "as tweet_geo_code")
-      , paste(get_user_location_var("geo_name"), "as user_geo_name")
-      , paste(get_tweet_location_var("geo_name"), "as tweet_geo_name")
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
+      , paste(get_location_var("geo_code"), "as geo_code")
+      , paste(get_location_var("geo_name"), "as geo_name")
     )
   )
   #topwords
@@ -268,17 +213,18 @@ register_series <- function() {
   set_aggregated_tweets(
     name = "topwords"
     , dateCol = "created_date"
-    , pks = list("created_date", "topic", "tweet_geo_country_code", "token")
-    , aggr = list(frequency = "sum", original = "sum", retweets = "sum") 
+    , pks = list("created_date", "topic", "tweet_geo_country_code", "token", "network")
+    , aggr = list(frequency = "sum", original = "sum", quotes = "sum") 
     , sources_exp = c(
         list(
-          "topic"
+	  "network"
+          ,"topic"
           , "date_format(created_at, 'yyyy-MM-dd') as created_date"
-          , "is_retweet"
+          , "is_quote"
           , "lang"
           , "explode(split(text,'[^a-zA-Z\\'\\\\p{L}]')) as token"
          )
-        , get_tweet_location_columns("geo") 
+        , get_location_columns() 
       )
     #, sort_by = list(
     #  "topic"
@@ -292,213 +238,163 @@ register_series <- function() {
        paste("concat(lang, '_', token) not in (", lang_stop_words, ")")
     )  
     , vars = list(
-      "topic"
-      ,"token"
+      "network"
+      , "topic"
+      , "token"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
       , "count(1) as frequency"
-      , "sum(case when is_retweet then 0 else 1 end) as original"
-      , "sum(case when is_retweet then 1 else 0 end) as retweets"
+      , "sum(case when is_quote then 0 else 1 end) as original"
+      , "sum(case when is_quote then 1 else 0 end) as quotes"
     )
     , group_by = list(
-      "topic"
-      ,"token"
+      "network"
+      , "topic"
+      , "token"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
     )
   )
   #country_counts
   # Getting the expression for known users and writing it as a file so it can be read and applied by spark on query
   known_user <- 
-    paste("screen_name in ('"
-      , paste(get_known_users(), collapse="','")
-      , "') or linked_screen_name in ('"
+    paste("user_name in ('"
       , paste(get_known_users(), collapse="','")
       , "') "
       , sep = ""
     )
   params <- list(
-    known_retweets = paste("cast(sum(case when is_retweet and ", known_user, "then 1 else 0 end) as Integer) as known_retweets")
-    , known_original = paste("cast(sum(case when not is_retweet and ", known_user, "then 1 else 0 end) as Integer) as known_original")
+    known_quotes = paste("cast(sum(case when is_quote and ", known_user, "then 1 else 0 end) as Integer) as known_quotes")
+    , known_original = paste("cast(sum(case when not is_quote and ", known_user, "then 1 else 0 end) as Integer) as known_original")
   )
   
   # Aggregation by country level
    set_aggregated_tweets(
      name = "country_counts"
      , dateCol = "created_date"
-     , pks = list("created_date", "topic", "created_hour", "tweet_geo_country_code", "user_geo_country_code")
-     , aggr = list(retweets = "sum", tweets = "sum", know_retweets = "sum", know_original = "sum") 
+     , pks = list("created_date", "topic", "created_hour", "geo_country_code", "network")
+     , aggr = list(quotes = "sum", posts = "sum", know_posts = "sum", know_original = "sum") 
      , sources_exp = c(
-         list("topic", "created_at", "is_retweet", "screen_name", "linked_screen_name")
-         , get_user_location_columns("tweet")
-         , get_tweet_location_columns("geo") 
-         , get_user_location_columns("geo") 
+         list("topic", "created_at", "is_quote", "user_name", "network")
+         , get_location_columns()
     )
     , group_by = list(
-      "topic"
+      "network"
+      , "topic"
       , "date_format(created_at, 'yyyy-MM-dd') as created_date" 
       , "date_format(created_at, 'HH') as created_hour" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
-      , paste(get_user_location_var("geo_country_code"), "as user_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
     )
     , vars = list(
-      "cast(sum(case when is_retweet then 1 else 0 end) as Integer) as retweets"
-      , "cast(sum(case when is_retweet then 0 else 1 end) as Integer) as tweets"
-      , "@known_retweets"
+      "cast(sum(case when is_quote then 1 else 0 end) as Integer) as quotes"
+      , "cast(sum(case when is_quote then 0 else 1 end) as Integer) as original"
+      , "@known_quotes"
       , "@known_original"
      )
     , params = params
   )
-  # Getting entities aggregation
+  # Getting tags aggregation
   set_aggregated_tweets(
-    name = "entities"
+    name = "tags"
     , dateCol = "created_date"
-    , pks = list("created_date", "topic", "tweet_geo_country_code", "entity")
+    , pks = list("created_date", "topic", "geo_country_code", "entity", "network")
     , aggr = list(frequency = "sum", original = "sum", retweets = "sum") 
     , sources_exp = c(
         list(
-          "topic"
+	  "network"
+          , "topic"
           , "date_format(created_at, 'yyyy-MM-dd') as created_date"
-          , "is_retweet"
-          , "explode(entities) as entity"
+          , "is_quote"
+          , "explode(tags) as tag"
          )
-        , get_tweet_location_columns("geo") 
+        , get_location_columns() 
       )
     , vars = list(
-      "topic"
-      ,"entity"
+      "network"
+      , "topic"
+      , "tag"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
       , "count(1) as frequency"
-      , "sum(case when is_retweet then 0 else 1 end) as original"
-      , "sum(case when is_retweet then 1 else 0 end) as retweets"
+      , "sum(case when is_quote then 0 else 1 end) as original"
+      , "sum(case when is_quote then 1 else 0 end) as quotes"
     )
     , group_by = list(
-      "topic"
-      ,"entity"
+      "network"
+      , "topic"
+      , "tag"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
     )
   )
- 
-  # Getting URLs aggregation
+  # Getting tags aggregation
   set_aggregated_tweets(
     name = "urls"
     , dateCol = "created_date"
-    , pks = list("created_date", "topic", "tweet_geo_country_code", "url")
-    , aggr = list(frequency = "sum", original = "sum", retweets = "sum") 
+    , pks = list("created_date", "topic", "geo_country_code", "entity", "network")
+    , aggr = list(frequency = "sum", original = "sum", quotes = "sum") 
     , sources_exp = c(
         list(
-          "topic"
+	  "network"
+          , "topic"
           , "date_format(created_at, 'yyyy-MM-dd') as created_date"
-          , "is_retweet"
+          , "is_quote"
           , "explode(urls) as url"
          )
-        , get_tweet_location_columns("geo") 
+        , get_location_columns() 
       )
     , vars = list(
-      "topic"
+      "network"
+      ,"topic"
       ,"url"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
       , "count(1) as frequency"
-      , "sum(case when is_retweet then 0 else 1 end) as original"
-      , "sum(case when is_retweet then 1 else 0 end) as retweets"
+      , "sum(case when is_quote then 0 else 1 end) as original"
+      , "sum(case when is_quote then 1 else 0 end) as quotes"
     )
     , group_by = list(
-      "topic"
-      ,"url"
+      "network"
+      , "topic"
+      , "url"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
     )
   )
-  # Getting context aggregation
+  # Getting tags aggregation
   set_aggregated_tweets(
-    name = "contexts"
+    name = "categories"
     , dateCol = "created_date"
-    , pks = list("created_date", "topic", "tweet_geo_country_code", "context")
-    , aggr = list(frequency = "sum", original = "sum", retweets = "sum") 
+    , pks = list("created_date", "topic", "geo_country_code", "entity", "network")
+    , aggr = list(frequency = "sum", original = "sum", quotes = "sum") 
     , sources_exp = c(
         list(
-          "topic"
+	  "network"
+          , "topic"
           , "date_format(created_at, 'yyyy-MM-dd') as created_date"
-          , "is_retweet"
-          , "explode(contexts) as context"
+          , "is_quote"
+          , "explode(categories) as category"
          )
-        , get_tweet_location_columns("geo") 
+        , get_location_columns() 
       )
     , vars = list(
-      "topic"
-      ,"context"
+      "network"
+      , "topic"
+      , "category"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
       , "count(1) as frequency"
-      , "sum(case when is_retweet then 0 else 1 end) as original"
-      , "sum(case when is_retweet then 1 else 0 end) as retweets"
+      , "sum(case when is_quote then 0 else 1 end) as original"
+      , "sum(case when is_quote then 1 else 0 end) as quotes"
     )
     , group_by = list(
-      "topic"
-      ,"context"
+      "network"
+      , "topic"
+      ,"category"
       , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
+      , paste(get_location_var("geo_country_code"), "as geo_country_code") 
     )
   )
-  # Getting hashtag aggregation
-  set_aggregated_tweets(
-    name = "hashtags"
-    , dateCol = "created_date"
-    , pks = list("created_date", "topic", "tweet_geo_country_code", "hashtag")
-    , aggr = list(frequency = "sum", original = "sum", retweets = "sum") 
-    , sources_exp = c(
-        list(
-          "topic"
-          , "date_format(created_at, 'yyyy-MM-dd') as created_date"
-          , "is_retweet"
-          , "explode(hashtags) as hashtag"
-         )
-        , get_tweet_location_columns("geo") 
-      )
-    , vars = list(
-      "topic"
-      ,"hashtag"
-      , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
-      , "count(1) as frequency"
-      , "sum(case when is_retweet then 0 else 1 end) as original"
-      , "sum(case when is_retweet then 1 else 0 end) as retweets"
-    )
-    , group_by = list(
-      "topic"
-      ,"hashtag"
-      , "created_date" 
-      , paste(get_tweet_location_var("geo_country_code"), "as tweet_geo_country_code") 
-    )
-  )
-}
-
-# Getting last aggregation date or NA if first
-# Date is obtained by sorting and reading first and last file on the series folder
-# This is used for data collected with epitweetr v0.x.x
-get_aggregated_period_rds <- function() {
-  # listing all aggregated files for given dataset 
-  agg_files <- list.files(file.path(conf$data_dir, "series"), recursive=TRUE, full.names =TRUE)
-  agg_files <- agg_files[grepl(paste(".*", "country_counts", ".*\\.Rds", sep = ""), agg_files)] 
-  # sorting them alphabetically. This makes them sorted by date too because of naming convention
-  agg_files <- sort(agg_files)
-  if(length(agg_files) > 0) { 
-   # getting date information from first and last aggregated file
-   first_file <- agg_files[[1]]
-   first_df <- readRDS(first_file)
-   last_file <- agg_files[[length(agg_files)]]
-   last_df <- readRDS(last_file)
-   last_hour <- max(strptime(paste(strftime(last_df$created_date, format = "%Y-%m-%d"), " ", last_df$created_hour, ":00:00", sep=""), format = "%Y-%m-%d %H:%M:%S", tz = "UTC"))
-   list(
-     first = min(first_df$created_date), 
-     last = as.Date(last_hour),
-     last_hour= as.integer(strftime(last_hour, format = "%H"))
-   )   
-  } else 
-   list(first = NA, last = NA, last_hour = NA)
 }
 
 # getting last aggregation date or NA if first
@@ -507,7 +403,6 @@ get_aggregated_period_rds <- function() {
 get_aggregated_period <- function() {
   if(!exists("last_agg_request", cached) || as.numeric(Sys.time() - cached$last_agg_request, units="secs") > 60) {
     cached$last_agg_request_value <- {
-      rds_period <- get_aggregated_period_rds()
       fs_period <- tryCatch({
          ret <- jsonlite::fromJSON(url(paste0(get_scala_period_url(),"?serie=country_counts")), simplifyVector = T)
          ret$first <- if(exists("first", where = ret)) {
@@ -527,23 +422,20 @@ get_aggregated_period <- function() {
            }
          ret
       }, warning = function(w) {
+	 warning(w)
          list(first= NA, last = NA)
       }, error = function(e) {
+	 warning(e)
          list(first = NA, last = NA)
       })
 
-      if(is.na(rds_period$first) && is.na(fs_period$first))
+      if(is.na(fs_period$first))
         list(first = NA, last = NA, last_hour = NA)
       else 
         list(
-          first = min(c(as.Date(rds_period$first), as.Date(fs_period$first)), na.rm = T), 
-          last = max(c(as.Date(rds_period$last), as.Date(fs_period$last)), na.rm = T),
-          last_hour = (
-            if(is.na(fs_period$last))
-              rds_period$last_hour
-            else 
-              fs_period$last_hour
-          )
+          first = as.Date(fs_period$first), 
+          last = as.Date(fs_period$last),
+          last_hour = fs_period$last_hour
         )
     }
     cached$last_agg_request <- Sys.time()

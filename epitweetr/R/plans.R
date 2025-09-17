@@ -59,7 +59,6 @@ format_plan <- function(p) {
 update_plan_after_request <- function(plan, results) {
     # increasing the number of requests
     plan$requests <- plan$requests + 1
-
     # setting the start date if not set
     if (is.null(plan$start_on)) {
         plan$start_on = Sys.time()

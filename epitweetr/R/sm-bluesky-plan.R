@@ -38,7 +38,7 @@ sm_plan_next_attributes_bluesky <- function(plans) {
 #' @noRd
 sm_plan_get_progress_bluesky <- function(plan) {
     if(!is.null(plan$plan_max_date) && !is.null(plan$plan_min_date) && !is.null(plan$current_min_date)) {
-        as.numeric(plan$plan_max_date - plan$current_min_date, unit="secs")/as.numeric(plan$plan_max_date - plan$plan_min_date, unit="secs")
+	 as.numeric(plan$plan_max_date - plan$current_min_date, unit="secs")/as.numeric(plan$plan_max_date - plan$plan_min_date, unit="secs")
     } else {
       NULL
     }
@@ -47,7 +47,7 @@ sm_plan_get_progress_bluesky <- function(plan) {
 #' @noRd
 sm_api_update_plan_after_request_bluesky <- function(plan, results) {
     if(!is.null(results$pagination$min_created_at)) { 
-        plan$current_min_date <- results$pagination$min_created_at
+        plan$current_min_date <- lubridate::as_datetime(results$pagination$min_created_at)
     }
     return(plan)
 }

@@ -277,10 +277,12 @@ search_topic <- function(
               get_scala_tweets_url(),
               "?topic=",
               curl::curl_escape(topic),
+              "&network=",
+              plan$network,
               "&geolocate=true"
             ),
             httr::content_type_json(),
-            body = content$results,
+            body = jsonlite::toJSON(results$posts, auto_unbox = T, null = "null"),
             encode = "raw",
             encoding = "UTF-8",
             httr::timeout((4 - tries) * 5)
@@ -293,7 +295,7 @@ search_topic <- function(
                 encoding = "UTF-8"
               ),
               1,
-              100
+              500
             ))
             stop()
           }
@@ -308,7 +310,6 @@ search_topic <- function(
       )
     }
   }
-
   update_plan_after_request(plan,  results)
 }
 
@@ -325,7 +326,7 @@ parse_date <- function(str_date) {
 
 # Calculating how long in seconds should epitweetr wait before executing one of the plans in the list which would be the case only if all plans are finished before the end of the search span
 can_wait_for <- function(plans) {
-  plans <- if ("get_plan" %in% class(plans)) list(plans) else plans
+  plans <- if (is.list(plans)) plans else list(plans)
   non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
   if (length(non_ended) == 0) {
     expected_end <- Reduce(min, lapply(plans, function(x) x$expected_end))
