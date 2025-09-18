@@ -19,6 +19,10 @@ install-dependencies:
 	devscripts/install-dependencies.sh
 package:
 	devscripts/package.sh
+
+install-test:
+	Rscript devscripts/renv.test.R
+
 app:
 	devscripts/app.sh
 

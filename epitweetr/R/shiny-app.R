@@ -1462,7 +1462,7 @@ epitweetr_app <- function(data_dir = NA) {
       conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
 
       # Saving properties.json
-      save_config(data_dir = conf$data_dir, properties= TRUE, sm_topics = list())
+      save_config(data_dir = conf$data_dir)
 
       # Forcing update on properties dependant refresh (e.g. time slots)
       cd$properties_refresh_flag(Sys.time())

@@ -1,6 +1,6 @@
 Package: epitweetr
 Title: Early Detection of Public Health Threats from 'Twitter' Data
-Version: 2.2.16
+Version: 3.0.0
 Authors@R: c( 
      person(given = "Laura",
             family = "Espinosa",
@@ -87,7 +87,7 @@ Imports:
     httr2,
     lubridate,
     purrr
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Suggests: 
     taskscheduleR,
     testthat (>= 3.0.0)

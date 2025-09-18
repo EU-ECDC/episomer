@@ -4,12 +4,15 @@ repos = "https://cran.asnr.fr/"
 
 if(!("devtools" %in% installed.packages()[,"Package"]))
   install.packages("devtools", repos = repos)
+fast <- TRUE
 
-devtools::install_deps("epitweetr")
-devtools::document("epitweetr")
-renv::snapshot()
-devtools::build_manual("epitweetr")
-#devtools::build_vignettes()
+if(!fast) {
+    devtools::install_deps("epitweetr")
+    devtools::document("epitweetr")
+    renv::snapshot()
+    devtools::build_manual("epitweetr")
+    devtools::build_vignettes()
+}
 
 if(!file.exists(file.path("install"))){
   dir.create(file.path("install"), showWarnings = FALSE)
@@ -40,10 +43,10 @@ installer_name <- (
 )
 
 file.rename(file.path(installer_path), file.path("install", installer_name))
-
-manual_name <- paste("epitweetr_",packageVersion("epitweetr"),".pdf", sep = "") 
-#moving manual
-file.rename(file.path(manual_name), file.path("manual", manual_name))
-
+if(!fast) {
+    manual_name <- paste("epitweetr_",packageVersion("epitweetr"),".pdf", sep = "") 
+    #moving manual
+    file.rename(file.path(manual_name), file.path("manual", manual_name))
+}
 
 
