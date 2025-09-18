@@ -124,7 +124,7 @@ bluesky_parse_response <- function(response) {
      quote <- bluesky_parse_quoted(post)
      features <- bluesky_parse_features(post)
      urls <- unique(c(features$urls, quote$urls))
-     list(
+     ret <- list(
         id = unlist(post$cid),
         uri = sprintf("https://bsky.app/profile/%s/post/%s", post$author$did, sub(".*/", "", post$uri)),
         created_at = bluesky_format_date(bluesky_parse_date(record$createdAt)),
@@ -138,6 +138,9 @@ bluesky_parse_response <- function(response) {
 	urls = urls,
 	categories = features$categories
       )  
+  
+     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
+     ret
   })
   if(length(ret$posts) > 0) {
       ret$pagination$min_created_at <- Reduce(function(x, y) if(x<y) x else y,  lapply(ret$posts, `[[`, "created_at"))
@@ -148,7 +151,7 @@ bluesky_parse_response <- function(response) {
 
 bluesky_parse_quoted <- function(post) {
     # utilitary functions
-    first <- function(x) unlist(x[min(1,length(x))])
+    first <- function(x) {x <- x[!sapply(x, is.null)];unlist(x[min(1,length(x))])}
     mode <- function(x) first(names(sort(table(unlist(x)), decreasing=TRUE)))
 
     # extracting embedding data from post
@@ -174,7 +177,7 @@ bluesky_parse_quoted <- function(post) {
 	      texts = sapply(list("title", "description"), function(attr) unlist(embed$external[[attr]]))
 	      quoted_texts = c(quoted_texts, list(list(
                   text = paste(texts[!is.null(texts)], collapse="\n"),
-                  lang = NULL
+                  lang =  mode(post$record$langs)
               )))
 	      if("uri" %in% names(embed$external)) {
 	          urls = c(urls, embed$external$uri)
@@ -183,18 +186,35 @@ bluesky_parse_quoted <- function(post) {
         }
         # case 2: quoted post
 	#         post$embed$record$value$text
+	#         post$embed$record$description
         #         post$embed$record$record$value$text
-	if("record" %in% names(post$embed) && "value" %in% names(post$embed$record) && "text" %in% names(post$embed$record$value)) {
+	#         post$embed$record$record$description
+	if("record" %in% names(post$embed) && 
+	   (
+	     (  "value" %in% names(post$embed$record) && 
+	        "text" %in% names(post$embed$record$value))
+	     ||
+	        "description" %in% names(post$embed$record)	     
+	   )
+        ) {
 	    records = c(records, list(post$embed$record) )
 	}
-	if("record" %in% names(post$embed) && "record" %in% names(post$embed$record) && "value" %in% names(post$embed$record$record) && "text" %in% names(post$embed$record$record$value)) {
+	if("record" %in% names(post$embed) && 
+	   "record" %in% names(post$embed$record) && 
+	   (
+	     (  "value" %in% names(post$embed$record$record) && 
+	        "text" %in% names(post$embed$record$record$value))
+	     ||
+	        "description" %in% names(post$embed$record$record)	     
+	   )
+        ) {
 	    records = c(records, list(post$embed$record$record) )
 	}
 	for(record in records) {
 	    found <- TRUE
             quoted_texts = c(quoted_texts, list(list(
-                 text = record$value$text,
-                 lang = mode(record$value$langs)
+                 text = first(c(record$value$text, record$description)),
+                 lang = first(c(record$value$langs, post$record$langs))
             )))
         }
         # case 3: Images alternative textes
@@ -212,7 +232,7 @@ bluesky_parse_quoted <- function(post) {
             if( "alt" %in% names(image) && nchar(image$alt)>0) {
                 quoted_texts = c(quoted_texts, list(list(
                      text = image$alt,
-                     lang = NULL
+                     lang = mode(post$record$langs)
                 )))
 	    }
 	}
@@ -232,9 +252,11 @@ bluesky_parse_quoted <- function(post) {
 	   jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
            stop(sprintf(":-) 2 Embed information expected but not found in %s", jsonlite::toJSON(post, auto_inbox = TRUE)))
         } else {
-           list(
-                text = paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n"),
-                lang = mode(sapply(quoted_texts, `[[`, "lang")),
+	   text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
+           lang = paste(substr(mode(sapply(quoted_texts, `[[`, "lang")), 1, 2), collapse= "\n")
+           ret <- list(
+                text = if(is.null(text) || nchar(text) == 0) NULL else text,
+                lang = if(is.null(lang) || nchar(lang) == 0) NULL else lang,
 		urls = unique(urls)
            )
         }
