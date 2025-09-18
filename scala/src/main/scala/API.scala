@@ -124,8 +124,8 @@ object API {
                           }
                        complete(fut) 
                      case Failure(e) =>
-                       println(s"Cannot interpret the provided body as a respose of the Post Search API v1.1:\n ${json} $e\n, ${e.getStackTrace.mkString("\n")}") 
-                       complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a respose of the Post Search API v1.1:\n $e")) 
+                       println(s"Cannot interpret the provided body as an standardized post 1:\n ${json} $e\n, ${e.getStackTrace.mkString("\n")}") 
+                       complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body an stantardised post:\n $e")) 
                   } 
                 } ~ 
                   entity(as[String]) { value  => 

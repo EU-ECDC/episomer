@@ -102,9 +102,11 @@ trait IndexStrategy {
                      , minScore:Double=0.0 ,boostAcronyms:Boolean=false, caseInsensitive:Boolean = true
                      , minTokenLikehood:Double = 0.4
     ): Array[SearchMatch] = {
+    if(terms.length > 1000)
+        l.msg(f"-----------------\n$from, \n$to\n${terms.mkString("..a")}")
     val qb = new BooleanQuery.Builder() //  combines multiple TermQuery instances into a BooleanQuery with multiple BooleanClauses, where each clause contains a sub-query and operator
     val b = new BooleanQuery.Builder()
-    for(i <- Iterator.range(from, to)) { 
+    for(i <- Iterator.range(from, Math.min(to, 1000))) { 
       val s= terms(i)
       val weight = likelihood(i)
 
