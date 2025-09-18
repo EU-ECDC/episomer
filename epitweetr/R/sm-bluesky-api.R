@@ -229,7 +229,7 @@ bluesky_parse_quoted <- function(post) {
 	}
 
         if (!found) {
-	   jsonlite::write_json(post, "/tmp/badpost.json")
+	   jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
            stop(sprintf(":-) 2 Embed information expected but not found in %s", jsonlite::toJSON(post, auto_inbox = TRUE)))
         } else {
            list(
