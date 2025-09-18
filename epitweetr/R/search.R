@@ -29,15 +29,15 @@ search_loop <- function(
   sandboxed = FALSE,
   max_requests = 0
 ) {
-    if (!sandboxed) {
-        # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-        register_search_runner()
-    }
     # Setting or reusing the data directory
     if (is.na(data_dir)) {
       setup_config_if_not_already()
     } else {
       setup_config(data_dir = data_dir)
+    }
+    if (!sandboxed) {
+        # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
+        register_search_runner()
     }
 
     sms <- active_social_media()
