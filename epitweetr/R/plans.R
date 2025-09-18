@@ -118,7 +118,7 @@ update_plans_schedule <- function(plans = list(), network, schedule_span) {
 	)
         elems <- c(
             elems,
-	    plan_first_attributes(network)
+	    sm_plan_first_attributes(network)
 	)
 	new_plan <- do.call(parse_plan_attributes, elems)
         return(list(new_plan))

@@ -60,50 +60,12 @@ elements[[1]]
 
 It calls `bluesky_extract_post_elements` for each post, which calls many other functions to extract the elements from the post.
 
-```{r, eval=FALSE}
-bluesky_extract_post_elements <- function(post) {
-  list(
-    author_infos = bluesky_extract_post_author_infos(post),
-    text = bluesky_extract_post_text(post),
-    created_at = extract_post_created_at(post),
-    langs = bluesky_extract_post_langs(post),
-    hashtags = bluesky_extract_post_hashtags(post),
-    url = bluesky_create_post_url(post),
-    id = bluesky_create_post_id(post)
-  )
-}
-```
 
-
-## Automatic pagination based on dates
-
-```{r, eval=FALSE}
-posts <- bluesky_search_paginated(
-  keyword = "covid19",
-  access_jwt = token,
-  until = "2025-07-10T00:00:00",
-  since = NULL,
-  max_posts = 300
-)
-```
-
-### Analyze the content of the posts
-
-```{r, eval=FALSE}
-posts_content <- posts$posts
-elements <- bluesky_extract_many_posts_elements(posts_content)
-elements[[1]]
-```
 
 # Data provided in the package
 
 ```{r}
 posts <- jsonlite::read_json(system.file(package = "epitweetr", "bsky_sample", "posts.json"))
-```
-
-```{r}
-elements <- bluesky_extract_many_posts_elements(posts)
-elements[[1]]
 ```
 
 
