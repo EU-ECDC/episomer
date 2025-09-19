@@ -292,21 +292,21 @@ epitweetr_app <- function(data_dir = NA) {
           shiny::h3("Status"),
           shiny::fluidRow(
             shiny::column(3, "epitweetr database"), 
-            shiny::column(3, shiny::htmlOutput("fs_running")),
-            shiny::column(3, shiny::actionButton("activate_fs", "activate")),
-            shiny::column(3, shiny::actionButton("stop_fs", "stop"))
+            shiny::column(5, shiny::htmlOutput("fs_running")),
+            shiny::column(2, shiny::actionButton("activate_fs", "activate")),
+            shiny::column(2, shiny::actionButton("stop_fs", "stop"))
           ),
           shiny::fluidRow(
             shiny::column(3, "Data collection & processing"), 
-            shiny::column(3, shiny::htmlOutput("search_running")),
-            shiny::column(3, shiny::actionButton("activate_search", "activate")),
-            shiny::column(3, shiny::actionButton("stop_search", "stop"))
+            shiny::column(5, shiny::htmlOutput("search_running")),
+            shiny::column(2, shiny::actionButton("activate_search", "activate")),
+            shiny::column(2, shiny::actionButton("stop_search", "stop"))
           ),
           shiny::fluidRow(
             shiny::column(3, "Requirements & alerts"), 
-            shiny::column(3, shiny::htmlOutput("detect_running")),
-            shiny::column(3, shiny::actionButton("activate_detect", "activate")),
-            shiny::column(3, shiny::actionButton("stop_detect", "stop"))
+            shiny::column(5, shiny::htmlOutput("detect_running")),
+            shiny::column(2, shiny::actionButton("activate_detect", "activate")),
+            shiny::column(2, shiny::actionButton("stop_detect", "stop"))
           ),
           ################################################
           ######### GENERAL PROPERTIES ###################
@@ -1243,23 +1243,49 @@ epitweetr_app <- function(data_dir = NA) {
       cd$tasks_refresh_flag()
       # Adding a dependency to process update (each 10 seconds)
       cd$process_refresh_flag()
+      
+      color = if(cd$search_running && !is.na(cd$search_diff) && length(cd$missing_search_jobs)==0) {
+	  "#348017" 
+      } else if(!cd$search_running || is.na(cd$search_diff)){
+	  "#F75D59"
+      } else {
+	  "#EfAF0D"
+      }
+      
+      message = ""
+      if(!cd$search_running || is.na(cd$search_diff)) {
+	    message = "Stopped"
+      } else {
+	    message =  "Running"
+      }
+      if(!is.na(cd$search_diff)) {
+          message = paste(
+	      message,
+	      "( wrote"
+              , round(cd$search_diff, 2)
+              , units(cd$search_diff)
+              , "ago )"
+	  ) 
+      }
+      if( length(cd$missing_search_jobs)>0) {
+          message = paste(
+	      message,
+	      "<br/>",
+	      paste(cd$missing_search_jobs, collapse = ", "),
+	      " missing"
+	  )
+      }
+	     
 
       # updating the label
       paste(
         "<span",
-        " style='color:", if(cd$search_running) "#348017'" else "#F75D59'",
-        ">",
-        if(is.na(cd$search_diff)) "Stopped"
-	      else paste(
-          if(cd$search_running) "Running" else "Stopped"
-          , "("
-          , round(cd$search_diff, 2)
-          , units(cd$search_diff)
-          , "ago)" 
-          ),
+        " style='color:", color ,"'>",
+        message,
         "</span>"
         ,sep=""
-    )})
+      )
+    })
 
     # rendering the fs running status
     output$fs_running <- shiny::renderText({
@@ -2434,7 +2460,10 @@ refresh_config_data <- function(e = new.env(), limit = list("langs", "topics", "
     e$detect_running <- is_detect_running() 
     e$fs_running <- is_fs_running() 
     e$search_running <- is_search_running() 
-    e$search_diff <- Sys.time() - last_search_time()
+    e$missing_search_jobs <- missing_search_jobs() 
+    e$search_diff <- round(Sys.time() - last_search_time())
+    if(is.na(e$search_diff ))
+	    msg("is NA!!!!!!!!!!!!!!!!!!!")
 
     # Detecting if some change has happened since last evaluation
     if(!exists("tasks_refresh_flag", where = e)) {

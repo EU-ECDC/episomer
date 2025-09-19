@@ -316,6 +316,25 @@ kill_task <- function(pidfile, type = "R") {
 
 }
 
+#' @title Missing search jobs if any
+#' @description check if search jobs for each activated social media are running and return the list names of social media with missing jobs 
+#' @return char list of social media with no search job running
+#' @details returns a char vector with the name of missing social media
+#' @examples 
+#' if(FALSE){
+#'    library(epitweetr)
+#'    message('Please choose the epitweetr data directory')
+#'    setup_config(file.choose())
+#'    missing_search_jobs()
+#' }
+#' @rdname missing_search_jobs
+#' @export 
+missing_search_jobs <- function() {
+  stop_if_no_config(paste("Cannot check running status for search without configuration setup")) 
+  active <- active_social_media()
+  not_running <- active[sapply(active, function(sm) get_running_task_pid(sprintf("search.%s", sm))<0)]
+  not_running
+}
 
 #' @title Check whether the tweet collection task is running
 #' @description gets the tweet collection execution status  
