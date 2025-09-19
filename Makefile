@@ -38,5 +38,13 @@ search-sandboxed:
 R:
 	devscripts/r-interpreter.sh
 
+R-test:
+	$(call check_epi_home)
+	$(call set_kr_pass)
+	devscripts/package.sh
+	Rscript devscripts/renv.test.R
+	@export ecdc_wtitter_tool_kr_password=`pass epitools/ecdc_kr_pwd` && \
+	cd test && R
+
 spark:
 	devscripts/spark-interpreter.sh

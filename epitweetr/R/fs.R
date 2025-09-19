@@ -368,9 +368,9 @@ last_fs_updates <- function(collections = c("tweets", "topwords", "country_count
     function(collection) {
       folders <- sort(list.files(path=paste(conf$data_dir, "fs", collection, sep="/"), full.names=T))
       if(length(folders)>0) {
-        files <- list.files(tail(folders, 2), full.names = TRUE, recursive = TRUE)
+        files <- list.files(c(folders), full.names = TRUE, recursive = TRUE)
         files <- files[!grepl("write.lock$", files)]
-        max(file.mtime(files))
+        max(file.mtime(files), na.rm=T)
       } else {
         NA
       }

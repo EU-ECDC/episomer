@@ -560,7 +560,7 @@ translate_query <- function(sm, q) {
 
 # Get topics data frame as displayed on the Shiny configuration tab
 get_topics_df <- function() {
-  data.frame(
+  df <- data.frame(
     Topics = sapply(conf$topics, function(t) t$topic), 
     Label = sapply(conf$topics, function(t) t$label), 
     Query = sapply(conf$topics, function(t) t$query), 
@@ -572,6 +572,9 @@ get_topics_df <- function() {
     OutliersAlpha = sapply(conf$topics, function(t) t$alpha_outlier),
     stringsAsFactors=FALSE
   )
+  if(length(df)==0)
+     stop("The list of topics is empty. Please check your configuration")
+  df
 }
 
 #Get topic labels as named array that can be used for translation
