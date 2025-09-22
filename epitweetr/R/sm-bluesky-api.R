@@ -140,6 +140,8 @@ bluesky_parse_response <- function(response) {
       )  
   
      #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
+     #if(!is.null(quote$text) && nchar(quote$text) > 0)
+         #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), isq = ret$is_quote, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
      ret
   })
   if(length(ret$posts) > 0) {

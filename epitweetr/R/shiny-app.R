@@ -2462,8 +2462,6 @@ refresh_config_data <- function(e = new.env(), limit = list("langs", "topics", "
     e$search_running <- is_search_running() 
     e$missing_search_jobs <- missing_search_jobs() 
     e$search_diff <- round(Sys.time() - last_search_time())
-    if(is.na(e$search_diff ))
-	    msg("is NA!!!!!!!!!!!!!!!!!!!")
 
     # Detecting if some change has happened since last evaluation
     if(!exists("tasks_refresh_flag", where = e)) {
