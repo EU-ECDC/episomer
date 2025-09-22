@@ -952,8 +952,14 @@ update_dep_task <- function(tasks, status, message, start = FALSE, end = FALSE) 
 loop_run_issues <- function(loop_name) {
   t <- get_tasks()
   if(loop_name == "fs") {
-    if(!is.na(t$dependencies$status) && t$dependencies$status %in% c("success", "running")) ""
-    else "Please activate 'Requirement & alerts' task. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
+    if(!is.na(t$dependencies$status) && t$dependencies$status %in% c("success", "running")) {
+	    ""
+    }
+    else if(!is_detect_running()) {
+	    "Please activate 'Requirement & alerts' task. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
+    } else {
+	    "Please manually run the 'Run dependencies' step. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
+    }
       
   } else if(loop_name == "search") {
     token <- tryCatch(get_token(request_new = FALSE), error = function(e) NULL, warning = function(e) NULL)
