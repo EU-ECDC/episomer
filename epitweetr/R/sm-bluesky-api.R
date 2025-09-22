@@ -131,7 +131,7 @@ bluesky_parse_response <- function(response) {
 	user_name = gsub(".bsky.social", "", post$author$handle),
 	text = unlist(record$text),
 	lang = first(record$langs),
-	is_quote = !is.null(quote$text) && nchar(quote$text) > 0,
+	is_quote = quote$is_quote && !is.null(quote$text) && nchar(quote$text) > 0,
         quoted_text = quote$text,
 	quoted_lang = quote$lang,
 	tags = features$tags,
@@ -161,6 +161,7 @@ bluesky_parse_quoted <- function(post) {
         records = list()
 	images = list()
 	urls = list()
+	is_quote <- FALSE
 
 	if("record" %in% names(post$embed) && "embeds" %in% names(post$embed$record)) {
 	    embeds = post$embed$record$embeds
@@ -212,6 +213,7 @@ bluesky_parse_quoted <- function(post) {
 	}
 	for(record in records) {
 	    found <- TRUE
+	    is_quote <- TRUE
             quoted_texts = c(quoted_texts, list(list(
                  text = first(c(record$value$text, record$description)),
                  lang = first(c(record$value$langs, post$record$langs))
@@ -250,18 +252,20 @@ bluesky_parse_quoted <- function(post) {
 
         if (!found) {
 	   jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
-           stop(sprintf(":-) 2 Embed information expected but not found in %s", jsonlite::toJSON(post, auto_inbox = TRUE)))
-        } else {
-	   text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
-           lang = paste(substr(mode(sapply(quoted_texts, `[[`, "lang")), 1, 2), collapse= "\n")
-           ret <- list(
-                text = if(is.null(text) || nchar(text) == 0) NULL else text,
-                lang = if(is.null(lang) || nchar(lang) == 0) NULL else lang,
-		urls = unique(urls)
-           )
-        }
+           warning(sprintf(":-) 2 Embed information expected but not found in %s", jsonlite::toJSON(post, auto_inbox = TRUE)))
+        } 
+	text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
+        lang = paste(substr(mode(sapply(quoted_texts, `[[`, "lang")), 1, 2), collapse= "\n")
+        list(
+             text = if(is.null(text) || nchar(text) == 0) NULL else text,
+             lang = if(is.null(lang) || nchar(lang) == 0) NULL else lang,
+	     urls = unique(urls),
+	     is_quote = is_quote
+        )
     } else {
-        NULL
+        list(
+	     is_quote = FALSE
+        )
     }
 }
 
@@ -277,12 +281,10 @@ bluesky_parse_features <- function(post) {
 		       ret$tags <- c(ret$tags, feature[["tag"]])
 		   } else if(ftype == "app.bsky.richtext.facet#link") {
                        ret$urls <- c(ret$urls, feature[["uri"]])
-		   } else if(ftype == "app.bsky.richtext.facet#mention") {
-		      #pass
-		   } else if(ftype == "app.bsky.richtext.facet#format") {
+		   } else if(ftype %in% c("app.bsky.richtext.facet#mention", "app.bsky.richtext.facet#format", "app.twitter.source#id", "blue.poll.post.facet#option")) {
 		      #pass
 		   } else {
-		       jsonlite::write_json(post, "/tmp/badpost.json")
+	               jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
                        stop(sprintf(":-) Unexpected feature type %s in %s", ftype, jsonlite::toJSON(post, auto_unbox = TRUE)))
 		   }
 		}
