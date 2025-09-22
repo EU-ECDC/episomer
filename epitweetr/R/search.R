@@ -27,6 +27,7 @@
 search_loop <- function(
   data_dir = NA,
   sandboxed = FALSE,
+  log_to_file = TRUE,
   max_requests = 0
 ) {
     # Setting or reusing the data directory
@@ -47,6 +48,7 @@ search_loop <- function(
     data_dir <- conf$data_dir
     parallel::clusterExport(cl, 
       list(
+	"log_to_file"
 	#"conf",
         #"setup_config",
         #"search_loop_worker",
@@ -59,7 +61,13 @@ search_loop <- function(
     
     # running search loops
     alerts <- parallel::parLapply(cl, sms, function(sm) {
-	epitweetr::setup_config(data_dir)
+	# redirecting output to the sm file
+        if(log_to_file) {
+	    outcon <- file(file.path(data_dir, sprintf("search.%s.log", sm)), open = "a")
+	    sink(outcon)
+	    sink(outcon, type = "message")
+	}
+        epitweetr::setup_config(data_dir)
         m <- paste("Running search agent for ",sm, Sys.time())
         message(m)
         epitweetr::search_loop_worker(sm, data_dir, sandboxed, max_requests)

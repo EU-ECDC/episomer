@@ -369,7 +369,7 @@ is_search_running <- function() {
 #' @export 
 is_fs_running <- function() {
   stop_if_no_config(paste("Cannot check running status for fs without configuration setup")) 
-  tryCatch(httr::GET(url=get_scala_ping_url(), httr::timeout(0.2))$status_code == 200, error = function(e) FALSE, warning = function(w) FALSE)
+  tryCatch(httr::GET(url=get_scala_ping_url(), httr::timeout(1.0))$status_code == 200, error = function(e) FALSE, warning = function(w) FALSE)
 }
 
 stop_if_no_fs <- function(msg = NULL) {
