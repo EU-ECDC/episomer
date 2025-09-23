@@ -108,7 +108,7 @@ countries = c(1)
 date_type = "created_date"
 date_min = "2025-08-01"
 date_max = Sys.Date()
-with_retweets = FALSE
+
 location_type = "tweet"
 alpha = 0.025
 alpha_outlier = 0.05
@@ -117,6 +117,8 @@ no_historic = 7
 bonferroni_correction = FALSE
 same_weekday_baseline = FALSE 
 
+with_retweets = TRUE
+setup_config()
 trend_line(
     topic = topic,
     countries = countries,
@@ -124,7 +126,6 @@ trend_line(
     date_min = date_min,
     date_max = date_max,
     with_retweets = with_retweets,
-    location_type = location_type,
     alpha = alpha,
     alpha_outlier = alpha_outlier,
     k_decay = k_decay,
@@ -132,59 +133,24 @@ trend_line(
     bonferroni_correction = bonferroni_correction,
     same_weekday_baseline = same_weekday_baseline
 )
+```
 
+# create_topchart
 
-    # If countries are names they have to be changes to region indexes
-    if (is.character(countries) && length(countries) > 0) {
-        reg <- get_country_items()
-        countries <- (1:length(reg))[sapply(1:length(reg), function(i) reg[[i]]$name %in% countries)]
-    }
-    # defining the environment variable for returning complementary data
-    logenv <- new.env()
+```{r}
+setup_config()
+#debugonce(create_topchart)
 
-    # getting the data with counts and alerts from country counts
-    df <-
-        calculate_regions_alerts(
-            # YMX verifier
-            topic = tolower(topic),
-            regions = countries,
-            date_type = date_type,
-            date_min = date_min,
-            date_max = date_max,
-            with_retweets = with_retweets,
-            location_type = location_type,
-            alpha = alpha,
-            alpha_outlier = alpha_outlier,
-            k_decay = k_decay,
-            no_historic = no_historic,
-            bonferroni_correction = bonferroni_correction,
-            same_weekday_baseline = same_weekday_baseline,
-            logenv = logenv
-        )
-    # YMX
-    # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "epitweetr"), "df_calculate_regions_alerts.rds"))
-    # checking if some data points have been returned or return empty char
-    if (nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) > 0) {
-        # YMX verifier
-        topic <- unname(get_topics_labels()[stringr::str_replace_all(topic, "%20", " ")])
-        df$topic <- topic
-        plot_trendline(
-            df = df,
-            countries = countries,
-            topic = topic,
-            date_min = date_min,
-            date_max = date_max,
-            date_type = date_type,
-            alpha = alpha,
-            alpha_outlier = alpha_outlier,
-            k_decay = k_decay,
-            location_type = location_type,
-            total_count = logenv$total_count
-        )
-    } else {
-        get_empty_chart("No data found for the selected topic, region and period")
-    }
-}
+# TEST OK avec topwords
+topch1 <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+
+topch1r <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = TRUE, top = 25)
+
+# TEST OK avec tags
+topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+
+# TEST OK avec urls
+topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
 
 ```
 

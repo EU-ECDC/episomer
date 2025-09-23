@@ -49,7 +49,6 @@ trend_line <- function(
   , date_min="1900-01-01"
   , date_max="2100-01-01"
   , with_retweets = FALSE
-  , location_type = "tweet"
   , alpha = 0.025
   , alpha_outlier = 0.05
   , k_decay = 4
@@ -79,7 +78,6 @@ trend_line <- function(
       date_min = date_min, 
       date_max = date_max, 
       with_retweets = with_retweets, 
-      location_type = location_type, 
       alpha = alpha,
       alpha_outlier = alpha_outlier, 
       k_decay = k_decay,
@@ -104,7 +102,6 @@ trend_line <- function(
       alpha = alpha,
       alpha_outlier = alpha_outlier,
       k_decay = k_decay,
-      location_type = location_type, 
       total_count = logenv$total_count
     )
   } else {
@@ -115,7 +112,7 @@ trend_line <- function(
 
 
 # Plot the trend_line chart for shiny app
-plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alpha, alpha_outlier, k_decay, location_type = "tweets", total_count= NA){
+plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alpha, alpha_outlier, k_decay, total_count= NA){
   #Importing pipe operator
   `%>%` <- magrittr::`%>%`
   # getting regions and countries 
@@ -794,29 +791,33 @@ create_topwords <- function(topic,country_codes=c(),date_min="1900-01-01",date_m
 #' @importFrom stats reorder
 #' @importFrom utils head
 #' 
-create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01",date_max="2100-01-01", with_retweets = FALSE, location_type = "tweet", top = 25) {
+create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01",date_max="2100-01-01", with_retweets = FALSE, top = 25) {
   stop_if_no_config()
   stop_if_no_fs()
   #Importing pipe operator
   `%>%` <- magrittr::`%>%`
-  f_topic <- topic
+  f_topic <- tolower(topic)
   dataset <- serie
 
   # Getting the right top field depending on the series 
+  # YMX verifier
+  match.arg(serie, c("topwords", "tags", "urls"))
   top_field <- (
     if(serie == "topwords") "token"
-    else if(serie == "entities") "entity"
-    else if(serie == "hashtags") "hashtag"
-    else if(serie == "contexts") "context"
+    #else if(serie == "entities") "entity"
+    else if(serie == "tags") "tag"
+    #else if(serie == "contexts") "context"
     else if(serie == "urls") "url"
-    else "top"
+    # else "top"
   )
 
   # getting the data from topwords series
   filter <- (
     if(length(country_codes) > 0)
+      # YMX verifier
       list(topic = f_topic, period = list(date_min, date_max), tweet_geo_country_code = country_codes)
     else 
+      # YMX verifier
       list(topic = f_topic, period = list(date_min, date_max))
   )
   df <- get_aggregates(dataset = dataset, filter =filter , top_field = top_field, top_freq = "frequency")
@@ -838,11 +839,17 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
         .data$topic == f_topic 
         & .data$created_date >= date_min 
         & .data$created_date <= date_max
-        & (if(length(country_codes)==0) TRUE else .data$tweet_geo_country_code %in% country_codes )
+        # YMX verifier
+        & (if(length(country_codes)==0) TRUE else .data$geo_country_code %in% country_codes )
       ))
  
   # dealing with retweets if requested
-  if(!with_retweets) df$frequency <- df$original
+  # YMX verifier
+  if(!with_retweets) {
+    df$frequency <- df$original
+  } else {
+    df$frequency <- ifelse(is.na(df$quotes), 0, df$quotes) + ifelse(is.na(df$original), 0, df$original)
+  }
 
   # grouping by top and limiting as requested
   df <- (df
