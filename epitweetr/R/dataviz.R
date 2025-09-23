@@ -49,7 +49,6 @@ trend_line <- function(
   , date_min="1900-01-01"
   , date_max="2100-01-01"
   , with_retweets = FALSE
-  , location_type = "tweet"
   , alpha = 0.025
   , alpha_outlier = 0.05
   , k_decay = 4
@@ -79,7 +78,6 @@ trend_line <- function(
       date_min = date_min, 
       date_max = date_max, 
       with_retweets = with_retweets, 
-      location_type = location_type, 
       alpha = alpha,
       alpha_outlier = alpha_outlier, 
       k_decay = k_decay,
@@ -104,7 +102,6 @@ trend_line <- function(
       alpha = alpha,
       alpha_outlier = alpha_outlier,
       k_decay = k_decay,
-      location_type = location_type, 
       total_count = logenv$total_count
     )
   } else {
@@ -115,7 +112,7 @@ trend_line <- function(
 
 
 # Plot the trend_line chart for shiny app
-plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alpha, alpha_outlier, k_decay, location_type = "tweets", total_count= NA){
+plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alpha, alpha_outlier, k_decay, total_count= NA){
   #Importing pipe operator
   `%>%` <- magrittr::`%>%`
   # getting regions and countries 
