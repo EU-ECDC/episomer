@@ -215,11 +215,12 @@ get_reporting_date_counts <- function(
       if(is.na(end)) df 
       else dplyr::filter(df, .data$reporting_date <= end)
     )
-    
     # group by reporting date
+    # YMX verifier
     df %>%
       dplyr::group_by(.data$reporting_date) %>% 
-      dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>% 
+      #dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>% 
+      dplyr::summarise(count = sum(.data$original), known_users = sum(.data$known_users)) %>% 
       dplyr::ungroup()
   } else {
     data.frame(reporting_date=as.Date(character()),count=numeric(), known_users=numeric(), stringsAsFactors=FALSE)   
