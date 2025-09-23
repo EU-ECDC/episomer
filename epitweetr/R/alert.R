@@ -219,8 +219,7 @@ get_reporting_date_counts <- function(
     # YMX verifier
     df %>%
       dplyr::group_by(.data$reporting_date) %>% 
-      #dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>% 
-      dplyr::summarise(count = sum(.data$original), known_users = sum(.data$known_users)) %>% 
+      dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>%       
       dplyr::ungroup()
   } else {
     data.frame(reporting_date=as.Date(character()),count=numeric(), known_users=numeric(), stringsAsFactors=FALSE)   
@@ -253,23 +252,27 @@ calculate_region_alerts <- function(
   )) %>% dplyr::filter(.data$topic == f_topic)
 
   # Adding retweets on count if requested
+  # YMX verifier
   df <- if(with_retweets){
+    # YMX verifier
     df %>% dplyr::mutate(
-      tweets = ifelse(is.na(.data$retweets), 0, .data$retweets) + ifelse(is.na(.data$tweets), 0, .data$tweets),
-      known_users = .data$known_retweets + .data$known_original
+      tweets = ifelse(is.na(.data$quotes), 0, .data$quotes) + ifelse(is.na(.data$original), 0, .data$original),
+      known_users = .data$known_quotes + .data$known_original
     )
   } else {
+    # YMX verifier
     df %>% dplyr::rename(
       known_users = .data$known_original
-    ) 
+    )  %>% 
+    mutate(tweets = .data$original)
   }
   if(!is.null(logenv)) {
     # Setting global variable for storing total number of tweets concerned including all country_cols
     total_df <- df %>% dplyr::filter(
       (
        length(country_codes) == 0 
-       |  (.data$tweet_geo_country_code %in% country_codes) 
-       |  (.data$user_geo_country_code %in% country_codes) 
+       # YMX verifier
+       |  (.data$geo_country_code %in% country_codes)
       )
     )
     total_count <- sum((get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>% dplyr::filter(.data$reporting_date >= start))$count)
