@@ -318,7 +318,6 @@ calculate_regions_alerts <- function(
     , date_min = as.Date("1900-01-01")
     , date_max = as.Date("2100-01-01")
     , with_retweets = FALSE
-    , location_type = "tweet" 
     , alpha = 0.025
     , alpha_outlier = 0.05
     , k_decay = 4
