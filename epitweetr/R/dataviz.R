@@ -72,7 +72,8 @@ trend_line <- function(
   # getting the data with counts and alerts from country counts  
   df <- 
     calculate_regions_alerts(
-      topic = topic,
+      # YMX verifier
+      topic = tolower(topic),
       regions = countries, 
       date_type = date_type, 
       date_min = date_min, 
@@ -87,6 +88,8 @@ trend_line <- function(
       same_weekday_baseline = same_weekday_baseline,
       logenv = logenv
     )
+  # YMX
+  # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "epitweetr"), "df_calculate_regions_alerts.rds"))
   # checking if some data points have been returned or return empty char
   if(nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) >0) {
     topic <- unname(get_topics_labels()[stringr::str_replace_all(topic, "%20", " ")])
