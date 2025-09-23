@@ -108,7 +108,7 @@ countries = c(1)
 date_type = "created_date"
 date_min = "2025-08-01"
 date_max = Sys.Date()
-with_retweets = FALSE
+
 location_type = "tweet"
 alpha = 0.025
 alpha_outlier = 0.05
@@ -117,6 +117,7 @@ no_historic = 7
 bonferroni_correction = FALSE
 same_weekday_baseline = FALSE 
 
+with_retweets = TRUE
 setup_config()
 trend_line(
     topic = topic,
@@ -125,7 +126,6 @@ trend_line(
     date_min = date_min,
     date_max = date_max,
     with_retweets = with_retweets,
-    location_type = location_type,
     alpha = alpha,
     alpha_outlier = alpha_outlier,
     k_decay = k_decay,
@@ -142,13 +142,15 @@ setup_config()
 #debugonce(create_topchart)
 
 # TEST OK avec topwords
-topch1 <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, location_type = "tweet", top = 25)
+topch1 <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+
+topch1r <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = TRUE, top = 25)
 
 # TEST OK avec tags
-topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, location_type = "tweet", top = 25)
+topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
 
 # TEST OK avec urls
-topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, location_type = "tweet", top = 25)
+topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
 
 ```
 
