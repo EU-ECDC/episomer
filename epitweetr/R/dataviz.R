@@ -355,9 +355,9 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
   # Getting the aggregated data based on the national or subnational level
   df <- (
     if(!detailed) 
-      get_aggregates(dataset = "country_counts", filter = list(topic = topic, period = list(date_min, date_max)))
+      get_aggregates(dataset = "country_counts", filter = list(topic = tolower(topic), period = list(date_min, date_max)))
     else 
-      get_aggregates(dataset = "geolocated", filter = list(topic = topic, period = list(date_min, date_max)))
+      get_aggregates(dataset = "geolocated", filter = list(topic = tolower(topic), period = list(date_min, date_max)))
   )
 
   # retunrning empty chart if no data is found
@@ -367,110 +367,169 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
   
   
   #filtering data by topic and date and country_codes
-  f_topic <- topic
+  f_topic <- tolower(topic)
+
   df <- (df %>% 
+    # YMX verifier
     dplyr::filter(
         .data$topic==f_topic
-        & (!is.na(.data$tweet_geo_country_code)
-           |  !is.na(.data$user_geo_country_code)
+        # & (!is.na(.data$tweet_geo_country_code)
+        #    |  !is.na(.data$user_geo_country_code)
+        #   )
+        & (!is.na(.data$geo_country_code)
           )
         & .data$created_date >= date_min 
         & .data$created_date <= date_max
         & (
             (
               if(length(country_codes) == 0) TRUE 
-              else .data$tweet_geo_country_code %in% country_codes
+              # YMX verifier
+              #else .data$tweet_geo_country_code %in% country_codes
+              else .data$geo_country_code %in% country_codes
             )
           |
             (
               if(length(country_codes) == 0) TRUE 
-              else .data$user_geo_country_code %in% country_codes
+              # YMX verifier
+              #else .data$user_geo_country_code %in% country_codes
+              else .data$geo_country_code %in% country_codes
             )
           )
     )
   )
 
   # Adding retweets if requested
-  if(with_retweets)
-    df$tweets <- ifelse(is.na(df$retweets), 0, df$retweets) + ifelse(is.na(df$tweets), 0, df$tweets)
+  # YMX verifier
+  if(!detailed) {
+  if(with_retweets) {
+    #df$tweets <- ifelse(is.na(df$retweets), 0, df$retweets) + ifelse(is.na(df$tweets), 0, df$tweets)
+    df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) + ifelse(is.na(df$original), 0, df$original)
+    } else {
+      df$tweets <- df$original
+    }
+    } else {
+     if(with_retweets) {
+    #df$tweets <- ifelse(is.na(df$retweets), 0, df$retweets) + ifelse(is.na(df$tweets), 0, df$tweets)
+    df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) + ifelse(is.na(df$posts), 0, df$posts)
+    } else {
+      df$tweets <- df$posts
+    } 
+    }
   
   # Ensuring geo_name column exists for tooltips and setting default value (necessary for data created before version < 0.1.7)
-  if(detailed && !("user_geo_name" %in% colnames(df))) {
-     df$user_geo_name <- df$user_geo_code 
-     df$tweet_geo_name <- df$tweet_geo_code 
-  }	else if(detailed) {
-     df$tweet_geo_name <- ifelse(df$tweet_geo_name == "" | is.na(df$tweet_geo_name), df$tweet_geo_code, df$tweet_geo_name) 
-     df$user_geo_name <- ifelse(df$user_geo_name == "" | is.na(df$user_geo_name), df$user_geo_code, df$user_geo_name) 
-  }
+  # YMX verifier
+  # if(detailed && !("user_geo_name" %in% colnames(df))) {
+  #    df$user_geo_name <- df$user_geo_code 
+  #    df$tweet_geo_name <- df$tweet_geo_code 
+  # }	else if(detailed) {
+  #    df$tweet_geo_name <- ifelse(df$tweet_geo_name == "" | is.na(df$tweet_geo_name), df$tweet_geo_code, df$tweet_geo_name) 
+  #    df$user_geo_name <- ifelse(df$user_geo_name == "" | is.na(df$user_geo_name), df$user_geo_code, df$user_geo_name) 
+  # }
   # Getting global tweet count for title 
-  scope_count <- (
-     if(location_type =="tweet" && !detailed) 
-       sum(
+  
+  # YMX verifier
+  if(!detailed) {
+scope_count <-        sum(
          (df %>% 
             dplyr::filter(
-              !is.na(.data$tweet_geo_country_code) 
+              # YMX verifier
+              !is.na(.data$geo_country_code) 
               &(
-                .data$tweet_geo_country_code %in% country_codes 
+                .data$geo_country_code %in% country_codes 
                 | length(country_codes) == 0
                 )
             )
          )$tweets
        )
-     else if(location_type == "user" && !detailed) 
-       sum(
-         (df %>% 
-            dplyr::filter(
-              !is.na(.data$user_geo_country_code) 
-              &( 
-               .data$user_geo_country_code %in% country_codes 
-               | length(country_codes) == 0
-              )
-            )
-          )$tweets
-        )
-     else if(!detailed) NA
-     else if(location_type =="tweet") sum((df %>% dplyr::filter((!(.data$tweet_geo_code %in% country_codes )) & (.data$tweet_geo_country_code %in% country_codes | length(country_codes) == 0)))$tweets)
-     else if(location_type == "user") sum((df %>% dplyr::filter((!(.data$user_geo_code %in% country_codes )) & (.data$user_geo_country_code %in% country_codes | length(country_codes) == 0)))$tweets)
-     else NA 
-  )
+  } else {
+    scope_count <- sum((df %>% dplyr::filter((!(.data$geo_country_code %in% country_codes )) & (.data$geo_country_code %in% country_codes | length(country_codes) == 0)))$tweets)
 
+  }
+
+
+  
+  # scope_count <- (
+  #    if(location_type =="tweet" && !detailed) 
+  #      sum(
+  #        (df %>% 
+  #           dplyr::filter(
+  #             # YMX verifier
+  #             !is.na(.data$geo_country_code) 
+  #             &(
+  #               .data$geo_country_code %in% country_codes 
+  #               | length(country_codes) == 0
+  #               )
+  #           )
+  #        )$tweets
+  #      )
+  #    else if(location_type == "user" && !detailed) 
+  #      sum(
+  #        (df %>% 
+  #           dplyr::filter(
+  #             # YMX verifier
+  #             !is.na(.data$geo_country_code) 
+  #             &( 
+  #              .data$geo_country_code %in% country_codes 
+  #              | length(country_codes) == 0
+  #             )
+  #           )
+  #         )$tweets
+  #       )
+  #    else if(!detailed) NA
+  #    # YMX verifier
+  #    else if(location_type =="tweet") sum((df %>% dplyr::filter((!(.data$geo_country_code %in% country_codes )) & (.data$geo_country_code %in% country_codes | length(country_codes) == 0)))$tweets)
+  #    # YMX verifier
+  #    else if(location_type == "user") sum((df %>% dplyr::filter((!(.data$geo_country_code %in% country_codes )) & (.data$geo_country_code %in% country_codes | length(country_codes) == 0)))$tweets)
+  #    else NA 
+  # )
+
+  # # YMX verifier
   total_count <- (
      if(!detailed) sum(df$tweets)
-     else sum((df %>% dplyr::filter((!(.data$tweet_geo_code %in% country_codes )) & !(.data$user_geo_code %in% country_codes )))$tweets)
+     else sum((df %>% dplyr::filter((!(.data$geo_country_code %in% country_codes )) & !(.data$geo_country_code %in% country_codes )))$tweets)
   )
 
   # Setting country codes as requested location types as requested
   # this is to deal with location type and aggregation level (national vs subnational) 
-  df <- (
-         if(location_type =="tweet" && !detailed)
-           df %>% dplyr::rename(country_code = .data$tweet_geo_country_code) %>% dplyr::select(-.data$user_geo_country_code)
-         else if(location_type == "user" && !detailed)
-           df %>% dplyr::rename(country_code = .data$user_geo_country_code) %>% dplyr::select(-.data$tweet_geo_country_code)
-         else if(!detailed) dplyr::bind_rows( #Dealuing with avoiduing dupplication when requeting both user and tweet location
-           df %>% dplyr::rename(country_code = .data$tweet_geo_country_code) %>% dplyr::filter(!is.na(.data$country_code)) %>% dplyr::select(-.data$user_geo_country_code),
-           df %>% 
-             dplyr::rename(country_code = .data$user_geo_country_code) %>% 
-             dplyr::filter(!is.na(.data$country_code) & .data$country_code != .data$tweet_geo_country_code ) %>% 
-             dplyr::select(-.data$tweet_geo_country_code)
-         )
-         else if(location_type =="tweet")
-           df %>% 
-             dplyr::rename(country_code = .data$tweet_geo_country_code, geo_code = .data$tweet_geo_code, geo_name = .data$tweet_geo_name, longitude = .data$tweet_longitude, latitude = .data$tweet_latitude) %>% 
-             dplyr::select(-.data$user_geo_country_code, -.data$user_geo_code, -.data$user_geo_name, -.data$user_longitude, -.data$user_latitude)
-         else if(location_type == "user")
-           df %>% 
-             dplyr::rename(country_code = .data$user_geo_country_code, geo_code = .data$user_geo_code, geo_name = .data$user_geo_name, longitude = .data$user_longitude, latitude = .data$user_latitude) %>% 
-             dplyr::select(-.data$tweet_geo_country_code, -.data$tweet_geo_code, -.data$tweet_geo_name, -.data$tweet_longitude, -.data$tweet_latitude)
-         else dplyr::bind_rows( #Dealuing with avoiduing dupplication when requeting both user and tweet location
-           df %>% 
-             dplyr::rename(country_code = .data$tweet_geo_country_code, geo_code = .data$tweet_geo_code, geo_name = .data$tweet_geo_name, longitude = .data$tweet_longitude, latitude = .data$tweet_latitude) %>% 
-             dplyr::select(-.data$user_geo_country_code, -.data$user_geo_code, -.data$user_geo_name, -.data$user_longitude, -.data$user_latitude),
-           df %>%
-             dplyr::rename(country_code = .data$user_geo_country_code, geo_code = .data$user_geo_code, geo_name = .data$user_geo_name, longitude = .data$user_longitude, latitude = .data$user_latitude) %>% 
-             dplyr::filter(!is.na(.data$country_code) & is.na(.data$tweet_geo_country_code )) %>%
-             dplyr::select(-.data$tweet_geo_country_code, -.data$tweet_geo_code, -.data$tweet_geo_name, -.data$tweet_longitude, -.data$tweet_latitude)
-         )     
-    )
+  # YMX verifier
+  if(detailed) {
+    df <- df %>% dplyr::rename(country_code = .data$geo_country_code)
+  } else {
+    df <- df %>% 
+             dplyr::rename(country_code = .data$geo_country_code)
+  }
+
+  # df <- (
+    # YMX verifier
+        #  if(location_type =="tweet" && !detailed) {
+        #    df %>% dplyr::rename(country_code = .data$geo_country_code) %>% dplyr::select(-.data$user_geo_country_code)
+        #    } else if(location_type == "user" && !detailed){         
+        #    df %>% dplyr::rename(country_code = .data$geo_country_code) %>% dplyr::select(-.data$tweet_geo_country_code)
+        #    }  else if(!detailed) { dplyr::bind_rows( #Dealuing with avoiduing dupplication when requeting both user and tweet location
+        #    df %>% dplyr::rename(country_code = .data$geo_country_code) %>% dplyr::filter(!is.na(.data$country_code)) %>% dplyr::select(-.data$user_geo_country_code),
+        #    df %>% 
+        #      dplyr::rename(country_code = .data$geo_country_code) %>% 
+        #      dplyr::filter(!is.na(.data$country_code) & .data$country_code != .data$geo_country_code ) %>% 
+        #      dplyr::select(-.data$tweet_geo_country_code)
+        #  )}    else if(location_type =="tweet") {
+        #    df %>% 
+        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$tweet_geo_code, geo_name = .data$tweet_geo_name, longitude = .data$tweet_longitude, latitude = .data$tweet_latitude) %>% 
+        #      dplyr::select(-.data$user_geo_country_code, -.data$user_geo_code, -.data$user_geo_name, -.data$user_longitude, -.data$user_latitude)
+        #      } else if(location_type == "user") {
+        #    df %>% 
+        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$user_geo_code, geo_name = .data$user_geo_name, longitude = .data$user_longitude, latitude = .data$user_latitude) %>% 
+        #      dplyr::select(-.data$geo_country_code, -.data$tweet_geo_code, -.data$tweet_geo_name, -.data$tweet_longitude, -.data$tweet_latitude)
+        #      }else {dplyr::bind_rows( #Dealuing with avoiduing dupplication when requeting both user and tweet location
+        #    df %>% 
+        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$tweet_geo_code, geo_name = .data$tweet_geo_name, longitude = .data$tweet_longitude, latitude = .data$tweet_latitude) %>%
+        #      dplyr::select(-.data$user_geo_country_code, -.data$user_geo_code, -.data$user_geo_name, -.data$user_longitude, -.data$user_latitude),
+        #    df %>%
+        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$user_geo_code, geo_name = .data$user_geo_name, longitude = .data$user_longitude, latitude = .data$user_latitude) %>% 
+        #      dplyr::filter(!is.na(.data$country_code) & is.na(.data$tweet_geo_country_code )) %>%
+        #      dplyr::select(-.data$tweet_geo_country_code, -.data$tweet_geo_code, -.data$tweet_geo_name, -.data$tweet_longitude, -.data$tweet_latitude)
+        #  )
+    #          }     
+    # )
 
   #Applying country filter after country type
   df <- (df %>% 
@@ -542,32 +601,51 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
       paste("+proj=laea", " +lon_0=", long_center, " +lat_0=", lat_center ,sep = "") 
   )
   # Projecting the country counts data frame on the target coordinate system this projected data frame contains the bubble X,Y coordinates
-  proj_df <- as.data.frame(
-    sp::spTransform(
-      {
-        x <- df %>% dplyr::filter(!is.na(.data$Long) & !is.na(.data$Lat))
-        sp::coordinates(x)<-~Long+Lat
-        sp::proj4string(x) <- sp::CRS("+proj=longlat +datum=WGS84")
-        x
-      }, 
-      sp::CRS(proj)
-    )
-  )
-  # Extracting country polygons from naturalraearth data
-  countries_geo <- rnaturalearthdata::countries50 
+  browser()
+  # YMX verifier
+  proj_df <- sf::st_as_sf(
+    df %>% dplyr::filter(!is.na(.data$Long) & !is.na(.data$Lat)), 
+    coords = c("Long", "Lat"),
+    crs = 4326 # WGS84
+  ) %>% 
+  sf::st_transform(proj) %>% 
+  sf::st_drop_geometry()
   
+  
+  # proj_df <- as.data.frame(
+  #   sp::spTransform(
+  #     {
+  #       x <- df %>% dplyr::filter(!is.na(.data$Long) & !is.na(.data$Lat))
+  #       # sp::coordinates(x)<-~Long+Lat
+  #       # sp::proj4string(x) <- sp::CRS("+proj=longlat +datum=WGS84")
+  #       x
+  #     }, 
+  #     sp::CRS(proj)
+  #   )
+  # )
+  # Extracting country polygons from naturalraearth data
+  # YMX verifier
+  countries_geo <- rnaturalearthdata::countries50 
+  countries_proj <- countries_geo %>% 
+  st_transform(proj) #%>% 
+  # st_drop_geometry()
   # Projecting country polygons on target coordinate system
-  countries_proj <- as.data.frame(
-    sp::spTransform(
-      {
-        x <- ggplot2::fortify(countries_geo)
-        sp::coordinates(x)<-~long+lat
-        sp::proj4string(x) <- sp::CRS("+proj=longlat +datum=WGS84")
-        x
-      }, 
-      sp::CRS(proj)
-    )
-  )
+  # YMX verifier
+  # countries_proj <- sf::st_transform(ggplot2::fortify(countries_geo), proj) %>% 
+  # sf::st_drop_geometry()
+  # as.data.frame(
+  #   sp::spTransform(
+  #     {
+  #       # YMX verifier: la projection est deja en WGS84
+  #       x <- ggplot2::fortify(countries_geo)
+  #       # sp::coordinates(x)<-~long+lat
+  #       # sp::proj4string(x) <- sp::CRS("+proj=longlat +datum=WGS84")
+  #       x
+  #     }, 
+  #     sp::CRS(proj)
+  #   )
+  # )
+  
   #countries_proj = rgeos::gBuffer(countries_proj, width=0, byid=TRUE)
   
   # Extracting ISO codes for joining with country codes
@@ -578,15 +656,27 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
   countries_non_proj <-  ggplot2::fortify(countries_geo)
 
   # Joining projects map data frame with codes and names
-  countries_proj_df <- ggplot2::fortify(countries_proj) %>%
-    # Renaming projected long lat tp x y
-    dplyr::rename(x = .data$long, y = .data$lat) %>%
-    # Adding original coordinates
-    dplyr::mutate(long = countries_non_proj$long, lat = countries_non_proj$lat) %>%
+
+  # j'ai l'impression qu'autour de la carte avec le monde entier il faudrait juste faire une sélection de pays à partir de la bounding box
+  extended_bbox <- st_bbox(
+    c(
+    xmin = min_long -20 , xmax = max_long + 20 , ymin = min_lat -20 , ymax = max_lat + 20
+    ),
+    crs = st_crs(4326)
+  ) %>% 
+  st_as_sfc()
+
+
+  countries_proj_df <- st_crop(extended_bbox,countries_geo)
+
+countries_proj_df <- countries_proj %>% 
+dplyr::mutate(x = label_x, y = label_y) %>% 
+dplyr::mutate(long = countries_non_proj$label_x, lat = countries_non_proj$label_x) %>%
     # Adding country codes
-    dplyr::mutate(ISO_A2 = codemap[.data$id], name = namemap[.data$id]) %>%
+    dplyr::mutate(ISO_A2 = iso_a2, name = admin) %>%
+    # dplyr::mutate(ISO_A2 = codemap[.data$iso_a2], name = namemap[.data$iso_a2]) %>%
     # Getting colors of selected regions
-    dplyr::mutate(selected = ifelse(.data$ISO_A2 %in% country_codes, "a. Selected",ifelse(!.data$hole,  "b. Excluded",  "c. Lakes"))) %>%
+    # dplyr::mutate(selected = ifelse(.data$ISO_A2 %in% country_codes, "a. Selected",ifelse(!.data$hole,  "b. Excluded",  "c. Lakes"))) %>%
     # Filtering out elements out of drawing area
     dplyr::filter(
       .data$long >= min_long -20 
@@ -594,6 +684,25 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
       & .data$lat >= min_lat -20 
       & .data$lat <= max_lat + 20
     ) 
+  
+head()
+
+  # countries_proj_df <- ggplot2::fortify(countries_proj) %>%
+  #   # Renaming projected long lat tp x y
+  #   dplyr::rename(x = .data$long, y = .data$lat) %>%
+  #   # Adding original coordinates
+  #   dplyr::mutate(long = countries_non_proj$long, lat = countries_non_proj$lat) %>%
+  #   # Adding country codes
+  #   # dplyr::mutate(ISO_A2 = codemap[.data$id], name = namemap[.data$id]) %>%
+  #   # Getting colors of selected regions
+  #   # dplyr::mutate(selected = ifelse(.data$iso_a2 %in% country_codes, "a. Selected",ifelse(!.data$hole,  "b. Excluded",  "c. Lakes"))) %>%
+  #   # Filtering out elements out of drawing area
+  #   dplyr::filter(
+  #     .data$long >= min_long -20 
+  #     & .data$long <= max_long + 20 
+  #     & .data$lat >= min_lat -20 
+  #     & .data$lat <= max_lat + 20
+  #   ) 
   
   # Getting selected countries projected bounding boxes
   map_limits <- countries_proj_df %>% 
