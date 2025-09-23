@@ -347,7 +347,9 @@ calculate_regions_alerts <- function(
       calculate_region_alerts(
         topic = topic, 
         country_codes = all_regions[[regions[[i]]]]$codes,
-	      country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
+	      # country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
+        # YMX verifier
+        country_code_cols = "geo_country_code",
         start = as.Date(date_min), 
         end = as.Date(date_max), 
         with_retweets = with_retweets, 
