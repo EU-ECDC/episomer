@@ -1,0 +1,204 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+```{r}
+library(epitweetr)
+library(dplyr)
+setup_config()
+date_min <- substr(as.character(Sys.Date() - 10), 1, 10)
+date_max <- substr(as.character(Sys.Date()), 1, 10)
+```
+
+```{r}
+df <- tibble::tibble(epitweetr::search_tweets(topic = "covid-19"))
+# voir parametre query: format Lucene avec OR/AND etc ...
+df
+```
+
+# Exploration get_aggregates
+
+## 1. country_counts
+
+```{r, eval=FALSE}
+country_counts <- get_aggregates("country_counts",
+    filter = list(period = c(date_min, date_max)), cache = FALSE
+) %>%
+    as_tibble()
+```
+
+## 2. geolocated
+
+```{r, eval=FALSE}
+geolocated <- get_aggregates("geolocated",
+    filter = list(period = c(date_min, date_max)), cache = FALSE
+) %>%
+    as_tibble()
+```
+
+## 3. tags
+
+```{r, eval=FALSE}
+tags <- get_aggregates("tags",
+    filter = list(period = c(date_min, date_max)), cache = FALSE
+) %>%
+    as_tibble()
+```
+
+## 4. topwords
+
+```{r, eval=FALSE}
+topwords <- get_aggregates("topwords",
+    filter = list(period = c(date_min, date_max)), cache = FALSE
+) %>%
+    as_tibble()
+```
+
+## 5. urls
+
+```{r, eval=FALSE}
+urls <- get_aggregates("urls",
+    filter = list(period = c(date_min, date_max)), cache = FALSE
+) %>%
+    as_tibble()
+```
+
+## 6. tweets
+
+```{r, eval=FALSE}
+tweets <- get_aggregates("tweets",
+    filter = list(period = c(date_min, date_max)), cache = FALSE
+) %>%
+    as_tibble()
+```
+
+```{r}
+# saveRDS(
+#     list(
+#         country_counts = country_counts,
+#         geolocated = geolocated,
+#         tags = tags,
+#         topwords = topwords,
+#         urls = urls,
+#         tweets = tweets
+#     ),
+#     file = file.path(
+#         system.file("get_aggregates_explo", package = "epitweetr"),
+#         "get_aggregates_sample.rds"
+#     )
+# )
+```
+
+```{r}
+get_aggregates_sample <- readRDS(file.path(system.file("get_aggregates_explo", package = "epitweetr"), "get_aggregates_sample.rds"))
+```
+
+```{r}
+View(get_aggregates_sample$country_counts)
+```
+
+# trend_line
+
+
+```{r}
+topic = "Measles"
+countries = c(1)
+date_type = "created_date"
+date_min = "2025-08-01"
+date_max = Sys.Date()
+with_retweets = FALSE
+location_type = "tweet"
+alpha = 0.025
+alpha_outlier = 0.05
+k_decay = 4
+no_historic = 7
+bonferroni_correction = FALSE
+same_weekday_baseline = FALSE 
+
+trend_line(
+    topic = topic,
+    countries = countries,
+    date_type = date_type,
+    date_min = date_min,
+    date_max = date_max,
+    with_retweets = with_retweets,
+    location_type = location_type,
+    alpha = alpha,
+    alpha_outlier = alpha_outlier,
+    k_decay = k_decay,
+    no_historic = no_historic,
+    bonferroni_correction = bonferroni_correction,
+    same_weekday_baseline = same_weekday_baseline
+)
+
+
+    # If countries are names they have to be changes to region indexes
+    if (is.character(countries) && length(countries) > 0) {
+        reg <- get_country_items()
+        countries <- (1:length(reg))[sapply(1:length(reg), function(i) reg[[i]]$name %in% countries)]
+    }
+    # defining the environment variable for returning complementary data
+    logenv <- new.env()
+
+    # getting the data with counts and alerts from country counts
+    df <-
+        calculate_regions_alerts(
+            # YMX verifier
+            topic = tolower(topic),
+            regions = countries,
+            date_type = date_type,
+            date_min = date_min,
+            date_max = date_max,
+            with_retweets = with_retweets,
+            location_type = location_type,
+            alpha = alpha,
+            alpha_outlier = alpha_outlier,
+            k_decay = k_decay,
+            no_historic = no_historic,
+            bonferroni_correction = bonferroni_correction,
+            same_weekday_baseline = same_weekday_baseline,
+            logenv = logenv
+        )
+    # YMX
+    # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "epitweetr"), "df_calculate_regions_alerts.rds"))
+    # checking if some data points have been returned or return empty char
+    if (nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) > 0) {
+        # YMX verifier
+        topic <- unname(get_topics_labels()[stringr::str_replace_all(topic, "%20", " ")])
+        df$topic <- topic
+        plot_trendline(
+            df = df,
+            countries = countries,
+            topic = topic,
+            date_min = date_min,
+            date_max = date_max,
+            date_type = date_type,
+            alpha = alpha,
+            alpha_outlier = alpha_outlier,
+            k_decay = k_decay,
+            location_type = location_type,
+            total_count = logenv$total_count
+        )
+    } else {
+        get_empty_chart("No data found for the selected topic, region and period")
+    }
+}
+
+```
+
+
+```{r}
+# raw <- epitweetr::get_aggregates("country_counts", filter = list(period = c(substr(as.character(Sys.Date() - 360), 1, 10), substr(as.character(Sys.Date()), 1, 10))), cache = F)
+
+# agg <- tibble::tibble(
+#     raw %>% dplyr::group_by(geo_country_code)
+#         %>% dplyr::count() %>% dplyr::arrange(-n)
+# )
+# agg
+# View(agg)
+# original / quote : equivalent de original / retweet
+```
+
+

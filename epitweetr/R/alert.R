@@ -215,11 +215,12 @@ get_reporting_date_counts <- function(
       if(is.na(end)) df 
       else dplyr::filter(df, .data$reporting_date <= end)
     )
-    
     # group by reporting date
+    # YMX verifier
     df %>%
       dplyr::group_by(.data$reporting_date) %>% 
-      dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>% 
+      #dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>% 
+      dplyr::summarise(count = sum(.data$original), known_users = sum(.data$known_users)) %>% 
       dplyr::ungroup()
   } else {
     data.frame(reporting_date=as.Date(character()),count=numeric(), known_users=numeric(), stringsAsFactors=FALSE)   
@@ -346,7 +347,9 @@ calculate_regions_alerts <- function(
       calculate_region_alerts(
         topic = topic, 
         country_codes = all_regions[[regions[[i]]]]$codes,
-	      country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
+	      # country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
+        # YMX verifier
+        country_code_cols = "geo_country_code",
         start = as.Date(date_min), 
         end = as.Date(date_max), 
         with_retweets = with_retweets, 
