@@ -72,7 +72,8 @@ trend_line <- function(
   # getting the data with counts and alerts from country counts  
   df <- 
     calculate_regions_alerts(
-      topic = topic,
+      # YMX verifier
+      topic = tolower(topic),
       regions = countries, 
       date_type = date_type, 
       date_min = date_min, 
@@ -87,6 +88,8 @@ trend_line <- function(
       same_weekday_baseline = same_weekday_baseline,
       logenv = logenv
     )
+  # YMX
+  # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "epitweetr"), "df_calculate_regions_alerts.rds"))
   # checking if some data points have been returned or return empty char
   if(nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) >0) {
     topic <- unname(get_topics_labels()[stringr::str_replace_all(topic, "%20", " ")])
@@ -141,7 +144,7 @@ plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alph
       paste(
         "\nAlert detected", 
         "\nRegion:",df$country[[i]],
-        "\nNumber of tweets: ", df$number_of_tweets[[i]], 
+        "\nNumber of messages: ", df$number_of_tweets[[i]], 
         "\nBaseline: ", round(df$baseline[[i]]), 
         "\nThreshold: ", round(df$limit[[i]]),
         "\nDate:",df$date[[i]], 
@@ -157,7 +160,7 @@ plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alph
     paste(
       "\nRegion:",df$country,
       "\nAlert: ", ifelse(df$alert==1, "yes", "no"), 
-      "\nNumber of tweets: ", df$number_of_tweets, 
+      "\nNumber of message: ", df$number_of_tweets, 
       "\nBaseline: ", round(df$baseline), 
       "\nThreshold: ", round(df$limit), 
       "\nDate:",df$date, 
@@ -193,14 +196,14 @@ plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alph
     # Title
     ggplot2::labs(
       title=ifelse(length(countries)==1,
-        paste0("Number of tweets mentioning ",topic," from ",date_min, " to ",date_max,"\n in ", if(as.integer(countries) == 1) "the world" else regions[[as.integer(countries)]]$name," ", location_message),
-        paste0("Number of tweets mentioning ",topic," from ",date_min, " to ",date_max,"\n in multiples regions ", location_message)
+        paste0("Number of messages mentioning ",topic," from ",date_min, " to ",date_max,"\n in ", if(as.integer(countries) == 1) "the world" else regions[[as.integer(countries)]]$name," ", location_message),
+        paste0("Number of messages mentioning ",topic," from ",date_min, " to ",date_max,"\n in multiples regions ", location_message)
       ),
       fill="Countries / Regions",
       color="Countries / Regions"
     ) +
     ggplot2::xlab(paste(if(date_type =="created_weeknum") "Posted week" else "Posted date")) + #, "(days are 24 hour blocks ening on last aggregated tweet in period)")) +
-    ggplot2::ylab('Number of tweets') +
+    ggplot2::ylab('Number of messages') +
     ggplot2::scale_y_continuous(breaks = y_breaks, limits = c(0, max(y_breaks)), expand=c(0 ,0))+
     ggplot2::scale_x_date(
       date_labels = {
@@ -277,7 +280,7 @@ plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alph
   df <- dplyr::rename(df,"Country" = .data$country)
   
 
-  df <- dplyr::rename(df,"Number of tweets" = .data$number_of_tweets, "Tweet date" = .data$date,"Topic"= .data$topic)
+  df <- dplyr::rename(df,"Number of messages" = .data$number_of_tweets, "Message date" = .data$date,"Topic"= .data$topic)
   # returning data and chart
   list("chart" = fig_line, "data" = df) 
 }
