@@ -471,7 +471,6 @@ do_next_alerts <- function(tasks = get_tasks()) {
         date_min = alert_to, 
         date_max = alert_to, 
         with_retweets = conf$alert_with_retweets, 
-        location_type = "tweet" , 
         alpha = as.numeric(get_topics_alphas()[[topic]]), 
         alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]), 
         k_decay = as.numeric(get_topics_k_decays()[[topic]]), 
@@ -491,11 +490,14 @@ do_next_alerts <- function(tasks = get_tasks()) {
       codeMap <- get_country_codes_by_name()
       ts <- unique(alerts$topic)
       for(serie in list(
+        # YMX verifier
         list(name = "topwords", col = "token"),
-        list(name = "hashtags", col = "hashtag"),
-        list(name = "urls", col = "url"),
-        list(name = "contexts", col = "context"),
-        list(name = "entities", col = "entity")
+        # YMX verifier
+        list(name = "tags", col = "tag"),
+        # YMX verifier
+        list(name = "urls", col = "url")#,
+        # list(name = "contexts", col = "context"),
+        # list(name = "entities", col = "entity")
         )) {
         m <- paste("Adding",serie$name) 
         message(m)  
@@ -513,7 +515,8 @@ do_next_alerts <- function(tasks = get_tasks()) {
                 dplyr::filter(
                   .data$topic == t
                   & .data$created_date == d
-                  & (if(length(codes)==0) TRUE else .data$tweet_geo_country_code %in% codes )
+                  # YMX verifier
+                  & (if(length(codes)==0) TRUE else .data$geo_country_code %in% codes )
                 ) %>% 
                 dplyr::filter(!is.na(.data$frequency)) %>% 
                 dplyr::group_by(.data$item) %>%
@@ -539,7 +542,8 @@ do_next_alerts <- function(tasks = get_tasks()) {
       alerts <- alerts %>% 
         dplyr::mutate(
           hour = alert_to_hour, 
-          location_type = "tweet", 
+          # YMX verifier
+          # location_type = "tweet", 
           with_retweets = conf$alert_with_retweets, 
           alpha = as.numeric(get_topics_alphas()[.data$topic]), 
           alpha_outlier = as.numeric(get_topics_alpha_outliers()[.data$topic]), 
