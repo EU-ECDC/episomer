@@ -724,7 +724,8 @@ scope_count <-        sum(
      else
       geom_sf(data=proj_df, aes(size=.data$count), fill="#65B32E", color="#65B32E", alpha=I(8/10))
     ) + 
-  coord_sf(crs = st_crs(countries_geo_proj_filtered), datum = st_crs(countries_geo_proj_filtered), xlim = c(minX, maxX), ylim = c(minY, maxY), default_crs = st_crs(4326)) +
+  # coord_sf(crs = st_crs(countries_geo_proj_filtered), datum = st_crs(countries_geo_proj_filtered), xlim = c(minX, maxX), ylim = c(minY, maxY), default_crs = st_crs(4326)) +
+   coord_sf(crs = st_crs(countries_geo_proj_filtered), datum = st_crs(countries_geo_proj_filtered), xlim = c(minX, maxX), ylim = c(minY, maxY)) +
    scale_size_continuous(
       name = "Number of tweets", 
       breaks = {x = cuts; x[length(x)]=maxCount;x},
