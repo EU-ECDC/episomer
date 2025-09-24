@@ -1078,14 +1078,17 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
       # YMX verifier
       list(topic = f_topic, period = list(date_min, date_max))
   )
-  df <- get_aggregates(dataset = dataset, filter =filter , top_field = top_field, top_freq = "frequency")
+
+  df <- try(get_aggregates(dataset = dataset, filter =filter , top_field = top_field, top_freq = "frequency"))
+
+   if(inherits(df, "try-error") || nrow(df)==0 || is.null(df)) {
+    return(get_empty_chart("No data found for the selected topic, region and period"))
+  }
 
   # renaming the series depending column to "top"  
   df <- df %>% dplyr::rename(top = !!as.symbol(top_field))
 
-  # getting the series dependant title part  
-  serie_title <- (
-    if(serie == "topwords") "words"
+ 
     else serie
   )
   if(nrow(df)==0 || is.null(df)) {
