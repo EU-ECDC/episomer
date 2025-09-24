@@ -727,7 +727,7 @@ scope_count <-        sum(
   # coord_sf(crs = st_crs(countries_geo_proj_filtered), datum = st_crs(countries_geo_proj_filtered), xlim = c(minX, maxX), ylim = c(minY, maxY), default_crs = st_crs(4326)) +
    coord_sf(crs = st_crs(countries_geo_proj_filtered), datum = st_crs(countries_geo_proj_filtered), xlim = c(minX, maxX), ylim = c(minY, maxY)) +
    scale_size_continuous(
-      name = "Number of tweets", 
+      name = "Number of messages", 
       breaks = {x = cuts; x[length(x)]=maxCount;x},
       labels = cuts
     ) +
@@ -738,19 +738,8 @@ scope_count <-        sum(
     ) +
  
     labs(
-       title = (
-         if(location_type == "both")
-           paste(
-             "Geographical distribution of tweets mentioning ", 
-             topic,
-             "\nfrom ",date_min, " to ",date_max, 
-             "\nwith user and tweet location (n=",
-             format(total_count, big.mark = " ", scientific=FALSE),
-             ")",
-             sep = ""
-           )
-         else
-           paste(
+       title = 
+                   paste(
              "Geographical distribution of tweets mentioning ", 
              topic, 
              "\nfrom ",date_min, " to ",date_max, 
@@ -760,8 +749,7 @@ scope_count <-        sum(
              format(scope_count, big.mark = " ", scientific=FALSE),
              ")",
              sep = ""
-           )
-       ),
+           ),
        caption = paste(caption, ". Projection: ", proj, sep = "")
     ) +
     theme_classic(base_family = get_font_family()) +
