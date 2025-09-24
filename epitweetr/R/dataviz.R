@@ -628,16 +628,18 @@ scope_count <-        sum(
 
  countries_geo_wgs84 <- rnaturalearthdata::countries50 
   # countries_geo_wgs84%>%select(iso_a2, admin) %>%View()
-  # YMX test
-  country_codes <- c("DE","-99")
+
   countries_geo_wgs84_filtered <- countries_geo_wgs84 %>% 
       dplyr::filter(
       .data$label_x >= min_long -20 
       & .data$label_x <= max_long + 20 
       & .data$label_y >= min_lat -20 
       & .data$label_y <= max_lat + 20
-    # YMX pas compris l'histoire des lakes ...
-    )   %>% dplyr::mutate(selected = ifelse(.data$iso_a2 %in% country_codes, "a. Selected","b. Excluded"))
+    ) %>% 
+    # We have weird codes for some countries (e.g FRANCE has -99)
+    mutate(iso_a2_clean = if_else(iso_a2 == "-99", iso_a2_eh, iso_a2)) %>%
+      # YMX pas compris l'histoire des lakes ... 
+      dplyr::mutate(selected = ifelse(.data$iso_a2_clean %in% country_codes, "a. Selected","b. Excluded"))
   countries_geo_proj_filtered <- countries_geo_wgs84_filtered %>% 
   sf::st_transform(proj)
 
