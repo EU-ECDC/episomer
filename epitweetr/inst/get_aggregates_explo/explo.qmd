@@ -154,6 +154,12 @@ topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_
 
 ```
 
+# create_map
+
+```{r}
+setup_config()
+create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = with_retweets)
+```
 
 ```{r}
 # raw <- epitweetr::get_aggregates("country_counts", filter = list(period = c(substr(as.character(Sys.Date() - 360), 1, 10), substr(as.character(Sys.Date()), 1, 10))), cache = F)
