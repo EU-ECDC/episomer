@@ -645,16 +645,32 @@ scope_count <-        sum(
 
    map_limits <- countries_geo_proj_filtered %>% 
     dplyr::filter(
-      .data$label_x >= min_long -20  
-      & .data$label_x <= max_long + 20 
-      & .data$label_y >= min_lat -20 
-      & .data$label_y <= max_lat + 20
+      .data$label_x >= (min_long - 15)
+      & .data$label_x <= (max_long + 15)  
+      & .data$label_y >= (min_lat -15) 
+      & .data$label_y <= (max_lat + 15)
     ) 
 
   minX <- min(map_limits$label_x)
   maxX <- max(map_limits$label_x)
   minY <- min(map_limits$label_y)
   maxY <- max(map_limits$label_y)
+
+  df_min_max_wgs84 <- data.frame(
+    x = c(minX, maxX),
+    y = c(minY, maxY)
+  ) %>% 
+  st_as_sf(coords = c("x", "y"), crs = st_crs(4326)) 
+  # leaflet(df_min_max_wgs84) %>% addTiles() %>% addMarkers()
+  
+  df_min_max_proj <- df_min_max_wgs84 %>% 
+  st_transform(proj)
+
+  new_min_max <- sf::st_coordinates(df_min_max_proj)
+  minX <- min(new_min_max[,1])
+  maxX <- max(new_min_max[,1])
+  minY <- min(new_min_max[,2])
+  maxY <- max(new_min_max[,2])
   
   # Calculating counts groups for Legend
   maxCount <- max(df$count)
