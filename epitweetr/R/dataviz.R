@@ -759,7 +759,6 @@ create_topwords <- function(topic,country_codes=c(),date_min="1900-01-01",date_m
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
 #' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
-#' @param location_type Character(1) this parameter is currently being IGNORED since this report shows only tweet location and cannot show user or both locations for performance reasons, default: 'tweet'
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 #' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
