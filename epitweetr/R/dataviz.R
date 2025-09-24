@@ -602,7 +602,6 @@ scope_count <-        sum(
       paste("+proj=laea", " +lon_0=", long_center, " +lat_0=", lat_center ,sep = "") 
   )
   # Projecting the country counts data frame on the target coordinate system this projected data frame contains the bubble X,Y coordinates
-  # browser()
   # YMX verifier
   proj_df_wgs84 <- sf::st_as_sf(
     df %>% dplyr::filter(!is.na(.data$Long) & !is.na(.data$Lat)), 
@@ -1088,12 +1087,12 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
   # renaming the series depending column to "top"  
   df <- df %>% dplyr::rename(top = !!as.symbol(top_field))
 
- 
+  # getting the series dependant title part  
+  serie_title <- (
+    if(serie == "topwords") "words"
     else serie
   )
-  if(nrow(df)==0 || is.null(df)) {
-    return(get_empty_chart("No data found for the selected topic, region and period"))
-  }
+ 
   #filtering data by countries
   df <- (df
       %>% dplyr::filter(
