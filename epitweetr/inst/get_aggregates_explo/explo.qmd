@@ -119,7 +119,7 @@ same_weekday_baseline = FALSE
 
 with_retweets = TRUE
 setup_config()
-trend_line(
+trend_no_countries <- trend_line(
     topic = topic,
     countries = countries,
     date_type = date_type,
@@ -133,6 +133,23 @@ trend_line(
     bonferroni_correction = bonferroni_correction,
     same_weekday_baseline = same_weekday_baseline
 )
+trend_no_countries
+
+trend_countries <- trend_line(
+    topic = topic,
+    countries = 4,
+    date_type = date_type,
+    date_min = date_min,
+    date_max = date_max,
+    with_retweets = with_retweets,
+    alpha = alpha,
+    alpha_outlier = alpha_outlier,
+    k_decay = k_decay,
+    no_historic = no_historic,
+    bonferroni_correction = bonferroni_correction,
+    same_weekday_baseline = same_weekday_baseline
+)
+trend_countries
 ```
 
 # create_topchart
@@ -151,10 +168,6 @@ topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_
 
 # TEST OK avec urls
 topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
-
-
-# TEST OK avec tags + countries
-topch4 <- create_topchart(topic = topic, serie = "tags", country_codes=c(3),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
 
 # Fails with a location: see with Francisco
  create_topchart(topic = topic, serie = "topwords", country_codes=c(4),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)

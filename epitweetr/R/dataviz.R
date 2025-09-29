@@ -1072,7 +1072,7 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
   filter <- (
     if(length(country_codes) > 0)
       # YMX verifier
-      list(topic = f_topic, period = list(date_min, date_max), tweet_geo_country_code = country_codes)
+      list(topic = f_topic, period = list(date_min, date_max), geo_country_code = country_codes)
     else 
       # YMX verifier
       list(topic = f_topic, period = list(date_min, date_max))
