@@ -74,7 +74,6 @@ Imports:
     rnaturalearthdata,
     openxlsx,
     shiny,
-    sp,
     stringr,
     stats,
     tibble,
