@@ -191,6 +191,11 @@ m2 <- create_map(topic = topic, countries = countries, date_min = date_min, date
 
 countries <- 12
 m2 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = TRUE)
+
+# test "detailed"
+countries <- 276 #USA
+m3 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = TRUE)
+
 ```
 
 ```{r}
