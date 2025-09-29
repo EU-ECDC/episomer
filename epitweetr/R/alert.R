@@ -215,11 +215,11 @@ get_reporting_date_counts <- function(
       if(is.na(end)) df 
       else dplyr::filter(df, .data$reporting_date <= end)
     )
-    
     # group by reporting date
+    
     df %>%
       dplyr::group_by(.data$reporting_date) %>% 
-      dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>% 
+      dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>%       
       dplyr::ungroup()
   } else {
     data.frame(reporting_date=as.Date(character()),count=numeric(), known_users=numeric(), stringsAsFactors=FALSE)   
@@ -252,23 +252,27 @@ calculate_region_alerts <- function(
   )) %>% dplyr::filter(.data$topic == f_topic)
 
   # Adding retweets on count if requested
+  
   df <- if(with_retweets){
+    
     df %>% dplyr::mutate(
-      tweets = ifelse(is.na(.data$retweets), 0, .data$retweets) + ifelse(is.na(.data$tweets), 0, .data$tweets),
-      known_users = .data$known_retweets + .data$known_original
+      tweets = ifelse(is.na(.data$quotes), 0, .data$quotes) + ifelse(is.na(.data$original), 0, .data$original),
+      known_users = .data$known_quotes + .data$known_original
     )
   } else {
+    
     df %>% dplyr::rename(
       known_users = .data$known_original
-    ) 
+    )  %>% 
+    mutate(tweets = .data$original)
   }
   if(!is.null(logenv)) {
     # Setting global variable for storing total number of tweets concerned including all country_cols
     total_df <- df %>% dplyr::filter(
       (
        length(country_codes) == 0 
-       |  (.data$tweet_geo_country_code %in% country_codes) 
-       |  (.data$user_geo_country_code %in% country_codes) 
+       
+       |  (.data$geo_country_code %in% country_codes)
       )
     )
     total_count <- sum((get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>% dplyr::filter(.data$reporting_date >= start))$count)
@@ -317,7 +321,6 @@ calculate_regions_alerts <- function(
     , date_min = as.Date("1900-01-01")
     , date_max = as.Date("2100-01-01")
     , with_retweets = FALSE
-    , location_type = "tweet" 
     , alpha = 0.025
     , alpha_outlier = 0.05
     , k_decay = 4
@@ -346,7 +349,9 @@ calculate_regions_alerts <- function(
       calculate_region_alerts(
         topic = topic, 
         country_codes = all_regions[[regions[[i]]]]$codes,
-	      country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
+	      # country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
+        
+        country_code_cols = "geo_country_code",
         start = as.Date(date_min), 
         end = as.Date(date_max), 
         with_retweets = with_retweets, 
@@ -466,7 +471,6 @@ do_next_alerts <- function(tasks = get_tasks()) {
         date_min = alert_to, 
         date_max = alert_to, 
         with_retweets = conf$alert_with_retweets, 
-        location_type = "tweet" , 
         alpha = as.numeric(get_topics_alphas()[[topic]]), 
         alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]), 
         k_decay = as.numeric(get_topics_k_decays()[[topic]]), 
@@ -486,11 +490,14 @@ do_next_alerts <- function(tasks = get_tasks()) {
       codeMap <- get_country_codes_by_name()
       ts <- unique(alerts$topic)
       for(serie in list(
+        
         list(name = "topwords", col = "token"),
-        list(name = "hashtags", col = "hashtag"),
-        list(name = "urls", col = "url"),
-        list(name = "contexts", col = "context"),
-        list(name = "entities", col = "entity")
+        
+        list(name = "tags", col = "tag"),
+        
+        list(name = "urls", col = "url")#,
+        # list(name = "contexts", col = "context"),
+        # list(name = "entities", col = "entity")
         )) {
         m <- paste("Adding",serie$name) 
         message(m)  
@@ -508,7 +515,8 @@ do_next_alerts <- function(tasks = get_tasks()) {
                 dplyr::filter(
                   .data$topic == t
                   & .data$created_date == d
-                  & (if(length(codes)==0) TRUE else .data$tweet_geo_country_code %in% codes )
+                  
+                  & (if(length(codes)==0) TRUE else .data$geo_country_code %in% codes )
                 ) %>% 
                 dplyr::filter(!is.na(.data$frequency)) %>% 
                 dplyr::group_by(.data$item) %>%
@@ -534,7 +542,8 @@ do_next_alerts <- function(tasks = get_tasks()) {
       alerts <- alerts %>% 
         dplyr::mutate(
           hour = alert_to_hour, 
-          location_type = "tweet", 
+          
+          # location_type = "tweet", 
           with_retweets = conf$alert_with_retweets, 
           alpha = as.numeric(get_topics_alphas()[.data$topic]), 
           alpha_outlier = as.numeric(get_topics_alpha_outliers()[.data$topic]), 

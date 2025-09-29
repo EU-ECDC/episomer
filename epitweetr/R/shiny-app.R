@@ -79,9 +79,8 @@ epitweetr_app <- function(data_dir = NA) {
             shiny::dateRangeInput("period", label = shiny::h4("Dates"), start = d$date_start, end = d$date_end, min = d$date_min, max = d$date_max, format = "yyyy-mm-dd", startview = "month")
           ), 
           shiny::radioButtons("period_type", label = shiny::h4("Time unit"), choices = list("Days"="created_date", "Weeks"="created_weeknum"), selected = "created_date", inline = TRUE),
-          shiny::h4("Include retweets/quotes"),
+          shiny::h4("Include quotes"),
 	        shiny::checkboxInput("with_retweets", label = NULL, value = conf$alert_with_retweets),
-          shiny::radioButtons("location_type", label = shiny::h4("Location type"), choices = list("Tweet"="tweet", "User"="user","Both"="both" ), selected = "tweet", inline = TRUE),
           shiny::sliderInput("alpha_filter", label = shiny::h4("Signal false positive rate"), min = 0, max = 0.3, value = conf$alert_alpha, step = 0.005),
           shiny::sliderInput("alpha_outlier_filter", label = shiny::h4("Outlier false positive rate"), min = 0, max = 0.3, value = conf$alert_alpha_outlier, step = 0.005),
           shiny::sliderInput("k_decay_filter", label = shiny::h4("Outlier downweight strength"), min = 0, max = 10, value = conf$alert_k_decay, step = 0.5),
@@ -128,9 +127,10 @@ epitweetr_app <- function(data_dir = NA) {
                 shiny::column(3, shiny::downloadButton("export_top1", "image")),
                 shiny::column(6, 
                   shiny::radioButtons("top_type1", label = NULL, choices = list(
-                      "Hashtags"="hashtags", 
-                      "Top words"="topwords" 
-                    ), selected = "hashtags", inline = TRUE
+                      "Tags"="tags", 
+                      "Top words"="topwords" ,
+                      "Urls"="urls"
+                    ), selected = "tags", inline = TRUE
                   ),
 		            )
               ),
@@ -144,9 +144,10 @@ epitweetr_app <- function(data_dir = NA) {
                 shiny::column(3, shiny::downloadButton("export_top2", "image")),
                 shiny::column(6, 
                   shiny::radioButtons("top_type2", label = NULL, choices = list(
-                      "Entities"="entities", 
-                      "Contexts" = "contexts"
-                    ), selected = "entities", inline = TRUE
+                      "Tags"="tags", 
+                      "Top words"="topwords" ,
+                      "Urls"="urls"
+                    ), selected = "topwords", inline = TRUE
                   ),
 		            )
               ),
@@ -602,56 +603,6 @@ epitweetr_app <- function(data_dir = NA) {
     )
 
 
-  # Defining line chart from shiny app filters
-  line_chart_from_filters <- function(topics, countries, period_type, period, with_retweets, location_type, alpha, alpha_outlier, k_decay, no_history, bonferroni_correction, same_weekday_baseline) {
-    trend_line(
-      topic = topics
-      ,countries= if(length(countries) == 0) c(1) else as.integer(countries)
-      ,date_type= period_type
-      ,date_min = period[[1]]
-      ,date_max = period[[2]]
-      ,with_retweets= with_retweets
-      ,location_type = location_type
-      ,alpha = alpha
-      ,alpha_outlier = alpha_outlier
-      ,k_decay = k_decay
-      ,no_historic = no_history
-      ,bonferroni_correction = bonferroni_correction
-      ,same_weekday_baseline = same_weekday_baseline
-    )
-    
-  }
-  # Defining line chart from shiny app filters
-  map_chart_from_filters <- function(topics, countries, period, with_retweets, location_type) {
-    create_map(
-      topic= topics
-      ,countries= if(length(countries) == 0) c(1) else as.integer(countries)
-      ,date_min = period[[1]]
-      ,date_max = period[[2]]
-      ,with_retweets= with_retweets
-      ,location_type = location_type
-      ,caption = conf$regions_disclaimer
-      ,forplotly = TRUE 
-    )
-    
-  }
-  # Defining top words chart from shiny app filters
-  top_chart_from_filters <- function(topics, serie, fcountries, period, with_retweets, location_type, top) {
-    fcountries= if(length(fcountries) == 0 || 1 %in%fcountries) c(1) else as.integer(fcountries)
-    regions <- get_country_items()
-    countries <- Reduce(function(l1, l2) {unique(c(l1, l2))}, lapply(fcountries, function(i) unlist(regions[[i]]$codes)))
-    create_topchart(
-      topic= topics
-      ,serie = serie     
-      ,country_codes = countries
-      ,date_min = period[[1]]
-      ,date_max = period[[2]]
-      ,with_retweets= with_retweets
-      ,location_type = location_type
-      ,top
-    )
-    
-  }
   # Rmarkdown dasboard export bi writing the dashboard on the provided file$
   # it uses the markdown template inst/rmarkdown/dashboard.Rmd
   export_dashboard <- function(
@@ -761,7 +712,6 @@ epitweetr_app <- function(data_dir = NA) {
              input$period_type, 
              input$period, 
              input$with_retweets, 
-             input$location_type , 
              input$alpha_filter, 
              input$alpha_outlier_filter, 
              input$k_decay_filter, 
@@ -804,7 +754,7 @@ epitweetr_app <- function(data_dir = NA) {
            width <- session$clientData$output_map_chart_width
            
            # getting the chart 
-           chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets, input$location_type)$chart
+           chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets)$chart
            
            # returning empty chart if no data is found on chart
 	         chart_not_empty(chart)
@@ -848,7 +798,7 @@ epitweetr_app <- function(data_dir = NA) {
            width <- session$clientData$output_top_chart1_width
            
            # getting the chart 
-           chart <- top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, input$location_type, 20)$chart
+           chart <- top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, 20)$chart
            
            # returning empty chart if no data is found on chart
 	         chart_not_empty(chart)
@@ -883,7 +833,7 @@ epitweetr_app <- function(data_dir = NA) {
            width <- session$clientData$output_top_chart2_width
            
            # getting the chart 
-           chart <- top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, input$location_type, 20)$chart
+           chart <- top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, 20)$chart
            
            # returning empty chart if no data is found on chart
 	         chart_not_empty(chart)
@@ -911,7 +861,7 @@ epitweetr_app <- function(data_dir = NA) {
         shiny::renderText({
 
           topic <- unname(get_topics_labels()[stringr::str_replace_all(input$topics, "%20", " ")])
-          paste("<h4>Top URLS of tweets mentioning", topic, "from", input$period[[1]], "to", input$period[[2]],"</h4>")
+          paste("<h4>Top URLS of messages mentioning", topic, "from", input$period[[1]], "to", input$period[[2]],"</h4>")
 
         })})
       output$top_table <- DT::renderDataTable({
@@ -925,7 +875,7 @@ epitweetr_app <- function(data_dir = NA) {
             width <- session$clientData$output_top_chart2_width
             
             # getting the chart to obtain the table 
-            chart <- top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, input$location_type, 200)$chart
+            chart <- top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, 200)$chart
             
             # returning empty if no data is found on chart
 	          chart_not_empty(chart)
@@ -940,7 +890,7 @@ epitweetr_app <- function(data_dir = NA) {
       
       output$top_table_disc <- shiny::isolate({shiny::renderText({
          progress_close(rep)
-        "<br/><br/>Top urls table only considers tweet location, ignoring the location type parameter"
+        "<br/><br/>Top urls table only considers message location"
       })})
       
     })
@@ -964,7 +914,6 @@ epitweetr_app <- function(data_dir = NA) {
             input$period_type, 
             input$period, 
             input$with_retweets, 
-            input$location_type, 
             input$alpha_filter, 
             input$alpha_outlier_filter, 
             input$k_decay_filter, 
@@ -996,7 +945,6 @@ epitweetr_app <- function(data_dir = NA) {
             input$period_type, 
             input$period, 
             input$with_retweets, 
-            input$location_type, 
             input$alpha_filter, 
             input$alpha_outlier_filter, 
             input$k_decay_filter, 
@@ -1023,7 +971,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         write.csv(
-          map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets, input$location_type)$data,
+          map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets)$data,
           file, 
           row.names = FALSE)
       }
@@ -1042,7 +990,7 @@ epitweetr_app <- function(data_dir = NA) {
         )
       },
       content = function(file) { 
-	      chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets, input$location_type)$chart
+	      chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets)$chart
         device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 300, units = "in")
         ggplot2::ggsave(file, plot = chart, device = device) 
         
@@ -1082,7 +1030,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         write.csv(
-          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, input$location_type, 200)$data,
+          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, 200)$data,
           file, 
           row.names = FALSE)
       }
@@ -1101,7 +1049,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         write.csv(
-          top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, input$location_type, 200)$data,
+          top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, 200)$data,
           file, 
           row.names = FALSE)
       }
@@ -1121,7 +1069,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         chart <-
-          top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, input$location_type, 50)$chart
+          top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, 50)$chart
         device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 300, units = "in")
         ggplot2::ggsave(file, plot = chart, device = device) 
       }
@@ -1141,7 +1089,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         chart <-
-          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, input$location_type, 50)$chart
+          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, 50)$chart
         device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 300, units = "in")
         ggplot2::ggsave(file, plot = chart, device = device) 
       }
