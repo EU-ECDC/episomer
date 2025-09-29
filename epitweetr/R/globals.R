@@ -9,5 +9,10 @@ utils::globalVariables(c(
   "resp_header",
   "search_endpoint",
   "tail",
-  "twitter_get"
+  "twitter_get",
+  "iso_a2",
+  "iso_a2_eh",
+  "Details",
+  "selected",
+  "count"
 ))

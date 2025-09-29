@@ -19,7 +19,6 @@ line_chart_from_filters <- function(
     date_min = period[[1]],
     date_max = period[[2]],
     with_retweets = with_retweets,
-    # ,location_type = location_type
     alpha = alpha,
     alpha_outlier = alpha_outlier,
     k_decay = k_decay,
@@ -65,7 +64,6 @@ top_chart_from_filters <- function(
     date_min = period[[1]],
     date_max = period[[2]],
     with_retweets = with_retweets,
-    # ,location_type = location_type
     top
   )
 }
