@@ -79,7 +79,7 @@ epitweetr_app <- function(data_dir = NA) {
             shiny::dateRangeInput("period", label = shiny::h4("Dates"), start = d$date_start, end = d$date_end, min = d$date_min, max = d$date_max, format = "yyyy-mm-dd", startview = "month")
           ), 
           shiny::radioButtons("period_type", label = shiny::h4("Time unit"), choices = list("Days"="created_date", "Weeks"="created_weeknum"), selected = "created_date", inline = TRUE),
-          shiny::h4("Include retweets/quotes"),
+          shiny::h4("Include quotes"),
 	        shiny::checkboxInput("with_retweets", label = NULL, value = conf$alert_with_retweets),
           shiny::sliderInput("alpha_filter", label = shiny::h4("Signal false positive rate"), min = 0, max = 0.3, value = conf$alert_alpha, step = 0.005),
           shiny::sliderInput("alpha_outlier_filter", label = shiny::h4("Outlier false positive rate"), min = 0, max = 0.3, value = conf$alert_alpha_outlier, step = 0.005),
@@ -861,7 +861,7 @@ epitweetr_app <- function(data_dir = NA) {
         shiny::renderText({
 
           topic <- unname(get_topics_labels()[stringr::str_replace_all(input$topics, "%20", " ")])
-          paste("<h4>Top URLS of tweets mentioning", topic, "from", input$period[[1]], "to", input$period[[2]],"</h4>")
+          paste("<h4>Top URLS of messages mentioning", topic, "from", input$period[[1]], "to", input$period[[2]],"</h4>")
 
         })})
       output$top_table <- DT::renderDataTable({
@@ -890,7 +890,7 @@ epitweetr_app <- function(data_dir = NA) {
       
       output$top_table_disc <- shiny::isolate({shiny::renderText({
          progress_close(rep)
-        "<br/><br/>Top urls table only considers tweet location, ignoring the location type parameter"
+        "<br/><br/>Top urls table only considers message location"
       })})
       
     })
