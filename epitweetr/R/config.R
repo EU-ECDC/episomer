@@ -586,7 +586,11 @@ get_topics_labels <- function() {
       dplyr::summarise(label = .data$Label[which(!is.na(.data$Label))[1]]) %>%
       dplyr::ungroup()
   )
-  setNames(t$label, t$Topics)
+  
+  t <- dplyr::bind_rows(t, t %>% 
+    dplyr::mutate(Topics = tolower(.data$Topics))
+  )
+  setNames(t$label, t$Topics)  
 }
 
 #Get topic alphas as named array that can be used for translation
