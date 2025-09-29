@@ -46,21 +46,10 @@ search_loop <- function(
     cl <- parallel::makePSOCKcluster(cores, outfile="")
     on.exit(parallel::stopCluster(cl))
     data_dir <- conf$data_dir
-    parallel::clusterExport(cl, 
-      list(
-	"log_to_file"
-	#"conf",
-        #"setup_config",
-        #"search_loop_worker",
-        #"get_properties_path",
-        #"get_user_topics_path",
-        #"get_default_topics_path"
-      )
-      , envir=rlang::current_env()
-    )
+    parallel::clusterExport(cl, list("log_to_file", "data_dir", "sandboxed"), envir=rlang::current_env())
     
     # running search loops
-    alerts <- parallel::parLapply(cl, sms, function(sm) {
+    parallel::parLapply(cl, sms, function(sm) {
 	# redirecting output to the sm file
         if(log_to_file) {
 	    outcon <- file(file.path(data_dir, sprintf("search.%s.log", sm)), open = "a")
