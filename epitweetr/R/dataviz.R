@@ -967,11 +967,13 @@ create_topchart <- function(
   # Getting the right top field depending on the series
 
   match.arg(serie, c("topwords", "tags", "urls"))
-  top_field <- (if (serie == "topwords")
-    "token" #else if(serie == "entities") "entity"
-  else if (serie == "tags") "tag" #else if(serie == "contexts") "context"
-  else if (serie == "urls") "url")
-  # else "top"
+  top_field <- (if (serie == "topwords") {
+    "token"
+  } else if (serie == "tags") {
+    "tag"
+  } else if (serie == "urls") {
+    "url"
+  })  
 
   # getting the data from topwords series
   filter <- (if (length(country_codes) > 0)
