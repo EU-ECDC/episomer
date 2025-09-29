@@ -169,8 +169,12 @@ topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_
 # TEST OK avec urls
 topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
 
-# Fails with a location: see with Francisco
- create_topchart(topic = topic, serie = "topwords", country_codes=c(4),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+# With countries
+countries_top_chart <- c("AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", 
+"DE", "GR",
+ "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL",
+"PT", "RO", "SK", "SI", "ES", "SE")
+ topch4 <- create_topchart(topic = topic, serie = "topwords", country_codes=countries_top_chart,date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
 ```
 
 # create_map
