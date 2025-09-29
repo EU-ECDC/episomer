@@ -71,7 +71,7 @@ trend_line <- function(
   # getting the data with counts and alerts from country counts  
   df <- 
     calculate_regions_alerts(
-      # YMX verifier
+      
       topic = tolower(topic),
       regions = countries, 
       date_type = date_type, 
@@ -369,30 +369,23 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
   #filtering data by topic and date and country_codes
   f_topic <- tolower(topic)
 
-  df <- (df %>% 
-    # YMX verifier
+  df <- (df %>%     
     dplyr::filter(
-        .data$topic==f_topic
-        # & (!is.na(.data$tweet_geo_country_code)
-        #    |  !is.na(.data$user_geo_country_code)
-        #   )
+        .data$topic==f_topic        
         & (!is.na(.data$geo_country_code)
           )
         & .data$created_date >= date_min 
         & .data$created_date <= date_max
         & (
             (
-              if(length(country_codes) == 0) TRUE 
-              # YMX verifier
-              #else .data$tweet_geo_country_code %in% country_codes
+              if(length(country_codes) == 0) TRUE               
               else .data$geo_country_code %in% country_codes
             )         
           )
     )
   )
 
-  # Adding retweets if requested
-  # YMX verifier
+  # Adding retweets if requested  
   if(!detailed) {
   if(with_retweets) {
     df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) + ifelse(is.na(df$original), 0, df$original)
@@ -407,7 +400,7 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
     } 
     }
   
-  # # YMX verifier
+  # 
   total_count <- (
      if(!detailed) {
       sum(df$tweets)
@@ -417,48 +410,9 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
   )
 
   # Setting country codes as requested location types as requested
-  # this is to deal with location type and aggregation level (national vs subnational) 
-  # YMX verifier
+  # this is to deal with location type and aggregation level (national vs subnational)   
    df <- df %>% dplyr::rename(country_code = .data$geo_country_code)
-  # if(detailed) {
-  #   df <- df %>% dplyr::rename(country_code = .data$geo_country_code)
-  # } else {
-  #   df <- df %>% 
-  #            dplyr::rename(country_code = .data$geo_country_code)
-  # }
-
-  # df <- (
-    # YMX verifier
-        #  if(location_type =="tweet" && !detailed) {
-        #    df %>% dplyr::rename(country_code = .data$geo_country_code) %>% dplyr::select(-.data$user_geo_country_code)
-        #    } else if(location_type == "user" && !detailed){         
-        #    df %>% dplyr::rename(country_code = .data$geo_country_code) %>% dplyr::select(-.data$tweet_geo_country_code)
-        #    }  else if(!detailed) { dplyr::bind_rows( #Dealuing with avoiduing dupplication when requeting both user and tweet location
-        #    df %>% dplyr::rename(country_code = .data$geo_country_code) %>% dplyr::filter(!is.na(.data$country_code)) %>% dplyr::select(-.data$user_geo_country_code),
-        #    df %>% 
-        #      dplyr::rename(country_code = .data$geo_country_code) %>% 
-        #      dplyr::filter(!is.na(.data$country_code) & .data$country_code != .data$geo_country_code ) %>% 
-        #      dplyr::select(-.data$tweet_geo_country_code)
-        #  )}    else if(location_type =="tweet") {
-        #    df %>% 
-        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$tweet_geo_code, geo_name = .data$tweet_geo_name, longitude = .data$tweet_longitude, latitude = .data$tweet_latitude) %>% 
-        #      dplyr::select(-.data$user_geo_country_code, -.data$user_geo_code, -.data$user_geo_name, -.data$user_longitude, -.data$user_latitude)
-        #      } else if(location_type == "user") {
-        #    df %>% 
-        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$user_geo_code, geo_name = .data$user_geo_name, longitude = .data$user_longitude, latitude = .data$user_latitude) %>% 
-        #      dplyr::select(-.data$geo_country_code, -.data$tweet_geo_code, -.data$tweet_geo_name, -.data$tweet_longitude, -.data$tweet_latitude)
-        #      }else {dplyr::bind_rows( #Dealuing with avoiduing dupplication when requeting both user and tweet location
-        #    df %>% 
-        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$tweet_geo_code, geo_name = .data$tweet_geo_name, longitude = .data$tweet_longitude, latitude = .data$tweet_latitude) %>%
-        #      dplyr::select(-.data$user_geo_country_code, -.data$user_geo_code, -.data$user_geo_name, -.data$user_longitude, -.data$user_latitude),
-        #    df %>%
-        #      dplyr::rename(country_code = .data$geo_country_code, geo_code = .data$user_geo_code, geo_name = .data$user_geo_name, longitude = .data$user_longitude, latitude = .data$user_latitude) %>% 
-        #      dplyr::filter(!is.na(.data$country_code) & is.na(.data$tweet_geo_country_code )) %>%
-        #      dplyr::select(-.data$tweet_geo_country_code, -.data$tweet_geo_code, -.data$tweet_geo_name, -.data$tweet_longitude, -.data$tweet_latitude)
-        #  )
-    #          }     
-    # )
-
+  
   #Applying country filter after country type
   df <- (df %>% 
     dplyr::filter(
@@ -529,9 +483,9 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
       paste("+proj=laea", " +lon_0=", long_center, " +lat_0=", lat_center ,sep = "") 
   )
   # Projecting the country counts data frame on the target coordinate system this projected data frame contains the bubble X,Y coordinates
-  # YMX
+  
   # We create a sf object from the data containing messages locations
-  # They are in WGS84
+  # They are in WGS84  
   proj_df_wgs84 <- sf::st_as_sf(
     df %>% dplyr::filter(!is.na(.data$Long) & !is.na(.data$Lat)), 
     coords = c("Long", "Lat"),
@@ -762,7 +716,7 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
   dataset <- serie
 
   # Getting the right top field depending on the series 
-  # YMX verifier
+  
   match.arg(serie, c("topwords", "tags", "urls"))
   top_field <- (
     if(serie == "topwords") "token"
@@ -776,10 +730,10 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
   # getting the data from topwords series
   filter <- (
     if(length(country_codes) > 0)
-      # YMX verifier
+      
       list(topic = f_topic, period = list(date_min, date_max), geo_country_code = country_codes)
     else 
-      # YMX verifier
+      
       list(topic = f_topic, period = list(date_min, date_max))
   )
 
@@ -804,12 +758,12 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
         .data$topic == f_topic 
         & .data$created_date >= date_min 
         & .data$created_date <= date_max
-        # YMX verifier
+        
         & (if(length(country_codes)==0) TRUE else .data$geo_country_code %in% country_codes )
       ))
  
   # dealing with retweets if requested
-  # YMX verifier
+  
   if(!with_retweets) {
     df$frequency <- df$original
   } else {

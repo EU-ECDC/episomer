@@ -216,7 +216,7 @@ get_reporting_date_counts <- function(
       else dplyr::filter(df, .data$reporting_date <= end)
     )
     # group by reporting date
-    # YMX verifier
+    
     df %>%
       dplyr::group_by(.data$reporting_date) %>% 
       dplyr::summarise(count = sum(.data$tweets), known_users = sum(.data$known_users)) %>%       
@@ -252,15 +252,15 @@ calculate_region_alerts <- function(
   )) %>% dplyr::filter(.data$topic == f_topic)
 
   # Adding retweets on count if requested
-  # YMX verifier
+  
   df <- if(with_retweets){
-    # YMX verifier
+    
     df %>% dplyr::mutate(
       tweets = ifelse(is.na(.data$quotes), 0, .data$quotes) + ifelse(is.na(.data$original), 0, .data$original),
       known_users = .data$known_quotes + .data$known_original
     )
   } else {
-    # YMX verifier
+    
     df %>% dplyr::rename(
       known_users = .data$known_original
     )  %>% 
@@ -271,7 +271,7 @@ calculate_region_alerts <- function(
     total_df <- df %>% dplyr::filter(
       (
        length(country_codes) == 0 
-       # YMX verifier
+       
        |  (.data$geo_country_code %in% country_codes)
       )
     )
@@ -350,7 +350,7 @@ calculate_regions_alerts <- function(
         topic = topic, 
         country_codes = all_regions[[regions[[i]]]]$codes,
 	      # country_code_cols = if(location_type == "tweet") "tweet_geo_country_code" else if(location_type == "user") "user_geo_country_code" else c("tweet_geo_country_code", "user_geo_country_code"),
-        # YMX verifier
+        
         country_code_cols = "geo_country_code",
         start = as.Date(date_min), 
         end = as.Date(date_max), 
@@ -490,11 +490,11 @@ do_next_alerts <- function(tasks = get_tasks()) {
       codeMap <- get_country_codes_by_name()
       ts <- unique(alerts$topic)
       for(serie in list(
-        # YMX verifier
+        
         list(name = "topwords", col = "token"),
-        # YMX verifier
+        
         list(name = "tags", col = "tag"),
-        # YMX verifier
+        
         list(name = "urls", col = "url")#,
         # list(name = "contexts", col = "context"),
         # list(name = "entities", col = "entity")
@@ -515,7 +515,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
                 dplyr::filter(
                   .data$topic == t
                   & .data$created_date == d
-                  # YMX verifier
+                  
                   & (if(length(codes)==0) TRUE else .data$geo_country_code %in% codes )
                 ) %>% 
                 dplyr::filter(!is.na(.data$frequency)) %>% 
@@ -542,7 +542,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
       alerts <- alerts %>% 
         dplyr::mutate(
           hour = alert_to_hour, 
-          # YMX verifier
+          
           # location_type = "tweet", 
           with_retweets = conf$alert_with_retweets, 
           alpha = as.numeric(get_topics_alphas()[.data$topic]), 
