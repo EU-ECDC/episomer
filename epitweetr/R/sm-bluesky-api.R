@@ -17,16 +17,16 @@ sm_api_get_token_bluesky <- function() {
 }
 
 sm_api_translate_query_bluesky <- function(parts, excluded) {
-    queries = list()
-    comb = do.call(expand.grid, parts)
-    if(nrow(comb) > 0) {
-        ret <- lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i,])))
-        if(length(excluded) > 0)
-          ret <- paste(ret, do.call(paste, as.list(paste0("-", excluded))))
-	ret
-    } else {
-      list()
-    }
+  queries = list()
+  comb = do.call(expand.grid, parts)
+  if (nrow(comb) > 0) {
+    ret <- lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ])))
+    if (length(excluded) > 0)
+      ret <- paste(ret, do.call(paste, as.list(paste0("-", excluded))))
+    ret
+  } else {
+    list()
+  }
 }
 
 #' Search posts for a given query
@@ -57,15 +57,24 @@ sm_api_search_bluesky <- function(
 
   # Make a single request and return results
   req <- httr2::request(search_url) |>
-    httr2::req_url_query(q = query, limit = number_of_posts_per_request, sort = sort)
+    httr2::req_url_query(
+      q = query,
+      limit = number_of_posts_per_request,
+      sort = sort
+    )
 
   if (!is.null(plan$plan_min_date)) {
-    req <- req |> httr2::req_url_query(since = bluesky_format_date(plan$plan_min_date))
+    req <- req |>
+      httr2::req_url_query(since = bluesky_format_date(plan$plan_min_date))
   }
   if (!is.null(plan$current_min_date)) {
-    req <- req |> httr2::req_url_query(until = bluesky_format_date(plan$current_min_date - 0.000001))
+    req <- req |>
+      httr2::req_url_query(
+        until = bluesky_format_date(plan$current_min_date - 0.000001)
+      )
   } else {
-    req <- req |> httr2::req_url_query(until = bluesky_format_date(plan$plan_max_date))
+    req <- req |>
+      httr2::req_url_query(until = bluesky_format_date(plan$plan_max_date))
   }
 
   # Must find a way to check for invalid token
@@ -112,188 +121,265 @@ bluesky_format_date <- function(datetime) {
 }
 
 #' @noRd
-bluesky_parse_date <-function(date_input) {
+bluesky_parse_date <- function(date_input) {
   lubridate::as_datetime(unlist(date_input))
 }
 #' @noRd
 bluesky_parse_response <- function(response) {
-  first <- function(x) unlist(x[min(1,length(x))])
-  ret = list(network="bluesky", count=length(response$posts), pagination = list(min_created_at=NULL))
+  first <- function(x) unlist(x[min(1, length(x))])
+  ret = list(
+    network = "bluesky",
+    count = length(response$posts),
+    pagination = list(min_created_at = NULL)
+  )
   ret[["posts"]] = lapply(response$posts, function(post) {
-     record <- post$record 
-     quote <- bluesky_parse_quoted(post)
-     features <- bluesky_parse_features(post)
-     urls <- unique(c(features$urls, quote$urls))
-     ret <- list(
-        id = unlist(post$cid),
-        uri = sprintf("https://bsky.app/profile/%s/post/%s", post$author$did, sub(".*/", "", post$uri)),
-        created_at = bluesky_format_date(bluesky_parse_date(record$createdAt)),
-	user_name = gsub(".bsky.social", "", post$author$handle),
-	text = unlist(record$text),
-	lang = first(record$langs),
-	is_quote = quote$is_quote && !is.null(quote$text) && nchar(quote$text) > 0,
-        quoted_text = quote$text,
-	quoted_lang = quote$lang,
-	tags = features$tags,
-	urls = urls,
-	categories = features$categories
-      )  
-  
-     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
-     #if(!is.null(quote$text) && nchar(quote$text) > 0)
-         #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), isq = ret$is_quote, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
-     ret
+    record <- post$record
+    quote <- bluesky_parse_quoted(post)
+    features <- bluesky_parse_features(post)
+    urls <- unique(c(features$urls, quote$urls))
+    ret <- list(
+      id = unlist(post$cid),
+      uri = sprintf(
+        "https://bsky.app/profile/%s/post/%s",
+        post$author$did,
+        sub(".*/", "", post$uri)
+      ),
+      created_at = bluesky_format_date(bluesky_parse_date(record$createdAt)),
+      user_name = gsub(".bsky.social", "", post$author$handle),
+      text = unlist(record$text),
+      lang = first(record$langs),
+      is_quote = quote$is_quote &&
+        !is.null(quote$text) &&
+        nchar(quote$text) > 0,
+      quoted_text = quote$text,
+      quoted_lang = quote$lang,
+      tags = features$tags,
+      urls = urls,
+      categories = features$categories
+    )
+
+    #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
+    #if(!is.null(quote$text) && nchar(quote$text) > 0)
+    #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), isq = ret$is_quote, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
+    ret
   })
-  if(length(ret$posts) > 0) {
-      ret$pagination$min_created_at <- Reduce(function(x, y) if(x<y) x else y,  lapply(ret$posts, `[[`, "created_at"))
-      ret$posts <- ret$posts[sapply(ret$posts, function(p) !is.null(p$lang))]
+  if (length(ret$posts) > 0) {
+    ret$pagination$min_created_at <- Reduce(
+      function(x, y) if (x < y) x else y,
+      lapply(ret$posts, `[[`, "created_at")
+    )
+    ret$posts <- ret$posts[sapply(ret$posts, function(p) !is.null(p$lang))]
   }
-  ret 
+  ret
 }
 
 bluesky_parse_quoted <- function(post) {
-    # utilitary functions
-    first <- function(x) {x <- x[!sapply(x, is.null)];unlist(x[min(1,length(x))])}
-    mode <- function(x) first(names(sort(table(unlist(x)), decreasing=TRUE)))
+  # utilitary functions
+  first <- function(x) {
+    x <- x[!sapply(x, is.null)]
+    unlist(x[min(1, length(x))])
+  }
+  mode <- function(x) first(names(sort(table(unlist(x)), decreasing = TRUE)))
 
-    # extracting embedding data from post
-    if("embed" %in% names(post)) {
-        quoted_texts = list()
-        embeds = list()
-        records = list()
-	images = list()
-	urls = list()
-	is_quote <- FALSE
+  # extracting embedding data from post
+  if ("embed" %in% names(post)) {
+    quoted_texts = list()
+    embeds = list()
+    records = list()
+    images = list()
+    urls = list()
+    is_quote <- FALSE
 
-	if("record" %in% names(post$embed) && "embeds" %in% names(post$embed$record)) {
-	    embeds = post$embed$record$embeds
-	}
-	if("external" %in% names(post$embed)) {
-	    embeds = c(embeds, list(post$embed))
-	}
-        found <- FALSE
-        # case 1: URLS title and descriptions
-        #         post$embed$record$embeds[[1]]$external$(title and description) 
-        for(embed in embeds) {
-            if("external" %in% names(embed) && length(intersect(names(embed$external), c("uri", "title", "description"))) > 0) {
-	      found <- TRUE
-	      texts = sapply(list("title", "description"), function(attr) unlist(embed$external[[attr]]))
-	      quoted_texts = c(quoted_texts, list(list(
-                  text = paste(texts[!is.null(texts)], collapse="\n"),
-                  lang =  mode(post$record$langs)
-              )))
-	      if("uri" %in% names(embed$external)) {
-	          urls = c(urls, embed$external$uri)
-	      }
-            } 
-        }
-        # case 2: quoted post
-	#         post$embed$record$value$text
-	#         post$embed$record$description
-        #         post$embed$record$record$value$text
-	#         post$embed$record$record$description
-	if("record" %in% names(post$embed) && 
-	   (
-	     (  "value" %in% names(post$embed$record) && 
-	        "text" %in% names(post$embed$record$value))
-	     ||
-	        "description" %in% names(post$embed$record)	     
-	   )
-        ) {
-	    records = c(records, list(post$embed$record) )
-	}
-	if("record" %in% names(post$embed) && 
-	   "record" %in% names(post$embed$record) && 
-	   (
-	     (  "value" %in% names(post$embed$record$record) && 
-	        "text" %in% names(post$embed$record$record$value))
-	     ||
-	        "description" %in% names(post$embed$record$record)	     
-	   )
-        ) {
-	    records = c(records, list(post$embed$record$record) )
-	}
-	for(record in records) {
-	    found <- TRUE
-	    is_quote <- TRUE
-            quoted_texts = c(quoted_texts, list(list(
-                 text = first(c(record$value$text, record$description)),
-                 lang = first(c(record$value$langs, post$record$langs))
-            )))
-        }
-        # case 3: Images alternative textes
-	#         post$embed$images[[1]]$alt
-        #         post$embed$media$images[[1]]$alt 
-        if("images" %in% names(post$embed)) {
-	    found <- TRUE
-	    images = c(images, post$embed$images)
-	}
-        if("media" %in% names(post$embed) && "images" %in% names(post$embed$media)) {
-	    found <- TRUE
-	    images = c(images, post$embed$media$images)
-	}
-        for(image in images) {
-            if( "alt" %in% names(image) && nchar(image$alt)>0) {
-                quoted_texts = c(quoted_texts, list(list(
-                     text = image$alt,
-                     lang = mode(post$record$langs)
-                )))
-	    }
-	}
-	# case 4: video (not considered)
-        if("playlist" %in% names(post$embed)) {
-             found <- TRUE
-	}
-	# case 5: not Found, blocked or detached (not considered)
-        if("record" %in% names(post$embed) && length(intersect(c("notFound", "blocked", "detached"),  names(post$embed$record)))> 0) {
-             found <- TRUE
-	}
-        if("record" %in% names(post$embed) && length(intersect(c("notFound", "blocked", "detached"),  names(post$embed$record$record)))> 0) {
-             found <- TRUE
-	}
-
-        if (!found) {
-	   jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
-           warning(sprintf(":-) 2 Embed information expected but not found in %s", jsonlite::toJSON(post, auto_inbox = TRUE)))
-        } 
-	text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
-        lang = paste(substr(mode(sapply(quoted_texts, `[[`, "lang")), 1, 2), collapse= "\n")
-        list(
-             text = if(is.null(text) || nchar(text) == 0) NULL else text,
-             lang = if(is.null(lang) || nchar(lang) == 0) NULL else lang,
-	     urls = unique(urls),
-	     is_quote = is_quote
-        )
-    } else {
-        list(
-	     is_quote = FALSE
-        )
+    if (
+      "record" %in% names(post$embed) && "embeds" %in% names(post$embed$record)
+    ) {
+      embeds = post$embed$record$embeds
     }
+    if ("external" %in% names(post$embed)) {
+      embeds = c(embeds, list(post$embed))
+    }
+    found <- FALSE
+    # case 1: URLS title and descriptions
+    #         post$embed$record$embeds[[1]]$external$(title and description)
+    for (embed in embeds) {
+      if (
+        "external" %in%
+          names(embed) &&
+          length(intersect(
+            names(embed$external),
+            c("uri", "title", "description")
+          )) >
+            0
+      ) {
+        found <- TRUE
+        texts = sapply(
+          list("title", "description"),
+          function(attr) unlist(embed$external[[attr]])
+        )
+        quoted_texts = c(
+          quoted_texts,
+          list(list(
+            text = paste(texts[!is.null(texts)], collapse = "\n"),
+            lang = mode(post$record$langs)
+          ))
+        )
+        if ("uri" %in% names(embed$external)) {
+          urls = c(urls, embed$external$uri)
+        }
+      }
+    }
+    # case 2: quoted post
+    #         post$embed$record$value$text
+    #         post$embed$record$description
+    #         post$embed$record$record$value$text
+    #         post$embed$record$record$description
+    if (
+      "record" %in%
+        names(post$embed) &&
+        (("value" %in%
+          names(post$embed$record) &&
+          "text" %in% names(post$embed$record$value)) ||
+          "description" %in% names(post$embed$record))
+    ) {
+      records = c(records, list(post$embed$record))
+    }
+    if (
+      "record" %in%
+        names(post$embed) &&
+        "record" %in% names(post$embed$record) &&
+        (("value" %in%
+          names(post$embed$record$record) &&
+          "text" %in% names(post$embed$record$record$value)) ||
+          "description" %in% names(post$embed$record$record))
+    ) {
+      records = c(records, list(post$embed$record$record))
+    }
+    for (record in records) {
+      found <- TRUE
+      is_quote <- TRUE
+      quoted_texts = c(
+        quoted_texts,
+        list(list(
+          text = first(c(record$value$text, record$description)),
+          lang = first(c(record$value$langs, post$record$langs))
+        ))
+      )
+    }
+    # case 3: Images alternative textes
+    #         post$embed$images[[1]]$alt
+    #         post$embed$media$images[[1]]$alt
+    if ("images" %in% names(post$embed)) {
+      found <- TRUE
+      images = c(images, post$embed$images)
+    }
+    if (
+      "media" %in% names(post$embed) && "images" %in% names(post$embed$media)
+    ) {
+      found <- TRUE
+      images = c(images, post$embed$media$images)
+    }
+    for (image in images) {
+      if ("alt" %in% names(image) && nchar(image$alt) > 0) {
+        quoted_texts = c(
+          quoted_texts,
+          list(list(
+            text = image$alt,
+            lang = mode(post$record$langs)
+          ))
+        )
+      }
+    }
+    # case 4: video (not considered)
+    if ("playlist" %in% names(post$embed)) {
+      found <- TRUE
+    }
+    # case 5: not Found, blocked or detached (not considered)
+    if (
+      "record" %in%
+        names(post$embed) &&
+        length(intersect(
+          c("notFound", "blocked", "detached"),
+          names(post$embed$record)
+        )) >
+          0
+    ) {
+      found <- TRUE
+    }
+    if (
+      "record" %in%
+        names(post$embed) &&
+        length(intersect(
+          c("notFound", "blocked", "detached"),
+          names(post$embed$record$record)
+        )) >
+          0
+    ) {
+      found <- TRUE
+    }
+
+    if (!found) {
+      jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
+      warning(sprintf(
+        ":-) 2 Embed information expected but not found in %s",
+        jsonlite::toJSON(post, auto_inbox = TRUE)
+      ))
+    }
+    text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
+    lang = paste(
+      substr(mode(sapply(quoted_texts, `[[`, "lang")), 1, 2),
+      collapse = "\n"
+    )
+    list(
+      text = if (is.null(text) || nchar(text) == 0) NULL else text,
+      lang = if (is.null(lang) || nchar(lang) == 0) NULL else lang,
+      urls = unique(urls),
+      is_quote = is_quote
+    )
+  } else {
+    list(
+      is_quote = FALSE
+    )
+  }
 }
 
 bluesky_parse_features <- function(post) {
-    # extracting features data from post
-    ret <- list(tags = list(), urls = list(), categories = list())
-    if("record" %in% names(post) && "facets" %in% names(post$record)) {
-        for(facet in post$record$facets) {
-	    if("features" %in% names(facet)) {
-	        for(feature in facet$features) {
-		   ftype <- feature[["$type"]]
-	           if(ftype == "app.bsky.richtext.facet#tag") {
-		       ret$tags <- c(ret$tags, feature[["tag"]])
-		   } else if(ftype == "app.bsky.richtext.facet#link") {
-                       ret$urls <- c(ret$urls, feature[["uri"]])
-		   } else if(ftype %in% c("app.bsky.richtext.facet#mention", "app.bsky.richtext.facet#format", "app.twitter.source#id", "blue.poll.post.facet#option")) {
-		      #pass
-		   } else {
-	               jsonlite::write_json(post, sprintf("%s/badpost.json", conf$data_dir))
-                       stop(sprintf(":-) Unexpected feature type %s in %s", ftype, jsonlite::toJSON(post, auto_unbox = TRUE)))
-		   }
-		}
-	    }
-	}
+  # extracting features data from post
+  ret <- list(tags = list(), urls = list(), categories = list())
+  if ("record" %in% names(post) && "facets" %in% names(post$record)) {
+    for (facet in post$record$facets) {
+      if ("features" %in% names(facet)) {
+        for (feature in facet$features) {
+          ftype <- feature[["$type"]]
+          if (ftype == "app.bsky.richtext.facet#tag") {
+            ret$tags <- c(ret$tags, feature[["tag"]])
+          } else if (ftype == "app.bsky.richtext.facet#link") {
+            ret$urls <- c(ret$urls, feature[["uri"]])
+          } else if (
+            ftype %in%
+              c(
+                "app.bsky.richtext.facet#mention",
+                "app.bsky.richtext.facet#format",
+                "app.twitter.source#id",
+                "blue.poll.post.facet#option"
+              )
+          ) {
+            #pass
+          } else {
+            jsonlite::write_json(
+              post,
+              sprintf("%s/badpost.json", conf$data_dir)
+            )
+            stop(sprintf(
+              ":-) Unexpected feature type %s in %s",
+              ftype,
+              jsonlite::toJSON(post, auto_unbox = TRUE)
+            ))
+          }
+        }
+      }
     }
-    ret
+  }
+  ret
 }
 
 #' Get bearer token
@@ -314,22 +400,20 @@ bluesky_parse_features <- function(post) {
 #'
 bluesky_create_session <- function(handle = NULL, password = NULL) {
   if (is.null(handle) && is_secret_set("bsky_user")) {
-      handle = get_secret("bsky_user")
-  } else if(is.null(handle) && Sys.getenv("bluesky_id") != "")
-      handle = Sys.getenv("bluesky_id")
-  else {
+    handle = get_secret("bsky_user")
+  } else if (is.null(handle) && Sys.getenv("bluesky_id") != "")
+    handle = Sys.getenv("bluesky_id") else {
     stop("You have to provide a user_name to collect Bluesky posts")
   }
 
   if (is.null(password) && is_secret_set("bsky_password")) {
-      password = get_secret("bsky_password")
-  } else if(is.null(handle) && Sys.getenv("bluesky_pwd") != "")
-      password = Sys.getenv("bluesky_pwd")
-  else {
+    password = get_secret("bsky_password")
+  } else if (is.null(handle) && Sys.getenv("bluesky_pwd") != "")
+    password = Sys.getenv("bluesky_pwd") else {
     stop("You have to provide a password to collect Bluesky posts")
   }
   login_url = "https://bsky.social/xrpc/com.atproto.server.createSession"
-  
+
   if (!httr2::is_online()) {
     stop("No internet connection")
   }
@@ -349,7 +433,7 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     created = strptime(Sys.time(), "%Y-%m-%d %H:%M:%S")
   )
   json_session = jsonlite::toJSON(session)
-  set_secret("bsky_session",json_session)
+  set_secret("bsky_session", json_session)
   return(jsonlite::fromJSON(json_session))
 }
 
