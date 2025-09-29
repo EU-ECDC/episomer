@@ -327,7 +327,6 @@ plot_trendline <- function(df,countries,topic,date_min,date_max, date_type, alph
 #' @export 
 #' @importFrom magrittr `%>%`
 #' @importFrom dplyr filter rename select bind_rows group_by summarize ungroup mutate dense_rank if_else
-#' @importFrom sp spTransform coordinates proj4string CRS
 #' @importFrom ggplot2 fortify theme element_text element_blank element_rect ggplot geom_polygon aes geom_point scale_size_continuous scale_fill_manual coord_fixed labs theme_classic geom_sf coord_sf 
 #' @importFrom sf st_crs st_transform  st_as_sf
 #' @importFrom stats setNames 
