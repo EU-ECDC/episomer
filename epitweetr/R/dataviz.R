@@ -738,16 +738,10 @@ scope_count <-        sum(
  
     labs(
        title = 
-                   paste(
-             "Geographical distribution of tweets mentioning ", 
+                   paste0(
+             "Geographical distribution of messages mentioning ", 
              topic, 
-             "\nfrom ",date_min, " to ",date_max, 
-             "\nwith ", 
-             location_type,
-             " location (n=" ,
-             format(scope_count, big.mark = " ", scientific=FALSE),
-             ")",
-             sep = ""
+             "\nfrom ",date_min, " to ",date_max
            ),
        caption = paste(caption, ". Projection: ", proj, sep = "")
     ) +
@@ -1145,9 +1139,8 @@ create_topchart <- function(topic, serie, country_codes=c(),date_min="1900-01-01
            ggplot2::coord_flip(expand = FALSE) +
            ggplot2::labs(
               y = "Count",
-              title = paste("Top ", serie_title, " of tweets mentioning", topic),
-              subtitle = paste("from", date_min, "to", date_max),
-              caption = "Top ", serie_title, " figure only considers tweet location, ignoring the location type parameter"
+              title = paste("Top", serie_title, "of messages mentioning", topic),
+              subtitle = paste("from", date_min, "to", date_max)              
            ) +
            ggplot2::scale_y_continuous(labels = function(x) format(x, scientific = FALSE), breaks = y_breaks, limits = c(0, max(y_breaks)), expand=c(0 ,0))+
            ggplot2::theme_classic(base_family = get_font_family()) +
