@@ -1,13 +1,13 @@
 utils::globalVariables(c(
-    ".data",
-    "limit",
-    "URLencode",
-    "conf",
-    "get_scala_tweets_url",
-    "is_secret_set",
-    "last_fs_updates",
-    "resp_header",
-    "search_endpoint",
-    "tail",
-    "twitter_get"
+  ".data",
+  "limit",
+  "URLencode",
+  "conf",
+  "get_scala_tweets_url",
+  "is_secret_set",
+  "last_fs_updates",
+  "resp_header",
+  "search_endpoint",
+  "tail",
+  "twitter_get"
 ))
