@@ -586,7 +586,7 @@ get_topics_labels <- function() {
       dplyr::summarise(label = .data$Label[which(!is.na(.data$Label))[1]]) %>%
       dplyr::ungroup()
   )
-  # YMX verifier
+  
   t <- dplyr::bind_rows(t, t %>% 
     dplyr::mutate(Topics = tolower(.data$Topics))
   )
