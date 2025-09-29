@@ -1879,8 +1879,7 @@ epitweetr_app <- function(data_dir = NA) {
             input$top_type1,
             input$countries,
             input$period,
-            input$with_retweets,
-            input$location_type,
+            input$with_retweets,            
             200
           )$data,
           file,

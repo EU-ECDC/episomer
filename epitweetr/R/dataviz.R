@@ -6,7 +6,6 @@
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
 #' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
-#' @param location_type Character(1) vector indicating the location type. Possible values 'tweet', 'user' or 'both', default: 'tweet'
 #' @param alpha Numeric(1) value indicating the alert detection confidence, default: 0.025
 #' @param alpha_outlier Numeric(1) value indicating the outliers detection confidence for downweighting, default: 0.05
 #' @param k_decay Strength of outliers downweighting, default: 4
@@ -425,7 +424,6 @@ plot_trendline <- function(
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
 #' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
-#' @param location_type Character(1) vector indicating the location type. Possible values 'tweet', 'user' or 'both', default: 'tweet'
 #' @param caption Character(1) vector indicating a caption to print at the bottom of the chart, default: ""
 #' @param proj Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format \code{\link[sp]{CRS-class}}?
 #' If null and all countries are selected +proj=robin is used (Robinson projection) otherwise the Lambert azimuthal equal-area projection will be chosen, default: NULL
@@ -472,7 +470,6 @@ create_map <- function(
   date_min = "1900-01-01",
   date_max = "2100-01-01",
   with_retweets = FALSE,
-  location_type = "tweet",
   caption = "",
   proj = NULL,
   forplotly = FALSE
@@ -864,11 +861,9 @@ create_map <- function(
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
 #' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
-#' @param location_type Character(1) this parameter is currently being IGNORED since this report shows only tweet location and cannot show user or both locations for performance reasons, default: 'tweet'
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 #' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
-#' For performance reasons on tweet aggregation this report only shows tweet location and ignores the location_type parameter
 #'
 #' This report may be empty for combinations of countries and topics with very few tweets since for performance reasons, the calculation of top words is an approximation using chunks of 10.000 tweets.
 #'
@@ -903,7 +898,6 @@ create_topwords <- function(
   date_min = "1900-01-01",
   date_max = "2100-01-01",
   with_retweets = FALSE,
-  location_type = "tweet",
   top = 25
 ) {
   create_topchart(
@@ -912,7 +906,6 @@ create_topwords <- function(
     country_codes = country_codes,
     date_min = date_min,
     date_max = date_max,
-    location_type = location_type,
     top = top
   )
 }
@@ -928,7 +921,6 @@ create_topwords <- function(
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 #' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
-#' For performance reasons on tweet aggregation, this report only shows tweet location and ignores the location_type parameter
 #'
 #' This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples

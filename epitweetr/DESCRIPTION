@@ -55,13 +55,10 @@ Imports:
     DT,
     emayili,
     future,
-    httpuv,
     httr,
     htmltools,
     jsonlite,
     keyring,
-    knitr,
-    lifecycle,
     ggplot2,
     janitor,
     magrittr,
@@ -80,15 +77,13 @@ Imports:
     tidytext,
     tools,
     utils,
-    xtable,
-    xml2,
-    digest,
+    xtable,    
     httr2,
     lubridate,
-    purrr,
     sf
 RoxygenNote: 7.3.3
 Suggests: 
+    knitr,
     taskscheduleR,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
