@@ -32,7 +32,16 @@
 #' @importFrom dplyr select
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
-epitweetr_app <- function(data_dir = NA) {
+
+dashboard_app <- function(data_dir = NA) {
+  epitweetr_app(data_dir = data_dir, profile = "dashboard") 
+}
+
+admin_app <- function(data_dir = NA) {
+  epitweetr_app(data_dir = data_dir, profile = "admin") 
+}
+
+epitweetr_app <- function(data_dir = NA, profile) {
   # Setting up configuration if not already done
   if (is.na(data_dir)) setup_config_if_not_already() else {
     setup_config(data_dir)
@@ -1254,15 +1263,16 @@ epitweetr_app <- function(data_dir = NA) {
     )
 
   # Defining navigation UI
-  ui <-
+  ui_app <-
     shiny::navbarPage(
       "epitweetr",
-      shiny::tabPanel("Dashboard", dashboard_page),
-      shiny::tabPanel("Alerts", alerts_page),
-      shiny::tabPanel("Geotag", geotraining_page),
-      shiny::tabPanel("Data protection", dataprotection_page),
-      shiny::tabPanel("Configuration", config_page),
-      shiny::tabPanel("Troubleshoot", troubleshoot_page)
+      id = "navbar_shinyapp",
+      shiny::tabPanel("Dashboard", value = "dashboard_page", dashboard_page),
+      shiny::tabPanel("Alerts", value = "alerts_page", alerts_page),
+      shiny::tabPanel("Geotag", value = "geotraining_page", geotraining_page),
+      shiny::tabPanel("Data protection", value = "dataprotection_page", dataprotection_page),
+      shiny::tabPanel("Configuration", value = "config_page", config_page),
+      shiny::tabPanel("Troubleshoot", value = "troubleshoot_page", troubleshoot_page)
     )
 
   # Rmarkdown dasboard export bi writing the dashboard on the provided file$
@@ -1324,8 +1334,28 @@ epitweetr_app <- function(data_dir = NA) {
   }
 
   # Defining server logic
-  server <- function(input, output, session, ...) {
+  server_app <- function(input, output, session, profile, ...) {
     `%>%` <- magrittr::`%>%`
+
+    shiny::observeEvent(TRUE, {
+      if(profile == "dashboard") {
+        shiny::showTab(inputId = "navbar_shinyapp", target = "dashboard_page")
+        shiny::hideTab(inputId = "navbar_shinyapp", target = "alerts_page")
+        shiny::hideTab(inputId = "navbar_shinyapp", target = "geotraining_page")
+        shiny::hideTab(inputId = "navbar_shinyapp", target = "dataprotection_page")
+        shiny::hideTab(inputId = "navbar_shinyapp", target = "config_page")
+        shiny::hideTab(inputId = "navbar_shinyapp", target = "troubleshoot_page")      
+      } else if(profile == "admin") {
+        shiny::hideTab(inputId = "navbar_shinyapp", target = "dashboard_page")
+        shiny::showTab(inputId = "navbar_shinyapp", target = "alerts_page")
+        shiny::showTab(inputId = "navbar_shinyapp", target = "geotraining_page")
+        shiny::showTab(inputId = "navbar_shinyapp", target = "dataprotection_page")
+        shiny::showTab(inputId = "navbar_shinyapp", target = "config_page")
+        shiny::showTab(inputId = "navbar_shinyapp", target = "troubleshoot_page")      
+      }
+    },
+    once = TRUE)
+
     ################################################
     ######### FILTERS LOGIC ########################
     ################################################
@@ -3487,8 +3517,8 @@ epitweetr_app <- function(data_dir = NA) {
   old <- options()
   on.exit(options(old))
   shiny::shinyApp(
-    ui = ui,
-    server = server,
+    ui = ui_app,
+    server = function(input, output, session) server_app(input, output, session, profile),
     options = options(shiny.fullstacktrace = TRUE)
   )
 }
