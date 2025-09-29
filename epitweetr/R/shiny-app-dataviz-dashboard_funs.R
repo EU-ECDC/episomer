@@ -68,7 +68,6 @@ top_chart_from_filters <- function(
   )
 }
 
-
   # Rmarkdown dasboard export bi writing the dashboard on the provided file$
   # it uses the markdown template inst/rmarkdown/dashboard.Rmd
   export_dashboard <- function(
@@ -113,8 +112,8 @@ top_chart_from_filters <- function(
             "alert_historic" = no_historic,
             "bonferroni_correction" = bonferroni_correction,
             "same_weekday_baseline" = same_weekday_baseline,
-            "top_type1" = top_type1,
-            "top_type2" = top_type2
+            "top_type1" = "tags",
+            "top_type2" = "topwords"
           ),
           quiet = TRUE
         )
@@ -126,3 +125,4 @@ top_chart_from_filters <- function(
       }
     )
   }
+
