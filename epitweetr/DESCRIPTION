@@ -86,7 +86,8 @@ Imports:
     digest,
     httr2,
     lubridate,
-    purrr
+    purrr,
+    sf
 RoxygenNote: 7.3.3
 Suggests: 
     taskscheduleR,

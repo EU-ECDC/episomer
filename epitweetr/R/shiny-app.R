@@ -713,7 +713,6 @@ epitweetr_app <- function(data_dir = NA) {
              input$period_type, 
              input$period, 
              input$with_retweets, 
-             input$location_type , 
              input$alpha_filter, 
              input$alpha_outlier_filter, 
              input$k_decay_filter, 
@@ -756,7 +755,7 @@ epitweetr_app <- function(data_dir = NA) {
            width <- session$clientData$output_map_chart_width
            
            # getting the chart 
-           chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets, input$location_type)$chart
+           chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets)$chart
            
            # returning empty chart if no data is found on chart
 	         chart_not_empty(chart)
@@ -800,7 +799,7 @@ epitweetr_app <- function(data_dir = NA) {
            width <- session$clientData$output_top_chart1_width
            
            # getting the chart 
-           chart <- top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, input$location_type, 20)$chart
+           chart <- top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, 20)$chart
            
            # returning empty chart if no data is found on chart
 	         chart_not_empty(chart)
@@ -835,7 +834,7 @@ epitweetr_app <- function(data_dir = NA) {
            width <- session$clientData$output_top_chart2_width
            
            # getting the chart 
-           chart <- top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, input$location_type, 20)$chart
+           chart <- top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, 20)$chart
            
            # returning empty chart if no data is found on chart
 	         chart_not_empty(chart)
@@ -877,7 +876,7 @@ epitweetr_app <- function(data_dir = NA) {
             width <- session$clientData$output_top_chart2_width
             
             # getting the chart to obtain the table 
-            chart <- top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, input$location_type, 200)$chart
+            chart <- top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, 200)$chart
             
             # returning empty if no data is found on chart
 	          chart_not_empty(chart)
@@ -916,7 +915,6 @@ epitweetr_app <- function(data_dir = NA) {
             input$period_type, 
             input$period, 
             input$with_retweets, 
-            input$location_type, 
             input$alpha_filter, 
             input$alpha_outlier_filter, 
             input$k_decay_filter, 
@@ -948,7 +946,6 @@ epitweetr_app <- function(data_dir = NA) {
             input$period_type, 
             input$period, 
             input$with_retweets, 
-            input$location_type, 
             input$alpha_filter, 
             input$alpha_outlier_filter, 
             input$k_decay_filter, 
@@ -975,7 +972,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         write.csv(
-          map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets, input$location_type)$data,
+          map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets)$data,
           file, 
           row.names = FALSE)
       }
@@ -994,7 +991,7 @@ epitweetr_app <- function(data_dir = NA) {
         )
       },
       content = function(file) { 
-	      chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets, input$location_type)$chart
+	      chart <- map_chart_from_filters(input$topics, input$countries, input$period, input$with_retweets)$chart
         device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 300, units = "in")
         ggplot2::ggsave(file, plot = chart, device = device) 
         
@@ -1034,7 +1031,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         write.csv(
-          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, input$location_type, 200)$data,
+          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, 200)$data,
           file, 
           row.names = FALSE)
       }
@@ -1053,7 +1050,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         write.csv(
-          top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, input$location_type, 200)$data,
+          top_chart_from_filters(input$topics, "urls", input$countries, input$period, input$with_retweets, 200)$data,
           file, 
           row.names = FALSE)
       }
@@ -1073,7 +1070,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         chart <-
-          top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, input$location_type, 50)$chart
+          top_chart_from_filters(input$topics, input$top_type1, input$countries, input$period, input$with_retweets, 50)$chart
         device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 300, units = "in")
         ggplot2::ggsave(file, plot = chart, device = device) 
       }
@@ -1093,7 +1090,7 @@ epitweetr_app <- function(data_dir = NA) {
       },
       content = function(file) { 
         chart <-
-          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, input$location_type, 50)$chart
+          top_chart_from_filters(input$topics, input$top_type2, input$countries, input$period, input$with_retweets, 50)$chart
         device <- function(..., width, height) grDevices::png(..., width = width, height = height, res = 300, units = "in")
         ggplot2::ggsave(file, plot = chart, device = device) 
       }
