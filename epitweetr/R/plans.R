@@ -23,33 +23,37 @@
 # @rdname get_plan
 # @importFrom bit64 as.integer64
 parse_plan_attributes <- function(
-    network,
-    expected_end,
-    scheduled_for = Sys.time(),
-    start_on = NULL,
-    end_on = NULL,
-    requests = 0,
-    got_rows = FALSE,
-    progress = 0.0,
-    ...
+  network,
+  expected_end,
+  scheduled_for = Sys.time(),
+  start_on = NULL,
+  end_on = NULL,
+  requests = 0,
+  got_rows = FALSE,
+  progress = 0.0,
+  ...
 ) {
-    common_attributes <- list(
-        "network" = network,
-	"expected_end" = if (!is.null(unlist(expected_end))) strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S") else NULL,
-        "scheduled_for" = if (!is.null(unlist(scheduled_for))) strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S") else NULL,
-        "start_on" = if (!is.null(unlist(start_on))) strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S") else NULL,
-        "end_on" = if (!is.null(unlist(end_on))) strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S") else NULL,
-        "requests" = unlist(requests),
-        "got_rows" = unlist(got_rows),
-        "progress" = unlist(progress)
-    )
-    specific_attributes <- sm_plan_parse_attributes(network, ...)
-    me <- c(common_attributes, specific_attributes)
-    return(me)
+  common_attributes <- list(
+    "network" = network,
+    "expected_end" = if (!is.null(unlist(expected_end)))
+      strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S") else NULL,
+    "scheduled_for" = if (!is.null(unlist(scheduled_for)))
+      strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S") else NULL,
+    "start_on" = if (!is.null(unlist(start_on)))
+      strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S") else NULL,
+    "end_on" = if (!is.null(unlist(end_on)))
+      strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S") else NULL,
+    "requests" = unlist(requests),
+    "got_rows" = unlist(got_rows),
+    "progress" = unlist(progress)
+  )
+  specific_attributes <- sm_plan_parse_attributes(network, ...)
+  me <- c(common_attributes, specific_attributes)
+  return(me)
 }
 
 format_plan <- function(p) {
-   sm_plan_format(p)
+  sm_plan_format(p)
 }
 
 # Update a plan after search request is done
@@ -57,35 +61,38 @@ format_plan <- function(p) {
 # If results are non-empty the current social media cursor is updated
 # If no results are obtained the search is supposed to be finished
 update_plan_after_request <- function(plan, results) {
-    # increasing the number of requests
-    plan$requests <- plan$requests + 1
-    # setting the start date if not set
-    if (is.null(plan$start_on)) {
-        plan$start_on = Sys.time()
-    }
+  # increasing the number of requests
+  plan$requests <- plan$requests + 1
+  # setting the start date if not set
+  if (is.null(plan$start_on)) {
+    plan$start_on = Sys.time()
+  }
 
-    # check is the current request got rows
-    req_got_rows <- results$count > 0
-    if(req_got_rows) {
-        # set got rows for this plan
-	plan$got_rows <- TRUE
+  # check is the current request got rows
+  req_got_rows <- results$count > 0
+  if (req_got_rows) {
+    # set got rows for this plan
+    plan$got_rows <- TRUE
 
-    	# updating plan by network parameters
-        plan <- sm_api_update_plan_after_request(plan, results)
-	
-	# setting plan progress
-	plan$progress <- sm_plan_get_progress(plan)
-    } else {
-        # if no rows have been obtained then we consider the plan has ended
-        plan$end_on <- Sys.time()
-	plan$progress <- 1.0 
-    }
-    return(plan)
-} 
+    # updating plan by network parameters
+    plan <- sm_api_update_plan_after_request(plan, results)
+
+    # setting plan progress
+    plan$progress <- sm_plan_get_progress(plan)
+  } else {
+    # if no rows have been obtained then we consider the plan has ended
+    plan$end_on <- Sys.time()
+    plan$progress <- 1.0
+  }
+  return(plan)
+}
 
 merge_plans <- function(p1, p2) {
-    keys <- unique(c(names(p1), names(p2)))
-    as.list(setNames(mapply(function(x, y) if(is.null(y)) x else y, p1[keys], p2[keys]), keys))
+  keys <- unique(c(names(p1), names(p2)))
+  as.list(setNames(
+    mapply(function(x, y) if (is.null(y)) x else y, p1[keys], p2[keys]),
+    keys
+  ))
 }
 
 # @title Update plans schedule
@@ -109,104 +116,106 @@ merge_plans <- function(p1, p2) {
 # }
 # @rdname update_plans
 update_plans_schedule <- function(plans = list(), network, schedule_span) {
-    # Testing if there are plans present
-    if (length(plans) == 0) {
-        # Getting default plan for when no existing plans are present setting the expected end
-	elems <- list(
-            network = network,
-            expected_end = strftime(Sys.time() + 60 * schedule_span, "%Y-%m-%d %H:%M:%S")
-	)
-        elems <- c(
-            elems,
-	    sm_plan_first_attributes(network)
-	)
-	new_plan <- do.call(parse_plan_attributes, elems)
-        return(list(new_plan))
-    } else if (
-        plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()
-    ) {
-        # creating a new plan if expected end has passed
-        elems <- list(
-            network = plans[[1]]$network,
-            # expected end should be 'schedule_span' minutes after previous plan expected en unless this is in the past in which case the span would cound from now
-	    expected_end = if (
-                Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
-            ) {
-                strftime(Sys.time() + 60 * schedule_span, "%Y-%m-%d %H:%M:%S") 
-            } else {
-                strftime(plans[[1]]$expected_end + 60 * schedule_span, "%Y-%m-%d %H:%M:%S")
-            }
+  # Testing if there are plans present
+  if (length(plans) == 0) {
+    # Getting default plan for when no existing plans are present setting the expected end
+    elems <- list(
+      network = network,
+      expected_end = strftime(
+        Sys.time() + 60 * schedule_span,
+        "%Y-%m-%d %H:%M:%S"
+      )
+    )
+    elems <- c(
+      elems,
+      sm_plan_first_attributes(network)
+    )
+    new_plan <- do.call(parse_plan_attributes, elems)
+    return(list(new_plan))
+  } else if (plans[[1]]$requests > 0 && plans[[1]]$expected_end < Sys.time()) {
+    # creating a new plan if expected end has passed
+    elems <- list(
+      network = plans[[1]]$network,
+      # expected end should be 'schedule_span' minutes after previous plan expected en unless this is in the past in which case the span would cound from now
+      expected_end = if (
+        Sys.time() > plans[[1]]$expected_end + 60 * schedule_span
+      ) {
+        strftime(Sys.time() + 60 * schedule_span, "%Y-%m-%d %H:%M:%S")
+      } else {
+        strftime(
+          plans[[1]]$expected_end + 60 * schedule_span,
+          "%Y-%m-%d %H:%M:%S"
         )
-        elems <- c(
-            elems,
-            sm_plan_next_attributes(network, plans)
-        )
-        first <- do.call(parse_plan_attributes, elems)
+      }
+    )
+    elems <- c(
+      elems,
+      sm_plan_next_attributes(network, plans)
+    )
+    first <- do.call(parse_plan_attributes, elems)
 
-        # removing ended plans
-        non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
-        # removing plans if more of 100 plans are activeff
-        return(append(
-            list(first),
-            if (length(non_ended) < 100) non_ended else non_ended[1:100]
-        ))
-    } else {
-        first <- plans[[1]]
-        rest <- plans[-1]
-        # removing ended plans
-        non_ended <- rest[unlist(sapply(rest, function(x) is.null(x$end_on)))]
-        # removing ended plans
-        return(append(
-            list(first),
-            if (length(non_ended) < 100) non_ended else non_ended[1:100]
-        ))
-    }
+    # removing ended plans
+    non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]
+    # removing plans if more of 100 plans are activeff
+    return(append(
+      list(first),
+      if (length(non_ended) < 100) non_ended else non_ended[1:100]
+    ))
+  } else {
+    first <- plans[[1]]
+    rest <- plans[-1]
+    # removing ended plans
+    non_ended <- rest[unlist(sapply(rest, function(x) is.null(x$end_on)))]
+    # removing ended plans
+    return(append(
+      list(first),
+      if (length(non_ended) < 100) non_ended else non_ended[1:100]
+    ))
+  }
 }
 
 
 # finish the provided plans
 finish_plans <- function(plans = list()) {
-    # Testing if there are plans present
-    if (length(plans) == 0) {
-        list()
-    } else {
-        # creating a new plan if expected end has passed
-        lapply(plans, function(p) {
-            attr <- list(
-                network = p$network,
-                expected_end = strftime(
-                    if (is.null(p$end_on)) {
-                        Sys.time() - conf$schedule_span * 60
-                    } else {
-                        p$end_on
-                    },
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-                scheduled_for = strftime(p$scheduled_for, "%Y-%m-%d %H:%M:%S"),
-                start_on = strftime(
-                    if (is.null(p$start_on)) {
-                        Sys.time() - conf$schedule_span * 60
-                    } else {
-                        p$start_on
-                    },
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-                end_on = strftime(
-                    if (is.null(p$end_on)) {
-                        Sys.time() - conf$schedule_span * 60
-                    } else {
-                        p$end_on
-                    },
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-                requests = p$requests,
-                progress = 1.0
-            )
-            
-            updated <- do.call(parse_plan, attrs)
-	    merge_plans(p, updated)
-        })
-    }
+  # Testing if there are plans present
+  if (length(plans) == 0) {
+    list()
+  } else {
+    # creating a new plan if expected end has passed
+    lapply(plans, function(p) {
+      attr <- list(
+        network = p$network,
+        expected_end = strftime(
+          if (is.null(p$end_on)) {
+            Sys.time() - conf$schedule_span * 60
+          } else {
+            p$end_on
+          },
+          "%Y-%m-%d %H:%M:%S"
+        ),
+        scheduled_for = strftime(p$scheduled_for, "%Y-%m-%d %H:%M:%S"),
+        start_on = strftime(
+          if (is.null(p$start_on)) {
+            Sys.time() - conf$schedule_span * 60
+          } else {
+            p$start_on
+          },
+          "%Y-%m-%d %H:%M:%S"
+        ),
+        end_on = strftime(
+          if (is.null(p$end_on)) {
+            Sys.time() - conf$schedule_span * 60
+          } else {
+            p$end_on
+          },
+          "%Y-%m-%d %H:%M:%S"
+        ),
+        requests = p$requests,
+        progress = 1.0
+      )
+
+      updated <- do.call(parse_plan, attrs)
+      merge_plans(p, updated)
+    })
+  }
 }
-
-
