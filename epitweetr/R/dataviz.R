@@ -352,7 +352,6 @@ create_map <- function(topic=c(),countries=c(1), date_min="1900-01-01",date_max=
   
   # Setting a variable for choosing if going to subnational level when only one country is required
   detailed <- length(country_codes) == 1
-  browser()
 
   # Getting the aggregated data based on the national or subnational level
   df <- (
