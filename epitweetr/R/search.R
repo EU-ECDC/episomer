@@ -30,38 +30,38 @@ search_loop <- function(
   log_to_file = TRUE,
   max_requests = 0
 ) {
-    # Setting or reusing the data directory
-    if (is.na(data_dir)) {
-      setup_config_if_not_already()
-    } else {
-      setup_config(data_dir = data_dir)
-    }
-    if (!sandboxed) {
-        # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-        register_search_runner()
-    }
+  # Setting or reusing the data directory
+  if (is.na(data_dir)) {
+    setup_config_if_not_already()
+  } else {
+    setup_config(data_dir = data_dir)
+  }
+  if (!sandboxed) {
+    # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
+    register_search_runner()
+  }
 
-    sms <- active_social_media()
-    cores <- as.numeric(length(sms))
-    cl <- parallel::makePSOCKcluster(cores, outfile="")
-    on.exit(parallel::stopCluster(cl))
-    data_dir <- conf$data_dir
-    parallel::clusterExport(cl, list("log_to_file", "data_dir", "sandboxed"), envir=rlang::current_env())
-    
-    # running search loops
-    parallel::parLapply(cl, sms, function(sm) {
-	# redirecting output to the sm file
-        if(log_to_file) {
-	    outcon <- file(file.path(data_dir, sprintf("search.%s.log", sm)), open = "a")
-	    sink(outcon)
-	    sink(outcon, type = "message")
-	}
-        epitweetr::setup_config(data_dir)
-        m <- paste("Running search agent for ",sm, Sys.time())
-        message(m)
-        epitweetr::search_loop_worker(sm, data_dir, sandboxed, max_requests)
-    })
-    stop("All search loop proccesses ended, which is unexpected")
+  sms <- active_social_media()
+  cores <- as.numeric(length(sms))
+  cl <- parallel::makePSOCKcluster(cores, outfile="")
+  on.exit(parallel::stopCluster(cl))
+  data_dir <- conf$data_dir
+  parallel::clusterExport(cl, list("log_to_file", "data_dir", "sandboxed"), envir=rlang::current_env())
+  
+  # running search loops
+  parallel::parLapply(cl, sms, function(sm) {
+      # redirecting output to the sm file
+      if(log_to_file) {
+          outcon <- file(file.path(data_dir, sprintf("search.%s.log", sm)), open = "a")
+          sink(outcon)
+          sink(outcon, type = "message")
+      }
+      epitweetr::setup_config(data_dir)
+      m <- paste("Running search agent for ",sm, Sys.time())
+      message(m)
+      epitweetr::search_loop_worker(sm, data_dir, sandboxed, max_requests)
+  })
+  stop("All search loop proccesses ended, which is unexpected")
   
 }
 
@@ -71,7 +71,6 @@ search_loop_worker <- function(
   data_dir = NA,
   sandboxed = FALSE,
   max_requests = 0
-
 ) {
   message(sprintf("Starting runner for %s", network))
   # Setting or reusing the data directory
@@ -82,8 +81,8 @@ search_loop_worker <- function(
   }
 
   if (!sandboxed) {
-      # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-      register_search_runner(network)
+    # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
+    register_search_runner(network)
   }
   # Infinite loop for getting tweets if it is successfully registered as the search runner
   req2Commit <- 0
@@ -91,8 +90,8 @@ search_loop_worker <- function(
   last_save <- Sys.time()
   first_call <- Sys.time()
   requests_done <- 0
-  
-  while (max_requests == 0 || requests_done <= max_requests ) {
+
+  while (max_requests == 0 || requests_done <= max_requests) {
     loop_start <- Sys.time()
 
     # Waiting until database system will be running
@@ -127,7 +126,7 @@ search_loop_worker <- function(
     # Creating plans for each topic if collect span is expired and calculating next execution time for each olan.
     for (i in 1:length(conf$topics)) {
       conf$topics[[i]]$plan <- update_plans_schedule(
-	network = network,
+        network = network,
         plans = conf$topics[[i]]$plan,
         schedule_span = conf$collect_span
       )
@@ -149,7 +148,11 @@ search_loop_worker <- function(
           "seconds. Consider reducing the schedule_span for getting tweets sooner"
         ))
         commit_tweets()
-        save_config(data_dir = conf$data_dir, sm_topics = list(network), properties = FALSE)
+        save_config(
+          data_dir = conf$data_dir,
+          sm_topics = list(network),
+          properties = FALSE
+        )
         Sys.sleep(wait_for)
       }
     }
@@ -157,64 +160,68 @@ search_loop_worker <- function(
     min_requests <- .Machine$integer.max
     #getting the min request on current non ended plans
     for (i in 1:length(conf$topics)) {
-        for (j in 1:length(conf$topics[[i]]$plan)) {
-            p = conf$topics[[i]]$plan[[j]]
-            if(is.null(p$end_on) && p$requests < min_requests)
-                min_requests <- p$requests
-        }
+      for (j in 1:length(conf$topics[[i]]$plan)) {
+        p = conf$topics[[i]]$plan[[j]]
+        if (is.null(p$end_on) && p$requests < min_requests)
+          min_requests <- p$requests
+      }
     }
 
     if (!sandboxed) {
-        #updating series to aggregate
-        register_series()
+      #updating series to aggregate
+      register_series()
     }
 
     #msg(paste("iterating in topics", length(conf$topics), min_requests))
     #performing search only for plans with a minimum number of requests (round robin)
-    
+
     for (i in 1:length(conf$topics)) {
       for (j in 1:length(conf$topics[[i]]$plan)) {
         if (max_requests == 0 || requests_done <= max_requests) {
-            plan <- conf$topics[[i]]$plan[[j]]
-            if (plan$requests <= min_requests && is.null(plan$end_on) && plan$network == network) {
-              requests_done <- requests_done + 1
-              #if search is performed on the first plan and we get an too old error, we will retry without time limit
-	      tryCatch(
-                {
+          plan <- conf$topics[[i]]$plan[[j]]
+          if (
+            plan$requests <= min_requests &&
+              is.null(plan$end_on) &&
+              plan$network == network
+          ) {
+            requests_done <- requests_done + 1
+            #if search is performed on the first plan and we get an too old error, we will retry without time limit
+            tryCatch(
+              {
+                conf$topics[[i]]$plan[[j]] = search_topic(
+                  plan = plan,
+                  query = conf$topics[[i]]$query,
+                  topic = conf$topics[[i]]$topic,
+                  sandboxed = sandboxed
+                )
+              },
+              error = function(e) {
+                if (j == 1 && e$message == "too-old") {
+                  msg("Recovering from too-old request")
+                  plan$since_id <- NULL
+                  plan$since_target <- NULL
                   conf$topics[[i]]$plan[[j]] = search_topic(
                     plan = plan,
                     query = conf$topics[[i]]$query,
-                    topic = conf$topics[[i]]$topic,
-		    sandboxed = sandboxed
+                    topic = conf$topics[[i]]$topic
                   )
-                },
-                error = function(e) {
-                  if (j == 1 && e$message == "too-old") {
-                    msg("Recovering from too-old request")
-                    plan$since_id <- NULL
-                    plan$since_target <- NULL
-                    conf$topics[[i]]$plan[[j]] = search_topic(
-                      plan = plan,
-                      query = conf$topics[[i]]$query,
-                      topic = conf$topics[[i]]$topic
-                    )
-                  } else if (e$message == "too-old") {
-                    msg("Canceling too-old request")
-                    conf$topics[[i]]$plan[[j]]$end_on <- Sys.time()
-                  } else {
-                    stop(paste(e$message, e))
-                  }
-                }
-              )
-              req2Commit <- req2Commit + 1
-              if (!sandboxed) {
-                if (req2Commit > 100) {
-                  commit_tweets()
-                  req2Commit <- 0
+                } else if (e$message == "too-old") {
+                  msg("Canceling too-old request")
+                  conf$topics[[i]]$plan[[j]]$end_on <- Sys.time()
+                } else {
+                  stop(paste(e$message, e))
                 }
               }
+            )
+            req2Commit <- req2Commit + 1
+            if (!sandboxed) {
+              if (req2Commit > 100) {
+                commit_tweets()
+                req2Commit <- 0
+              }
             }
-	}
+          }
+        }
       }
     }
     if (!sandboxed) {
@@ -240,7 +247,6 @@ search_loop_worker <- function(
       )
       Sys.sleep(1)
     }
-    
   }
 }
 
@@ -286,7 +292,11 @@ search_topic <- function(
               "&geolocate=true"
             ),
             httr::content_type_json(),
-            body = jsonlite::toJSON(results$posts, auto_unbox = T, null = "null"),
+            body = jsonlite::toJSON(
+              results$posts,
+              auto_unbox = T,
+              null = "null"
+            ),
             encode = "raw",
             encoding = "UTF-8",
             httr::timeout((4 - tries) * 5)
@@ -314,9 +324,8 @@ search_topic <- function(
       )
     }
   }
-  update_plan_after_request(plan,  results)
+  update_plan_after_request(plan, results)
 }
-
 
 
 # Helper function to parse Twitter date as provided by the Twitter API
