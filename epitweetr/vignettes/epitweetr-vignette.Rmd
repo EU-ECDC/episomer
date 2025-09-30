@@ -807,7 +807,7 @@ This is the aggregate information as described in the section “How does it wor
 You can launch the `epitweetr` interactive user application (Shiny app) from the R session by typing in the R console (replace “data\_dir” with the desired data directory):
 
 ```{r, eval=FALSE, echo=TRUE}
-epitweetr_app("data_dir")
+episomer_app("data_dir")
 ```
 
 
