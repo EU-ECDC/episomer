@@ -69,6 +69,4 @@ vignettes/*.pdf
 .Rprofile
 
 #Roxygen managed files
-*/man/*.Rd
-NAMESPACE
 epitweetr/bluesky_session.rds
