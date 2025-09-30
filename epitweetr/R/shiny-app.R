@@ -198,20 +198,7 @@ epitweetr_app <- function(data_dir = NA) {
                   shiny::downloadButton("download_top1_data", "Data")
                 ),
                 shiny::column(3, shiny::downloadButton("export_top1", "image")),
-                shiny::column(
-                  6,
-                  shiny::radioButtons(
-                    "top_type1",
-                    label = NULL,
-                    choices = list(
-                      "Tags" = "tags",
-                      "Top words" = "topwords",
-                      "Urls" = "urls"
-                    ),
-                    selected = "tags",
-                    inline = TRUE
-                  ),
-                )
+                shiny::column(6,"")
               ),
               plotly::plotlyOutput("top_chart1")
             )
@@ -225,20 +212,7 @@ epitweetr_app <- function(data_dir = NA) {
                   shiny::downloadButton("download_top2_data", "Data")
                 ),
                 shiny::column(3, shiny::downloadButton("export_top2", "image")),
-                shiny::column(
-                  6,
-                  shiny::radioButtons(
-                    "top_type2",
-                    label = NULL,
-                    choices = list(
-                      "Tags" = "tags",
-                      "Top words" = "topwords",
-                      "Urls" = "urls"
-                    ),
-                    selected = "topwords",
-                    inline = TRUE
-                  ),
-                )
+                shiny::column(6, "")
               ),
               plotly::plotlyOutput("top_chart2")
             ),
@@ -1335,8 +1309,8 @@ epitweetr_app <- function(data_dir = NA) {
             "alert_historic" = no_historic,
             "bonferroni_correction" = bonferroni_correction,
             "same_weekday_baseline" = same_weekday_baseline,
-            "top_type1" = top_type1,
-            "top_type2" = top_type2
+            "top_type1" = "tags",
+            "top_type2" = "topwords"
           ),
           quiet = TRUE
         )
@@ -1544,7 +1518,6 @@ epitweetr_app <- function(data_dir = NA) {
       output$top_chart1 <- plotly::renderPlotly({
         # Validate if minimal requirements for rendering are met
         progress_set(value = 0.45, message = "Generating top chart 1", rep)
-        it <- input$top_type1 #this is for allow refreshing the report on radio button update
         shiny::isolate({
           can_render(input, d)
           # Setting size based on container size
@@ -1554,7 +1527,7 @@ epitweetr_app <- function(data_dir = NA) {
           # getting the chart
           chart <- top_chart_from_filters(
             input$topics,
-            input$top_type1,
+            "tags",
             input$countries,
             input$period,
             input$with_retweets,
@@ -1595,7 +1568,6 @@ epitweetr_app <- function(data_dir = NA) {
       output$top_chart2 <- plotly::renderPlotly({
         # Validate if minimal requirements for rendering are met
         progress_set(value = 0.7, message = "Generating top chart 2", rep)
-        it <- input$top_type2 #this is for allow refreshing the report on radio button update
         shiny::isolate({
           can_render(input, d)
           # Setting size based on container size
@@ -1605,7 +1577,7 @@ epitweetr_app <- function(data_dir = NA) {
           # getting the chart
           chart <- top_chart_from_filters(
             input$topics,
-            input$top_type2,
+            "topwords",
             input$countries,
             input$period,
             input$with_retweets,
@@ -1859,7 +1831,7 @@ epitweetr_app <- function(data_dir = NA) {
       filename = function() {
         paste(
           "top_dataset_",
-          input$top_type1,
+          "tags",
           "_",
           paste(input$topics, collapse = "-"),
           "_",
@@ -1876,7 +1848,7 @@ epitweetr_app <- function(data_dir = NA) {
         write.csv(
           top_chart_from_filters(
             input$topics,
-            input$top_type1,
+            "tags",
             input$countries,
             input$period,
             input$with_retweets,
@@ -1892,7 +1864,7 @@ epitweetr_app <- function(data_dir = NA) {
       filename = function() {
         paste(
           "top_dataset_",
-          input$top_type2,
+          "topwords",
           "_",
           paste(input$topics, collapse = "-"),
           "_",
@@ -1909,7 +1881,7 @@ epitweetr_app <- function(data_dir = NA) {
         write.csv(
           top_chart_from_filters(
             input$topics,
-            input$top_type2,
+            "topwords",
             input$countries,
             input$period,
             input$with_retweets,
@@ -1959,7 +1931,7 @@ epitweetr_app <- function(data_dir = NA) {
       filename = function() {
         paste(
           "top_",
-          input$top_type1,
+          "tags",
           "_",
           paste(input$topics, collapse = "-"),
           "_",
@@ -1976,7 +1948,7 @@ epitweetr_app <- function(data_dir = NA) {
         chart <-
           top_chart_from_filters(
             input$topics,
-            input$top_type1,
+            "tags",
             input$countries,
             input$period,
             input$with_retweets,
@@ -1999,7 +1971,7 @@ epitweetr_app <- function(data_dir = NA) {
       filename = function() {
         paste(
           "top_",
-          input$top_type2,
+          "topwords",
           "_",
           paste(input$topics, collapse = "-"),
           "_",
@@ -2016,7 +1988,7 @@ epitweetr_app <- function(data_dir = NA) {
         chart <-
           top_chart_from_filters(
             input$topics,
-            input$top_type2,
+            "topwords",
             input$countries,
             input$period,
             input$with_retweets,
@@ -2048,9 +2020,9 @@ epitweetr_app <- function(data_dir = NA) {
           "_",
           input$period[[2]],
           "_",
-          input$top_type1,
+          "tags",
           "_",
-          input$top_type2,
+          "topwords",
           ".pdf",
           sep = ""
         )
@@ -2071,8 +2043,8 @@ epitweetr_app <- function(data_dir = NA) {
           input$history_filter,
           input$bonferroni_correction,
           input$same_weekday_baseline,
-          input$top_type1,
-          input$top_type2
+          "tags",
+          "topwords"
         )
       }
     )
@@ -2090,9 +2062,9 @@ epitweetr_app <- function(data_dir = NA) {
           "_",
           input$period[[2]],
           "_",
-          input$top_type1,
+          "tags",
           "_",
-          input$top_type2,
+          "topwords",
           ".md",
           sep = ""
         )
@@ -2113,8 +2085,8 @@ epitweetr_app <- function(data_dir = NA) {
           input$history_filter,
           input$bonferroni_correction,
           input$same_weekday_baseline,
-          input$top_type1,
-          input$top_type2
+          "tags",
+          "topwords"
         )
       }
     )
