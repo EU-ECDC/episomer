@@ -25,17 +25,18 @@ authors_str <- gsub("^ *|(?<= ) |\n| *$", "", package_desc$Authors, perl = TRUE)
 author_list <- eval(parse(text = authors_str))
 pkg_authors <- paste(
   format(
-    author_list, 
-    include = c("given", "family", "email", "comment"), 
-    braces = list(email = c("<", ">,<br />"), 
-    comment = c("", ""))
-  ), 
+    author_list,
+    include = c("given", "family", "email", "comment"),
+    braces = list(
+      email = c("<", ">,<br />"),
+      comment = c("", "")
+    )
+  ),
   collapse = "<br /><br />"
 )
 pkg_maintainer <- package_desc$Maintainer
 pkg_license <- package_desc$License
 pkg_url <- package_desc$URL
-
 ```
 
 
@@ -248,7 +249,7 @@ You can launch the `epitweetr` Shiny app from the R session by typing in the R c
 
 ```{r, eval=FALSE, echo=TRUE}
 library(epitweetr)
-epitweetr_app("data_dir")
+episomer_app("data_dir")
 ```
 
 Please note that the data directory entered in R should have '/' instead of '\\' (an example of a correct path would be 'C:/user/name/Documents'). This applies especially in Windows if you copy the path from the File Explorer.
@@ -297,7 +298,7 @@ In order to use `epitweetr`, you will need to collect and process tweets, run th
 -   Launch the Shiny app (from the R console) 
 ```{r, eval=FALSE, echo=TRUE}
 library(epitweetr)
-epitweetr_app("data_dir")
+episomer_app("data_dir")
 ```
 
 -   In the configuration page of the Shiny app, in the manual tasks of the "Requirements & alerts pipeline", click on "Run dependencies", "Run GeoNames" and "Run languages" (their status will change to “pending”). This allows the 'Requirements & alerts' pipeline to download the elements needed. As long as no languages are added and no updates are available in geonames.org, these tasks have to be run only the first time you install `epitweetr`.
@@ -806,7 +807,7 @@ This is the aggregate information as described in the section “How does it wor
 You can launch the `epitweetr` interactive user application (Shiny app) from the R session by typing in the R console (replace “data\_dir” with the desired data directory):
 
 ```{r, eval=FALSE, echo=TRUE}
-epitweetr_app("data_dir")
+episomer_app("data_dir")
 ```
 
 
