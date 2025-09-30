@@ -56,10 +56,10 @@ search_loop <- function(
           sink(outcon)
           sink(outcon, type = "message")
       }
-      epitweetr::setup_config(data_dir)
+      episomer::setup_config(data_dir)
       m <- paste("Running search agent for ",sm, Sys.time())
       message(m)
-      epitweetr::search_loop_worker(sm, data_dir, sandboxed, max_requests)
+      episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests)
   })
   stop("All search loop proccesses ended, which is unexpected")
   
