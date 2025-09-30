@@ -256,7 +256,7 @@ Please note that the data directory entered in R should have '/' instead of '\\'
 
 Alternatively, you can use a launcher: In an executable .bat or shell file type the following (replacing “data\_dir” with the designated data directory):
 
-R --vanilla -e epitweetr::epitweetr\_app("data\_dir")
+R --vanilla -e episomer::epitweetr\_app("data\_dir")
 
 You can check that all requirements are properly installed in the troubleshoot page. More information is available in section *The interactive user application (Shiny app)>Dashboard:The interactive user interface for visualisation>The troubleshoot page*
 
@@ -813,7 +813,7 @@ epitweetr_app("data_dir")
 
 Alternatively, you can use a launcher: Put the following content in an executable bat or sh file, (replacing “data\_dir” with the expected data directory)
 
-R --vanilla -e epitweetr::epitweetr\_app('data\_dir')
+R --vanilla -e episomer::epitweetr\_app('data\_dir')
 
 
 The `epitweetr` interactive user application has six pages:

@@ -258,7 +258,7 @@ download_dependencies <- function(tasks = get_tasks()) {
           "running",
           paste(
             "To continue you need to ACTIVATE the embedded database. You can activate it by clicking on the 'activate' database service button on the config page ",
-            "You can also manually run the fs service by executing the following command on a separate R session. epitweetr::fs_loop('",
+            "You can also manually run the fs service by executing the following command on a separate R session. episomer::fs_loop('",
             conf$data_dir,
             "')"
           )
