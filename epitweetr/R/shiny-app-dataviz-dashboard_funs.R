@@ -114,6 +114,7 @@ top_chart_from_filters <- function(
             "same_weekday_baseline" = same_weekday_baseline,
             "top_type1" = "tags",
             "top_type2" = "topwords"
+
           ),
           quiet = TRUE
         )
@@ -125,4 +126,3 @@ top_chart_from_filters <- function(
       }
     )
   }
-
