@@ -17,7 +17,7 @@
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
@@ -101,7 +101,7 @@ generate_alerts <- function(tasks = get_tasks()) {
 #' @details for algorithm details see package vignette.
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    #Running the modifies version of the ears algorithm for a particular data series
 #'     ts <- c(150, 130, 122, 160, 155, 128, 144, 125, 300, 319, 289, 277, 500)
 #'     show(ears_t_reweighted(ts))
@@ -726,7 +726,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
 #' @details For more details see the package vignette.
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())

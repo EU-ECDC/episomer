@@ -323,7 +323,7 @@ get_country_index_map <- function() {
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
@@ -460,7 +460,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
@@ -616,7 +616,7 @@ update_languages <- function(tasks = get_tasks()) {
 #' This function is called from the Shiny app on geolocation evaluation tab but can also be used for manually evaluating the epitweetr geolocation algorithm.
 #' @examples
 #' if(FALSE) {
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())

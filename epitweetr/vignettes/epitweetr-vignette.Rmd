@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 
-library(epitweetr)
+library(episomer)
 package_name <- "epitweetr"
 package_desc <- packageDescription(package_name)
 pkg_version <- package_desc$Version
@@ -248,15 +248,15 @@ The first time you run the application, if the tool cannot identify a secure pas
 You can launch the `epitweetr` Shiny app from the R session by typing in the R console. Replace “data\_dir” with the designated data directory (full path) which is a local folder you choose to store tweets, time series and configuration files in:
 
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
-episomer_app("data_dir")
+library(episomer)
+epitweetr_app("data_dir")
 ```
 
 Please note that the data directory entered in R should have '/' instead of '\\' (an example of a correct path would be 'C:/user/name/Documents'). This applies especially in Windows if you copy the path from the File Explorer.
 
 Alternatively, you can use a launcher: In an executable .bat or shell file type the following (replacing “data\_dir” with the designated data directory):
 
-R --vanilla -e epitweetr::epitweetr\_app("data\_dir")
+R --vanilla -e episomer::epitweetr\_app("data\_dir")
 
 You can check that all requirements are properly installed in the troubleshoot page. More information is available in section *The interactive user application (Shiny app)>Dashboard:The interactive user interface for visualisation>The troubleshoot page*
 
@@ -297,8 +297,8 @@ In order to use `epitweetr`, you will need to collect and process tweets, run th
 
 -   Launch the Shiny app (from the R console) 
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
-episomer_app("data_dir")
+library(episomer)
+epitweetr_app("data_dir")
 ```
 
 -   In the configuration page of the Shiny app, in the manual tasks of the "Requirements & alerts pipeline", click on "Run dependencies", "Run GeoNames" and "Run languages" (their status will change to “pending”). This allows the 'Requirements & alerts' pipeline to download the elements needed. As long as no languages are added and no updates are available in geonames.org, these tasks have to be run only the first time you install `epitweetr`.
@@ -318,7 +318,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/epitweetr/raw/master/img/run
     -   Other platforms: In a new R session, run the following command
     
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 fs_loop("data_dir")
 ```
    -   You can confirm that the embeded database is running if the 'epitweetr database' status is "Running" in the Shiny app configuration page and "true" in the Shiny app troubleshoot page.
@@ -330,7 +330,7 @@ fs_loop("data_dir")
     -   Other platforms: In a new R session, run the following command
     
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 search_loop("data_dir")
 ```
 
@@ -343,7 +343,7 @@ search_loop("data_dir")
     -   Other platforms: In a new R session, run the following command
     
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 fs_loop("data_dir")
 ```
 
@@ -354,7 +354,7 @@ fs_loop("data_dir")
     -   Windows: Click on the “Requirements & alerts pipeline” activation button
     -   Other platforms: In a new R session run the following command
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 detect_loop("data_dir")
 ```
 
@@ -813,7 +813,7 @@ episomer_app("data_dir")
 
 Alternatively, you can use a launcher: Put the following content in an executable bat or sh file, (replacing “data\_dir” with the expected data directory)
 
-R --vanilla -e epitweetr::epitweetr\_app('data\_dir')
+R --vanilla -e episomer::epitweetr\_app('data\_dir')
 
 
 The `epitweetr` interactive user application has six pages:

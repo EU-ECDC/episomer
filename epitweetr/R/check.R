@@ -358,7 +358,7 @@ check_search_running <- function() {
   if (is_search_running()) TRUE else {
     warning(paste0(
       "Data collection & processing pipeline is not running. On Windows, you can activate it by clicking on the 'activate' Data collection & processing button on the configuration page ",
-      "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. epitweetr::search_loop('",
+      "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. episomer::search_loop('",
       conf$data_dir,
       "')"
     ))
@@ -371,7 +371,7 @@ check_fs_running <- function() {
   if (is_fs_running()) TRUE else {
     warning(paste0(
       "Embedded epitweetr database is not running. On Windows, you can activate it by clicking on the 'activate' epitweetr database button on the configuration page ",
-      "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. epitweetr::search_loop('",
+      "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. episomer::search_loop('",
       conf$data_dir,
       "')"
     ))
@@ -384,7 +384,7 @@ check_detect_running <- function() {
   if (is_detect_running()) TRUE else {
     warning(paste0(
       "Requirements & alerts pipeline is not running. On Windows, you can activate it by clicking on the 'activate' Requirements & alerts button on the configuration page ",
-      "You can also manually run the Requirements & alerts pipeline by executing the following command on a separate R session. epitweetr::detect_loop('",
+      "You can also manually run the Requirements & alerts pipeline by executing the following command on a separate R session. episomer::detect_loop('",
       conf$data_dir,
       "')"
     ))
@@ -397,7 +397,7 @@ check_fs_running <- function() {
   if (is_fs_running()) TRUE else {
     warning(paste0(
       "Embedded database is not running. On Windows, you can activate it by clicking on the 'activate' database service button on the configuration page ",
-      "You can also manually run the fs service by executing the following command on a separate R session. epitweetr::fs_loop('",
+      "You can also manually run the fs service by executing the following command on a separate R session. episomer::fs_loop('",
       conf$data_dir,
       "')"
     ))
@@ -549,7 +549,7 @@ check_tar_gz <- function() {
 #' @examples
 #' if(FALSE){
 #'    #importing epitweer
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    #running all tests
@@ -615,7 +615,7 @@ checks <- new.env()
 #' @examples
 #' if(FALSE){
 #'    #importing epitweetr
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    #sending the email to the administrator if epitweetr components are not properly working
@@ -799,7 +799,7 @@ update_session_info <- function() {
 #' @examples
 #' if(FALSE){
 #'    #importing epitweer
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    #creating a compressed snapshot for settings and logs
