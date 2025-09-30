@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 
-library(epitweetr)
+library(episomer)
 package_name <- "epitweetr"
 package_desc <- packageDescription(package_name)
 pkg_version <- package_desc$Version
@@ -25,17 +25,18 @@ authors_str <- gsub("^ *|(?<= ) |\n| *$", "", package_desc$Authors, perl = TRUE)
 author_list <- eval(parse(text = authors_str))
 pkg_authors <- paste(
   format(
-    author_list, 
-    include = c("given", "family", "email", "comment"), 
-    braces = list(email = c("<", ">,<br />"), 
-    comment = c("", ""))
-  ), 
+    author_list,
+    include = c("given", "family", "email", "comment"),
+    braces = list(
+      email = c("<", ">,<br />"),
+      comment = c("", "")
+    )
+  ),
   collapse = "<br /><br />"
 )
 pkg_maintainer <- package_desc$Maintainer
 pkg_license <- package_desc$License
 pkg_url <- package_desc$URL
-
 ```
 
 
@@ -247,7 +248,7 @@ The first time you run the application, if the tool cannot identify a secure pas
 You can launch the `epitweetr` Shiny app from the R session by typing in the R console. Replace “data\_dir” with the designated data directory (full path) which is a local folder you choose to store tweets, time series and configuration files in:
 
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 epitweetr_app("data_dir")
 ```
 
@@ -296,7 +297,7 @@ In order to use `epitweetr`, you will need to collect and process tweets, run th
 
 -   Launch the Shiny app (from the R console) 
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 epitweetr_app("data_dir")
 ```
 
@@ -317,7 +318,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/epitweetr/raw/master/img/run
     -   Other platforms: In a new R session, run the following command
     
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 fs_loop("data_dir")
 ```
    -   You can confirm that the embeded database is running if the 'epitweetr database' status is "Running" in the Shiny app configuration page and "true" in the Shiny app troubleshoot page.
@@ -329,7 +330,7 @@ fs_loop("data_dir")
     -   Other platforms: In a new R session, run the following command
     
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 search_loop("data_dir")
 ```
 
@@ -342,7 +343,7 @@ search_loop("data_dir")
     -   Other platforms: In a new R session, run the following command
     
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 fs_loop("data_dir")
 ```
 
@@ -353,7 +354,7 @@ fs_loop("data_dir")
     -   Windows: Click on the “Requirements & alerts pipeline” activation button
     -   Other platforms: In a new R session run the following command
 ```{r, eval=FALSE, echo=TRUE}
-library(epitweetr)
+library(episomer)
 detect_loop("data_dir")
 ```
 

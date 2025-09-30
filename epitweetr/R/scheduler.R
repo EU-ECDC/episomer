@@ -35,7 +35,7 @@ register_detect_runner <- function() {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    register_fs_monitor()
@@ -79,7 +79,7 @@ register_runner <- function(name) {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    register_search_runner_task()
@@ -98,7 +98,7 @@ register_search_runner_task <- function() {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    stop_search_runner_task()
@@ -119,7 +119,7 @@ stop_search_runner_task <- function() {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    register_detect_runner_task()
@@ -138,7 +138,7 @@ register_detect_runner_task <- function() {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    stop_detect_runner_task()
@@ -158,7 +158,7 @@ stop_detect_runner_task <- function() {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    register_fs_runner_task()
@@ -178,7 +178,7 @@ register_fs_runner_task <- function() {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    stop_fs_runner_task()
@@ -364,7 +364,7 @@ kill_task <- function(pidfile, type = "R") {
 #' @details returns a char vector with the name of missing social media
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    missing_search_jobs()
@@ -389,7 +389,7 @@ missing_search_jobs <- function() {
 #' @details returns a logical value being TRUE if the tweet collection is running
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    is_search_running()
@@ -409,7 +409,7 @@ is_search_running <- function() {
 #' @details returns a logical value being TRUE if the database runner is actually running
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    is_fs_running()
@@ -444,7 +444,7 @@ stop_if_no_fs <- function(msg = NULL) {
 #' @details returns a logical value being TRUE if the alert detection task is actually running
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    is_detect_running()
@@ -499,7 +499,7 @@ get_running_task_pid <- function(name) {
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    tasks <- get_tasks()
@@ -839,7 +839,7 @@ save_tasks <- function(tasks) {
 #' @examples
 #' if(FALSE){
 #'    #Running the detect loop
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    detect_loop()

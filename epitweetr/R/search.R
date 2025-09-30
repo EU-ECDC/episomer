@@ -16,7 +16,7 @@
 #' @examples
 #' if(FALSE){
 #'    #Running the search loop
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    search_loop(file.choose())
 #' }

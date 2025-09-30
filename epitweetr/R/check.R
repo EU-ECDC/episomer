@@ -549,7 +549,7 @@ check_tar_gz <- function() {
 #' @examples
 #' if(FALSE){
 #'    #importing epitweer
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    #running all tests
@@ -615,7 +615,7 @@ checks <- new.env()
 #' @examples
 #' if(FALSE){
 #'    #importing epitweetr
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    #sending the email to the administrator if epitweetr components are not properly working
@@ -799,7 +799,7 @@ update_session_info <- function() {
 #' @examples
 #' if(FALSE){
 #'    #importing epitweer
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    #creating a compressed snapshot for settings and logs
