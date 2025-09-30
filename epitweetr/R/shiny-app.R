@@ -2,6 +2,9 @@
 #' @description Open the epitweetr Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @param host The host to run the Shiny app on, default: NULL (will run on 127.0.0.1)
+#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
+#' @param profile The profile to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
 #' @return The Shiny server object containing the launched application
 #' @details The epitweetr app is the user entry point to the epitweetr package. This application will help the user to setup the tweet collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
