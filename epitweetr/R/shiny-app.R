@@ -2,6 +2,9 @@
 #' @description Open the epitweetr Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @param host The host to run the Shiny app on, default: NULL (will run on 127.0.0.1)
+#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
+#' @param profile The profile to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
 #' @return The Shiny server object containing the launched application
 #' @details The epitweetr app is the user entry point to the epitweetr package. This application will help the user to setup the tweet collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
@@ -13,13 +16,13 @@
 #'    library(epitweetr)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
-#'    epitweetr_app()
+#'    episomer_app()
 #' }
 #' @seealso
 #'  \code{\link{search_loop}}
 #'
 #'  \code{\link{detect_loop}}
-#' @rdname epitweetr_app
+#' @rdname episomer_app
 #' @export
 #' @importFrom shiny fluidPage fluidRow column selectInput h4 conditionalPanel dateRangeInput radioButtons checkboxInput sliderInput numericInput downloadButton h3 htmlOutput actionButton span textInput textAreaInput h2 passwordInput h5 fileInput uiOutput navbarPage tabPanel observe updateSliderInput updateDateRangeInput downloadHandler invalidateLater renderText observeEvent renderUI validate need shinyApp
 #' @importFrom plotly plotlyOutput renderPlotly ggplotly config layout
@@ -32,7 +35,34 @@
 #' @importFrom dplyr select
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
-epitweetr_app <- function(data_dir = NA) {
+
+dashboard_app <- function(
+  data_dir = NA,
+  host = NULL,
+  port = NULL
+) {
+  episomer_app(
+    data_dir = data_dir,
+    profile = "dashboard",
+    host = host,
+    port = port
+  )
+}
+
+admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
+  episomer_app(
+    data_dir = data_dir,
+    profile = "admin",
+    host = host,
+    port = port
+  )
+}
+
+episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
+  old <- options()
+  on.exit(options(old))
+  options(shiny.host = host, shiny.port = port)
+  match.arg(profile, c("dashboard", "admin"))
   # Setting up configuration if not already done
   if (is.na(data_dir)) setup_config_if_not_already() else {
     setup_config(data_dir)
@@ -1254,78 +1284,56 @@ epitweetr_app <- function(data_dir = NA) {
     )
 
   # Defining navigation UI
-  ui <-
+  ui_app <- function(profile) {
     shiny::navbarPage(
       "epitweetr",
-      shiny::tabPanel("Dashboard", dashboard_page),
-      shiny::tabPanel("Alerts", alerts_page),
-      shiny::tabPanel("Geotag", geotraining_page),
-      shiny::tabPanel("Data protection", dataprotection_page),
-      shiny::tabPanel("Configuration", config_page),
-      shiny::tabPanel("Troubleshoot", troubleshoot_page)
-    )
-
-  # Rmarkdown dasboard export bi writing the dashboard on the provided file$
-  # it uses the markdown template inst/rmarkdown/dashboard.Rmd
-  export_dashboard <- function(
-    format,
-    file,
-    topics,
-    countries,
-    period_type,
-    period,
-    with_retweets,
-    location_type,
-    alpha,
-    alpha_outlier,
-    k_decay,
-    no_historic,
-    bonferroni_correction,
-    same_weekday_baseline,
-    top_type1,
-    top_type2
-  ) {
-    tryCatch(
-      {
-        progress_start("Exporting dashboard")
-        r <- rmarkdown::render(
-          system.file(
-            "rmarkdown",
-            "dashboard.Rmd",
-            package = get_package_name()
-          ),
-          output_format = format,
-          output_file = file,
-          params = list(
-            "topics" = topics,
-            "countries" = countries,
-            "period_type" = period_type,
-            "period" = period,
-            "with_retweets" = with_retweets,
-            "location_type" = location_type,
-            "alert_alpha" = alpha,
-            "alert_alpha_outlier" = alpha_outlier,
-            "alert_k_decay" = k_decay,
-            "alert_historic" = no_historic,
-            "bonferroni_correction" = bonferroni_correction,
-            "same_weekday_baseline" = same_weekday_baseline,
-            "top_type1" = "tags",
-            "top_type2" = "topwords"
-          ),
-          quiet = TRUE
-        )
-        progress_close()
-        r
-      },
-      error = function(w) {
-        app_error(w, env = cd)
-      }
+      id = "navbar_shinyapp",
+      shiny::tabPanel("Dashboard", value = "dashboard_page", dashboard_page),
+      shiny::tabPanel("Alerts", value = "alerts_page", alerts_page),
+      shiny::tabPanel("Geotag", value = "geotraining_page", geotraining_page),
+      shiny::tabPanel(
+        "Data protection",
+        value = "dataprotection_page",
+        dataprotection_page
+      ),
+      shiny::tabPanel("Configuration", value = "config_page", config_page),
+      shiny::tabPanel(
+        "Troubleshoot",
+        value = "troubleshoot_page",
+        troubleshoot_page
+      ),
+      # JavaScript to handle tab visibility based on profile
+      shiny::tags$script(shiny::HTML(paste0(
+        "
+        $(document).ready(function() {
+          var profile = '",
+        profile,
+        "';
+          if (profile === 'dashboard') {
+            // Hide all tabs except dashboard
+            $('#navbar_shinyapp a[data-value=\"alerts_page\"]').parent().hide();
+            $('#navbar_shinyapp a[data-value=\"geotraining_page\"]').parent().hide();
+            $('#navbar_shinyapp a[data-value=\"dataprotection_page\"]').parent().hide();
+            $('#navbar_shinyapp a[data-value=\"config_page\"]').parent().hide();
+            $('#navbar_shinyapp a[data-value=\"troubleshoot_page\"]').parent().hide();
+          } else if (profile === 'admin') {
+            // Hide dashboard tab
+            $('#navbar_shinyapp a[data-value=\"dashboard_page\"]').parent().hide();
+          }
+        });
+      "
+      )))
     )
   }
-
   # Defining server logic
-  server <- function(input, output, session, ...) {
+  server_app <- function(input, output, session, profile, ...) {
     `%>%` <- magrittr::`%>%`
+
+    shiny::onStop(function() {
+      options("shiny.port" = NULL)
+      options("shiny.host" = NULL)
+    })
+
     ################################################
     ######### FILTERS LOGIC ########################
     ################################################
@@ -3487,323 +3495,11 @@ epitweetr_app <- function(data_dir = NA) {
   old <- options()
   on.exit(options(old))
   shiny::shinyApp(
-    ui = ui,
-    server = server,
-    options = options(shiny.fullstacktrace = TRUE)
-  )
-}
-
-# Get or updates data used for dashboard filters based on configuration values and aggregated period
-refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
-  e$topics <- {
-    codes <- unique(sapply(conf$topics, function(t) t$topic))
-    names <- get_topics_labels()[codes]
-    sort(setNames(c("", codes), c("", unname(names))))
-  }
-  e$countries <- {
-    regions <- get_country_items()
-    setNames(1:length(regions), sapply(regions, function(r) r$name))
-  }
-  agg_dates <- get_aggregated_period()
-  if (is.na(agg_dates$first) || is.na(agg_dates$last)) {
-    agg_dates$first = Sys.Date()
-    agg_dates$last = Sys.Date()
-  }
-  e$date_min <- strftime(agg_dates$first, format = "%Y-%m-%d")
-  e$date_max <- strftime(agg_dates$last, format = "%Y-%m-%d")
-  collected_days <- agg_dates$last - agg_dates$first
-  e$fixed_period <- (if (!is.null(fixed_period)) fixed_period else if (
-    is.na(collected_days)
-  )
-    "custom" else if (collected_days < 7) "custom" else "last 7 days")
-  e$date_start <- (if (e$fixed_period == "custom" && exists("date_start", e))
-    e$date_start else if (e$fixed_period == "last 7 days" && collected_days > 7)
-    strftime(agg_dates$last - 7, format = "%Y-%m-%d") else if (
-    e$fixed_period == "last 30 days" && collected_days > 30
-  )
-    strftime(agg_dates$last - 30, format = "%Y-%m-%d") else if (
-    e$fixed_period == "last 60 days" && collected_days > 60
-  )
-    strftime(agg_dates$last - 60, format = "%Y-%m-%d") else if (
-    e$fixed_period == "last 180 days" && collected_days > 180
-  )
-    strftime(agg_dates$last - 180, format = "%Y-%m-%d") else e$date_min)
-  e$date_end <- e$date_max
-  return(e)
-}
-
-
-# Get or update data for config page from configuration, Data collection & processing and Requirements & alerts pipeline files
-refresh_config_data <- function(
-  e = new.env(),
-  limit = list("langs", "topics", "tasks", "geo")
-) {
-  # Refreshing configuration
-  setup_config(data_dir = conf$data_dir, ignore_properties = TRUE)
-
-  #Creating the flag for properties refresh
-  if (!exists("properties_refresh_flag", where = e)) {
-    e$properties_refresh_flag <- shiny::reactiveVal()
-  }
-  #Creating the flag for status refredh
-  if (!exists("process_refresh_flag", where = e)) {
-    e$process_refresh_flag <- shiny::reactiveVal()
-  }
-  #Creating the flag for subscribers refresh
-  if (!exists("subscribers_refresh_flag", where = e)) {
-    e$subscribers_refresh_flag <- shiny::reactiveVal()
-  }
-  #Creating the flag for geotraining refresh
-  if (!exists("geotraining_refresh_flag", where = e)) {
-    e$geotraining_refresh_flag <- shiny::reactiveVal()
-  }
-  #Creating the flag for alert training refresh
-  if (!exists("alert_training_refresh_flag", where = e)) {
-    e$alert_training_refresh_flag <- shiny::reactiveVal()
-  }
-  #Creating the flag for countries refresh
-  if (!exists("countries_refresh_flag", where = e)) {
-    e$countries_refresh_flag <- shiny::reactiveVal()
-  }
-
-  # Updating language related fields
-  if ("langs" %in% limit) {
-    langs <- get_available_languages()
-    lang_tasks <- get_tasks()$language
-    if (!exists("langs_refresh_flag", where = e)) {
-      e$langs_refresh_flag <- shiny::reactiveVal(0)
-    } else if (
-      file.exists(get_tasks_path()) &&
-        file.info(get_tasks_path())$mtime > e$langs_refresh_flag()
-    ) {
-      e$langs_refresh_flag(file.info(get_tasks_path())$mtime)
-    } else if (
-      file.exists(get_properties_path()) &&
-        file.info(get_properties_path())$mtime > e$langs_refresh_flag()
-    ) {
-      e$langs_refresh_flag(file.info(get_properties_path())$mtime)
-    }
-    e$lang_items <- setNames(langs$Code, langs$`Full Label`)
-    e$lang_names <- setNames(langs$Label, langs$Code)
-    e$langs <- data.frame(
-      Language = unlist(lang_tasks$names),
-      Code = unlist(lang_tasks$codes),
-      Status = unlist(lang_tasks$statuses),
-      URL = unlist(lang_tasks$urls)
+    ui = ui_app(profile),
+    server = function(input, output, session)
+      server_app(input, output, session, profile),
+    options = options(
+      shiny.fullstacktrace = TRUE
     )
-  }
-  # Updating topics related fields
-  if ("topics" %in% limit) {
-    # Updating the reactive value tasks_refresh to force dependencies invalidation
-    update <- FALSE
-    if (
-      !exists("topics_refresh_flag", envir = e) ||
-        !exists("plans_refresh_flag", envir = e)
-    ) {
-      e$topics_refresh_flag <- shiny::reactiveVal(0)
-      e$plans_refresh_flag <- shiny::reactiveVal(0)
-      update <- TRUE
-    }
-    if (
-      !update &&
-        file.exists(get_user_topics_path()) &&
-        file.info(get_user_topics_path())$mtime != e$topics_refresh_flag()
-    ) {
-      update <- TRUE
-      e$topics_refresh_flag(file.info(get_user_topics_path())$mtime)
-    }
-    if (
-      !update &&
-        file.exists(get_plans_path()) &&
-        file.info(get_plans_path())$mtime != e$plans_refresh_flag()
-    ) {
-      update <- TRUE
-      e$plans_refresh_flag(file.info(get_plans_path())$mtime)
-    }
-    if (update) {
-      e$topics_df <- get_topics_df()
-    }
-  }
-  # Updating tasks related fields
-  if ("tasks" %in% limit) {
-    # Updating the reactive value tasks_refresh to force dependencies invalidation
-    update <- FALSE
-    e$detect_running <- is_detect_running()
-    e$fs_running <- is_fs_running()
-    e$search_running <- is_search_running()
-    e$missing_search_jobs <- missing_search_jobs()
-    e$search_diff <- round(Sys.time() - last_search_time())
-
-    # Detecting if some change has happened since last evaluation
-    if (!exists("tasks_refresh_flag", where = e)) {
-      e$tasks_refresh_flag <- shiny::reactiveVal()
-      update <- TRUE
-    } else if (
-      file.exists(get_tasks_path()) &&
-        file.info(get_tasks_path())$mtime != e$tasks_refresh_flag()
-    ) {
-      update <- TRUE
-    }
-    if (update) {
-      if (file.exists(get_tasks_path()))
-        e$tasks_refresh_flag(file.info(get_tasks_path())$mtime)
-      tasks <- get_tasks()
-      sorted_tasks <- order(sapply(tasks, function(l) l$order))
-      e$tasks <- tasks[sorted_tasks]
-      e$tasks_df <- data.frame(
-        Task = sapply(e$tasks, function(t) t$task),
-        Status = sapply(
-          e$tasks,
-          function(t) if (in_pending_status(t)) "pending" else t$status
-        ),
-        Scheduled = sapply(
-          e$tasks,
-          function(t)
-            strftime(
-              t$scheduled_for,
-              format = "%Y-%m-%d %H:%M:%OS",
-              origin = '1970-01-01'
-            )
-        ),
-        `Last Start` = sapply(
-          e$tasks,
-          function(t)
-            strftime(
-              t$started_on,
-              format = "%Y-%m-%d %H:%M:%OS",
-              origin = '1970-01-01'
-            )
-        ),
-        `Last End` = sapply(
-          e$tasks,
-          function(t)
-            strftime(
-              t$end_on,
-              format = "%Y-%m-%d %H:%M:%OS",
-              origin = '1970-01-01'
-            )
-        ),
-        Message = sapply(
-          e$tasks,
-          function(t)
-            if (exists("message", where = t) && !is.null(t$message))
-              t$message else ""
-        )
-      )
-      row.names(e$tasks_df) <- sapply(e$tasks, function(t) t$order)
-    }
-  }
-  # Updating geolocation test related fields
-  if ("geo" %in% limit) {
-  }
-  return(e)
-}
-
-# validate that dashboard can be rendered
-can_render <- function(input, d) {
-  shiny::validate(
-    shiny::need(
-      is_fs_running(),
-      'Embedded database service is not running, please make sure you have activated it (running update dependencies is necessary after upgrade from epitweetr version 0.1+ to epitweetr 1.0+)'
-    ),
-    shiny::need(
-      file.exists(conf$data_dir),
-      'Please go to configuration tab and setup tweet collection (no data directory found)'
-    ),
-    shiny::need(
-      check_series_present(),
-      paste(
-        'No aggregated data found on ',
-        paste(conf$data_dir, "series", sep = "/"),
-        " please make sure the Requirements & alerts pipeline has successfully ran"
-      )
-    ),
-    shiny::need(
-      is.null(input) ||
-        (!is.na(input$period[[1]]) &&
-          !is.na(input$period[[2]]) &&
-          (input$period[[1]] <= input$period[[2]])),
-      'Please select a start and end period for the report. The start period must be a date earlier than the end period'
-    ),
-    shiny::need(is.null(input) || (input$topics != ''), 'Please select a topic')
   )
-}
-
-# validate that chart is not empty
-chart_not_empty <- function(chart) {
-  shiny::validate(
-    shiny::need(!("waiver" %in% class(chart$data)), chart$labels$title)
-  )
-}
-
-
-get_alertsdb_html <- function() {
-  alerts <- get_alert_training_df()
-  shiny::validate(
-    shiny::need(!is.null(alerts), 'No alerts generated for the selected period')
-  )
-  alerts$toptweets <- sapply(alerts$toptweets, function(tweetsbylang) {
-    if (length(tweetsbylang) == 0) "" else {
-      paste(
-        "<UL>",
-        lapply(1:length(tweetsbylang), function(i) {
-          paste(
-            "<LI>",
-            names(tweetsbylang)[[i]],
-            "<OL>",
-            paste(
-              lapply(tweetsbylang[[i]], function(t) {
-                paste0(
-                  "<LI>",
-                  htmltools::htmlEscape(t),
-                  "</LI>"
-                )
-              }),
-              collapse = ""
-            ),
-            "</OL>",
-            "</LI>"
-          )
-        }),
-        "</UL>",
-        collapse = ""
-      )
-    }
-  })
-  alerts
-}
-
-get_alertsdb_runs_html <- function() {
-  runs <- get_alert_training_runs_df()
-  runs$f1score <- format(runs$f1score, digits = 3)
-  runs$accuracy <- format(runs$accuracy, digits = 3)
-  runs$precision_by_class <- gsub("\n", "<BR>", runs$precision_by_class)
-  runs$sensitivity_by_class <- gsub("\n", "<BR>", runs$sensitivity_by_class)
-  runs$fscore_by_class <- gsub("\n", "<BR>", runs$fscore_by_class)
-  runs$custom_parameters <- sapply(runs$custom_parameters, function(params) {
-    if (length(params) == 0) "" else {
-      paste(
-        "<UL>",
-        lapply(1:length(params), function(i) {
-          paste(
-            "<LI>",
-            names(params)[[i]],
-            ":",
-            params[[i]],
-            "</LI>"
-          )
-        }),
-        "</UL>",
-        collapse = ""
-      )
-    }
-  })
-  runs
-}
-
-# getting the default snapshot folder and create it if does not exists
-ensure_snapshot_folder <- function() {
-  path <- file.path(conf$data_dir, "snapshot")
-  if (!dir.exists(path)) dir.create(path, recursive = TRUE)
-  path
 }

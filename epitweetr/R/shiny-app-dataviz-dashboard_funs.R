@@ -67,3 +67,62 @@ top_chart_from_filters <- function(
     top
   )
 }
+
+  # Rmarkdown dasboard export bi writing the dashboard on the provided file$
+  # it uses the markdown template inst/rmarkdown/dashboard.Rmd
+  export_dashboard <- function(
+    format,
+    file,
+    topics,
+    countries,
+    period_type,
+    period,
+    with_retweets,
+    location_type,
+    alpha,
+    alpha_outlier,
+    k_decay,
+    no_historic,
+    bonferroni_correction,
+    same_weekday_baseline,
+    top_type1,
+    top_type2
+  ) {
+    tryCatch(
+      {
+        progress_start("Exporting dashboard")
+        r <- rmarkdown::render(
+          system.file(
+            "rmarkdown",
+            "dashboard.Rmd",
+            package = get_package_name()
+          ),
+          output_format = format,
+          output_file = file,
+          params = list(
+            "topics" = topics,
+            "countries" = countries,
+            "period_type" = period_type,
+            "period" = period,
+            "with_retweets" = with_retweets,
+            "location_type" = location_type,
+            "alert_alpha" = alpha,
+            "alert_alpha_outlier" = alpha_outlier,
+            "alert_k_decay" = k_decay,
+            "alert_historic" = no_historic,
+            "bonferroni_correction" = bonferroni_correction,
+            "same_weekday_baseline" = same_weekday_baseline,
+            "top_type1" = "tags",
+            "top_type2" = "topwords"
+
+          ),
+          quiet = TRUE
+        )
+        progress_close()
+        r
+      },
+      error = function(w) {
+        app_error(w, env = cd)
+      }
+    )
+  }
