@@ -127,12 +127,12 @@ bluesky_parse_date <- function(date_input) {
 #' @noRd
 bluesky_parse_response <- function(response) {
   first <- function(x) unlist(x[min(1, length(x))])
-  ret = list(
+  res = list(
     network = "bluesky",
     count = length(response$posts),
     pagination = list(min_created_at = NULL)
   )
-  ret[["posts"]] = lapply(response$posts, function(post) {
+  res[["posts"]] = lapply(response$posts, function(post) {
     record <- post$record
     quote <- bluesky_parse_quoted(post)
     features <- bluesky_parse_features(post)
@@ -157,20 +157,30 @@ bluesky_parse_response <- function(response) {
       urls = urls,
       categories = features$categories
     )
+    if(bluesky_parse_date(record$createdAt) > Sys.time()) {
+        warning(sprintf("Ignoring post with creation date in future :%s (%s)", record$createdAt, ret$uri))
+        ret <- NULL
+    }
+
 
     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
     #if(!is.null(quote$text) && nchar(quote$text) > 0)
     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), isq = ret$is_quote, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
     ret
   })
-  if (length(ret$posts) > 0) {
-    ret$pagination$min_created_at <- Reduce(
-      function(x, y) if (x < y) x else y,
-      lapply(ret$posts, `[[`, "created_at")
-    )
-    ret$posts <- ret$posts[sapply(ret$posts, function(p) !is.null(p$lang))]
+  # removing null posts due to a creation date in future
+  
+  if (length(res$posts) > 0) {
+      res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p))]
   }
-  ret
+  if (length(res$posts) > 0) {
+    res$pagination$min_created_at <- Reduce(
+      function(x, y) if (x < y) x else y,
+      lapply(res$posts, `[[`, "created_at")
+    )
+    res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
+  }
+  res
 }
 
 bluesky_parse_quoted <- function(post) {

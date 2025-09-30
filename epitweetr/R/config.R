@@ -157,6 +157,7 @@ get_empty_config <- function(data_dir) {
   ret$sm_activated_bluesky <- TRUE
   ret$dismiss_past_request <- "1971-01-01 00:00:00"
   ret$dismiss_past_done <- "2000-01-01 00:00:00"
+  ret$collect_history_days <-30
   return(ret)
 }
 
@@ -302,6 +303,7 @@ setup_config <- function(
     conf$fs_query_timeout <- temp$fs_query_timeout
     conf$admin_email <- temp$admin_email
     conf$dismiss_past_request <- temp$dismiss_past_request
+    conf$collect_history_days <- temp$collect_history_days 
     conf$sm_alerts_bluesky <- temp$sm_alerts_bluesky
     conf$sm_activated_bluesky <- temp$sm_activated_bluesky
   }
@@ -547,10 +549,11 @@ save_config <- function(
     temp$fs_query_timeout <- conf$fs_query_timeout
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
+    temp$dismiss_past_done <- conf$dismiss_past_done
+    temp$collect_history_days <- conf$collect_history_days 
     temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
     temp$sm_activated_bluesky <- conf$sm_activated_bluesky
     temp$topics_md5 <- conf$topics_md5
-    temp$dismiss_past_done <- conf$dismiss_past_done
     # writing the json file
     write_json_atomic(
       temp,
