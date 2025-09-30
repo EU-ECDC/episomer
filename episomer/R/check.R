@@ -2,8 +2,8 @@
 check_java_present <- function() {
   if (is_java_present()) TRUE else {
     warning(paste(
-      "epitweetr could not detect Java. Please install it and make sure java binary is on path or that JAVA_HOME is set",
-      "epitweetr needs 64bits Java between ",
+      "episomer could not detect Java. Please install it and make sure java binary is on path or that JAVA_HOME is set",
+      "episomer needs 64bits Java between ",
       java_min_version(),
       " and ",
       java_max_version()
@@ -47,7 +47,7 @@ get_java_version_vector <- function() {
 check_java_64 <- function() {
   if (any(grepl("64-Bit", get_java_version_vector()))) TRUE else {
     warning(paste(
-      "Your current Java version does not seem to be 64 bits. epitweetr needs Java 64 bits between ",
+      "Your current Java version does not seem to be 64 bits. episomer needs Java 64 bits between ",
       java_min_version(),
       " and ",
       java_max_version()
@@ -78,7 +78,7 @@ java_tested_version <- function() 14
 check_java_version <- function() {
   java_version <- get_java_version()
   if (is.null(java_version)) {
-    warning("epitweetr cannot identify your Java version")
+    warning("episomer cannot identify your Java version")
     FALSE
   } else if (
     java_version >= java_min_version() && java_version <= java_max_version()
@@ -88,7 +88,7 @@ check_java_version <- function() {
     warning(paste(
       "Your current Java version is",
       java_version,
-      ". epitweetr needs Java versions between ",
+      ". episomer needs Java versions between ",
       java_min_version(),
       " and ",
       java_max_version(),
@@ -112,7 +112,7 @@ check_64 <- function() {
   if (is_64bit()) {
     TRUE
   } else {
-    warning("Your R seems to be 32bits, epitweetr needs a 64bits R")
+    warning("Your R seems to be 32bits, episomer needs a 64bits R")
     FALSE
   }
 }
@@ -161,7 +161,7 @@ check_winutils <- function() {
 check_java_deps <- function() {
   if (!dir.exists(get_jars_dest_path())) {
     warning(
-      "epitweetr needs the dependencies task to run and download all Java dependencies"
+      "episomer needs the dependencies task to run and download all Java dependencies"
     )
     FALSE
   } else {
@@ -171,7 +171,7 @@ check_java_deps <- function() {
     downloaded <- list.files(get_jars_dest_path())
     if (length(deps) != length(downloaded)) {
       warning(
-        "epitweetr needs the dependencies task to run and download all Java dependencies"
+        "episomer needs the dependencies task to run and download all Java dependencies"
       )
       FALSE
     } else {
@@ -184,7 +184,7 @@ check_java_deps <- function() {
 check_geonames <- function() {
   if (!file.exists(get_geonames_txt_path())) {
     warning(
-      "epitweetr needs GeoNames to be downloaded and unzipped for geolocating tweets. Please run the GeoNames task of the requirements and alert pipeline"
+      "episomer needs GeoNames to be downloaded and unzipped for geolocating tweets. Please run the GeoNames task of the requirements and alert pipeline"
     )
     FALSE
   } else {
@@ -211,7 +211,7 @@ check_languages <- function() {
       !all(sapply(lang_files, function(f) file.exists(f)))
   ) {
     warning(
-      "epitweetr needs languages models to be downloaded for geolocating tweets. Please activate at least one language and launch the languages task"
+      "episomer needs languages models to be downloaded for geolocating tweets. Please activate at least one language and launch the languages task"
     )
     FALSE
   } else {
@@ -322,7 +322,7 @@ check_scheduler <- function() {
       TRUE
     } else {
       warning(
-        "To activate tasks, you need to install taskscheduleR package manually. Please run install.packages('taskscheduleR') on an R session and restart epitweetr"
+        "To activate tasks, you need to install taskscheduleR package manually. Please run install.packages('taskscheduleR') on an R session and restart episomer"
       )
       FALSE
     }
@@ -370,7 +370,7 @@ check_search_running <- function() {
 check_fs_running <- function() {
   if (is_fs_running()) TRUE else {
     warning(paste0(
-      "Embedded epitweetr database is not running. On Windows, you can activate it by clicking on the 'activate' epitweetr database button on the configuration page ",
+      "Embedded episomer database is not running. On Windows, you can activate it by clicking on the 'activate' episomer database button on the configuration page ",
       "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. episomer::search_loop('",
       conf$data_dir,
       "')"
@@ -550,7 +550,7 @@ check_tar_gz <- function() {
 #' if(FALSE){
 #'    #importing epitweer
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #running all tests
 #'    check_all()
@@ -606,19 +606,19 @@ check_all <- function() {
 # Environment for storing last admin email
 checks <- new.env()
 
-#' @title Send email to administrator if a failure of epitweetr is detected
-#' @description It validates if epitweetr is not collecting tweets, aggregating tweets or not calculating alerts
+#' @title Send email to administrator if a failure of episomer is detected
+#' @description It validates if episomer is not collecting tweets, aggregating tweets or not calculating alerts
 #' @param send_mail Boolean. Whether an email should be sent to the defined administrator, default: TRUE
 #' @param one_per_day Boolean. Whether a limit of one email per day will be applied, default: TRUE
 #' @return A list of health check errors found
-#' @details This function sends an email to the defined administrator if epitweetr is not collecting tweets, aggregating tweets or not calculating alerts
+#' @details This function sends an email to the defined administrator if episomer is not collecting tweets, aggregating tweets or not calculating alerts
 #' @examples
 #' if(FALSE){
-#'    #importing epitweetr
+#'    #importing episomer
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
-#'    #sending the email to the administrator if epitweetr components are not properly working
+#'    #sending the email to the administrator if episomer components are not properly working
 #'    health_check()
 #' }
 #' @rdname health_check
@@ -731,7 +731,7 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
         emayili::subject("Epitweetr may not be properly running") %>%
         emayili::html(
           paste(
-            "<p>The following errors were found during epitweetr health check, please check your epitweetr installation</p><p><ul><li>",
+            "<p>The following errors were found during episomer health check, please check your episomer installation</p><p><ul><li>",
             paste(alerts, collapse = "</li><li>"),
             "</li></ul></p>"
           )
@@ -778,8 +778,8 @@ update_session_info <- function() {
 }
 
 
-#' @title Snapshot of your epitweetr installation
-#' @description Creates a snapshot file of your epitweetr installation folder. This can include all or a subset of the data files.
+#' @title Snapshot of your episomer installation
+#' @description Creates a snapshot file of your episomer installation folder. This can include all or a subset of the data files.
 #' @param destination_dir, character(1) vector with the path of the destination folder to produce the snapshot
 #' @param types, character vector indicating the types of data to include on a snapshot. Some of: "settings", "dependencies", "machine-learning", "aggregations", "tweets", "logs"
 #' @param tweets_period, date(2) start and end dates to filter tweets to include on snapshot (if selected)
@@ -788,19 +788,19 @@ update_session_info <- function() {
 #' @param progress, function to report progress during execution.
 #' @return Nothing
 #' @details
-#' This function can be used to create a a portable file to move your epitweetr installation in a single file, to backup your data, to archive your old data or to send information to technical team in order to reproduce an observed issue.
+#' This function can be used to create a a portable file to move your episomer installation in a single file, to backup your data, to archive your old data or to send information to technical team in order to reproduce an observed issue.
 #' Different kinds of data can be included on the snapshot depending on the type of parameter. Possible values are:
 #' - 'settings': Including all setting files of your installation (excluding passwords)
 #' - 'dependencies': All jars and winutils.exe on windows installations
 #' - 'machine-learning': All trained models and vectors and training data (this can include tweet text which is personal data)
 #' - 'aggregations': Epitweetr aggregated time series
-#' - 'tweets': Tweets collected by epitweetr
+#' - 'tweets': Tweets collected by episomer
 #' - 'logs': Log files produced automatically on windows task scheduler tasks.
 #' @examples
 #' if(FALSE){
 #'    #importing epitweer
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #creating a compressed snapshot for settings and logs
 #'    create_snapshot(getwd(), c("settings","dependencies"), compress = TRUE)
@@ -826,7 +826,7 @@ create_snapshot <- function(
     file.path(
       destination_dir,
       paste0(
-        "epitweetr-snapshot",
+        "episomer-snapshot",
         strftime(Sys.time(), "%Y.%m.%d-%H.%M.%S"),
         if (compress) ".tar.gz" else ".tar"
       )
@@ -851,7 +851,7 @@ create_snapshot <- function(
         "topic-keywords.json" = get_topic_keywords_path(),
         "session-info.log" = get_session_info_path()
       ),
-      epitweetr_files("collections")
+      episomer_files("collections")
     )
   if ("dependencies" %in% types)
     items <- c(
@@ -875,55 +875,55 @@ create_snapshot <- function(
         "geo/forced-geo-codes.json" = get_forced_geo_codes_path(),
         "geo/allCountries.txt" = get_geonames_txt_path()
       ),
-      epitweetr_files(get_cities_parquet_path(relative = TRUE)),
-      epitweetr_files(get_geonames_parquet_path(relative = TRUE)),
-      epitweetr_files(get_geonames_index_path(relative = TRUE)),
-      epitweetr_files(get_lang_index_path(relative = TRUE)),
-      epitweetr_files(get_lang_index_path(relative = TRUE)),
-      epitweetr_files("languages"),
-      epitweetr_files("alert-ml")
+      episomer_files(get_cities_parquet_path(relative = TRUE)),
+      episomer_files(get_geonames_parquet_path(relative = TRUE)),
+      episomer_files(get_geonames_index_path(relative = TRUE)),
+      episomer_files(get_lang_index_path(relative = TRUE)),
+      episomer_files(get_lang_index_path(relative = TRUE)),
+      episomer_files("languages"),
+      episomer_files("alert-ml")
     )
   if ("aggregations" %in% types)
     items <- c(
       items,
-      epitweetr_files("alerts", aggregated_period[[1]], aggregated_period[[2]]),
-      epitweetr_files(
+      episomer_files("alerts", aggregated_period[[1]], aggregated_period[[2]]),
+      episomer_files(
         "fs/contexts",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files(
+      episomer_files(
         "fs/country_counts",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files(
+      episomer_files(
         "fs/entities",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files(
+      episomer_files(
         "fs/geolocated",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files(
+      episomer_files(
         "fs/hashtags",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files(
+      episomer_files(
         "fs/topwords",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files(
+      episomer_files(
         "fs/urls",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
-      epitweetr_files("series", aggregated_period[[1]], aggregated_period[[2]]),
-      epitweetr_files("stats", aggregated_period[[1]], aggregated_period[[2]])
+      episomer_files("series", aggregated_period[[1]], aggregated_period[[2]]),
+      episomer_files("stats", aggregated_period[[1]], aggregated_period[[2]])
     )
   if ("tweets" %in% types)
     items <- c(
@@ -934,15 +934,15 @@ create_snapshot <- function(
         "geo/toaggregate.json" = get_tweet_toaggr_path(),
         "geo/aggregating.json" = get_tweet_aggring_path()
       ),
-      epitweetr_files("fs/tweets", tweets_period[[1]], tweets_period[[2]])
+      episomer_files("fs/tweets", tweets_period[[1]], tweets_period[[2]])
     )
   if ("logs" %in% types)
     items <- c(
       items,
       list(
-        "detect.log" = "~/epitweetr/detect.log",
-        "fs.log" = "~/epitweetr/fs.log",
-        "search.log" = "~/epitweetr/search.log"
+        "detect.log" = "~/episomer/detect.log",
+        "fs.log" = "~/episomer/fs.log",
+        "search.log" = "~/episomer/search.log"
       )
     )
   nb <- length(items)
@@ -1006,7 +1006,7 @@ create_snapshot <- function(
   )
 }
 
-epitweetr_files <- function(rel_path, dmin = NULL, dmax = NULL) {
+episomer_files <- function(rel_path, dmin = NULL, dmax = NULL) {
   if (!is.null(dmin) && is.na(dmin)) dmin <- NULL
   if (!is.null(dmax) && is.na(dmax)) dmax <- NULL
   ret = list()

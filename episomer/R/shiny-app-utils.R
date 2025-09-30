@@ -209,7 +209,7 @@ can_render <- function(input, d) {
   shiny::validate(
     shiny::need(
       is_fs_running(),
-      'Embedded database service is not running, please make sure you have activated it (running update dependencies is necessary after upgrade from epitweetr version 0.1+ to epitweetr 1.0+)'
+      'Embedded database service is not running, please make sure you have activated it (running update dependencies is necessary after upgrade from episomer version 0.1+ to episomer 1.0+)'
     ),
     shiny::need(
       file.exists(conf$data_dir),

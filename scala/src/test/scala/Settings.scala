@@ -1,6 +1,6 @@
-package org.ecdc.epitweetr.test
+package org.ecdc.episomer.test
 
-import org.ecdc.epitweetr._
+import org.ecdc.episomer._
 
 trait SettingsTest extends UnitTest {
   "Default splitter" should "split proper spaces" in {

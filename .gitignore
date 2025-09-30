@@ -17,8 +17,8 @@ scala/lib_managed
 scala/.bsp
 scala/null
 *.jar
-epitweetr/java/ecdc-twitter-bundle_2.12-1.0-source.zip
-epitweetr_*.pdf
+episomer/java/ecdc-twitter-bundle_2.12-1.0-source.zip
+episomer_*.pdf
 vignette_*.pdf
 install/
 prerequisites
@@ -69,4 +69,4 @@ vignettes/*.pdf
 .Rprofile
 
 #Roxygen managed files
-epitweetr/bluesky_session.rds
+episomer/bluesky_session.rds

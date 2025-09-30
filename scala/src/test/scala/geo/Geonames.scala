@@ -1,11 +1,11 @@
-package org.ecdc.epitweetr.test.geo
+package org.ecdc.episomer.test.geo
 
 import org.apache.spark.ml.linalg.{Vectors, DenseVector, Vector=>MLVector}
 import org.apache.spark.sql.{Row}
 import demy.storage.{Storage}
-import org.ecdc.epitweetr.geo._
-import org.ecdc.epitweetr.test.UnitTest
-import org.ecdc.epitweetr.Settings
+import org.ecdc.episomer.geo._
+import org.ecdc.episomer.test.UnitTest
+import org.ecdc.episomer.Settings
 import demy.mllib.linalg.implicits._
 import Geonames.Geolocate
 

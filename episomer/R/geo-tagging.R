@@ -325,7 +325,7 @@ get_country_index_map <- function() {
 #' if(FALSE){
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
 #'    # geolocating last tweets
@@ -462,7 +462,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #' if(FALSE){
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
 #'    # updating language tasks
@@ -598,13 +598,13 @@ update_languages <- function(tasks = get_tasks()) {
 #' @param lang_col character, name of the column on the data frame containing the language of texts, default: NULL
 #' @param min_score, numeric, the minimum score obtained on the Lucene scoring function to accept matches on GeoNames. It has to be empirically set default: NULL
 #' @return A new data frame containing the following geolocation columns: geo_code, geo_country_code, geo_country, geo_name, tags
-#' @details This function perform a call to the epitweetr database which includes functionality for geolocating for languages activated and successfully processed on the shiny app.
+#' @details This function perform a call to the episomer database which includes functionality for geolocating for languages activated and successfully processed on the shiny app.
 #'
 #' The geolocation process tries to find the best match in GeoNames database \url{https://www.geonames.org/} including all local aliases for words.
 #'
 #' If no language is associated to the text, all tokens will be sent as a query to the indexed GeoNames database.
 #'
-#' If a language code is associated to the text and this language is trained on epitweetr, entity recognition techniques will be used to identify the best candidate in text to contain a location
+#' If a language code is associated to the text and this language is trained on episomer, entity recognition techniques will be used to identify the best candidate in text to contain a location
 #' and only these tokens will be sent to the GeoNames query.
 #'
 #' A custom scoring function is implemented to grant more weight to cities increasing with population to try to perform disambiguation.
@@ -613,12 +613,12 @@ update_languages <- function(tasks = get_tasks()) {
 #'
 #' A prerequisite to this function is that the tasks \code{\link{download_dependencies}} \code{\link{update_geonames}} and \code{\link{update_languages}} has been run successfully.
 #'
-#' This function is called from the Shiny app on geolocation evaluation tab but can also be used for manually evaluating the epitweetr geolocation algorithm.
+#' This function is called from the Shiny app on geolocation evaluation tab but can also be used for manually evaluating the episomer geolocation algorithm.
 #' @examples
 #' if(FALSE) {
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
 #'    # creating a test dataframe

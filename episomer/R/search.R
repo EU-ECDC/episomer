@@ -9,7 +9,7 @@
 #' The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect tweets respecting a 'collect_span' window
 #' in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 #'
-#' To see more details about the collection algorithm please see epitweetr vignette.
+#' To see more details about the collection algorithm please see episomer vignette.
 #'
 #' In order to work, this task needs Bluessky credentials, which can be set on the Shiny app or using \code{\link{set_bsky_auth}}
 #'
@@ -17,7 +17,7 @@
 #' if(FALSE){
 #'    #Running the search loop
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    search_loop(file.choose())
 #' }
 #' @rdname search_loop
@@ -132,8 +132,8 @@ search_loop_worker <- function(
       )
     }
 
-    # Calculating how the time epitweetr should wait before executing each active plan. If bigger than zero then epitweetr will wait.
-    # If waiting happens here, it means that epitweetr is able to collect all tweets under current twitter rate limits, so it could collect more topics or sooner.
+    # Calculating how the time episomer should wait before executing each active plan. If bigger than zero then episomer will wait.
+    # If waiting happens here, it means that episomer is able to collect all tweets under current twitter rate limits, so it could collect more topics or sooner.
     if (!sandboxed) {
       wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
         can_wait_for(plans = conf$topics[[i]]$plan)
@@ -228,7 +228,7 @@ search_loop_worker <- function(
       #msg("iteration end")
       #checking at most once per 10 minutes
       if (difftime(Sys.time(), last_check, units = "mins") > 10) {
-        # epitweetr sanity check and sendig email in case of issued
+        # episomer sanity check and sendig email in case of issued
         #msg("health checked")
         last_check <- Sys.time()
         health_check()
@@ -337,7 +337,7 @@ parse_date <- function(str_date) {
 }
 
 
-# Calculating how long in seconds should epitweetr wait before executing one of the plans in the list which would be the case only if all plans are finished before the end of the search span
+# Calculating how long in seconds should episomer wait before executing one of the plans in the list which would be the case only if all plans are finished before the end of the search span
 can_wait_for <- function(plans) {
   plans <- if (is.list(plans)) plans else list(plans)
   non_ended <- plans[sapply(plans, function(x) is.null(x$end_on))]

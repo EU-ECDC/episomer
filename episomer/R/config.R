@@ -161,19 +161,19 @@ get_empty_config <- function(data_dir) {
   return(ret)
 }
 
-#' @title Load epitweetr application settings
-#' @description Load epitweetr application settings from the designated data directory
+#' @title Load episomer application settings
+#' @description Load episomer application settings from the designated data directory
 #' @param data_dir Path to the directory containing the application settings (it must exist).
-#' If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or epitweetr subdirectory in the working directory,
+#' If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
 #' default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-#'    "") Sys.getenv("EPI_HOME") else file.path(getwd(), "epitweetr")
+#'    "") Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer")
 #' @param ignore_keyring Whether to skip loading settings from the keyring (Twitter and SMTP credentials), default: FALSE
 #' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
 #' @param save_first Whether to save current settings before loading new ones from disk, default: list()
 #' @return Nothing
-#' @details epitweetr relies on settings and data stored in a system folder, so before loading the dashboard, collecting tweets or detecting alerts the user has to designate this folder.
-#' When a user wants to use epitweetr from the R console they will need to call this function for initialisation.
+#' @details episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting tweets or detecting alerts the user has to designate this folder.
+#' When a user wants to use episomer from the R console they will need to call this function for initialisation.
 #' The 'data_folder' can also be given as a parameter for program launch functions \code{\link{episomer_app}}, \code{\link{search_loop}} or \code{\link{detect_loop}}, which will internally call this function.
 #'
 #' This call will fill (or refresh) a package scoped environment 'conf' that will store the settings. Settings stored in conf are:
@@ -195,7 +195,7 @@ get_empty_config <- function(data_dir) {
 #' if(FALSE){
 #'    library(episomer)
 #'    #loading system settings
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #' }
 #' @seealso
@@ -213,7 +213,7 @@ setup_config <- function(
   data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if (
     Sys.getenv("EPI_HOME") != ""
   )
-    Sys.getenv("EPI_HOME") else file.path(getwd(), "epitweetr"),
+    Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer"),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
@@ -228,7 +228,7 @@ setup_config <- function(
   # and data_dir/topics.json which stores search progress and is updated by the search loop
   props_path = get_properties_path()
 
-  #topics_path is the path to the excel file containing the topics provided by the user or epitweetr default ones
+  #topics_path is the path to the excel file containing the topics provided by the user or episomer default ones
   user_topics_path <- get_user_topics_path(data_dir)
 
   # save_first may be used by a function which is responsible for a part of the configuration to save changes on its perimeter before refreshing
@@ -478,7 +478,7 @@ copy_plans_from <- function(temp) {
 #' if(FALSE){
 #'    library(episomer)
 #'    #load configuration
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #make some changes
 #'    #conf$collect_span = 90

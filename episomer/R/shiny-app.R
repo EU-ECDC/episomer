@@ -1,20 +1,20 @@
-#' @title Run the epitweetr Shiny app
-#' @description Open the epitweetr Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
+#' @title Run the episomer Shiny app
+#' @description Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @param host The host to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @param profile The profile to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
 #' @return The Shiny server object containing the launched application
-#' @details The epitweetr app is the user entry point to the epitweetr package. This application will help the user to setup the tweet collection process, manage all settings,
+#' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the tweet collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
 #'
-#' All its functionality is described on the epitweetr vignette.
+#' All its functionality is described on the episomer vignette.
 #' @examples
 #' if(FALSE){
-#'    #Running the epitweetr app
+#'    #Running the episomer app
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    episomer_app()
 #' }
@@ -448,7 +448,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
           ################################################
           shiny::h3("Status"),
           shiny::fluidRow(
-            shiny::column(3, "epitweetr database"),
+            shiny::column(3, "episomer database"),
             shiny::column(5, shiny::htmlOutput("fs_running")),
             shiny::column(2, shiny::actionButton("activate_fs", "activate")),
             shiny::column(2, shiny::actionButton("stop_fs", "stop"))
@@ -1286,7 +1286,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
   # Defining navigation UI
   ui_app <- function(profile) {
     shiny::navbarPage(
-      "epitweetr",
+      "episomer",
       id = "navbar_shinyapp",
       shiny::tabPanel("Dashboard", value = "dashboard_page", dashboard_page),
       shiny::tabPanel("Alerts", value = "alerts_page", alerts_page),
@@ -2018,7 +2018,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
     output$export_pdf <- shiny::downloadHandler(
       filename = function() {
         paste(
-          "epitweetr_dashboard_",
+          "episomer_dashboard_",
           "_",
           paste(input$topics, collapse = "-"),
           "_",
@@ -2060,7 +2060,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
     output$export_md <- shiny::downloadHandler(
       filename = function() {
         paste(
-          "epitweetr_dashboard_",
+          "episomer_dashboard_",
           "_",
           paste(input$topics, collapse = "-"),
           "_",
@@ -2766,7 +2766,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
               "hour",
               "topic",
               "country",
-              "epitweetr_category",
+              "episomer_category",
               "tops",
               "number_of_tweets",
               "known_ratio",
@@ -2787,7 +2787,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
                 "Hour" = "hour",
                 "Topic" = "topic",
                 "Region" = "country",
-                "Category" = "epitweetr_category",
+                "Category" = "episomer_category",
                 "Tops" = "tops",
                 "Tweets" = "number_of_tweets",
                 "% from important user" = "known_ratio",
@@ -2841,7 +2841,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
               "hour",
               "topic",
               "country",
-              "epitweetr_category",
+              "episomer_category",
               "tops",
               "number_of_tweets",
               "toptweets"
@@ -2852,7 +2852,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
                 "Hour" = "hour",
                 "Topic" = "topic",
                 "Region" = "country",
-                "Category" = "epitweetr_category",
+                "Category" = "episomer_category",
                 "Tops" = "tops",
                 "Tweets" = "number_of_tweets",
                 "Top tweets" = "toptweets"
@@ -2893,7 +2893,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
               "Tweets" = "number_of_tweets",
               "Top tweets" = "toptweets",
               "Given Category" = "given_category",
-              "Epitweetr Category" = "epitweetr_category"
+              "Epitweetr Category" = "episomer_category"
             ),
             filter = "top",
             escape = FALSE
@@ -3410,7 +3410,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
     }
 
     ######## SNAPSHOT LOGIC ############
-    # creating an snapshot of epitweetr data for backup or debuging purposes
+    # creating an snapshot of episomer data for backup or debuging purposes
     shiny::observeEvent(input$build_snapshot, {
       `%>%` <- magrittr::`%>%`
       progress_start("Creating snapshot")

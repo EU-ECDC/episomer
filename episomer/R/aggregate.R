@@ -11,7 +11,7 @@ cached <- new.env()
 #' @param top_freq character, Name of the frequency fields used with top_field to enable optimisation for getting only most frequent elements.
 #' It will only keep top 500 items after first 50k rows on reverse index order
 #' @return A data frame containing the requested series for the requested period
-#' @details This function returns data aggregated by epitweetr. The data is found on the 'series' folder, which contains Rds files per weekday and type of series.
+#' @details This function returns data aggregated by episomer. The data is found on the 'series' folder, which contains Rds files per weekday and type of series.
 #' starting on v 1.0.x it will also look on Lucene indexes situated on fs folder. Names of files and folders are parsed to limit the files to be read.
 #' When using Lucene indexes, filters are directly applied on read. This is an improvement compared 'series' folder where filters are applied
 #' after read. All returned rows are joined in a single dataframe.
@@ -31,7 +31,7 @@ cached <- new.env()
 #' The returned dataset can be cached for further calls if requested. Only one dataset per series is cached.
 #' @examples
 #' if(FALSE){
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    # Getting all country tweets between 2020-jan-10 and 2020-jan-31 for all topics
 #'    df <- get_aggregates(
@@ -208,7 +208,7 @@ get_aggregates <- function(
   }
 }
 
-# This function registers the aggregated series that are computed by epitweetr.
+# This function registers the aggregated series that are computed by episomer.
 # Each series is defined by a name a date column, primary keys columns, variables columns, group by columns and sources expressions
 # Each registered series uses the set_aggregated_tweets function
 # This function is periodically called bt the search loop.
@@ -572,7 +572,7 @@ get_aggregated_period <- function() {
   cached$last_agg_request_value
 }
 
-# Utility function to ask epitweetr to recalculate hashes of stored tweets in Lucene indexes.
+# Utility function to ask episomer to recalculate hashes of stored tweets in Lucene indexes.
 # This function is experimental for testing parallel scan of indexes
 # This function is deprecated since no significant performance gain was observed
 recalculate_hash <- function() {
@@ -597,7 +597,7 @@ recalculate_hash <- function() {
 
 # Adds possible missing columns on a dataset produced by an aggregated series
 # This is necessary to ensure that all expected columns are present for data produced
-# in old epitweetr versions
+# in old episomer versions
 add_missing <- function(df, dataset) {
   cols <- colnames(df)
   defaults <- (if (dataset == "geolocated") {

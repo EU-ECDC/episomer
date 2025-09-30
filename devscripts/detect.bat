@@ -1,2 +1,2 @@
-R -e "epitweetr::detect_loop(Sys.getenv('EPI_HOME'))" 
+R -e "episomer::detect_loop(Sys.getenv('EPI_HOME'))" 
 

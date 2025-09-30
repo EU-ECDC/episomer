@@ -1,6 +1,6 @@
 package org.ecdc.twitter 
 
-import org.ecdc.epitweetr.geo.{Geonames}
+import org.ecdc.episomer.geo.{Geonames}
 import demy.storage.{Storage, WriteMode, FSNode}
 import demy.mllib.index.implicits._
 import demy.mllib.linalg.implicits._

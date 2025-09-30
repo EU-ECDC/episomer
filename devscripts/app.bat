@@ -1,1 +1,1 @@
-R -e "epitweetr::epitweetr_app(Sys.getenv('EPI_HOME'))" 
+R -e "episomer::episomer_app(Sys.getenv('EPI_HOME'))" 

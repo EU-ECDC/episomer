@@ -1,7 +1,7 @@
-package org.ecdc.epitweetr.fs
+package org.ecdc.episomer.fs
 
-import org.ecdc.epitweetr.EpitweetrActor
-import org.ecdc.epitweetr.geo.{GeoTrainings, GeoTraining, GeoTrainingSource, GeoTrainingPart}
+import org.ecdc.episomer.EpitweetrActor
+import org.ecdc.episomer.geo.{GeoTrainings, GeoTraining, GeoTrainingSource, GeoTrainingPart}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.{JsString, JsNull, JsValue, JsNumber, DefaultJsonProtocol, JsonFormat, RootJsonFormat, JsObject, JsArray, JsBoolean, JsField, JsonParser}
 import java.time.Instant
@@ -85,7 +85,7 @@ case class TaggedAlert(
   topwords:Option[String],
   toptweets:Map[String, Seq[String]],
   given_category:Option[String],
-  epitweetr_category:Option[String],
+  episomer_category:Option[String],
   test:Option[Boolean],
   augmented:Option[Boolean],
   deleted:Option[Boolean],
@@ -101,7 +101,7 @@ case class TaggedAlert(
       topwords = topwords,
       toptweets = toptweets,
       given_category = given_category,
-      epitweetr_category = Some(cat),
+      episomer_category = Some(cat),
       test = test,
       augmented = augmented,
       deleted = deleted

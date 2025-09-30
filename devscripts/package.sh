@@ -8,10 +8,10 @@ export PATH=$JAVA_HOME/bin:$PATH
 cd "$cdir/scala"
 sbt package
 
-mkdir -p "$cdir/epitweetr/inst/java"
-cp "$cdir/scala/target/scala-2.12/ecdc-twitter-bundle_2.12-1.0.jar" "$cdir/epitweetr/inst/java"
+mkdir -p "$cdir/episomer/inst/java"
+cp "$cdir/scala/target/scala-2.12/ecdc-twitter-bundle_2.12-1.0.jar" "$cdir/episomer/inst/java"
 
-git archive --format zip --output "$cdir/epitweetr/java/ecdc-twitter-bundle_2.12-1.0-source.zip" HEAD 
+git archive --format zip --output "$cdir/episomer/java/ecdc-twitter-bundle_2.12-1.0-source.zip" HEAD 
 
 cd "$cdir"
 Rscript devscripts/renv.R

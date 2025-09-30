@@ -1,10 +1,10 @@
-package org.ecdc.epitweetr
+package org.ecdc.episomer
 
 import spray.json._
 import java.nio.file.{Paths, Files}
 import org.ecdc.twitter.{JavaBridge, Language}
-import org.ecdc.epitweetr.geo.Geonames
-import org.ecdc.epitweetr.fs.EpiSerialisation
+import org.ecdc.episomer.geo.Geonames
+import org.ecdc.episomer.fs.EpiSerialisation
 import org.apache.spark.sql.{SparkSession}
 import demy.storage.{Storage, FSNode}
 
