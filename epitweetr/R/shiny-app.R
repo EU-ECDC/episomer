@@ -16,13 +16,13 @@
 #'    library(epitweetr)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
-#'    epitweetr_app()
+#'    episomer_app()
 #' }
 #' @seealso
 #'  \code{\link{search_loop}}
 #'
 #'  \code{\link{detect_loop}}
-#' @rdname epitweetr_app
+#' @rdname episomer_app
 #' @export
 #' @importFrom shiny fluidPage fluidRow column selectInput h4 conditionalPanel dateRangeInput radioButtons checkboxInput sliderInput numericInput downloadButton h3 htmlOutput actionButton span textInput textAreaInput h2 passwordInput h5 fileInput uiOutput navbarPage tabPanel observe updateSliderInput updateDateRangeInput downloadHandler invalidateLater renderText observeEvent renderUI validate need shinyApp
 #' @importFrom plotly plotlyOutput renderPlotly ggplotly config layout
@@ -41,7 +41,7 @@ dashboard_app <- function(
   host = NULL,
   port = NULL
 ) {
-  epitweetr_app(
+  episomer_app(
     data_dir = data_dir,
     profile = "dashboard",
     host = host,
@@ -50,7 +50,7 @@ dashboard_app <- function(
 }
 
 admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
-  epitweetr_app(
+  episomer_app(
     data_dir = data_dir,
     profile = "admin",
     host = host,
@@ -58,7 +58,7 @@ admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
   )
 }
 
-epitweetr_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
+episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
