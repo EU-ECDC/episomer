@@ -5,7 +5,7 @@ format: html
 
 
 ```{r}
-library(epitweetr)
+library(episomer)
 library(dplyr)
 setup_config()
 date_min <- substr(as.character(Sys.Date() - 10), 1, 10)
@@ -13,7 +13,7 @@ date_max <- substr(as.character(Sys.Date()), 1, 10)
 ```
 
 ```{r}
-df <- tibble::tibble(epitweetr::search_tweets(topic = "covid-19"))
+df <- tibble::tibble(episomer::search_tweets(topic = "covid-19"))
 # voir parametre query: format Lucene avec OR/AND etc ...
 df
 ```
@@ -199,7 +199,7 @@ m3 <- create_map(topic = topic, countries = countries, date_min = date_min, date
 ```
 
 ```{r}
-# raw <- epitweetr::get_aggregates("country_counts", filter = list(period = c(substr(as.character(Sys.Date() - 360), 1, 10), substr(as.character(Sys.Date()), 1, 10))), cache = F)
+# raw <- episomer::get_aggregates("country_counts", filter = list(period = c(substr(as.character(Sys.Date() - 360), 1, 10), substr(as.character(Sys.Date()), 1, 10))), cache = F)
 
 # agg <- tibble::tibble(
 #     raw %>% dplyr::group_by(geo_country_code)

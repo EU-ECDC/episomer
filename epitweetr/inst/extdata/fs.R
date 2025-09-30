@@ -8,5 +8,5 @@ if (length(args)==0) {
 } 
 
 data_dir <- args[1]
-epitweetr::fs_loop(data_dir)  
+episomer::fs_loop(data_dir)  
 

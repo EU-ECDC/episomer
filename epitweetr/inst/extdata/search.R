@@ -8,5 +8,5 @@ if (length(args)==0) {
 } 
 
 data_dir <- args[1]
-epitweetr::search_loop(data_dir)  
+episomer::search_loop(data_dir)  
 

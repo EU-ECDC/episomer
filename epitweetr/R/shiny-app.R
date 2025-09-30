@@ -13,7 +13,7 @@
 #' @examples
 #' if(FALSE){
 #'    #Running the epitweetr app
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    episomer_app()
