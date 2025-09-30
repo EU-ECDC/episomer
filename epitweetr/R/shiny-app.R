@@ -33,15 +33,33 @@
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
 
-dashboard_app <- function(data_dir = NA) {
-  epitweetr_app(data_dir = data_dir, profile = "dashboard") 
+dashboard_app <- function(
+  data_dir = NA,
+  host = NULL,
+  port = NULL
+) {
+  epitweetr_app(
+    data_dir = data_dir,
+    profile = "dashboard",
+    host = host,
+    port = port
+  )
 }
 
-admin_app <- function(data_dir = NA) {
-  epitweetr_app(data_dir = data_dir, profile = "admin") 
+admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
+  epitweetr_app(
+    data_dir = data_dir,
+    profile = "admin",
+    host = host,
+    port = port
+  )
 }
 
-epitweetr_app <- function(data_dir = NA, profile) {
+epitweetr_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
+  old <- options()
+  on.exit(options(old))
+  options(shiny.host = host, shiny.port = port)
+  match.arg(profile, c("dashboard", "admin"))
   # Setting up configuration if not already done
   if (is.na(data_dir)) setup_config_if_not_already() else {
     setup_config(data_dir)
@@ -1296,13 +1314,24 @@ epitweetr_app <- function(data_dir = NA, profile) {
       shiny::tabPanel("Dashboard", value = "dashboard_page", dashboard_page),
       shiny::tabPanel("Alerts", value = "alerts_page", alerts_page),
       shiny::tabPanel("Geotag", value = "geotraining_page", geotraining_page),
-      shiny::tabPanel("Data protection", value = "dataprotection_page", dataprotection_page),
+      shiny::tabPanel(
+        "Data protection",
+        value = "dataprotection_page",
+        dataprotection_page
+      ),
       shiny::tabPanel("Configuration", value = "config_page", config_page),
-      shiny::tabPanel("Troubleshoot", value = "troubleshoot_page", troubleshoot_page),
+      shiny::tabPanel(
+        "Troubleshoot",
+        value = "troubleshoot_page",
+        troubleshoot_page
+      ),
       # JavaScript to handle tab visibility based on profile
-      shiny::tags$script(shiny::HTML(paste0("
+      shiny::tags$script(shiny::HTML(paste0(
+        "
         $(document).ready(function() {
-          var profile = '", profile, "';
+          var profile = '",
+        profile,
+        "';
           if (profile === 'dashboard') {
             // Hide all tabs except dashboard
             $('#navbar_shinyapp a[data-value=\"alerts_page\"]').parent().hide();
@@ -1315,13 +1344,19 @@ epitweetr_app <- function(data_dir = NA, profile) {
             $('#navbar_shinyapp a[data-value=\"dashboard_page\"]').parent().hide();
           }
         });
-      ")))
+      "
+      )))
     )
   }
 
   # Defining server logic
   server_app <- function(input, output, session, profile, ...) {
     `%>%` <- magrittr::`%>%`
+
+    shiny::onStop(function() {
+      options("shiny.port" = NULL)
+      options("shiny.host" = NULL)
+    })
 
     ################################################
     ######### FILTERS LOGIC ########################
@@ -3487,8 +3522,10 @@ epitweetr_app <- function(data_dir = NA, profile) {
   on.exit(options(old))
   shiny::shinyApp(
     ui = ui_app(profile),
-    server = function(input, output, session) server_app(input, output, session, profile),
-    options = options(shiny.fullstacktrace = TRUE)
+    server = function(input, output, session)
+      server_app(input, output, session, profile),
+    options = options(
+      shiny.fullstacktrace = TRUE
+    )
   )
 }
-
