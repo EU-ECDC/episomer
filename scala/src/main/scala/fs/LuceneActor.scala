@@ -1,7 +1,7 @@
-package org.ecdc.epitweetr.fs
+package org.ecdc.episomer.fs
 
-import org.ecdc.epitweetr.EpitweetrActor
-import org.ecdc.epitweetr.{Settings}
+import org.ecdc.episomer.EpitweetrActor
+import org.ecdc.episomer.{Settings}
 import akka.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
@@ -28,7 +28,7 @@ import org.apache.lucene.index.Term
 import org.apache.lucene.search.spell.LuceneDictionary
 import demy.util.{log => l}
 import scala.concurrent.ExecutionContext
-import org.ecdc.epitweetr.geo.Geonames.Geolocate
+import org.ecdc.episomer.geo.Geonames.Geolocate
 import scala.util.{Try, Success, Failure}
 import java.nio.charset.StandardCharsets
 import spray.json.JsonParser

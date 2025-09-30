@@ -1,15 +1,15 @@
-package org.ecdc.epitweetr.alert
+package org.ecdc.episomer.alert
 
-import org.ecdc.epitweetr.fs.{AlertClassification}
+import org.ecdc.episomer.fs.{AlertClassification}
 import org.apache.spark.ml.classification.{Classifier, ClassificationModel, OneVsRest, OneVsRestModel}
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorIndexer, StringIndexerModel, VectorAssembler}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import demy.util.{log => l, util}
 import demy.mllib.linalg.implicits._
-import org.ecdc.epitweetr.{Settings, EpitweetrActor}
+import org.ecdc.episomer.{Settings, EpitweetrActor}
 import org.ecdc.twitter.{Language}
 import org.ecdc.twitter.Language.LangTools
-import org.ecdc.epitweetr.fs.{TextToGeo, TaggedAlert, AlertRun}
+import org.ecdc.episomer.fs.{TextToGeo, TaggedAlert, AlertRun}
 import akka.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
@@ -210,11 +210,11 @@ object AlertActor {
     val labelIndexer = AlertActor.getLabelIndexer()
     val labelConverter = new IndexToString()
       .setInputCol("predicted_vector")
-      .setOutputCol("epitweetr_category")
+      .setOutputCol("episomer_category")
       .setLabels(labelIndexer.labelsArray(0))
 
     labelConverter.transform(predicted)
-      .select("id", "date", "topic", "country", "number_of_tweets", "topwords", "toptweets", "given_category", "epitweetr_category", "test", "augmented", "deleted")
+      .select("id", "date", "topic", "country", "number_of_tweets", "topwords", "toptweets", "given_category", "episomer_category", "test", "augmented", "deleted")
       .as[TaggedAlert]
   }
   def trainTest(alertsdf:DataFrame, run:AlertRun, trainRatio:Double)(implicit conf:Settings) = {

@@ -28,7 +28,7 @@ object JavaBridge {
         .config("spark.sql.files.ignoreCorruptFiles", true)
         .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
         .config("spark.default.parallelism", if(cores == 0) 8 else cores)
-        .appName("epitweetr")
+        .appName("episomer")
         .getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
     spark

@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr
+package org.ecdc.episomer
 
 import sun.management.VMManagement;
 import java.lang.management.ManagementFactory;

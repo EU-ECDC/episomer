@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr.geo 
+package org.ecdc.episomer.geo 
 
 import demy.storage.{Storage, WriteMode, FSNode}
 import demy.util.{log => l, util}

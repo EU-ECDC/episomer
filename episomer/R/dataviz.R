@@ -1,4 +1,4 @@
-#' @title Plot the trendline report of epitweetr dashboard
+#' @title Plot the trendline report of episomer dashboard
 #' @description Generates a trendline chart of number of tweets by region, for one topic, including alerts using the reweighted version of the EARS algorithm
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app select, default: c(1)
@@ -21,7 +21,7 @@
 #' This function requires \code{\link{search_loop}} and \code{\link{detect_loop}} to have already run successfully to show results.
 #' @examples
 #' if(FALSE){
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #Getting trendline for dengue for South America for the last 30 days
 #'    trend_line(
@@ -86,7 +86,7 @@ trend_line <- function(
       logenv = logenv
     )
   # YMX
-  # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "epitweetr"), "df_calculate_regions_alerts.rds"))
+  # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "episomer"), "df_calculate_regions_alerts.rds"))
   # checking if some data points have been returned or return empty char
   if (nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) > 0) {
     topic <- unname(get_topics_labels()[stringr::str_replace_all(
@@ -417,7 +417,7 @@ plot_trendline <- function(
   list("chart" = fig_line, "data" = df)
 }
 
-#' @title Plot the map report on the epitweetr dashboard
+#' @title Plot the map report on the episomer dashboard
 #' @description Generates a bubble map plot of number of tweets by countries, for one topic
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app, default: c(1)
@@ -441,7 +441,7 @@ plot_trendline <- function(
 #' @examples
 #' if(FALSE){
 #'    #Getting bubble chart for dengue for South America for last 30 days
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    create_map(
 #'      topic = "dengue",
@@ -854,7 +854,7 @@ create_map <- function(
   list("chart" = fig, "data" = df)
 }
 
-#' @title Plot the top words report on the epitweetr dashboard
+#' @title Plot the top words report on the episomer dashboard
 #' @description Generates a bar plot of most popular words in tweets, for one topic
 #' @param topic Character(1) containing the topic to use for the report
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()
@@ -870,7 +870,7 @@ create_map <- function(
 #' This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
 #' if(FALSE){
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #Getting topword chart for dengue for France, Chile, Australia for last 30 days
 #'    create_topwords(
@@ -910,7 +910,7 @@ create_topwords <- function(
   )
 }
 
-#' @title Plot the top elements for a specific series on the epitweetr dashboard
+#' @title Plot the top elements for a specific series on the episomer dashboard
 #' @description Generates a bar plot of most popular elements in tweets, for one topic. Top elements among ("topwords", "hashtags", "entities", "contexts", "urls")
 #' @param topic Character(1) containing the topic to use for the report
 #' @param serie Character(1) name of the series to be used for the report. It should be one of ("topwords", "hashtags", "entities", "contexts", "urls")
@@ -925,7 +925,7 @@ create_topwords <- function(
 #' This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
 #' if(FALSE){
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #Getting topword chart for dengue for France, Chile, Australia for last 30 days
 #'    create_topchart(

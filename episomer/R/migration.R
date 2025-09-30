@@ -4,7 +4,7 @@
 #' @param chunk_size, integer, the chunk size for indexing tweets, default: 400
 #' @return the updated tasks.
 #' @details This function can be called manually to perform the migration of tweets between v0.0.x to v2+
-#' It iterates over existing tweets collected with epitweetr v0.0.x series
+#' It iterates over existing tweets collected with episomer v0.0.x series
 #' joins base tweets and geolocated tweets and then sends themes to the Lucene index via the dedicated REST API.
 #' Migrated files will be moved to search_archive and geo_archive folders. Users can backup and remove these folders when migration ends to gain disk space.
 #' Series folders are maintained for migrated tweets
@@ -12,7 +12,7 @@
 #' if(FALSE){
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    # runnint the migration
 #'    json2lucene()

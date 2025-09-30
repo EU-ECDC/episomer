@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr.geo 
+package org.ecdc.episomer.geo 
 
 case class GeoElement(
   id:Long

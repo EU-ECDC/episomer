@@ -1,8 +1,8 @@
-package org.ecdc.epitweetr
+package org.ecdc.episomer
 
-import org.ecdc.epitweetr.fs.{LuceneActor, TopicPosts, AlertClassification, TaggedAlert, AlertRun}
-import org.ecdc.epitweetr.geo.{GeonamesActor, GeoTrainings }
-import org.ecdc.epitweetr.alert.{AlertActor}
+import org.ecdc.episomer.fs.{LuceneActor, TopicPosts, AlertClassification, TaggedAlert, AlertRun}
+import org.ecdc.episomer.geo.{GeonamesActor, GeoTrainings }
+import org.ecdc.episomer.alert.{AlertActor}
 import akka.actor.{ActorSystem, Actor, Props}
 import akka.stream.ActorMaterializer
 import akka.pattern.{ask, pipe}
@@ -40,7 +40,7 @@ object API {
   var oConf:Option[Settings] = None
   def run(epiHome:String) {
     import fs.EpiSerialisation._
-    implicit val actorSystem = ActorSystem("epitweetr")
+    implicit val actorSystem = ActorSystem("episomer")
     actorSystemPointer = Some(actorSystem)
     implicit val executionContext = actorSystem.dispatcher
     implicit val conf = Settings(epiHome)

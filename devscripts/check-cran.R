@@ -1,1 +1,1 @@
-devtools::check("epitweetr")
+devtools::check("episomer")

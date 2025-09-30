@@ -1,7 +1,7 @@
 package org.ecdc.twitter 
 
-import org.ecdc.epitweetr.geo.Geonames
-import org.ecdc.epitweetr.ProcessID
+import org.ecdc.episomer.geo.Geonames
+import org.ecdc.episomer.ProcessID
 import demy.mllib.linalg.implicits._
 import demy.mllib.index.implicits._
 import demy.storage.{Storage, WriteMode, FSNode}
@@ -14,7 +14,7 @@ import java.sql.Timestamp
 import demy.mllib.text.Word2VecApplier
 import Language.LangTools
 import Geonames.Geolocate
-import org.ecdc.epitweetr.API 
+import org.ecdc.episomer.API 
 object Tweets {
   def main(args: Array[String]): Unit = {
     val cmd = Map(

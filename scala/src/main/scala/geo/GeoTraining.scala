@@ -1,9 +1,9 @@
-package org.ecdc.epitweetr.geo
+package org.ecdc.episomer.geo
 
 import demy.storage.{Storage}
 import demy.util.{log => l, util}
 import demy.mllib.index.EncodedQuery
-import org.ecdc.epitweetr.Settings
+import org.ecdc.episomer.Settings
 import org.ecdc.twitter.Language
 import org.apache.spark.sql.{Dataset, SparkSession, DataFrame, Row}
 import org.apache.spark.sql.types.{StructType, StructField, ArrayType, StringType}
@@ -267,13 +267,13 @@ case class GeoTrainingSource(value:String)
 object GeoTrainingSource {
   def apply(value:String):GeoTrainingSource = value.toLowerCase.replace(" ", "-") match {
     case "tweet" => GeoTrainingSource.tweet
-    case "epitweetr-model" => GeoTrainingSource.epitweetrModel
-    case "epitweetr-database" => GeoTrainingSource.epitweetrDatabase
+    case "episomer-model" => GeoTrainingSource.episomerModel
+    case "episomer-database" => GeoTrainingSource.episomerDatabase
     case _ => GeoTrainingSource.manual
   }
   val tweet = new GeoTrainingSource("tweet") 
-  val epitweetrModel = new GeoTrainingSource("epitweetr-model") 
-  val epitweetrDatabase = new GeoTrainingSource("epitweetr-database") 
+  val episomerModel = new GeoTrainingSource("episomer-model") 
+  val episomerDatabase = new GeoTrainingSource("episomer-database") 
   val manual = new GeoTrainingSource("manual")
 
 }
@@ -356,8 +356,8 @@ object GeoTraining {
         annotated.filter(gt => gt.source != GeoTrainingSource.tweet || gt.tweetPart != Some(GeoTrainingPart.userDescription) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
       )/*,(
         "Model Location", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.epitweetrModel && gt.category.toLowerCase == "location" && Math.abs(gt.id().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.epitweetrModel || gt.category.toLowerCase != "location" || Math.abs(gt.id().hashCode) % l >= trainingRatio * l)
+        annotated.filter(gt => gt.source == GeoTrainingSource.episomerModel && gt.category.toLowerCase == "location" && Math.abs(gt.id().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.episomerModel || gt.category.toLowerCase != "location" || Math.abs(gt.id().hashCode) % l >= trainingRatio * l)
       )*/
     ).map{case(t, test, train) => 
       (

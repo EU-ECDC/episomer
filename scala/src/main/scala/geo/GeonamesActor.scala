@@ -1,10 +1,10 @@
-package org.ecdc.epitweetr.geo
+package org.ecdc.episomer.geo
 
 import org.ecdc.twitter.{Language}
 import Geonames.Geolocate
 import demy.util.{log => l, util}
-import org.ecdc.epitweetr.{Settings, EpitweetrActor}
-import org.ecdc.epitweetr.fs.{TextToGeo}
+import org.ecdc.episomer.{Settings, EpitweetrActor}
+import org.ecdc.episomer.fs.{TextToGeo}
 import akka.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
@@ -159,8 +159,8 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         val refSize = if(tweets.size < 500) 200 else tweets.size
         val demonyms = annotated.filter(t => t.category == "Demonym").take(refSize / 4)
         val people   = annotated.filter(t => t.category == "Person").take(refSize / 4)
-        val locations = annotated.filter(t => t.source == GeoTrainingSource.epitweetrModel && t.isLocation == Some(true)).take(refSize)
-        val noLocations = annotated.filter(t => t.source == GeoTrainingSource.epitweetrModel && t.isLocation == Some(false)).take(refSize) 
+        val locations = annotated.filter(t => t.source == GeoTrainingSource.episomerModel && t.isLocation == Some(true)).take(refSize)
+        val noLocations = annotated.filter(t => t.source == GeoTrainingSource.episomerModel && t.isLocation == Some(false)).take(refSize) 
         val rescaled = tweets ++ demonyms ++ people ++ locations ++ noLocations
         println(s"tweets ${tweets.size} ++ dem ${demonyms.size} ++ peop ${people.size} ++ loc ${locations.size} ++ noloc ${noLocations.size}")
         

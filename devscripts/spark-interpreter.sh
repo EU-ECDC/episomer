@@ -11,13 +11,13 @@ cd scala
 expect -c '
 spawn sbt console
 expect "scala>"
-send "import org.ecdc.epitweetr.Settings\r"
+send "import org.ecdc.episomer.Settings\r"
 send "implicit val conf = Settings.apply(\"'$EPI_HOME'\")\r"
 send "conf.load\r"
-send "import org.ecdc.epitweetr.fs.LuceneActor\r"
+send "import org.ecdc.episomer.fs.LuceneActor\r"
 send "import org.apache.spark.sql.SparkSession\r"
 send "import org.apache.spark.sql.functions._\r"
-send "org.ecdc.epitweetr.API.run(conf.epiHome)\r"
+send "org.ecdc.episomer.API.run(conf.epiHome)\r"
 interact'
 
 cd ..

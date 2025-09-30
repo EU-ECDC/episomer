@@ -91,7 +91,7 @@ spark_job <- function(args) {
       java_path(), #Java executable
       paste(
         "-cp \"",
-        get_app_jar_path(), #epitweetr embedded jar path with
+        get_app_jar_path(), #episomer embedded jar path with
         if (.Platform$OS.type != "windows") ":" else ";",
         get_jars_dest_path(), #Java class path with all dependencies
         "/*\"",
@@ -139,7 +139,7 @@ spark_df <- function(args, handler = NULL) {
       ),
       paste(
         "-cp \"",
-        get_app_jar_path(), #epitweetr embedded jar path with
+        get_app_jar_path(), #episomer embedded jar path with
         if (.Platform$OS.type != "windows") ":" else ";",
         get_jars_dest_path(), #Java class path with all dependencies
         "/*\"",
@@ -148,7 +148,7 @@ spark_df <- function(args, handler = NULL) {
       "-Dfile.encoding=UTF8", #Setting Java encoding to UTF-8
       paste("-Xmx", half_mem, sep = ""), #Setting Java memory
       paste(get_blas_java_opt()),
-      "org.ecdc.twitter.Tweets", #epitweetr scala main class
+      "org.ecdc.twitter.Tweets", #episomer scala main class
       args
     ),
     sep = '\n'
@@ -172,7 +172,7 @@ spark_df <- function(args, handler = NULL) {
     # If a custom transformation is going to be done (a handler function has been set)
     # this function will be called on pages of 10k lines using the jsonlite stream_in function
     # the transformed results will be stored on a temporary file that will be read by stream_in
-    tmp_file <- tempfile(pattern = "epitweetr", fileext = ".json")
+    tmp_file <- tempfile(pattern = "episomer", fileext = ".json")
     #message(tmp_file)
     con_tmp <- file(tmp_file, open = "w", encoding = "UTF-8")
     jsonlite::stream_in(
@@ -211,7 +211,7 @@ spark_df <- function(args, handler = NULL) {
 #' if(FALSE){
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
 #'    # geolocating last tweets
@@ -240,7 +240,7 @@ download_dependencies <- function(tasks = get_tasks()) {
           tasks,
           "running",
           paste(
-            "To start the dependencies task, please turn it OFF the epitweetr database. You can do this by clicking on the 'stop' button next to the database status or manually kill the process."
+            "To start the dependencies task, please turn it OFF the episomer database. You can do this by clicking on the 'stop' button next to the database status or manually kill the process."
           )
         )
         Sys.sleep(5)

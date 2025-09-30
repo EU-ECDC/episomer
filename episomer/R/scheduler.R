@@ -36,7 +36,7 @@ register_detect_runner <- function() {
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    register_fs_monitor()
 #' }
@@ -80,7 +80,7 @@ register_runner <- function(name) {
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    register_search_runner_task()
 #' }
@@ -99,7 +99,7 @@ register_search_runner_task <- function() {
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    stop_search_runner_task()
 #' }
@@ -120,7 +120,7 @@ stop_search_runner_task <- function() {
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    register_detect_runner_task()
 #' }
@@ -139,7 +139,7 @@ register_detect_runner_task <- function() {
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    stop_detect_runner_task()
 #' }
@@ -149,17 +149,17 @@ stop_detect_runner_task <- function() {
   stop_runner_task("detect")
 }
 
-#' @title Registers the epitweetr database task
-#' @description registers the epitweetr database task or stops if no configuration has been set or if it is already running
+#' @title Registers the episomer database task
+#' @description registers the episomer database task or stops if no configuration has been set or if it is already running
 #' @return Nothing
-#' @details Registers the epitweetr database task or stops if no configuration has been set or if it is already running.
+#' @details Registers the episomer database task or stops if no configuration has been set or if it is already running.
 #' This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
 #' This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    register_fs_runner_task()
 #' }
@@ -170,16 +170,16 @@ register_fs_runner_task <- function() {
 }
 
 
-#' @title Stops the epitweetr database task
-#' @description stops the epitweetr database task
+#' @title Stops the episomer database task
+#' @description stops the episomer database task
 #' @return Nothing
-#' @details Stops the epitweetr database task if it is already running
+#' @details Stops the episomer database task if it is already running
 #' This function will try also deactivate the respective scheduled task on Windows.
 #' @examples
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    stop_fs_runner_task()
 #' }
@@ -207,20 +207,20 @@ register_runner_task <- function(task_name) {
     script_name,
     package = get_package_name()
   )
-  # Getting destination folder which is going to be on user c:/Users/user/epitweetr or ~/epitweetr
+  # Getting destination folder which is going to be on user c:/Users/user/episomer or ~/episomer
   script_folder <- (if (.Platform$OS.type == "windows")
     paste(
       gsub("\\\\", "/", Sys.getenv("USERPROFILE")),
-      "epitweetr",
+      "episomer",
       sep = "/"
-    ) else file.path(Sys.getenv("HOME"), "/epitweetr"))
+    ) else file.path(Sys.getenv("HOME"), "/episomer"))
   if (!file.exists(script_folder)) {
     dir.create(script_folder, showWarnings = FALSE)
   }
   script <- paste(script_folder, script_name, sep = "/")
   # Copying the script
   file.copy(from = script_base, to = script, overwrite = TRUE)
-  taskname = paste("epitweetr", task_name, "loop", sep = "_")
+  taskname = paste("episomer", task_name, "loop", sep = "_")
   rscript_args = paste("\"", conf$data_dir, "\"", sep = "")
 
   if (.Platform$OS.type == "windows") {
@@ -254,12 +254,12 @@ register_runner_task <- function(task_name) {
   }
 
   if (run_attached) {
-    # running the requested task as a separate thread. This is useful for testing epitweetr from the shiny app but it does not permanently schedule the task.
+    # running the requested task as a separate thread. This is useful for testing episomer from the shiny app but it does not permanently schedule the task.
     # calculating alerts per topic
     message(paste(
       "Running task",
       task_name,
-      "attached. Use this only for testing epitweetr, you will need to find a permanent way to schedule it on production environments"
+      "attached. Use this only for testing episomer, you will need to find a permanent way to schedule it on production environments"
     ))
     cm <- paste(script, rscript_args)
     script_log <- paste(task_name, "log", sep = ".")
@@ -274,7 +274,7 @@ register_runner_task <- function(task_name) {
   }
 }
 
-#Stopping a running epitweetr task
+#Stopping a running episomer task
 stop_runner_task <- function(task_name) {
   stop_if_no_config(paste(
     "Cannot stop scheduled task without configuration setup"
@@ -283,7 +283,7 @@ stop_runner_task <- function(task_name) {
   # Filtering by OS, currently only Windows is supported
   if (.Platform$OS.type == "windows") {
     # Stopping the task if running
-    taskname = paste("epitweetr", task_name, "loop", sep = "_")
+    taskname = paste("episomer", task_name, "loop", sep = "_")
     cmd <- sprintf("schtasks /End /TN %s", shQuote(taskname, type = "cmd"))
     system(cmd, intern = FALSE)
     # Disabling the task
@@ -365,7 +365,7 @@ kill_task <- function(pidfile, type = "R") {
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    missing_search_jobs()
 #' }
@@ -390,7 +390,7 @@ missing_search_jobs <- function() {
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    is_search_running()
 #' }
@@ -410,7 +410,7 @@ is_search_running <- function() {
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    is_fs_running()
 #' }
@@ -432,7 +432,7 @@ stop_if_no_fs <- function(msg = NULL) {
   if (!is_fs_running()) {
     if (!is.null(msg)) stop(msg) else
       stop(
-        "This function needs the epitweetr database to be running.\nYou can activate it for this session with the command register_fs_runner_task() or on a separate session with fs_loop().\nBe aware that for data to be displayed, the collect task must have ran previously"
+        "This function needs the episomer database to be running.\nYou can activate it for this session with the command register_fs_runner_task() or on a separate session with fs_loop().\nBe aware that for data to be displayed, the collect task must have ran previously"
       )
   }
 }
@@ -445,7 +445,7 @@ stop_if_no_fs <- function(msg = NULL) {
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    is_detect_running()
 #' }
@@ -500,7 +500,7 @@ get_running_task_pid <- function(name) {
 #' if(FALSE){
 #'    #getting tasks statuses
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    tasks <- get_tasks()
 #' }
@@ -636,12 +636,12 @@ get_tasks <- function(statuses = list()) {
 
   # Getting language information (used to detect id there is an action to perform on languages)
   # The tasks files contain the status of languages processed by the detect loop
-  # The difference between the settings from the shiny app and the tasks will allow epitweetr to detect the actions to perform on languages
-  langs <- get_available_languages() # All available languages for epitweetr
+  # The difference between the settings from the shiny app and the tasks will allow episomer to detect the actions to perform on languages
+  langs <- get_available_languages() # All available languages for episomer
   lcodes <- langs$Code # available language codes
   lurls <- setNames(langs$Url, langs$Code) # available language URLs (to download models)
   lnames <- setNames(langs$Label, langs$Code) # available language names
-  conf_codes <- sapply(conf$languages, function(l) l$code) # target languages to use in epitweetr as requested by setting (shiny app)
+  conf_codes <- sapply(conf$languages, function(l) l$code) # target languages to use in episomer as requested by setting (shiny app)
   task_codes <- tasks$languages$codes # code of languages already processed by the detect loop
   update_times <- setNames(
     sapply(conf$languages, function(l) l$modified_on),
@@ -840,7 +840,7 @@ save_tasks <- function(tasks) {
 #' if(FALSE){
 #'    #Running the detect loop
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    detect_loop()
 #' }
@@ -961,7 +961,7 @@ detect_loop <- function(data_dir = NA) {
       ))
       last_sleeping_message <- Sys.time()
     }
-    # epitweetr sanity check and sending email in case of issues
+    # episomer sanity check and sending email in case of issues
     health_check()
     # updating config to capture changes coming from search loop or shiny app
     setup_config(data_dir = conf$data_dir)

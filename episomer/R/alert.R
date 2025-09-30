@@ -19,7 +19,7 @@
 #' if(FALSE){
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
 #'    # calculating alerts for last day tweets and sending emails to subscribers
@@ -682,7 +682,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
           same_weekday_baseline = conf$same_weekday_baseline,
         )
       alert_training <- get_alert_training_df()
-      if (length(unique(alert_training$epitweetr_category)) > 1) {
+      if (length(unique(alert_training$episomer_category)) > 1) {
         # Adding tweets to alerts
         m <- paste("Adding toptweets")
         message(m)
@@ -728,7 +728,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
 #' if(FALSE){
 #'    library(episomer)
 #'    # setting up the data folder
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
 #'    # Getting signals produced for last 30 days for a particular country
@@ -917,8 +917,8 @@ get_alerts <- function(
         "</UL>",
         sep = ""
       )
-      if (nrow(df) > 0 && !"epitweetr_category" %in% colnames(df))
-        df$epitweetr_category <- NA
+      if (nrow(df) > 0 && !"episomer_category" %in% colnames(df))
+        df$episomer_category <- NA
 
       # overriding classification if provided by users$
       alert_training <- get_alert_training_df()
@@ -935,14 +935,14 @@ get_alerts <- function(
       ngiven <- names(given)
 
       if (nrow(df) > 0) {
-        df$epitweetr_category <- sapply(1:nrow(df), function(i) {
+        df$episomer_category <- sapply(1:nrow(df), function(i) {
           key = tolower(paste(
             df[["date"]][[i]],
             df[["topic"]][[i]],
             df[["country"]][[i]],
             sep = "@@"
           ))
-          if (key %in% ngiven) given[[key]] else df$epitweetr_category[[i]]
+          if (key %in% ngiven) given[[key]] else df$episomer_category[[i]]
         })
       }
       progress(1, "Alerts obtained")
@@ -1133,7 +1133,7 @@ send_alert_emails <- function(tasks = get_tasks()) {
       # Limiting to alerts on selected alert_categories
       if (!is.null(user_alerts) && !all(is.na(alert_categories))) {
         user_alerts <- user_alerts %>%
-          dplyr::filter(.data$epitweetr_category %in% alert_categories)
+          dplyr::filter(.data$episomer_category %in% alert_categories)
       }
 
       if (!is.null(user_alerts)) {
@@ -1349,7 +1349,7 @@ send_alert_emails <- function(tasks = get_tasks()) {
 
           # Getting the title
           title <- paste(
-            "[epitweetr] found",
+            "[episomer] found",
             nrow(user_alerts),
             "signals. Top alerts: ",
             paste(
@@ -1484,7 +1484,7 @@ get_alert_tables <- function(
             `Topic` = .data$`topic`,
             `Region` = .data$`country`,
             `Tops` = .data$`tops`,
-            `Category` = .data$`epitweetr_category`,
+            `Category` = .data$`episomer_category`,
             `Tweets` = .data$`number_of_tweets`,
             `% from important user` = .data$`known_ratio`,
             `Threshold` = .data$`limit`,
@@ -1556,7 +1556,7 @@ get_alert_training_df <- function() {
       number_of_tweets = .data$`Tweets`,
       toptweets = .data$`Top Tweets`,
       given_category = .data$`Given Category`,
-      epitweetr_category = .data$`Epitweetr Category`
+      episomer_category = .data$`Epitweetr Category`
     )
   current$`toptweets` <- lapply(
     current$`toptweets`,
@@ -1666,7 +1666,7 @@ get_alert_balanced_df <- function(
               number_of_tweets = alerts_to_augment$number_of_tweets[[ialert]],
               toptweets = new_tweets,
               given_category = alerts_to_augment$given_category[[ialert]],
-              epitweetr_category = NA,
+              episomer_category = NA,
               augmented = TRUE,
               test = FALSE
             ))
@@ -1708,9 +1708,9 @@ get_alert_balanced_df <- function(
           alerts_for_augment,
           function(r) r$given_category
         ),
-        epitweetr_category = as.character(sapply(
+        episomer_category = as.character(sapply(
           alerts_for_augment,
-          function(r) r$epitweetr_category
+          function(r) r$episomer_category
         )),
         augmented = as.logical(sapply(
           alerts_for_augment,
@@ -1903,10 +1903,10 @@ classify_alerts <- function(
         "text",
         encoding = "UTF-8"
       ))
-      alerts$epitweetr_category <- (alerts %>%
+      alerts$episomer_category <- (alerts %>%
         dplyr::left_join(res$alerts, by = "id"))[[
-        if ("epitweetr_category" %in% colnames(alerts))
-          "epitweetr_category.y" else "epitweetr_category"
+        if ("episomer_category" %in% colnames(alerts))
+          "episomer_category.y" else "episomer_category"
       ]]
 
       if (retrain) {
@@ -1963,7 +1963,7 @@ write_alert_training_db <- function(
           gsub("\", \"", "\",\n        \"", jsonlite::toJSON(l, pretty = TRUE))
       ),
       `Given Category` = .data$given_category,
-      `Epitweetr Category` = .data$epitweetr_category
+      `Epitweetr Category` = .data$episomer_category
     )
   openxlsx::writeDataTable(
     wb,

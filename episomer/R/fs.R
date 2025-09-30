@@ -50,20 +50,20 @@ get_scala_recalc_hash_url <- function() {
 }
 
 
-#' @title Runs the epitweetr embedded database loop
-#' @description Infinite loop ensuring that the epitweetr embedded database is running (Lucene + akka-http)
+#' @title Runs the episomer embedded database loop
+#' @description Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
 #' If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @return nothing
-#' @details Launches the epitweetr embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
-#' the REST API provide epitweetr a way to send and retrieve data related with tweets and time series and to trigger geolocation or aggregation
-#' The database is implemented using Apache Lucene indexes allowing epitweetr to access its data as a search engine but also as a tabular database.
-#' \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some epitweetr components fail.
+#' @details Launches the episomer embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
+#' the REST API provide episomer a way to send and retrieve data related with tweets and time series and to trigger geolocation or aggregation
+#' The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
+#' \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
 #' @examples
 #' if(FALSE){
 #'    #Running the detect loop
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    fs_loop()
 #' }
@@ -86,7 +86,7 @@ fs_loop <- function(data_dir = NA) {
   future::plan(future::multisession)
   monitor <- future::future(
     {
-      message("Monitoring epitweetr")
+      message("Monitoring episomer")
       setup_config(data_dir = data_dir)
       x = 60
       step = 2
@@ -128,7 +128,7 @@ fs_loop <- function(data_dir = NA) {
       },
       error = function(e) {
         message(paste(
-          "The epitweetr Scala API was stopped with the following error",
+          "The episomer Scala API was stopped with the following error",
           e,
           "launching it again within 5 seconds",
           sep = "\n"
@@ -139,13 +139,13 @@ fs_loop <- function(data_dir = NA) {
   }
 }
 
-#' @title perform full text search on tweets collected with epitweetr
-#' @description  perform full text search on tweets collected with epitweetr (tweets migrated from epitweetr v<1.0.x are also included)
+#' @title perform full text search on tweets collected with episomer
+#' @description  perform full text search on tweets collected with episomer (tweets migrated from episomer v<1.0.x are also included)
 #' @param query character. The query to be used if a text it will match the tweet text. To see how to match particular fields please see details, default:NULL
 #' @param topic character, Vector of topics to include on the search default:NULL
 #' @param from an object which can be converted to ‘"POSIXlt"’ only tweets posted after or on this date will be included, default:NULL
 #' @param to an object which can be converted to ‘"POSIXlt"’ only tweets posted before or on this date will be included, default:NULL
-#' @param countries character or numeric, the position or name of epitweetr regions to be included on the query, default:NULL
+#' @param countries character or numeric, the position or name of episomer regions to be included on the query, default:NULL
 #' @param mentioning character, limit the search to the tweets mentioning the given users, default:NULL
 #' @param users character, limit the search to the tweets created by the provided users, default:NULL
 #' @param hide_users logical, whether to hide user names on output replacing them by the USER keyword, default:FALSE
@@ -157,7 +157,7 @@ fs_loop <- function(data_dir = NA) {
 #' screen_name, created_date, is_geo_located, user_location_loc, is_retweet, text, text_loc, user_id, hash, user_description, linked_lang, linked_screen_name, user_location, totalCount,
 #' created_at, topic_tweet_id, topic, lang, user_name, linked_text, tweet_id, linked_text_loc, hashtags, user_description_loc
 #' @details
-#' epitweetr translate the query provided by all parameters into a single query that will be executed on tweet indexes which are weekly indexes.
+#' episomer translate the query provided by all parameters into a single query that will be executed on tweet indexes which are weekly indexes.
 #' The q parameter should respect the syntax of the Lucene classic parser \url{https://lucene.apache.org/core/8_5_0/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html}
 #' So other than the provided parameters, multi field queries are supported by using the syntax field_name:value1;value2
 #' AND, OR and -(for excluding terms) are supported on q parameter.
@@ -166,7 +166,7 @@ fs_loop <- function(data_dir = NA) {
 #' if(FALSE){
 #'    #Running the detect loop
 #'    library(episomer)
-#'    message('Please choose the epitweetr data directory')
+#'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    df <- search_tweets(
 #'         q = "vaccination",
@@ -346,7 +346,7 @@ stream_post <- function(uri, body, handler = NULL) {
     # If a custom transformation is going to be done (a handler function has been set)
     # this function will be called on pages of 10k lines using the jsonlite stream_in function
     # the transformed results will be stored on a temporary file that will be read by stream_in
-    tmp_file <- tempfile(pattern = "epitweetr", fileext = ".json")
+    tmp_file <- tempfile(pattern = "episomer", fileext = ".json")
     #message(tmp_file)
     con_tmp <- file(tmp_file, open = "w", encoding = "UTF-8")
   }
