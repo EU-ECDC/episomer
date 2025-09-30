@@ -45,7 +45,7 @@ sm_plan_format_bluesky <- function(plan) {
 sm_plan_first_attributes_bluesky <- function() {
   list(
     plan_max_date = strftime(Sys.time(), "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
-    plan_min_date = NULL,
+    plan_min_date = strftime(Sys.Date() - conf$collect_history_days, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
     current_min_date = NULL
   )
 }

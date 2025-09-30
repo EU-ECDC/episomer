@@ -687,7 +687,7 @@ create_map <- function(
         .data$label_y <= max_lat + 20
     ) %>%
     # We have weird codes for some countries (e.g FRANCE has -99)
-    mutate(iso_a2_clean = if_else(iso_a2 == "-99", iso_a2_eh, iso_a2)) %>%
+    mutate(iso_a2_clean = dplyr::if_else(iso_a2 == "-99", iso_a2_eh, iso_a2)) %>%
     # LAKES ARE MISSING
     dplyr::mutate(
       selected = ifelse(
@@ -718,12 +718,12 @@ create_map <- function(
     x = c(minX, maxX),
     y = c(minY, maxY)
   ) %>%
-    st_as_sf(coords = c("x", "y"), crs = st_crs(4326))
+    sf::st_as_sf(coords = c("x", "y"), crs = sf::st_crs(4326))
 
   # We reproject the min and max coordinates to the target projection
   # and reextract min max coordinates
   df_min_max_proj <- df_min_max_wgs84 %>%
-    st_transform(proj)
+    sf::st_transform(proj)
 
   new_min_max <- sf::st_coordinates(df_min_max_proj)
   minX <- min(new_min_max[, 1])
@@ -789,34 +789,34 @@ create_map <- function(
     legend.position = "right"
   ))
 
-  fig <- ggplot(df) +
-    geom_sf(data = countries_geo_proj_filtered, aes(label = Details)) +
-    geom_sf(
+  fig <- ggplot2::ggplot(df) +
+    ggplot2::geom_sf(data = countries_geo_proj_filtered, aes(label = Details)) +
+    ggplot2::geom_sf(
       data = countries_geo_proj_filtered,
       aes(fill = selected, label = Details)
     ) +
     (if (forplotly)
       # customistion for plotly legend
-      geom_sf(
+      ggplot2::geom_sf(
         data = proj_df,
         aes(size = count, fill = plotlycuts, label = Details),
         color = "#65B32E",
         alpha = I(8 / 10)
       ) else
-      geom_sf(
+      ggplot2::geom_sf(
         data = proj_df,
         aes(size = .data$count),
         fill = "#65B32E",
         color = "#65B32E",
         alpha = I(8 / 10)
       )) +
-    coord_sf(
-      crs = st_crs(countries_geo_proj_filtered),
-      datum = st_crs(countries_geo_proj_filtered),
+    ggplot2::coord_sf(
+      crs = sf::st_crs(countries_geo_proj_filtered),
+      datum = sf::st_crs(countries_geo_proj_filtered),
       xlim = c(minX, maxX),
       ylim = c(minY, maxY)
     ) +
-    scale_size_continuous(
+    ggplot2::scale_size_continuous(
       name = "Number of messages",
       breaks = {
         x = cuts
@@ -825,7 +825,7 @@ create_map <- function(
       },
       labels = cuts
     ) +
-    scale_fill_manual(
+    ggplot2::scale_fill_manual(
       values = c(
         "#C7C7C7",
         "#E5E5E5",
@@ -836,7 +836,7 @@ create_map <- function(
       guide = "none"
     ) +
 
-    labs(
+    ggplot2::labs(
       title = paste0(
         "Geographical distribution of messages mentioning ",
         topic,
@@ -847,7 +847,7 @@ create_map <- function(
       ),
       caption = paste(caption, ". Projection: ", proj, sep = "")
     ) +
-    theme_classic(base_family = get_font_family()) +
+    ggplot2::theme_classic(base_family = get_font_family()) +
     theme_opts
 
   # returning the chart and the data
