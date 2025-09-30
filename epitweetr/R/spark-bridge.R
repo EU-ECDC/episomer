@@ -209,7 +209,7 @@ spark_df <- function(args, handler = NULL) {
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())

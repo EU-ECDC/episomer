@@ -10,7 +10,7 @@
 #' Series folders are maintained for migrated tweets
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())

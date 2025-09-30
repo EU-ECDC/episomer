@@ -5,7 +5,7 @@ format: html
 
 
 ```{r}
-library(epitweetr)
+library(episomer)
 library(dplyr)
 setup_config()
 date_min <- substr(as.character(Sys.Date() - 10), 1, 10)

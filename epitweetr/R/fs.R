@@ -62,7 +62,7 @@ get_scala_recalc_hash_url <- function() {
 #' @examples
 #' if(FALSE){
 #'    #Running the detect loop
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    fs_loop()
@@ -165,7 +165,7 @@ fs_loop <- function(data_dir = NA) {
 #' @examples
 #' if(FALSE){
 #'    #Running the detect loop
-#'    library(epitweetr)
+#'    library(episomer)
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
 #'    df <- search_tweets(

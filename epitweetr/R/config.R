@@ -193,7 +193,7 @@ get_empty_config <- function(data_dir) {
 #' }
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    #loading system settings
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
@@ -476,7 +476,7 @@ copy_plans_from <- function(temp) {
 #' to save Twitter credentials please use \code{\link{set_bsky_auth}}
 #' @examples
 #' if(FALSE){
-#'    library(epitweetr)
+#'    library(episomer)
 #'    #load configuration
 #'    message('Please choose the epitweetr data directory')
 #'    setup_config(file.choose())
