@@ -117,7 +117,7 @@ no_historic = 7
 bonferroni_correction = FALSE
 same_weekday_baseline = FALSE 
 
-with_retweets = TRUE
+with_quotes = TRUE
 setup_config()
 trend_no_countries <- trend_line(
     topic = topic,
@@ -125,7 +125,7 @@ trend_no_countries <- trend_line(
     date_type = date_type,
     date_min = date_min,
     date_max = date_max,
-    with_retweets = with_retweets,
+    with_quotes = with_quotes,
     alpha = alpha,
     alpha_outlier = alpha_outlier,
     k_decay = k_decay,
@@ -141,7 +141,7 @@ trend_countries <- trend_line(
     date_type = date_type,
     date_min = date_min,
     date_max = date_max,
-    with_retweets = with_retweets,
+    with_quotes = with_quotes,
     alpha = alpha,
     alpha_outlier = alpha_outlier,
     k_decay = k_decay,
@@ -159,42 +159,42 @@ setup_config()
 #debugonce(create_topchart)
 
 # TEST OK avec topwords
-topch1 <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+topch1 <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_quotes = FALSE, top = 25)
 
-topch1r <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = TRUE, top = 25)
+topch1r <- create_topchart(topic = topic, serie = "topwords", country_codes=c(),date_min=date_min,date_max=date_max, with_quotes = TRUE, top = 25)
 
 # TEST OK avec tags
-topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+topch2 <- create_topchart(topic = topic, serie = "tags", country_codes=c(),date_min=date_min,date_max=date_max, with_quotes = FALSE, top = 25)
 
 # TEST OK avec urls
-topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+topch3 <- create_topchart(topic = topic, serie = "urls", country_codes=c(),date_min=date_min,date_max=date_max, with_quotes = FALSE, top = 25)
 
 # With countries
 countries_top_chart <- c("AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", 
 "DE", "GR",
  "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL",
 "PT", "RO", "SK", "SI", "ES", "SE")
- topch4 <- create_topchart(topic = topic, serie = "topwords", country_codes=countries_top_chart,date_min=date_min,date_max=date_max, with_retweets = FALSE, top = 25)
+ topch4 <- create_topchart(topic = topic, serie = "topwords", country_codes=countries_top_chart,date_min=date_min,date_max=date_max, with_quotes = FALSE, top = 25)
 ```
 
 # create_map
 
 ```{r}
 setup_config()
-m1 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = FALSE)
+m1 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_quotes = FALSE)
 
-m1r <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = TRUE)
+m1r <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_quotes = TRUE)
 
 # test with some countries
 countries <- 4
-m2 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = TRUE)
+m2 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_quotes = TRUE)
 
 countries <- 12
-m2 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = TRUE)
+m2 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_quotes = TRUE)
 
 # test "detailed"
 countries <- 276 #USA
-m3 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_retweets = TRUE)
+m3 <- create_map(topic = topic, countries = countries, date_min = date_min, date_max = date_max, with_quotes = TRUE)
 
 ```
 

@@ -8,7 +8,7 @@ params:
   countries: ["1", "2"]
   period_type: "created_date"
   period: ["2020-01-01", "2020-03-31"]
-  with_retweets: FALSE
+  with_quotes: FALSE
   location_type: "tweet"
   alert_alpha: 0.025
   alert_alpha_outlier: 0.05
@@ -35,7 +35,7 @@ Parameters
 * Regions: `r region_names`
 * Period type: `r params$period_type`
 * Period: `r params$period`
-* With retweets: `r params$with_retweets`
+* With quotes: `r params$with_quotes`
 * Location Type: `r params$location_type`
 * Signal detection confidence (alpha): `r as.character(params$alert_alpha)`
 * Outliers detection confidence (alpha-outlier): `r as.character(params$alert_alpha_outlier)`
@@ -51,7 +51,7 @@ line_chart_from_filters(
   params$countries,
   params$period_type,
   params$period,
-  params$with_retweets,
+  params$with_quotes,
   params$location_type,
   params$alert_alpha,
   params$alert_alpha_outlier,
@@ -68,7 +68,7 @@ map_chart_from_filters(
   params$topics,
   params$countries,
   params$period,
-  params$with_retweets,
+  params$with_quotes,
   params$location_type
 )$chart
 ```
@@ -80,7 +80,7 @@ top_chart_from_filters(
   params$top_type1,
   params$countries,
   params$period,
-  params$with_retweets,
+  params$with_quotes,
   params$location_type,
   20
 )$chart
@@ -93,7 +93,7 @@ top_chart_from_filters(
   params$top_type2,
   params$countries,
   params$period,
-  params$with_retweets,
+  params$with_quotes,
   params$location_type,
   20
 )$chart
@@ -109,7 +109,7 @@ df <- top_chart_from_filters(
   "urls",
   params$countries,
   params$period,
-  params$with_retweets,
+  params$with_quotes,
   params$location_type,
   50
 )$data

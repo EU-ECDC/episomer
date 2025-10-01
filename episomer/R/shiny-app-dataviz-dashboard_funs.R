@@ -4,7 +4,7 @@ line_chart_from_filters <- function(
   countries,
   period_type,
   period,
-  with_retweets,
+  with_quotes,
   alpha,
   alpha_outlier,
   k_decay,
@@ -18,7 +18,7 @@ line_chart_from_filters <- function(
     date_type = period_type,
     date_min = period[[1]],
     date_max = period[[2]],
-    with_retweets = with_retweets,
+    with_quotes = with_quotes,
     alpha = alpha,
     alpha_outlier = alpha_outlier,
     k_decay = k_decay,
@@ -28,13 +28,13 @@ line_chart_from_filters <- function(
   )
 }
 # Defining line chart from shiny app filters
-map_chart_from_filters <- function(topics, countries, period, with_retweets) {
+map_chart_from_filters <- function(topics, countries, period, with_quotes) {
   create_map(
     topic = topics,
     countries = if (length(countries) == 0) c(1) else as.integer(countries),
     date_min = period[[1]],
     date_max = period[[2]],
-    with_retweets = with_retweets,
+    with_quotes = with_quotes,
     caption = conf$regions_disclaimer,
     forplotly = TRUE
   )
@@ -45,7 +45,7 @@ top_chart_from_filters <- function(
   serie,
   fcountries,
   period,
-  with_retweets,
+  with_quotes,
   top
 ) {
   fcountries = if (length(fcountries) == 0 || 1 %in% fcountries) c(1) else
@@ -63,7 +63,7 @@ top_chart_from_filters <- function(
     country_codes = countries,
     date_min = period[[1]],
     date_max = period[[2]],
-    with_retweets = with_retweets,
+    with_quotes = with_quotes,
     top
   )
 }
@@ -77,7 +77,7 @@ top_chart_from_filters <- function(
     countries,
     period_type,
     period,
-    with_retweets,
+    with_quotes,
     location_type,
     alpha,
     alpha_outlier,
@@ -104,7 +104,7 @@ top_chart_from_filters <- function(
             "countries" = countries,
             "period_type" = period_type,
             "period" = period,
-            "with_retweets" = with_retweets,
+            "with_quotes" = with_quotes,
             "location_type" = location_type,
             "alert_alpha" = alpha,
             "alert_alpha_outlier" = alpha_outlier,
