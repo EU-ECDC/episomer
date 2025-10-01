@@ -97,7 +97,7 @@ search_loop_worker <- function(
     # Waiting until database system will be running
     if (!sandboxed) {
       while (!is_fs_running()) {
-        msg("Epitweetr database is not yet running waiting for 5 seconds")
+        msg("episomer database is not yet running waiting for 5 seconds")
         Sys.sleep(5)
       }
       # Dismissing history if required from shiny app
