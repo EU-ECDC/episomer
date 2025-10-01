@@ -15,14 +15,14 @@ registers the tweet collection task or stops if no configuration has been set or
 \details{
 Registers the tweet collextion task or stops if no configuration has been set or if it is already running.
 Twitter authentication needs to be previously set on the shiny app or by calling set_twitter_app_auth().
-You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): epitweetr::check_all() %>% filter(check == 'twitter_auth')
+You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'twitter_auth')
 This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 }
 \examples{
 if(FALSE){
    #getting tasks statuses
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    register_search_runner_task()
 }

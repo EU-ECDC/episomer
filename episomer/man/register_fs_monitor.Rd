@@ -19,8 +19,8 @@ This function has been exported so it can be properly called from the future pac
 \examples{
 if(FALSE){
    #getting tasks statuses
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    register_fs_monitor()
 }

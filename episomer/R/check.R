@@ -793,7 +793,7 @@ update_session_info <- function() {
 #' - 'settings': Including all setting files of your installation (excluding passwords)
 #' - 'dependencies': All jars and winutils.exe on windows installations
 #' - 'machine-learning': All trained models and vectors and training data (this can include tweet text which is personal data)
-#' - 'aggregations': Epitweetr aggregated time series
+#' - 'aggregations': Episomer aggregated time series
 #' - 'tweets': Tweets collected by episomer
 #' - 'logs': Log files produced automatically on windows task scheduler tasks.
 #' @examples

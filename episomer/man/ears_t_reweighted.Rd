@@ -48,7 +48,7 @@ for algorithm details see package vignette.
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
+   library(episomer)
    #Running the modifies version of the ears algorithm for a particular data series
     ts <- c(150, 130, 122, 160, 155, 128, 144, 125, 300, 319, 289, 277, 500)
     show(ears_t_reweighted(ts))

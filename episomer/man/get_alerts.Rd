@@ -45,9 +45,9 @@ For more details see the package vignette.
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
+   library(episomer)
    # setting up the data folder
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
 
    # Getting signals produced for last 30 days for a particular country

@@ -2,7 +2,7 @@
 % Please edit documentation in R/dataviz.R
 \name{create_map}
 \alias{create_map}
-\title{Plot the map report on the epitweetr dashboard}
+\title{Plot the map report on the episomer dashboard}
 \usage{
 create_map(
   topic = c(),
@@ -53,7 +53,7 @@ This functions requires that \code{\link{search_loop}} and \code{\link{detect_lo
 \examples{
 if(FALSE){
    #Getting bubble chart for dengue for South America for last 30 days
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    create_map(
      topic = "dengue",

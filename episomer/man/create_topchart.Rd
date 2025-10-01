@@ -2,7 +2,7 @@
 % Please edit documentation in R/dataviz.R
 \name{create_topchart}
 \alias{create_topchart}
-\title{Plot the top elements for a specific series on the epitweetr dashboard}
+\title{Plot the top elements for a specific series on the episomer dashboard}
 \usage{
 create_topchart(
   topic,
@@ -42,7 +42,7 @@ This functions requires that \code{\link{search_loop}} and \code{\link{detect_lo
 }
 \examples{
 if(FALSE){
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    #Getting topword chart for dengue for France, Chile, Australia for last 30 days
    create_topchart(

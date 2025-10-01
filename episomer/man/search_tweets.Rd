@@ -2,7 +2,7 @@
 % Please edit documentation in R/fs.R
 \name{search_tweets}
 \alias{search_tweets}
-\title{perform full text search on tweets collected with epitweetr}
+\title{perform full text search on tweets collected with episomer}
 \usage{
 search_tweets(
   query = NULL,
@@ -27,7 +27,7 @@ search_tweets(
 
 \item{to}{an object which can be converted to ‘"POSIXlt"’ only tweets posted before or on this date will be included, default:NULL}
 
-\item{countries}{character or numeric, the position or name of epitweetr regions to be included on the query, default:NULL}
+\item{countries}{character or numeric, the position or name of episomer regions to be included on the query, default:NULL}
 
 \item{mentioning}{character, limit the search to the tweets mentioning the given users, default:NULL}
 
@@ -48,10 +48,10 @@ screen_name, created_date, is_geo_located, user_location_loc, is_retweet, text, 
 created_at, topic_tweet_id, topic, lang, user_name, linked_text, tweet_id, linked_text_loc, hashtags, user_description_loc
 }
 \description{
-perform full text search on tweets collected with epitweetr (tweets migrated from epitweetr v<1.0.x are also included)
+perform full text search on tweets collected with episomer (tweets migrated from episomer v<1.0.x are also included)
 }
 \details{
-epitweetr translate the query provided by all parameters into a single query that will be executed on tweet indexes which are weekly indexes.
+episomer translate the query provided by all parameters into a single query that will be executed on tweet indexes which are weekly indexes.
 The q parameter should respect the syntax of the Lucene classic parser \url{https://lucene.apache.org/core/8_5_0/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html}
 So other than the provided parameters, multi field queries are supported by using the syntax field_name:value1;value2
 AND, OR and -(for excluding terms) are supported on q parameter.
@@ -60,8 +60,8 @@ Order by week is always applied before relevance so even if you provide by_relev
 \examples{
 if(FALSE){
    #Running the detect loop
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    df <- search_tweets(
         q = "vaccination",

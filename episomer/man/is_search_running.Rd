@@ -17,8 +17,8 @@ returns a logical value being TRUE if the tweet collection is running
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    is_search_running()
 }

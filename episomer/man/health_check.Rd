@@ -2,7 +2,7 @@
 % Please edit documentation in R/check.R
 \name{health_check}
 \alias{health_check}
-\title{Send email to administrator if a failure of epitweetr is detected}
+\title{Send email to administrator if a failure of episomer is detected}
 \usage{
 health_check(send_mail = TRUE, one_per_day = TRUE)
 }
@@ -15,18 +15,18 @@ health_check(send_mail = TRUE, one_per_day = TRUE)
 A list of health check errors found
 }
 \description{
-It validates if epitweetr is not collecting tweets, aggregating tweets or not calculating alerts
+It validates if episomer is not collecting tweets, aggregating tweets or not calculating alerts
 }
 \details{
-This function sends an email to the defined administrator if epitweetr is not collecting tweets, aggregating tweets or not calculating alerts
+This function sends an email to the defined administrator if episomer is not collecting tweets, aggregating tweets or not calculating alerts
 }
 \examples{
 if(FALSE){
-   #importing epitweetr
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   #importing episomer
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
-   #sending the email to the administrator if epitweetr components are not properly working
+   #sending the email to the administrator if episomer components are not properly working
    health_check()
 }
 }

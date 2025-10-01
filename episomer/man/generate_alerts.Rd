@@ -32,9 +32,9 @@ Normally this function is not called directly by the user but from the \code{\li
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
+   library(episomer)
    # setting up the data folder
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
 
    # calculating alerts for last day tweets and sending emails to subscribers

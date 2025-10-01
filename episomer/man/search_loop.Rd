@@ -28,15 +28,15 @@ round-robin philosophy and respecting Twitter API rate-limits.
 The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect tweets respecting a 'collect_span' window
 in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 
-To see more details about the collection algorithm please see epitweetr vignette.
+To see more details about the collection algorithm please see episomer vignette.
 
 In order to work, this task needs Bluessky credentials, which can be set on the Shiny app or using \code{\link{set_bsky_auth}}
 }
 \examples{
 if(FALSE){
    #Running the search loop
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    search_loop(file.choose())
 }
 }

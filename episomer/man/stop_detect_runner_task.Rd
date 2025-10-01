@@ -19,8 +19,8 @@ This function will try also deactivate the respective scheduled task on Windows.
 \examples{
 if(FALSE){
    #getting tasks statuses
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    stop_detect_runner_task()
 }

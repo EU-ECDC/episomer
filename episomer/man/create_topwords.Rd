@@ -2,7 +2,7 @@
 % Please edit documentation in R/dataviz.R
 \name{create_topwords}
 \alias{create_topwords}
-\title{Plot the top words report on the epitweetr dashboard}
+\title{Plot the top words report on the episomer dashboard}
 \usage{
 create_topwords(
   topic,
@@ -41,7 +41,7 @@ This function requires that \code{\link{search_loop}} and \code{\link{detect_loo
 }
 \examples{
 if(FALSE){
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    #Getting topword chart for dengue for France, Chile, Australia for last 30 days
    create_topwords(

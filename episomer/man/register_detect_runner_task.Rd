@@ -20,8 +20,8 @@ This function will use the task scheduler on windows and will fall back to launc
 \examples{
 if(FALSE){
    #getting tasks statuses
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    register_detect_runner_task()
 }
