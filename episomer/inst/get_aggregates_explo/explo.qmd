@@ -85,14 +85,14 @@ tweets <- get_aggregates("tweets",
 #         tweets = tweets
 #     ),
 #     file = file.path(
-#         system.file("get_aggregates_explo", package = "epitweetr"),
+#         system.file("get_aggregates_explo", package = "episomer"),
 #         "get_aggregates_sample.rds"
 #     )
 # )
 ```
 
 ```{r}
-get_aggregates_sample <- readRDS(file.path(system.file("get_aggregates_explo", package = "epitweetr"), "get_aggregates_sample.rds"))
+get_aggregates_sample <- readRDS(file.path(system.file("get_aggregates_explo", package = "episomer"), "get_aggregates_sample.rds"))
 ```
 
 ```{r}

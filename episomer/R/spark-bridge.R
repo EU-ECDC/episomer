@@ -376,7 +376,7 @@ download_sbt_dependencies <- function(tasks = get_tasks()) {
       },
       error = function(c) {
         stop(paste(
-          "EPitweetr cannot remove JAR fils files in ",
+          "episomer cannot remove JAR fils files in ",
           get_jars_dest_path(),
           " please remove the files manually.",
           c
