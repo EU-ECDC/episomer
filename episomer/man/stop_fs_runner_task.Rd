@@ -2,7 +2,7 @@
 % Please edit documentation in R/scheduler.R
 \name{stop_fs_runner_task}
 \alias{stop_fs_runner_task}
-\title{Stops the epitweetr database task}
+\title{Stops the episomer database task}
 \usage{
 stop_fs_runner_task()
 }
@@ -10,17 +10,17 @@ stop_fs_runner_task()
 Nothing
 }
 \description{
-stops the epitweetr database task
+stops the episomer database task
 }
 \details{
-Stops the epitweetr database task if it is already running
+Stops the episomer database task if it is already running
 This function will try also deactivate the respective scheduled task on Windows.
 }
 \examples{
 if(FALSE){
    #getting tasks statuses
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    stop_fs_runner_task()
 }

@@ -18,8 +18,8 @@ This function executes a series of sanity checks, concerning, Java, bitness, tas
 \examples{
 if(FALSE){
    #importing epitweer
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    #running all tests
    check_all()

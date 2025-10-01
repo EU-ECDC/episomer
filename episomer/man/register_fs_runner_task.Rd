@@ -2,7 +2,7 @@
 % Please edit documentation in R/scheduler.R
 \name{register_fs_runner_task}
 \alias{register_fs_runner_task}
-\title{Registers the epitweetr database task}
+\title{Registers the episomer database task}
 \usage{
 register_fs_runner_task()
 }
@@ -10,18 +10,18 @@ register_fs_runner_task()
 Nothing
 }
 \description{
-registers the epitweetr database task or stops if no configuration has been set or if it is already running
+registers the episomer database task or stops if no configuration has been set or if it is already running
 }
 \details{
-Registers the epitweetr database task or stops if no configuration has been set or if it is already running.
+Registers the episomer database task or stops if no configuration has been set or if it is already running.
 This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
 This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 }
 \examples{
 if(FALSE){
    #getting tasks statuses
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    register_fs_runner_task()
 }

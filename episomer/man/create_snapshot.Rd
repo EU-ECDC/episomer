@@ -2,7 +2,7 @@
 % Please edit documentation in R/check.R
 \name{create_snapshot}
 \alias{create_snapshot}
-\title{Snapshot of your epitweetr installation}
+\title{Snapshot of your episomer installation}
 \usage{
 create_snapshot(
   destination_dir,
@@ -31,23 +31,23 @@ create_snapshot(
 Nothing
 }
 \description{
-Creates a snapshot file of your epitweetr installation folder. This can include all or a subset of the data files.
+Creates a snapshot file of your episomer installation folder. This can include all or a subset of the data files.
 }
 \details{
-This function can be used to create a a portable file to move your epitweetr installation in a single file, to backup your data, to archive your old data or to send information to technical team in order to reproduce an observed issue.
+This function can be used to create a a portable file to move your episomer installation in a single file, to backup your data, to archive your old data or to send information to technical team in order to reproduce an observed issue.
 Different kinds of data can be included on the snapshot depending on the type of parameter. Possible values are:
 - 'settings': Including all setting files of your installation (excluding passwords)
 - 'dependencies': All jars and winutils.exe on windows installations
 - 'machine-learning': All trained models and vectors and training data (this can include tweet text which is personal data)
-- 'aggregations': Epitweetr aggregated time series
-- 'tweets': Tweets collected by epitweetr
+- 'aggregations': Episomer aggregated time series
+- 'tweets': Tweets collected by episomer
 - 'logs': Log files produced automatically on windows task scheduler tasks.
 }
 \examples{
 if(FALSE){
    #importing epitweer
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    #creating a compressed snapshot for settings and logs
    create_snapshot(getwd(), c("settings","dependencies"), compress = TRUE)

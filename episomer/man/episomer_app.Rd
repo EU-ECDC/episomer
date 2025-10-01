@@ -2,7 +2,7 @@
 % Please edit documentation in R/shiny-app.R
 \name{dashboard_app}
 \alias{dashboard_app}
-\title{Run the epitweetr Shiny app}
+\title{Run the episomer Shiny app}
 \usage{
 dashboard_app(data_dir = NA, host = NULL, port = NULL)
 }
@@ -20,19 +20,19 @@ If not provided the system will try to reuse the existing one from last session 
 The Shiny server object containing the launched application
 }
 \description{
-Open the epitweetr Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
+Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
 }
 \details{
-The epitweetr app is the user entry point to the epitweetr package. This application will help the user to setup the tweet collection process, manage all settings,
+The episomer app is the user entry point to the episomer package. This application will help the user to setup the tweet collection process, manage all settings,
 see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
 
-All its functionality is described on the epitweetr vignette.
+All its functionality is described on the episomer vignette.
 }
 \examples{
 if(FALSE){
-   #Running the epitweetr app
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   #Running the episomer app
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    episomer_app()
 }

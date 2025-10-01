@@ -29,8 +29,8 @@ If any of these tasks fails it will be retried three times before going to abort
 \examples{
 if(FALSE){
    #Running the detect loop
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    detect_loop()
 }

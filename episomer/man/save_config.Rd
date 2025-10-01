@@ -25,9 +25,9 @@ to save Twitter credentials please use \code{\link{set_bsky_auth}}
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
+   library(episomer)
    #load configuration
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    #make some changes
    #conf$collect_span = 90

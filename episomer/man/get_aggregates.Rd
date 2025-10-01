@@ -31,7 +31,7 @@ A data frame containing the requested series for the requested period
 Read and returns the required aggregated dataset for the selected period and topics defined by the filter.
 }
 \details{
-This function returns data aggregated by epitweetr. The data is found on the 'series' folder, which contains Rds files per weekday and type of series.
+This function returns data aggregated by episomer. The data is found on the 'series' folder, which contains Rds files per weekday and type of series.
 starting on v 1.0.x it will also look on Lucene indexes situated on fs folder. Names of files and folders are parsed to limit the files to be read.
 When using Lucene indexes, filters are directly applied on read. This is an improvement compared 'series' folder where filters are applied
 after read. All returned rows are joined in a single dataframe.
@@ -52,7 +52,7 @@ The returned dataset can be cached for further calls if requested. Only one data
 }
 \examples{
 if(FALSE){
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    # Getting all country tweets between 2020-jan-10 and 2020-jan-31 for all topics
    df <- get_aggregates(

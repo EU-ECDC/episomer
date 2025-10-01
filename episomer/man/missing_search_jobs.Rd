@@ -17,8 +17,8 @@ returns a char vector with the name of missing social media
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    missing_search_jobs()
 }

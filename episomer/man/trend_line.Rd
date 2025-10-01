@@ -2,7 +2,7 @@
 % Please edit documentation in R/dataviz.R
 \name{trend_line}
 \alias{trend_line}
-\title{Plot the trendline report of epitweetr dashboard}
+\title{Plot the trendline report of episomer dashboard}
 \usage{
 trend_line(
   topic,
@@ -60,7 +60,7 @@ This function requires \code{\link{search_loop}} and \code{\link{detect_loop}} t
 }
 \examples{
 if(FALSE){
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    #Getting trendline for dengue for South America for the last 30 days
    trend_line(

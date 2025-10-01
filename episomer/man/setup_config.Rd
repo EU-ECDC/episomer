@@ -2,12 +2,12 @@
 % Please edit documentation in R/config.R
 \name{setup_config}
 \alias{setup_config}
-\title{Load epitweetr application settings}
+\title{Load episomer application settings}
 \usage{
 setup_config(
   data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if
     (Sys.getenv("EPI_HOME") != "") Sys.getenv("EPI_HOME") else file.path(getwd(),
-    "epitweetr"),
+    "episomer"),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
@@ -17,9 +17,9 @@ setup_config(
 }
 \arguments{
 \item{data_dir}{Path to the directory containing the application settings (it must exist).
-If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or epitweetr subdirectory in the working directory,
+If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
 default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-   "") Sys.getenv("EPI_HOME") else file.path(getwd(), "epitweetr")}
+   "") Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer")}
 
 \item{ignore_keyring}{Whether to skip loading settings from the keyring (Twitter and SMTP credentials), default: FALSE}
 
@@ -33,11 +33,11 @@ default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv
 Nothing
 }
 \description{
-Load epitweetr application settings from the designated data directory
+Load episomer application settings from the designated data directory
 }
 \details{
-epitweetr relies on settings and data stored in a system folder, so before loading the dashboard, collecting tweets or detecting alerts the user has to designate this folder.
-When a user wants to use epitweetr from the R console they will need to call this function for initialisation.
+episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting tweets or detecting alerts the user has to designate this folder.
+When a user wants to use episomer from the R console they will need to call this function for initialisation.
 The 'data_folder' can also be given as a parameter for program launch functions \code{\link{episomer_app}}, \code{\link{search_loop}} or \code{\link{detect_loop}}, which will internally call this function.
 
 This call will fill (or refresh) a package scoped environment 'conf' that will store the settings. Settings stored in conf are:
@@ -58,9 +58,9 @@ Changes made to conf can be stored permanently (except for 'data_dir') using:
 }
 \examples{
 if(FALSE){
-   library(epitweetr)
+   library(episomer)
    #loading system settings
-   message('Please choose the epitweetr data directory')
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
 }
 }

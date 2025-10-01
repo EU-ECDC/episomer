@@ -2,7 +2,7 @@
 % Please edit documentation in R/fs.R
 \name{fs_loop}
 \alias{fs_loop}
-\title{Runs the epitweetr embedded database loop}
+\title{Runs the episomer embedded database loop}
 \usage{
 fs_loop(data_dir = NA)
 }
@@ -14,19 +14,19 @@ If not provided, the system will try to reuse the existing one from last session
 nothing
 }
 \description{
-Infinite loop ensuring that the epitweetr embedded database is running (Lucene + akka-http)
+Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
 }
 \details{
-Launches the epitweetr embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
-the REST API provide epitweetr a way to send and retrieve data related with tweets and time series and to trigger geolocation or aggregation
-The database is implemented using Apache Lucene indexes allowing epitweetr to access its data as a search engine but also as a tabular database.
-\code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some epitweetr components fail.
+Launches the episomer embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
+the REST API provide episomer a way to send and retrieve data related with tweets and time series and to trigger geolocation or aggregation
+The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
+\code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
 }
 \examples{
 if(FALSE){
    #Running the detect loop
-   library(epitweetr)
-   message('Please choose the epitweetr data directory')
+   library(episomer)
+   message('Please choose the episomer data directory')
    setup_config(file.choose())
    fs_loop()
 }
