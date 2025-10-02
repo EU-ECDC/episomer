@@ -285,7 +285,7 @@ calculate_region_alerts <- function(
   country_code_cols = "tweet_geo_country_code",
   start = NA,
   end = NA,
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   alpha = 0.025,
   alpha_outlier = 0.05,
   k_decay = 4,
@@ -313,7 +313,7 @@ calculate_region_alerts <- function(
 
   # Adding retweets on count if requested
 
-  df <- if (with_retweets) {
+  df <- if (with_quotes) {
     df %>%
       dplyr::mutate(
         tweets = ifelse(is.na(.data$quotes), 0, .data$quotes) +
@@ -401,7 +401,7 @@ calculate_regions_alerts <- function(
   date_type = c("created_date"),
   date_min = as.Date("1900-01-01"),
   date_max = as.Date("2100-01-01"),
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   alpha = 0.025,
   alpha_outlier = 0.05,
   k_decay = 4,
@@ -435,7 +435,7 @@ calculate_regions_alerts <- function(
         country_code_cols = "geo_country_code",
         start = as.Date(date_min),
         end = as.Date(date_max),
-        with_retweets = with_retweets,
+        with_quotes = with_quotes,
         no_historic = no_historic,
         alpha = alpha,
         alpha_outlier = alpha_outlier,
@@ -590,7 +590,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
         date_type = "created_date",
         date_min = alert_to,
         date_max = alert_to,
-        with_retweets = conf$alert_with_retweets,
+        with_quotes = conf$alert_with_quotes,
         alpha = as.numeric(get_topics_alphas()[[topic]]),
         alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]),
         k_decay = as.numeric(get_topics_k_decays()[[topic]]),
@@ -672,7 +672,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
       alerts <- alerts %>%
         dplyr::mutate(
           hour = alert_to_hour,
-          with_retweets = conf$alert_with_retweets,
+          with_quotes = conf$alert_with_quotes,
           alpha = as.numeric(get_topics_alphas()[.data$topic]),
           alpha_outlier = as.numeric(get_topics_alpha_outliers()[.data$topic]),
           k_decay = as.numeric(get_topics_k_decays()[.data$topic]),
@@ -1495,7 +1495,7 @@ get_alert_tables <- function(
             `Bonf. corr.` = .data$`bonferroni_correction`,
             `Same weekday baseline` = .data$`same_weekday_baseline`,
             `Day_rank` = .data$`rank`,
-            `With retweets` = .data$`with_retweets`,
+            `With retweets` = .data$`with_quotes`,
             `Location` = .data$`location_type`
           ) %>%
           xtable::xtable() %>%

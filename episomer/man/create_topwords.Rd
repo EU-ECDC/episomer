@@ -9,7 +9,7 @@ create_topwords(
   country_codes = c(),
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   top = 25
 )
 }
@@ -22,7 +22,7 @@ create_topwords(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_retweets}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
 
 \item{top}{numeric(1) Parameter indicating the number of words to show, default: 25}
 }

@@ -5,7 +5,7 @@
 #' @param date_type Character vector specifying the time granularity of the report either 'created_weeknum' or 'created_date', default: 'created_date'
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
 #' @param alpha Numeric(1) value indicating the alert detection confidence, default: 0.025
 #' @param alpha_outlier Numeric(1) value indicating the outliers detection confidence for downweighting, default: 0.05
 #' @param k_decay Strength of outliers downweighting, default: 4
@@ -46,7 +46,7 @@ trend_line <- function(
   date_type = "created_date",
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   alpha = 0.025,
   alpha_outlier = 0.05,
   k_decay = 4,
@@ -76,7 +76,7 @@ trend_line <- function(
       date_type = date_type,
       date_min = date_min,
       date_max = date_max,
-      with_retweets = with_retweets,
+      with_quotes = with_quotes,
       alpha = alpha,
       alpha_outlier = alpha_outlier,
       k_decay = k_decay,
@@ -423,7 +423,7 @@ plot_trendline <- function(
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app, default: c(1)
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
 #' @param caption Character(1) vector indicating a caption to print at the bottom of the chart, default: ""
 #' @param proj Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format \code{\link[sp]{CRS-class}}?
 #' If null and all countries are selected +proj=robin is used (Robinson projection) otherwise the Lambert azimuthal equal-area projection will be chosen, default: NULL
@@ -469,7 +469,7 @@ create_map <- function(
   countries = c(1),
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   caption = "",
   proj = NULL,
   forplotly = FALSE
@@ -536,14 +536,14 @@ create_map <- function(
 
   # Adding retweets if requested
   if (!detailed) {
-    if (with_retweets) {
+    if (with_quotes) {
       df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) +
         ifelse(is.na(df$original), 0, df$original)
     } else {
       df$tweets <- df$original
     }
   } else {
-    if (with_retweets) {
+    if (with_quotes) {
       df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) +
         ifelse(is.na(df$posts), 0, df$posts)
     } else {
@@ -860,7 +860,7 @@ create_map <- function(
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 #' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
@@ -897,7 +897,7 @@ create_topwords <- function(
   country_codes = c(),
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   top = 25
 ) {
   create_topchart(
@@ -917,7 +917,7 @@ create_topwords <- function(
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_retweets Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 #' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
@@ -954,7 +954,7 @@ create_topchart <- function(
   country_codes = c(),
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   top = 25
 ) {
   stop_if_no_config()
@@ -1014,7 +1014,7 @@ create_topchart <- function(
 
   # dealing with retweets if requested
 
-  if (!with_retweets) {
+  if (!with_quotes) {
     df$frequency <- df$original
   } else {
     df$frequency <- ifelse(is.na(df$quotes), 0, df$quotes) +

@@ -135,7 +135,7 @@ get_empty_config <- function(data_dir) {
   ret$alert_k_decay <- 4
   ret$alert_history <- 7
   ret$alert_same_weekday_baseline <- FALSE
-  ret$alert_with_retweets <- FALSE
+  ret$alert_with_quotes <- FALSE
   ret$alert_with_bonferroni_correction <- TRUE
   ret$use_mkl <- FALSE
   ret$geonames_simplify <- TRUE
@@ -285,7 +285,7 @@ setup_config <- function(
     conf$alert_k_decay <- temp$alert_k_decay
     conf$alert_history <- temp$alert_history
     conf$alert_same_weekday_baseline <- temp$alert_same_weekday_baseline
-    conf$alert_with_retweets <- temp$alert_with_retweets
+    conf$alert_with_quotes <- temp$alert_with_quotes
     conf$alert_with_bonferroni_correction <- temp$alert_with_bonferroni_correction
     conf$use_mkl <- temp$use_mkl
     conf$geonames_simplify <- temp$geonames_simplify
@@ -529,7 +529,7 @@ save_config <- function(
     temp$alert_k_decay <- conf$alert_k_decay
     temp$alert_history <- conf$alert_history
     temp$alert_same_weekday_baseline <- conf$alert_same_weekday_baseline
-    temp$alert_with_retweets <- conf$alert_with_retweets
+    temp$alert_with_quotes <- conf$alert_with_quotes
     temp$alert_with_bonferroni_correction <- conf$alert_with_bonferroni_correction
     temp$use_mkl <- conf$use_mkl
     temp$geonames_simplify <- conf$geonames_simplify

@@ -9,7 +9,7 @@ create_map(
   countries = c(1),
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   caption = "",
   proj = NULL,
   forplotly = FALSE
@@ -24,7 +24,7 @@ create_map(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_retweets}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
 
 \item{caption}{Character(1) vector indicating a caption to print at the bottom of the chart, default: ""}
 
