@@ -728,7 +728,7 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
       msg <- (emayili::envelope() %>%
         emayili::from(conf$smtp_from) %>%
         emayili::to(conf$admin_email) %>%
-        emayili::subject("Epitweetr may not be properly running") %>%
+        emayili::subject("episomer may not be properly running") %>%
         emayili::html(
           paste(
             "<p>The following errors were found during episomer health check, please check your episomer installation</p><p><ul><li>",

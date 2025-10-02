@@ -10,7 +10,7 @@ trend_line(
   date_type = "created_date",
   date_min = "1900-01-01",
   date_max = "2100-01-01",
-  with_retweets = FALSE,
+  with_quotes = FALSE,
   alpha = 0.025,
   alpha_outlier = 0.05,
   k_decay = 4,
@@ -30,7 +30,7 @@ trend_line(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_retweets}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
 
 \item{alpha}{Numeric(1) value indicating the alert detection confidence, default: 0.025}
 

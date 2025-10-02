@@ -138,9 +138,9 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
           ),
           shiny::h4("Include quotes"),
           shiny::checkboxInput(
-            "with_retweets",
+            "with_quotes",
             label = NULL,
-            value = conf$alert_with_retweets
+            value = conf$alert_with_quotes
           ),
           shiny::sliderInput(
             "alpha_filter",
@@ -540,13 +540,13 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             )
           ),
           shiny::fluidRow(
-            shiny::column(3, "Include retweets/quotes"),
+            shiny::column(3, "Include quotes"),
             shiny::column(
               9,
               shiny::checkboxInput(
-                "conf_with_retweets",
+                "conf_with_quotes",
                 label = NULL,
-                value = conf$alert_with_retweets
+                value = conf$alert_with_quotes
               )
             )
           ),
@@ -1415,7 +1415,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             input$countries,
             input$period_type,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             input$alpha_filter,
             input$alpha_outlier_filter,
             input$k_decay_filter,
@@ -1477,7 +1477,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             input$topics,
             input$countries,
             input$period,
-            input$with_retweets
+            input$with_quotes
           )$chart
 
           # returning empty chart if no data is found on chart
@@ -1538,7 +1538,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "tags",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             20
           )$chart
 
@@ -1588,7 +1588,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "topwords",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             20
           )$chart
 
@@ -1657,7 +1657,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "urls",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             200
           )$chart
 
@@ -1710,7 +1710,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             input$countries,
             input$period_type,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             input$alpha_filter,
             input$alpha_outlier_filter,
             input$k_decay_filter,
@@ -1753,7 +1753,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             input$countries,
             input$period_type,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             input$alpha_filter,
             input$alpha_outlier_filter,
             input$k_decay_filter,
@@ -1790,7 +1790,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             input$topics,
             input$countries,
             input$period,
-            input$with_retweets
+            input$with_quotes
           )$data,
           file,
           row.names = FALSE
@@ -1820,7 +1820,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
           input$topics,
           input$countries,
           input$period,
-          input$with_retweets
+          input$with_quotes
         )$chart
         device <- function(..., width, height)
           grDevices::png(
@@ -1859,7 +1859,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "tags",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             200
           )$data,
           file,
@@ -1892,7 +1892,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "topwords",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             200
           )$data,
           file,
@@ -1925,7 +1925,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "urls",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             200
           )$data,
           file,
@@ -1959,7 +1959,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "tags",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             50
           )$chart
         device <- function(..., width, height)
@@ -1999,7 +1999,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
             "topwords",
             input$countries,
             input$period,
-            input$with_retweets,
+            input$with_quotes,
             50
           )$chart
         device <- function(..., width, height)
@@ -2043,7 +2043,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
           input$countries,
           input$period_type,
           input$period,
-          input$with_retweets,
+          input$with_quotes,
           input$location_type,
           input$alpha_filter,
           input$alpha_outlier_filter,
@@ -2085,7 +2085,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
           input$countries,
           input$period_type,
           input$period,
-          input$with_retweets,
+          input$with_quotes,
           input$location_type,
           input$alpha_filter,
           input$alpha_outlier_filter,
@@ -2392,7 +2392,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
       conf$alert_history <- input$conf_history
       conf$alert_same_weekday_baseline <- input$conf_same_weekday_baseline
       conf$alert_with_bonferroni_corection <- input$conf_with_bonferroni_correction
-      conf$alert_with_retweets <- input$conf_with_retweets
+      conf$alert_with_quotes <- input$conf_with_quotes
       conf$smtp_host <- input$smtp_host
       conf$smtp_port <- input$smtp_port
       conf$smtp_from <- input$smtp_from
@@ -2775,7 +2775,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
               "bonferroni_correction",
               "same_weekday_baseline",
               "rank",
-              "with_retweets",
+              "with_quotes",
               "location_type",
               "alpha",
               "alpha_outlier",
@@ -2796,7 +2796,7 @@ episomer_app <- function(data_dir = NA, profile, host = NULL, port = NULL) {
                 "Bonf. corr." = "bonferroni_correction",
                 "Same weekday baseline" = "same_weekday_baseline",
                 "Day rank" = "rank",
-                "With retweets" = "with_retweets",
+                "With quotes" = "with_quotes",
                 "Location" = "location_type",
                 "Alert FPR (alpha)" = "alpha",
                 "Outlier FPR (alpha)" = "alpha_outlier",
