@@ -2,18 +2,18 @@
 % Please edit documentation in R/scheduler.R
 \name{is_search_running}
 \alias{is_search_running}
-\title{Check whether the tweet collection task is running}
+\title{Check whether the post collection task is running}
 \usage{
 is_search_running()
 }
 \value{
-logical Whether the tweet collection is running
+logical Whether the post collection is running
 }
 \description{
-gets the tweet collection execution status
+gets the post collection execution status
 }
 \details{
-returns a logical value being TRUE if the tweet collection is running
+returns a logical value being TRUE if the post collection is running
 }
 \examples{
 if(FALSE){

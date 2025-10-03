@@ -1,4 +1,4 @@
-package org.ecdc.twitter 
+package org.ecdc.episomer 
 
 import org.ecdc.episomer.geo.{Geonames}
 import demy.storage.{Storage, WriteMode, FSNode}

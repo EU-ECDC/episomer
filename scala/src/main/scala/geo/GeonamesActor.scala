@@ -1,9 +1,9 @@
 package org.ecdc.episomer.geo
 
-import org.ecdc.twitter.{Language}
+import org.ecdc.episomer.{Language}
 import Geonames.Geolocate
 import demy.util.{log => l, util}
-import org.ecdc.episomer.{Settings, EpitweetrActor}
+import org.ecdc.episomer.{Settings, EpisomerActor}
 import org.ecdc.episomer.fs.{TextToGeo}
 import akka.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
@@ -155,14 +155,14 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         
         val r = new Random(197912)
         val annotated = r.shuffle(trainingSet.filter(t => !t.isLocation.isEmpty))
-        val tweets = annotated.filter(t => !t.tweetId.isEmpty)
-        val refSize = if(tweets.size < 500) 200 else tweets.size
+        val posts = annotated.filter(t => !t.postId.isEmpty)
+        val refSize = if(posts.size < 500) 200 else posts.size
         val demonyms = annotated.filter(t => t.category == "Demonym").take(refSize / 4)
         val people   = annotated.filter(t => t.category == "Person").take(refSize / 4)
         val locations = annotated.filter(t => t.source == GeoTrainingSource.episomerModel && t.isLocation == Some(true)).take(refSize)
         val noLocations = annotated.filter(t => t.source == GeoTrainingSource.episomerModel && t.isLocation == Some(false)).take(refSize) 
-        val rescaled = tweets ++ demonyms ++ people ++ locations ++ noLocations
-        println(s"tweets ${tweets.size} ++ dem ${demonyms.size} ++ peop ${people.size} ++ loc ${locations.size} ++ noloc ${noLocations.size}")
+        val rescaled = posts ++ demonyms ++ people ++ locations ++ noLocations
+        println(s"posts ${posts.size} ++ dem ${demonyms.size} ++ peop ${people.size} ++ loc ${locations.size} ++ noloc ${noLocations.size}")
         
         val results = GeoTraining.splitTrainEvaluate(annotations = rescaled, trainingRatio = 0.7).cache
         import s.implicits._
@@ -199,7 +199,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
       }.onComplete { case  _ =>
       }
     case b => 
-      Future(EpitweetrActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
+      Future(EpisomerActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
   }
 }
 

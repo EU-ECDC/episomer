@@ -2,7 +2,7 @@
 % Please edit documentation in R/scheduler.R
 \name{register_search_runner_task}
 \alias{register_search_runner_task}
-\title{Registers the tweet collection task}
+\title{Registers the post collection task}
 \usage{
 register_search_runner_task()
 }
@@ -10,10 +10,10 @@ register_search_runner_task()
 Nothing
 }
 \description{
-registers the tweet collection task or stops if no configuration has been set or if it is already running
+registers the post collection task or stops if no configuration has been set or if it is already running
 }
 \details{
-Registers the tweet collextion task or stops if no configuration has been set or if it is already running.
+Registers the post collextion task or stops if no configuration has been set or if it is already running.
 Twitter authentication needs to be previously set on the shiny app or by calling set_twitter_app_auth().
 You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'twitter_auth')
 This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.

@@ -4,7 +4,7 @@ import demy.storage.{Storage}
 import demy.util.{log => l, util}
 import demy.mllib.index.EncodedQuery
 import org.ecdc.episomer.Settings
-import org.ecdc.twitter.Language
+import org.ecdc.episomer.Language
 import org.apache.spark.sql.{Dataset, SparkSession, DataFrame, Row}
 import org.apache.spark.sql.types.{StructType, StructField, ArrayType, StringType}
 import org.apache.spark.sql.functions.{col, lit, udf, concat, array_join, struct, sum}
@@ -12,7 +12,7 @@ import org.apache.spark.ml.linalg.{Vectors, DenseVector, Vector=>MLVector}
 import demy.mllib.linalg.implicits._
 import org.apache.spark.ml.classification.{LinearSVC, LinearSVCModel}
 import scala.util.Random
-import org.ecdc.twitter.Language.LangTools
+import org.ecdc.episomer.Language.LangTools
 import java.util.regex.Pattern
 import org.apache.spark.sql.Encoders
 
@@ -266,12 +266,12 @@ case class GeoTrainings(items:Seq[GeoTraining])
 case class GeoTrainingSource(value:String)
 object GeoTrainingSource {
   def apply(value:String):GeoTrainingSource = value.toLowerCase.replace(" ", "-") match {
-    case "tweet" => GeoTrainingSource.tweet
+    case "post" => GeoTrainingSource.post
     case "episomer-model" => GeoTrainingSource.episomerModel
     case "episomer-database" => GeoTrainingSource.episomerDatabase
     case _ => GeoTrainingSource.manual
   }
-  val tweet = new GeoTrainingSource("tweet") 
+  val post = new GeoTrainingSource("post") 
   val episomerModel = new GeoTrainingSource("episomer-model") 
   val episomerDatabase = new GeoTrainingSource("episomer-database") 
   val manual = new GeoTrainingSource("manual")
@@ -298,9 +298,9 @@ case class GeoTraining(
   forcedLocationCode:Option[String], 
   forcedLocationName:Option[String], 
   source:GeoTrainingSource,
-  tweetId:Option[String],
+  postId:Option[String],
   lang:Option[String],
-  tweetPart:Option[GeoTrainingPart], 
+  postPart:Option[GeoTrainingPart], 
   foundLocation:Option[String], 
   foundLocationCode:Option[String], 
   foundCountryCode:Option[String]
@@ -324,7 +324,7 @@ case class GeoTraining(
   def uid() = {
     val md = java.security.MessageDigest.getInstance("SHA-1");
     val enc = java.util.Base64.getEncoder()
-    new String(enc.encode(md.digest(s"$category.$text.$tweetId.$tweetPart".getBytes)))
+    new String(enc.encode(md.digest(s"$category.$text.$postId.$postPart".getBytes)))
   }  
 }
 object GeoTraining {
@@ -343,17 +343,17 @@ object GeoTraining {
     val l = 10000
     Seq(
       (
-        "Tweet texts", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.tweet && gt.tweetPart == Some(GeoTrainingPart.text) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.tweet || gt.tweetPart != Some(GeoTrainingPart.text) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
+        "Post texts", 
+        annotated.filter(gt => gt.source == GeoTrainingSource.post && gt.postPart == Some(GeoTrainingPart.text) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.post || gt.postPart != Some(GeoTrainingPart.text) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
       ),(
-        "Tweet location", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.tweet  && gt.tweetPart == Some(GeoTrainingPart.userLocation) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.tweet  || gt.tweetPart != Some(GeoTrainingPart.userLocation) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
+        "Post location", 
+        annotated.filter(gt => gt.source == GeoTrainingSource.post  && gt.postPart == Some(GeoTrainingPart.userLocation) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.post  || gt.postPart != Some(GeoTrainingPart.userLocation) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
       ),(
-        "Tweet user description", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.tweet && gt.tweetPart == Some(GeoTrainingPart.userDescription) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.tweet || gt.tweetPart != Some(GeoTrainingPart.userDescription) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
+        "Post user description", 
+        annotated.filter(gt => gt.source == GeoTrainingSource.post && gt.postPart == Some(GeoTrainingPart.userDescription) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.post || gt.postPart != Some(GeoTrainingPart.userDescription) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
       )/*,(
         "Model Location", 
         annotated.filter(gt => gt.source == GeoTrainingSource.episomerModel && gt.category.toLowerCase == "location" && Math.abs(gt.id().hashCode) % l < trainingRatio * l),

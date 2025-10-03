@@ -1,4 +1,4 @@
-package org.ecdc.twitter 
+package org.ecdc.episomer 
 
 import org.apache.spark.sql.{SparkSession, Dataset}
 import org.apache.spark.sql.types._

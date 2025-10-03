@@ -1,13 +1,13 @@
-#' @title Function used for migrating tweets from to old to the new file system
-#' @description migrates geolocated tweets from the old to the new file system allowing full text search using Apache Lucene Indexes
+#' @title Function used for migrating posts from to old to the new file system
+#' @description migrates geolocated posts from the old to the new file system allowing full text search using Apache Lucene Indexes
 #' @param tasks named list, current tasks for logging and updating progress default: get_tasks()
-#' @param chunk_size, integer, the chunk size for indexing tweets, default: 400
+#' @param chunk_size, integer, the chunk size for indexing posts, default: 400
 #' @return the updated tasks.
-#' @details This function can be called manually to perform the migration of tweets between v0.0.x to v2+
-#' It iterates over existing tweets collected with episomer v0.0.x series
-#' joins base tweets and geolocated tweets and then sends themes to the Lucene index via the dedicated REST API.
+#' @details This function can be called manually to perform the migration of posts between v0.0.x to v2+
+#' It iterates over existing posts collected with episomer v0.0.x series
+#' joins base posts and geolocated posts and then sends themes to the Lucene index via the dedicated REST API.
 #' Migrated files will be moved to search_archive and geo_archive folders. Users can backup and remove these folders when migration ends to gain disk space.
-#' Series folders are maintained for migrated tweets
+#' Series folders are maintained for migrated posts
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
@@ -170,19 +170,19 @@ json2lucene <- function(tasks = get_tasks(), chunk_size = 400) {
           if (
             as.numeric(difftime(Sys.time(), last_commit, units = "secs")) > 60
           ) {
-            commit_tweets()
+            commit_posts()
             last_commit <- Sys.time()
           }
         }
         close(con)
-        #Committing file tweets
-        commit_tweets()
+        #Committing file posts
+        commit_posts()
 
         read_size <- read_size + file_size
         line_size <- read_size / total_lines
       }
 
-      #After processing all tweets and geolocation for the particular date name, we can safely move the file to the archive folder
+      #After processing all posts and geolocation for the particular date name, we can safely move the file to the archive folder
       tasks <- update_dep_task(
         tasks,
         "running",
@@ -258,7 +258,7 @@ archive_search_geo_file <- function(file) {
   }
 }
 
-# Store the geolocated tweets on the new embedded database
+# Store the geolocated posts on the new embedded database
 store_geo <- function(lines, created_dates, async = T, chunk_size = 100) {
   valid_index <- unlist(lapply(lines, function(l) jsonlite::validate(l)))
   bad_lines <- lines[!valid_index]
@@ -286,7 +286,7 @@ store_geo <- function(lines, created_dates, async = T, chunk_size = 100) {
       requests <- lapply(chunks, function(line) {
         request <- crul::HttpRequest$new(
           url = paste0(
-            get_scala_geolocated_tweets_url(),
+            get_scala_geolocated_posts_url(),
             "?",
             paste0("created=", created_dates, collapse = '&')
           ),
@@ -310,7 +310,7 @@ store_geo <- function(lines, created_dates, async = T, chunk_size = 100) {
     } else {
       for (i in 1:length(chunks)) {
         post_result <- httr::POST(
-          url = get_scala_geolocated_tweets_url(),
+          url = get_scala_geolocated_posts_url(),
           httr::content_type_json(),
           body = chunks[i],
           encode = "raw",
@@ -328,7 +328,7 @@ store_geo <- function(lines, created_dates, async = T, chunk_size = 100) {
   }
 }
 
-# Store the tweets collected as JSON data on the new embedded database
+# Store the posts collected as JSON data on the new embedded database
 store_v1_search <- function(lines, topic, async = T) {
   valid_index <- unlist(lapply(lines, function(l) jsonlite::validate(l)))
   bad_lines <- lines[!valid_index]
@@ -346,7 +346,7 @@ store_v1_search <- function(lines, topic, async = T) {
       requests <- lapply(lines, function(line) {
         request <- crul::HttpRequest$new(
           url = paste0(
-            get_scala_tweets_url(),
+            get_scala_posts_url(),
             "?topic=",
             curl::curl_escape(topic),
             "&geolocate=false"
@@ -381,7 +381,7 @@ store_v1_search <- function(lines, topic, async = T) {
       for (i in 1:length(lines)) {
         post_result <- httr::POST(
           url = paste0(
-            get_scala_tweets_url(),
+            get_scala_posts_url(),
             "?topic=",
             curl::curl_escape(topic),
             "&geolocate=false"
@@ -408,7 +408,7 @@ store_v1_search <- function(lines, topic, async = T) {
 }
 
 # Commit the changes on the embedded database
-commit_tweets <- function() {
+commit_posts <- function() {
   post_result <- httr::POST(
     url = get_scala_commit_url(),
     httr::content_type_json(),

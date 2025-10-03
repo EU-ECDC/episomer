@@ -29,7 +29,7 @@ import java.nio.file.{Paths, Files}
 import java.nio.charset.StandardCharsets
 import spray.json.JsonParser
 
-object EpitweetrActor {
+object EpisomerActor {
   case class Failure(msg:String)
   case class Success(msg:String)
 }
@@ -119,21 +119,21 @@ object API {
                                 }
                               }
                               else (StatusCodes.OK, LuceneActor.DatesProcessed(m, dates))
-                            case EpitweetrActor.Failure(m) => (StatusCodes.NotAcceptable, LuceneActor.DatesProcessed(m))
+                            case EpisomerActor.Failure(m) => (StatusCodes.NotAcceptable, LuceneActor.DatesProcessed(m))
                             case o => (StatusCodes.InternalServerError, LuceneActor.DatesProcessed(s"Cannot interpret $o as a message"))
                           }
                        complete(fut) 
                      case Failure(e) =>
                        println(s"Cannot interpret the provided body as an standardized post 1:\n ${json} $e\n, ${e.getStackTrace.mkString("\n")}") 
-                       complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body an stantardised post:\n $e")) 
+                       complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Cannot interpret the provided body an stantardised post:\n $e")) 
                   } 
                 } ~ 
                   entity(as[String]) { value  => 
                   logThis(value)
-                  complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
+                  complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
                 }
               } ~ {
-                complete(StatusCodes.NotImplemented, EpitweetrActor.Failure(s"Missing expected parameter topic")) 
+                complete(StatusCodes.NotImplemented, EpisomerActor.Failure(s"Missing expected parameter topic")) 
               }
             }
           }
@@ -174,13 +174,13 @@ object API {
                   val path = Paths.get(conf.collectionPath)
                   Files.createDirectories(path)
                   Files.write(Paths.get(path.toString, s"${collection.name}.json"), json.getBytes(StandardCharsets.UTF_8)) 
-                  complete(StatusCodes.OK, EpitweetrActor.Success("OK"))
+                  complete(StatusCodes.OK, EpisomerActor.Success("OK"))
                 case Failure(e) =>
                   println(s"Cannot interpret the provided body as an aggregation request:\n $e, ${e.getStackTrace.mkString("\n")}\n${json}") 
-                  complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided JSON body as an aggregate request:\n $e ${json}")) 
+                  complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Cannot interpret the provided JSON body as an aggregate request:\n $e ${json}")) 
               }
             } ~  entity(as[String]) { value  => 
-               complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
+               complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
             }
           }
         } ~ path("period") { // checks if path/url starts with model
@@ -221,21 +221,21 @@ object API {
                     case Success(geolocateds) =>
                        val fut = (luceneRunner ? LuceneActor.GeolocatedPostsCreated(geolocateds, dates.toSeq))
                          .map{
-                            case EpitweetrActor.Success(m) => (StatusCodes.OK, EpitweetrActor.Success(m))
-                            case EpitweetrActor.Failure(m) => (StatusCodes.NotAcceptable, EpitweetrActor.Success(m))
-                            case o => (StatusCodes.InternalServerError, EpitweetrActor.Success(s"Cannot interpret $o as a message"))
+                            case EpisomerActor.Success(m) => (StatusCodes.OK, EpisomerActor.Success(m))
+                            case EpisomerActor.Failure(m) => (StatusCodes.NotAcceptable, EpisomerActor.Success(m))
+                            case o => (StatusCodes.InternalServerError, EpisomerActor.Success(s"Cannot interpret $o as a message"))
                           }
                        complete(fut) 
                      case Failure(e) =>
                        println(s"Cannot interpret the provided body as geolocated array:\n $e, ${e.getStackTrace.mkString("\n")}") 
-                       complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a gelocated array:\n $e")) 
+                       complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Cannot interpret the provided body as a gelocated array:\n $e")) 
                   } 
                 } ~ entity(as[String]) { value  => 
                   logThis(value)
-                  complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
+                  complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
                 }
               } else {
-                complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Missing parameter created with reference dates of geolocated posts")) 
+                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Missing parameter created with reference dates of geolocated posts")) 
               }
             }
           }
@@ -245,9 +245,9 @@ object API {
             implicit val timeout: Timeout = conf.fsBatchTimeout.seconds //For ask property
             val fut =  (luceneRunner ? LuceneActor.CommitRequest())
               .map{
-                 case EpitweetrActor.Success(m) => (StatusCodes.OK, EpitweetrActor.Success(m))
-                 case EpitweetrActor.Failure(m) => (StatusCodes.NotAcceptable, EpitweetrActor.Success(m))
-                 case o => (StatusCodes.InternalServerError, EpitweetrActor.Success(s"Cannot interpret $o as a message"))
+                 case EpisomerActor.Success(m) => (StatusCodes.OK, EpisomerActor.Success(m))
+                 case EpisomerActor.Failure(m) => (StatusCodes.NotAcceptable, EpisomerActor.Success(m))
+                 case o => (StatusCodes.InternalServerError, EpisomerActor.Success(s"Cannot interpret $o as a message"))
                }
              complete(fut)
             }
@@ -293,12 +293,12 @@ object API {
                       }))
                     case Failure(e) =>
                       println(s"Cannot interpret the provided body as a value train geolocation algorithm:\n $e, ${e.getStackTrace.mkString("\n")}") 
-                      complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a value to train geolocation algorithm:\n $e")) 
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Cannot interpret the provided body as a value to train geolocation algorithm:\n $e")) 
                     } 
                 } ~ 
                   entity(as[String]) { value  => 
                   logThis(value)
-                  complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
+                  complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
                 }
               }
             }
@@ -333,12 +333,12 @@ object API {
                     }))
                   case Failure(e) =>
                     println(s"Cannot interpret the provided body as a value to geolocate:\n $e, ${e.getStackTrace.mkString("\n")}") 
-                    complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a value to geolocate:\n $e")) 
+                    complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Cannot interpret the provided body as a value to geolocate:\n $e")) 
                 } 
               } ~ 
                 entity(as[String]) { value  => 
                 logThis(value)
-                complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
+                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
               }
             }
           }
@@ -352,24 +352,24 @@ object API {
                      val fut = (alertRunner ? AlertActor.ClassifyAlertsRequest(alerts, runs))
                        .map{
                          case ac:AlertClassification => ac
-                         case EpitweetrActor.Failure(m) => {
+                         case EpisomerActor.Failure(m) => {
                            throw new Exception(m)
                          }
                        }
                      complete(fut) 
                   case Failure(e) =>
                     println(s"Cannot interpret the provided body as a value to train classifier:\n $e, ${e.getStackTrace.mkString("\n")}") 
-                    complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"Cannot interpret the provided body as a value to train classifier:\n $e")) 
+                    complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Cannot interpret the provided body as a value to train classifier:\n $e")) 
                 } 
               } ~ 
                 entity(as[String]) { value  => 
                 logThis(value)
-                complete(StatusCodes.NotAcceptable, EpitweetrActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
+                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
               }
             }  
           }
         } ~ {
-          complete(StatusCodes.NotAcceptable,  EpitweetrActor.Failure(s"Cannot find a route for uri $uri")) 
+          complete(StatusCodes.NotAcceptable,  EpisomerActor.Failure(s"Cannot find a route for uri $uri")) 
         }
       }
     

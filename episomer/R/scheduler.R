@@ -1,4 +1,4 @@
-# registers the tweet collection task (by writing search.PID file) for the current process or stops if no configuration has been set or if it is already running
+# registers the post collection task (by writing search.PID file) for the current process or stops if no configuration has been set or if it is already running
 register_search_runner <- function(network = NULL) {
   stop_if_no_config(paste(
     "Cannot check running status for search without configuration setup"
@@ -69,10 +69,10 @@ register_runner <- function(name) {
   write(pid, file = pid_path, append = FALSE)
 }
 
-#' @title Registers the tweet collection task
-#' @description registers the tweet collection task or stops if no configuration has been set or if it is already running
+#' @title Registers the post collection task
+#' @description registers the post collection task or stops if no configuration has been set or if it is already running
 #' @return Nothing
-#' @details Registers the tweet collextion task or stops if no configuration has been set or if it is already running.
+#' @details Registers the post collextion task or stops if no configuration has been set or if it is already running.
 #' Twitter authentication needs to be previously set on the shiny app or by calling set_twitter_app_auth().
 #' You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'twitter_auth')
 #' This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
@@ -90,10 +90,10 @@ register_search_runner_task <- function() {
   register_runner_task("search")
 }
 
-#' @title Stops the tweet collection task
-#' @description stops the tweet collection task
+#' @title Stops the post collection task
+#' @description stops the post collection task
 #' @return Nothing
-#' @details Stops the tweet collection task if it is already running
+#' @details Stops the post collection task if it is already running
 #' This function will try also deactivate the respective scheduled task on Windows.
 #' @examples
 #' if(FALSE){
@@ -114,7 +114,7 @@ stop_search_runner_task <- function() {
 #' @description registers the alert detection task or stops if no configuration has been set or if it is already running
 #' @return Nothing
 #' @details Registers the alert detection task or stops if no configuration has been set or if it is already running.
-#' To generate alerts, this task needs the tweet collection to had successfully run since the last time it ran.
+#' To generate alerts, this task needs the post collection to had successfully run since the last time it ran.
 #' This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 #' @examples
 #' if(FALSE){
@@ -208,12 +208,7 @@ register_runner_task <- function(task_name) {
     package = get_package_name()
   )
   # Getting destination folder which is going to be on user c:/Users/user/episomer or ~/episomer
-  script_folder <- (if (.Platform$OS.type == "windows")
-    paste(
-      gsub("\\\\", "/", Sys.getenv("USERPROFILE")),
-      "episomer",
-      sep = "/"
-    ) else file.path(Sys.getenv("HOME"), "/episomer"))
+  script_folder <- file.path(conf$data_dir, "jobs")
   if (!file.exists(script_folder)) {
     dir.create(script_folder, showWarnings = FALSE)
   }
@@ -383,10 +378,10 @@ missing_search_jobs <- function() {
   not_running
 }
 
-#' @title Check whether the tweet collection task is running
-#' @description gets the tweet collection execution status
-#' @return logical Whether the tweet collection is running
-#' @details returns a logical value being TRUE if the tweet collection is running
+#' @title Check whether the post collection task is running
+#' @description gets the post collection execution status
+#' @return logical Whether the post collection is running
+#' @details returns a logical value being TRUE if the post collection is running
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
@@ -825,7 +820,7 @@ save_tasks <- function(tasks) {
 
 #' @title Runs the detect loop
 #' @description Infinite loop ensuring the daily signal detection and email alerts
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
+#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @return nothing
 #' @details The detect loop is composed of three 'one shot tasks' \code{\link{download_dependencies}}, \code{\link{update_geonames}}, \code{\link{update_languages}} ensuring the system has

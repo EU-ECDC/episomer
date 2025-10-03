@@ -6,9 +6,9 @@
 \usage{
 create_snapshot(
   destination_dir,
-  types = c("settings", "dependencies", "machine-learning", "aggregations", "tweets",
+  types = c("settings", "dependencies", "machine-learning", "aggregations", "posts",
     "logs"),
-  tweets_period = get_aggregated_period(),
+  posts_period = get_aggregated_period(),
   aggregated_period = get_aggregated_period(),
   compress = TRUE,
   progress = function(v, m) message(paste(round(v * 100, 2), m))
@@ -17,9 +17,9 @@ create_snapshot(
 \arguments{
 \item{destination_dir, }{character(1) vector with the path of the destination folder to produce the snapshot}
 
-\item{types, }{character vector indicating the types of data to include on a snapshot. Some of: "settings", "dependencies", "machine-learning", "aggregations", "tweets", "logs"}
+\item{types, }{character vector indicating the types of data to include on a snapshot. Some of: "settings", "dependencies", "machine-learning", "aggregations", "posts", "logs"}
 
-\item{tweets_period, }{date(2) start and end dates to filter tweets to include on snapshot (if selected)}
+\item{posts_period, }{date(2) start and end dates to filter posts to include on snapshot (if selected)}
 
 \item{aggregated_period, }{date(2) start and end dates to filter time series to include on snapshot (if selected)}
 
@@ -38,9 +38,9 @@ This function can be used to create a a portable file to move your episomer inst
 Different kinds of data can be included on the snapshot depending on the type of parameter. Possible values are:
 - 'settings': Including all setting files of your installation (excluding passwords)
 - 'dependencies': All jars and winutils.exe on windows installations
-- 'machine-learning': All trained models and vectors and training data (this can include tweet text which is personal data)
+- 'machine-learning': All trained models and vectors and training data (this can include post text which is personal data)
 - 'aggregations': Episomer aggregated time series
-- 'tweets': Tweets collected by episomer
+- 'posts': Posts collected by episomer
 - 'logs': Log files produced automatically on windows task scheduler tasks.
 }
 \examples{

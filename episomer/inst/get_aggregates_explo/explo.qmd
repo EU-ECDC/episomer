@@ -13,7 +13,7 @@ date_max <- substr(as.character(Sys.Date()), 1, 10)
 ```
 
 ```{r}
-df <- tibble::tibble(episomer::search_tweets(topic = "covid-19"))
+df <- tibble::tibble(episomer::search_posts(topic = "covid-19"))
 # voir parametre query: format Lucene avec OR/AND etc ...
 df
 ```
@@ -65,10 +65,10 @@ urls <- get_aggregates("urls",
     as_tibble()
 ```
 
-## 6. tweets
+## 6. posts
 
 ```{r, eval=FALSE}
-tweets <- get_aggregates("tweets",
+posts <- get_aggregates("posts",
     filter = list(period = c(date_min, date_max)), cache = FALSE
 ) %>%
     as_tibble()
@@ -82,7 +82,7 @@ tweets <- get_aggregates("tweets",
 #         tags = tags,
 #         topwords = topwords,
 #         urls = urls,
-#         tweets = tweets
+#         posts = posts
 #     ),
 #     file = file.path(
 #         system.file("get_aggregates_explo", package = "episomer"),
@@ -109,7 +109,7 @@ date_type = "created_date"
 date_min = "2025-08-01"
 date_max = Sys.Date()
 
-location_type = "tweet"
+location_type = "post"
 alpha = 0.025
 alpha_outlier = 0.05
 k_decay = 4
@@ -207,7 +207,7 @@ m3 <- create_map(topic = topic, countries = countries, date_min = date_min, date
 # )
 # agg
 # View(agg)
-# original / quote : equivalent de original / retweet
+# original / quote : equivalent de original / repost
 ```
 
 

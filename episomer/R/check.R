@@ -184,7 +184,7 @@ check_java_deps <- function() {
 check_geonames <- function() {
   if (!file.exists(get_geonames_txt_path())) {
     warning(
-      "episomer needs GeoNames to be downloaded and unzipped for geolocating tweets. Please run the GeoNames task of the requirements and alert pipeline"
+      "episomer needs GeoNames to be downloaded and unzipped for geolocating posts. Please run the GeoNames task of the requirements and alert pipeline"
     )
     FALSE
   } else {
@@ -211,7 +211,7 @@ check_languages <- function() {
       !all(sapply(lang_files, function(f) file.exists(f)))
   ) {
     warning(
-      "episomer needs languages models to be downloaded for geolocating tweets. Please activate at least one language and launch the languages task"
+      "episomer needs languages models to be downloaded for geolocating posts. Please activate at least one language and launch the languages task"
     )
     FALSE
   } else {
@@ -235,7 +235,7 @@ check_languages <- function() {
 check_geolocated_present <- function() {
   last_month <- tail(
     list.dirs(
-      path = file.path(conf$data_dir, "tweets", "geolocated"),
+      path = file.path(conf$data_dir, "posts", "geolocated"),
       recursive = FALSE
     ),
     n = 1
@@ -279,12 +279,12 @@ check_series_present <- function(
   }
 }
 
-# check if tweet files are present & tweet collection has run
-check_tweets_present <- function() {
-  if (!is.na(last_fs_updates("tweets"))) {
+# check if post files are present & post collection has run
+check_posts_present <- function() {
+  if (!is.na(last_fs_updates("posts"))) {
     TRUE
   } else {
-    warning("No tweets found on database. Please execute the Data collection")
+    warning("No posts found on database. Please execute the Data collection")
     FALSE
   }
 }
@@ -564,7 +564,7 @@ check_all <- function() {
     twitter_auth = check_last_twitter_auth,
     search_running = check_search_running,
     database_running = check_fs_running,
-    tweets = check_tweets_present,
+    posts = check_posts_present,
     os64 = check_64,
     java = check_java_present,
     java64 = check_java_64,
@@ -607,11 +607,11 @@ check_all <- function() {
 checks <- new.env()
 
 #' @title Send email to administrator if a failure of episomer is detected
-#' @description It validates if episomer is not collecting tweets, aggregating tweets or not calculating alerts
+#' @description It validates if episomer is not collecting posts, aggregating posts or not calculating alerts
 #' @param send_mail Boolean. Whether an email should be sent to the defined administrator, default: TRUE
 #' @param one_per_day Boolean. Whether a limit of one email per day will be applied, default: TRUE
 #' @return A list of health check errors found
-#' @details This function sends an email to the defined administrator if episomer is not collecting tweets, aggregating tweets or not calculating alerts
+#' @details This function sends an email to the defined administrator if episomer is not collecting posts, aggregating posts or not calculating alerts
 #' @examples
 #' if(FALSE){
 #'    #importing episomer
@@ -633,8 +633,8 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
       (checks$last_check < start_of_day) &&
         as.numeric(strftime(Sys.time(), "%H")) >= 8
   ) {
-    # check 01: if last tweet collected date is more than 1 hour
-    last_collected <- file.mtime(get_tweet_togeo_path())
+    # check 01: if last post collected date is more than 1 hour
+    last_collected <- file.mtime(get_post_togeo_path())
     if (
       is.na(last_collected) ||
         as.numeric(Sys.time() - last_collected, unit = "hours") >= 1
@@ -642,23 +642,23 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
       alerts <- append(
         alerts,
         paste(
-          "Tweets have not been collected for more than ",
+          "Posts have not been collected for more than ",
           as.integer(as.numeric(Sys.time() - last_collected, unit = "hours")),
           "hours"
         )
       )
     }
 
-    # Check 02: if geolocated tweets has not been done during more than one hour
-    collection_times <- last_fs_updates("tweets")
-    last_geo <- collection_times$tweets
+    # Check 02: if geolocated posts has not been done during more than one hour
+    collection_times <- last_fs_updates("posts")
+    last_geo <- collection_times$posts
     if (
       is.na(last_geo) || as.numeric(Sys.time() - last_geo, unit = "hours") >= 1
     ) {
       alerts <- append(
         alerts,
         paste(
-          "Tweets have not been geolocated for more than ",
+          "Posts have not been geolocated for more than ",
           as.integer(as.numeric(Sys.time() - last_geo, unit = "hours")),
           "hours"
         )
@@ -781,8 +781,8 @@ update_session_info <- function() {
 #' @title Snapshot of your episomer installation
 #' @description Creates a snapshot file of your episomer installation folder. This can include all or a subset of the data files.
 #' @param destination_dir, character(1) vector with the path of the destination folder to produce the snapshot
-#' @param types, character vector indicating the types of data to include on a snapshot. Some of: "settings", "dependencies", "machine-learning", "aggregations", "tweets", "logs"
-#' @param tweets_period, date(2) start and end dates to filter tweets to include on snapshot (if selected)
+#' @param types, character vector indicating the types of data to include on a snapshot. Some of: "settings", "dependencies", "machine-learning", "aggregations", "posts", "logs"
+#' @param posts_period, date(2) start and end dates to filter posts to include on snapshot (if selected)
 #' @param aggregated_period, date(2) start and end dates to filter time series to include on snapshot (if selected)
 #' @param compress, logical(1) whether to compress or not the output file
 #' @param progress, function to report progress during execution.
@@ -792,9 +792,9 @@ update_session_info <- function() {
 #' Different kinds of data can be included on the snapshot depending on the type of parameter. Possible values are:
 #' - 'settings': Including all setting files of your installation (excluding passwords)
 #' - 'dependencies': All jars and winutils.exe on windows installations
-#' - 'machine-learning': All trained models and vectors and training data (this can include tweet text which is personal data)
+#' - 'machine-learning': All trained models and vectors and training data (this can include post text which is personal data)
 #' - 'aggregations': Episomer aggregated time series
-#' - 'tweets': Tweets collected by episomer
+#' - 'posts': Posts collected by episomer
 #' - 'logs': Log files produced automatically on windows task scheduler tasks.
 #' @examples
 #' if(FALSE){
@@ -814,10 +814,10 @@ create_snapshot <- function(
     "dependencies",
     "machine-learning",
     "aggregations",
-    "tweets",
+    "posts",
     "logs"
   ),
-  tweets_period = get_aggregated_period(),
+  posts_period = get_aggregated_period(),
   aggregated_period = get_aggregated_period(),
   compress = TRUE,
   progress = function(v, m) message(paste(round(v * 100, 2), m))
@@ -925,16 +925,16 @@ create_snapshot <- function(
       episomer_files("series", aggregated_period[[1]], aggregated_period[[2]]),
       episomer_files("stats", aggregated_period[[1]], aggregated_period[[2]])
     )
-  if ("tweets" %in% types)
+  if ("posts" %in% types)
     items <- c(
       items,
       list(
-        "geo/togeolocate.json" = get_tweet_togeo_path(),
-        "geo/geolocating.json" = get_tweet_geoing_path(),
-        "geo/toaggregate.json" = get_tweet_toaggr_path(),
-        "geo/aggregating.json" = get_tweet_aggring_path()
+        "geo/togeolocate.json" = get_post_togeo_path(),
+        "geo/geolocating.json" = get_post_geoing_path(),
+        "geo/toaggregate.json" = get_post_toaggr_path(),
+        "geo/aggregating.json" = get_post_aggring_path()
       ),
-      episomer_files("fs/tweets", tweets_period[[1]], tweets_period[[2]])
+      episomer_files("fs/posts", posts_period[[1]], posts_period[[2]])
     )
   if ("logs" %in% types)
     items <- c(

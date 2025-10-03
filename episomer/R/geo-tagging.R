@@ -1,5 +1,5 @@
-# Get the SQL-like expression to extract tweet geolocation variables and apply prioritisation
-# This function is used on aggregate tweets for translating variables names into SQL valid columns of geotag tweets
+# Get the SQL-like expression to extract post geolocation variables and apply prioritisation
+# This function is used on aggregate posts for translating variables names into SQL valid columns of geotag posts
 get_location_var <- function(varname) {
   paste(
     "coalesce(",
@@ -12,7 +12,7 @@ get_location_var <- function(varname) {
   )
 }
 
-# It gets used columns for tweet geolocation. This is used for limiting columns to extract from json files
+# It gets used columns for post geolocation. This is used for limiting columns to extract from json files
 get_location_columns <- function(table) {
   list(
     "text_loc",
@@ -317,7 +317,7 @@ get_country_index_map <- function() {
 #'
 #' The indexing is developed in Spark and Lucene
 #'
-#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected tweets in the search folder and that the task \code{\link{download_dependencies}}
+#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the task \code{\link{download_dependencies}}
 #' has been successfully run.
 #'
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
@@ -328,7 +328,7 @@ get_country_index_map <- function() {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
-#'    # geolocating last tweets
+#'    # geolocating last posts
 #'    tasks <- update_geonames()
 #' }
 #' @rdname update_geonames
@@ -454,7 +454,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #'
 #' The indexing is developed in SPARK and Lucene.
 #'
-#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected tweets in the search folder and that the tasks \code{\link{download_dependencies}}
+#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the tasks \code{\link{download_dependencies}}
 #' and \code{\link{update_geonames}} has been run successfully.
 #'
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
@@ -701,9 +701,9 @@ get_geotraining_df <- function() {
   current
 }
 
-# returns the current geotraining annotation augmented of tweets_to_add tweets to annotate
+# returns the current geotraining annotation augmented of posts_to_add posts to annotate
 updated_geotraining_df <- function(
-  tweets_to_add = 100,
+  posts_to_add = 100,
   progress = function(a, b) {
   }
 ) {
@@ -747,29 +747,29 @@ updated_geotraining_df <- function(
         `Location yes/no` = ifelse(.data$isLocation, "yes", "no"),
         `Associate country code` = NA,
         `Associate with` = NA,
-        `Source` = "Epitweetr model",
-        `Tweet Id` = NA,
+        `Source` = "Epipostr model",
+        `Post Id` = NA,
         `Lang` = .data$lang,
-        `Tweet part` = NA,
-        `Epitweetr match` = NA,
-        `Epitweetr country match` = NA,
-        `Epitweetr country code match` = NA
+        `Post part` = NA,
+        `Epipostr match` = NA,
+        `Epipostr country match` = NA,
+        `Epipostr country code match` = NA
       )
     geo_training$Text <- stringr::str_trim(geo_training$Text)
     geo_training <- geo_training %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
   }
-  # Adding new tweets
+  # Adding new posts
   untagged <- unique(length(
     (current %>%
       dplyr::filter(
-        .data$`Tweet part` == 'text' & .data$`Location yes/no` == '?'
-      ))$`Tweet Id`
+        .data$`Post part` == 'text' & .data$`Location yes/no` == '?'
+      ))$`Post Id`
   ))
-  to_add <- if (tweets_to_add > untagged) tweets_to_add else 0
+  to_add <- if (posts_to_add > untagged) posts_to_add else 0
 
-  progress(0.6, "adding new tweets")
-  to_tag <- search_tweets(
+  progress(0.6, "adding new posts")
+  to_tag <- search_posts(
     query = paste(
       "lang:",
       lapply(conf$languages, function(l) l$code),
@@ -790,13 +790,13 @@ updated_geotraining_df <- function(
         `Location yes/no` = "?",
         `Associate country code` = NA,
         `Associate with` = NA,
-        `Source` = "Tweet",
-        `Tweet Id` = .data$tweet_id,
+        `Source` = "Post",
+        `Post Id` = .data$post_id,
         `Lang` = .data$lang,
-        `Tweet part` = "text",
-        `Epitweetr match` = NA,
-        `Epitweetr country match` = NA,
-        `Epitweetr country code match` = NA
+        `Post part` = "text",
+        `Epipostr match` = NA,
+        `Epipostr country match` = NA,
+        `Epipostr country code match` = NA
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
@@ -810,13 +810,13 @@ updated_geotraining_df <- function(
         `Location yes/no` = "?",
         `Associate country code` = NA,
         `Associate with` = NA,
-        `Source` = "Tweet",
-        `Tweet Id` = .data$tweet_id,
+        `Source` = "Post",
+        `Post Id` = .data$post_id,
         `Lang` = .data$lang,
-        `Tweet part` = "user description",
-        `Epitweetr match` = NA,
-        `Epitweetr country match` = NA,
-        `Epitweetr country code match` = NA,
+        `Post part` = "user description",
+        `Epipostr match` = NA,
+        `Epipostr country match` = NA,
+        `Epipostr country code match` = NA,
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
@@ -830,13 +830,13 @@ updated_geotraining_df <- function(
         `Location yes/no` = "?",
         `Associate country code` = NA,
         `Associate with` = NA,
-        `Source` = "Tweet",
-        `Tweet Id` = .data$tweet_id,
+        `Source` = "Post",
+        `Post Id` = .data$post_id,
         `Lang` = .data$lang,
-        `Tweet part` = "user location",
-        `Epitweetr match` = NA,
-        `Epitweetr country match` = NA,
-        `Epitweetr country code match` = NA,
+        `Post part` = "user location",
+        `Epipostr match` = NA,
+        `Epipostr country match` = NA,
+        `Epipostr country code match` = NA,
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = TRUE)
@@ -877,9 +877,9 @@ updated_geotraining_df <- function(
         text_col = "Text",
         lang_col = "Lang"
       )
-      ret$`Epitweetr match` <- geoloc$geo_name
-      ret$`Epitweetr country match` <- geoloc$geo_country
-      ret$`Epitweetr country code match` <- geoloc$geo_country_code
+      ret$`Epipostr match` <- geoloc$geo_name
+      ret$`Epipostr country match` <- geoloc$geo_country
+      ret$`Epipostr country code match` <- geoloc$geo_country_code
       ret$`Location in text` <- ifelse(
         (is.na(ret$`Location yes/no`) | ret$`Location yes/no` == "?") &
           ret$Type == "Text",
@@ -891,23 +891,23 @@ updated_geotraining_df <- function(
       message(
         "Models are not trained, getting geotraining dataset without evaluation"
       )
-      ret$`Epitweetr match` <- NA
-      ret$`Epitweetr country match` <- NA
-      ret$`Epitweetr country code match` <- NA
+      ret$`Epipostr match` <- NA
+      ret$`Epipostr country match` <- NA
+      ret$`Epipostr country code match` <- NA
     }
   )
-  ret %>% arrange(dplyr::desc(.data$Type), .data$`Tweet part`)
+  ret %>% arrange(dplyr::desc(.data$Type), .data$`Post part`)
 }
 
-# returns the current geotraining annotation augmented of tweets_to_add tweets to annotate and write the results to the geotraining spreadsheet
+# returns the current geotraining annotation augmented of posts_to_add posts to annotate and write the results to the geotraining spreadsheet
 update_geotraining_df <- function(
-  tweets_to_add = 100,
+  posts_to_add = 100,
   progress = function(a, b) {
   }
 ) {
   `%>%` <- magrittr::`%>%`
   training_df <- updated_geotraining_df(
-    tweets_to_add = 100,
+    posts_to_add = 100,
     progress = progress
   )
   update_topic_keywords()

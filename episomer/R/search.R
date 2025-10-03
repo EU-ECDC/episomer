@@ -1,12 +1,12 @@
 #' @title Runs the search loop
-#' @description Infinite loop ensuring the permanent collection of tweets
-#' @param data_dir optional path to the 'data directory' containing application settings, models and collected tweets. If not provided it will reuse the last set on the current session.
+#' @description Infinite loop ensuring the permanent collection of posts
+#' @param data_dir optional path to the 'data directory' containing application settings, models and collected posts. If not provided it will reuse the last set on the current session.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, Default: NA
 #' @return Nothing
-#' @details The detect loop is a pure R function designed for downloading tweets from the Twitter search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
+#' @details The detect loop is a pure R function designed for downloading posts from the Twitter search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
 #' round-robin philosophy and respecting Twitter API rate-limits.
 #'
-#' The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect tweets respecting a 'collect_span' window
+#' The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect posts respecting a 'collect_span' window
 #' in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 #'
 #' To see more details about the collection algorithm please see episomer vignette.
@@ -41,6 +41,12 @@ search_loop <- function(
     register_search_runner()
   }
 
+  if(log_to_file) {
+      jobs_dir <- file.path(conf$data_dir, "jobs")
+      if (!file.exists(jobs_dir)) {
+        dir.create(jobs_dir, showWarnings = FALSE)
+      }
+  }
   sms <- active_social_media()
   cores <- as.numeric(length(sms))
   cl <- parallel::makePSOCKcluster(cores, outfile="")
@@ -52,7 +58,8 @@ search_loop <- function(
   parallel::parLapply(cl, sms, function(sm) {
       # redirecting output to the sm file
       if(log_to_file) {
-          outcon <- file(file.path(data_dir, sprintf("search.%s.log", sm)), open = "a")
+          jobs_dir <- file.path(conf$data_dir, "jobs")
+          outcon <- file(file.path(jobs_dir, sprintf("search.%s.log", sm)), open = "a")
           sink(outcon)
           sink(outcon, type = "message")
       }
@@ -84,7 +91,7 @@ search_loop_worker <- function(
     # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
     register_search_runner(network)
   }
-  # Infinite loop for getting tweets if it is successfully registered as the search runner
+  # Infinite loop for getting posts if it is successfully registered as the search runner
   req2Commit <- 0
   last_check <- Sys.time()
   last_save <- Sys.time()
@@ -133,7 +140,7 @@ search_loop_worker <- function(
     }
 
     # Calculating how the time episomer should wait before executing each active plan. If bigger than zero then episomer will wait.
-    # If waiting happens here, it means that episomer is able to collect all tweets under current twitter rate limits, so it could collect more topics or sooner.
+    # If waiting happens here, it means that episomer is able to collect all posts under current twitter rate limits, so it could collect more topics or sooner.
     if (!sandboxed) {
       wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
         can_wait_for(plans = conf$topics[[i]]$plan)
@@ -145,9 +152,9 @@ search_loop_worker <- function(
           Sys.time() + wait_for,
           "during",
           wait_for,
-          "seconds. Consider reducing the schedule_span for getting tweets sooner"
+          "seconds. Consider reducing the schedule_span for getting posts sooner"
         ))
-        commit_tweets()
+        commit_posts()
         save_config(
           data_dir = conf$data_dir,
           sm_topics = list(network),
@@ -216,7 +223,7 @@ search_loop_worker <- function(
             req2Commit <- req2Commit + 1
             if (!sandboxed) {
               if (req2Commit > 100) {
-                commit_tweets()
+                commit_posts()
                 req2Commit <- 0
               }
             }
@@ -266,7 +273,7 @@ search_topic <- function(
     info
   ))
 
-  # doing the tweet search and storing the response object to obtain details on resp
+  # doing the post search and storing the response object to obtain details on resp
   results <- sm_api_search(
     query = query,
     token = token,
@@ -274,7 +281,7 @@ search_topic <- function(
   )
   if (!sandboxed) {
     # Interpreting the content as JSON and storing the results on json (nested list with dataframes)
-    # interpreting is necessary to know the number of obtained tweets and the id of the oldest tweet found and to keep tweet collecting stats
+    # interpreting is necessary to know the number of obtained posts and the id of the oldest post found and to keep post collecting stats
     # Saving uninterpreted content as a gzip archive
     tries <- 3
     done <- FALSE
@@ -284,7 +291,7 @@ search_topic <- function(
         {
           post_result <- httr::POST(
             url = paste0(
-              get_scala_tweets_url(),
+              get_scala_posts_url(),
               "?topic=",
               curl::curl_escape(topic),
               "&network=",
@@ -316,7 +323,7 @@ search_topic <- function(
           done = TRUE
         },
         error = function(e) {
-          msg(paste("Error found while sending tweets", e))
+          msg(paste("Error found while sending posts", e))
           if (tries < 0) {
             stop("too many retries")
           }
@@ -355,7 +362,7 @@ can_wait_for <- function(plans) {
 
 # Last search time on stored in the embedded database
 last_search_time <- function() {
-  last_fs_updates(c("tweets"))$tweets
+  last_fs_updates(c("posts"))$posts
 }
 
 # prints message with date

@@ -1,5 +1,5 @@
 # @title get_plan S3 class constructor
-# @description Create a new 'get plan' for importing tweets using the Search API
+# @description Create a new 'get plan' for importing posts using the Search API
 # @param expected_end Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the target end datetime of this plan
 # @param scheduled_for Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the expected datetime for next execution, default: Sys.time()
 # @param start_on Character(\%Y-\%m-\%d \%H:\%M:\%S) establishing the datetime when this plan was first executed, default: NULL
@@ -8,8 +8,8 @@
 # @param got_rows Boolean, if the plan has collected rows, default: FALSE
 # @param progress Numeric, percentage of progress of current plan defined when since_target_id is known or when a request returns no more results, default: 0
 # @return The get_plan object defined by input parameters
-# @details A plan is an S3 class representing a commitment to download tweets from the search API
-# It targets a specific time frame defined from the last tweet collected by the previous plan, if any, and the last tweet collected on its first request
+# @details A plan is an S3 class representing a commitment to download posts from the search API
+# It targets a specific time frame defined from the last post collected by the previous plan, if any, and the last post collected on its first request
 # This commitment will be valid during a period of time defined from the time of its first execution until the end_on parameter
 # a plan will perform several requests to the search API and each time a request is performed the number of requests will be increased.
 # The field scheduled_for indicates the time when the next request is expected to be executed.
@@ -103,8 +103,8 @@ merge_plans <- function(p1, p2) {
 # @details
 # This function will update the plan list of a topic taking in consideration the search span
 # This function is called at the beginning of each search loop iteration applying the following rules
-# If no plans are set, a new plan for getting all possible tweets will be set
-# If current plan has started and the expected end has passed, a new plan will be added for collecting new tweets (previous plan will be stored for future execution if possible)
+# If no plans are set, a new plan for getting all possible posts will be set
+# If current plan has started and the expected end has passed, a new plan will be added for collecting new posts (previous plan will be stored for future execution if possible)
 # Any finished plans after the first will be discharged. Note that after 7 days, all plans should be discharged because of empty results and as a measure of precaution, a maximum of 100 plans are kept)
 # @returns the updated list of plans
 # @examples

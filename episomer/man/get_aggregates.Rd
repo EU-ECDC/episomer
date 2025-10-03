@@ -17,7 +17,7 @@ get_aggregates(
 
 \item{cache}{Whether to use the cache for lookup and storing the returned dataframe, default: TRUE}
 
-\item{filter}{A named list defining the filter to apply on the requested series, it should be on the shape of a named list e.g. list(tweet_geo_country_code=list('FR', 'DE')) default: list()}
+\item{filter}{A named list defining the filter to apply on the requested series, it should be on the shape of a named list e.g. list(post_geo_country_code=list('FR', 'DE')) default: list()}
 
 \item{top_field}{Name of the top field used with top_frequency to enable optimisation for getting only most frequent elements. It will only keep top 500 items after first 50k lines on reverse index order}
 
@@ -42,11 +42,11 @@ To limit by topic, the filter list must have an element 'topic' containing a non
 
 The available time series are:
 \itemize{
-  \item{"country_counts" counting tweets and retweets by posted date, hour and country}
+  \item{"country_counts" counting posts and reposts by posted date, hour and country}
 
-  \item{"geolocated" counting tweets and retweets by posted date and the smallest possible geolocated unit (city, administrative level or country)}
+  \item{"geolocated" counting posts and reposts by posted date and the smallest possible geolocated unit (city, administrative level or country)}
 
-  \item{"topwords" counting tweets and retweets by posted date, country and the most popular words, (this excludes words used in the topic search)}
+  \item{"topwords" counting posts and reposts by posted date, country and the most popular words, (this excludes words used in the topic search)}
 }
 The returned dataset can be cached for further calls if requested. Only one dataset per series is cached.
 }
@@ -54,16 +54,16 @@ The returned dataset can be cached for further calls if requested. Only one data
 if(FALSE){
    message('Please choose the episomer data directory')
    setup_config(file.choose())
-   # Getting all country tweets between 2020-jan-10 and 2020-jan-31 for all topics
+   # Getting all country posts between 2020-jan-10 and 2020-jan-31 for all topics
    df <- get_aggregates(
      dataset = "country_counts",
      filter = list(period = c("2020-01-10", "2020-01-31"))
    )
 
-   # Getting all country tweets for the topic dengue
+   # Getting all country posts for the topic dengue
    df <- get_aggregates(dataset = "country_counts", filter = list(topic = "dengue"))
 
-   # Getting all country tweets between 2020-jan-10 and 2020-jan-31 for the topic dengue
+   # Getting all country posts between 2020-jan-10 and 2020-jan-31 for the topic dengue
     df <- get_aggregates(
         dataset = "country_counts",
          filter = list(topic = "dengue", period = c("2020-01-10", "2020-01-31"))

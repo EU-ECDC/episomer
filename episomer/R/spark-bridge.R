@@ -99,7 +99,7 @@ spark_job <- function(args) {
       ),
       paste("-Xmx", conf$spark_memory, sep = ""), #memory limits
       paste(get_blas_java_opt()), #Java blas specific options
-      "org.ecdc.twitter.Tweets", #Java scala main class
+      "org.ecdc.episomer.Episomer", #episomer scala main class
       args #arguments to the call
     ),
     sep = if (.Platform$OS.type == "windows") '\r\n' else '\n'
@@ -148,7 +148,7 @@ spark_df <- function(args, handler = NULL) {
       "-Dfile.encoding=UTF8", #Setting Java encoding to UTF-8
       paste("-Xmx", half_mem, sep = ""), #Setting Java memory
       paste(get_blas_java_opt()),
-      "org.ecdc.twitter.Tweets", #episomer scala main class
+      "org.ecdc.episomer.Episomer", #episomer scala main class
       args
     ),
     sep = '\n'
@@ -214,7 +214,7 @@ spark_df <- function(args, handler = NULL) {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
-#'    # geolocating last tweets
+#'    # geolocating last posts
 #'    tasks <- download_dependencies()
 #' }
 #' @rdname download_dependencies

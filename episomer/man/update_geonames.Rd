@@ -23,7 +23,7 @@ The URL to download the database from is set on the configuration tab of the Shi
 
 The indexing is developed in Spark and Lucene
 
-A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected tweets in the search folder and that the task \code{\link{download_dependencies}}
+A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the task \code{\link{download_dependencies}}
 has been successfully run.
 
 Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
@@ -35,7 +35,7 @@ if(FALSE){
    message('Please choose the episomer data directory')
    setup_config(file.choose())
 
-   # geolocating last tweets
+   # geolocating last posts
    tasks <- update_geonames()
 }
 }

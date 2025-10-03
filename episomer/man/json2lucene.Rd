@@ -2,27 +2,27 @@
 % Please edit documentation in R/migration.R
 \name{json2lucene}
 \alias{json2lucene}
-\title{Function used for migrating tweets from to old to the new file system}
+\title{Function used for migrating posts from to old to the new file system}
 \usage{
 json2lucene(tasks = get_tasks(), chunk_size = 400)
 }
 \arguments{
 \item{tasks}{named list, current tasks for logging and updating progress default: get_tasks()}
 
-\item{chunk_size, }{integer, the chunk size for indexing tweets, default: 400}
+\item{chunk_size, }{integer, the chunk size for indexing posts, default: 400}
 }
 \value{
 the updated tasks.
 }
 \description{
-migrates geolocated tweets from the old to the new file system allowing full text search using Apache Lucene Indexes
+migrates geolocated posts from the old to the new file system allowing full text search using Apache Lucene Indexes
 }
 \details{
-This function can be called manually to perform the migration of tweets between v0.0.x to v2+
-It iterates over existing tweets collected with episomer v0.0.x series
-joins base tweets and geolocated tweets and then sends themes to the Lucene index via the dedicated REST API.
+This function can be called manually to perform the migration of posts between v0.0.x to v2+
+It iterates over existing posts collected with episomer v0.0.x series
+joins base posts and geolocated posts and then sends themes to the Lucene index via the dedicated REST API.
 Migrated files will be moved to search_archive and geo_archive folders. Users can backup and remove these folders when migration ends to gain disk space.
-Series folders are maintained for migrated tweets
+Series folders are maintained for migrated posts
 }
 \examples{
 if(FALSE){

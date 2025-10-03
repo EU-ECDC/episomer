@@ -3,7 +3,7 @@ utils::globalVariables(c(
   "limit",
   "URLencode",
   "conf",
-  "get_scala_tweets_url",
+  "get_scala_posts_url",
   "is_secret_set",
   "last_fs_updates",
   "resp_header",

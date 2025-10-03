@@ -12,20 +12,20 @@ search_loop(
 )
 }
 \arguments{
-\item{data_dir}{optional path to the 'data directory' containing application settings, models and collected tweets. If not provided it will reuse the last set on the current session.
+\item{data_dir}{optional path to the 'data directory' containing application settings, models and collected posts. If not provided it will reuse the last set on the current session.
 If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, Default: NA}
 }
 \value{
 Nothing
 }
 \description{
-Infinite loop ensuring the permanent collection of tweets
+Infinite loop ensuring the permanent collection of posts
 }
 \details{
-The detect loop is a pure R function designed for downloading tweets from the Twitter search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
+The detect loop is a pure R function designed for downloading posts from the Twitter search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
 round-robin philosophy and respecting Twitter API rate-limits.
 
-The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect tweets respecting a 'collect_span' window
+The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect posts respecting a 'collect_span' window
 in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 
 To see more details about the collection algorithm please see episomer vignette.

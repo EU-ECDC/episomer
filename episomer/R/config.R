@@ -172,7 +172,7 @@ get_empty_config <- function(data_dir) {
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
 #' @param save_first Whether to save current settings before loading new ones from disk, default: list()
 #' @return Nothing
-#' @details episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting tweets or detecting alerts the user has to designate this folder.
+#' @details episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting posts or detecting alerts the user has to designate this folder.
 #' When a user wants to use episomer from the R console they will need to call this function for initialisation.
 #' The 'data_folder' can also be given as a parameter for program launch functions \code{\link{episomer_app}}, \code{\link{search_loop}} or \code{\link{detect_loop}}, which will internally call this function.
 #'

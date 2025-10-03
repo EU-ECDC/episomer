@@ -35,7 +35,7 @@ if(FALSE){
    message('Please choose the episomer data directory')
    setup_config(file.choose())
 
-   # geolocating last tweets
+   # geolocating last posts
    tasks <- download_dependencies()
 }
 }

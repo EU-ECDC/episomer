@@ -4,14 +4,14 @@ repos = "https://cran.asnr.fr/"
 
 if(!("devtools" %in% installed.packages()[,"Package"]))
   install.packages("devtools", repos = repos)
-fast <- TRUE
+fast <- FALSE
 
 if(!fast) {
     devtools::install_deps("episomer")
     devtools::document("episomer")
     renv::snapshot()
     devtools::build_manual("episomer")
-    devtools::build_vignettes()
+    devtools::build_vignettes("episomer")
 }
 
 if(!file.exists(file.path("install"))){

@@ -1,6 +1,6 @@
 package org.ecdc.episomer.fs
 
-import org.ecdc.episomer.EpitweetrActor
+import org.ecdc.episomer.EpisomerActor
 import org.ecdc.episomer.{Settings}
 import akka.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
@@ -44,9 +44,9 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
       implicit val holder = LuceneActor.holder
       Future{
         val dateMap = ts.items.groupBy(t => t.created_at.toString.take(10))
-        dateMap.foreach{case (date, tweets) =>
-          val index = LuceneActor.getIndex("tweets", tweets(0).created_at)
-          tweets.foreach{t => index.indexPost(t, topic, network)}
+        dateMap.foreach{case (date, posts) =>
+          val index = LuceneActor.getIndex("posts", posts(0).created_at)
+          posts.foreach{t => index.indexPost(t, topic, network)}
         }
         dateMap.keys.toSeq
       }
@@ -67,7 +67,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
     case LuceneActor.GeolocatedPostsCreated(GeolocatedPosts(items), dates) =>
       implicit val holder = LuceneActor.holder
       Future{
-        val indexes = dates.flatMap(d => LuceneActor.getReadIndexes("tweets", Some(d), Some(d)))
+        val indexes = dates.flatMap(d => LuceneActor.getReadIndexes("posts", Some(d), Some(d)))
         items.foreach{g =>
           var found = false 
           for(index <- indexes if !found) {
@@ -77,7 +77,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
         items.size
       }
       .map{c =>
-        EpitweetrActor.Success(s"$c geolocated properly processed")
+        EpisomerActor.Success(s"$c geolocated properly processed")
       }
       .pipeTo(sender())
     case ts:LuceneActor.CommitRequest =>
@@ -86,7 +86,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
         LuceneActor.commitRequest()
       }
       .map{c =>
-        EpitweetrActor.Success(s"$c Commit done processed")
+        EpisomerActor.Success(s"$c Commit done processed")
       }
       .pipeTo(sender())
     case LuceneActor.CloseRequest =>
@@ -96,7 +96,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
         LuceneActor.closeSparkSession()
       }
       .map{c =>
-        EpitweetrActor.Success(s"$c Commit done processed")
+        EpisomerActor.Success(s"$c Commit done processed")
       }
       .pipeTo(sender())
     case LuceneActor.SearchRequest(query, topics, from, to, countryCodes, mentions, users, estimatecount, hideUsers, action, max, byRelevance, jsonnl, caller) => 
@@ -104,7 +104,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
       implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
       implicit val holder = LuceneActor.holder 
 
-      val indexes = LuceneActor.getReadIndexes("tweets", from, to).toSeq
+      val indexes = LuceneActor.getReadIndexes("posts", from, to).toSeq
       var sep = ""
       Future {
         if(!jsonnl) { 
@@ -149,7 +149,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
 
             val noFilter = i.searchPosts(qb.build, Some(left), doCount = estimatecount, if(byRelevance) QuerySort.relevance else QuerySort.index).toSeq
             
-            val tweets = if(!mentions.isEmpty) {
+            val posts = if(!mentions.isEmpty) {
               val reg = ("(?i)" + mentions.get.map(m => s"@$m\\b").mkString("|")).r
               val filtered = noFilter.filter{case (doc, totalCount) => 
                 Seq(doc.getField("text").stringValue(), if(doc.getField("quoted_text") ==null) null else doc.getField("quoted_text").stringValue()).exists(t => t != null && !reg.findFirstIn(t).isEmpty)
@@ -159,11 +159,11 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
             else
               noFilter
 
-            left = left - tweets.size
+            left = left - posts.size
             if(left < 0)
-              tweets.take(tweets.size + left).map(p => (p, i))
+              posts.take(posts.size + left).map(p => (p, i))
             else 
-              tweets.map(p => (p, i))
+              posts.map(p => (p, i))
           }
           .map{case ((doc, totalCount), index) => 
             val anoMap = Map(
@@ -183,9 +183,9 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
               asArray = Set("tags","urls", "categories")
             )
             if(action == Some("delete")) {
-              index.deleteDoc(doc, "topic_tweet_id")  
+              index.deleteDoc(doc, "topic_post_id")  
             } else if(action == Some("anonymise")) {
-              index.searchReplaceInDoc(doc, pkName = "topic_tweet_id", updateMap = anoMap, textFields = Set("text", "quoted_text"))
+              index.searchReplaceInDoc(doc, pkName = "topic_post_id", updateMap = anoMap, textFields = Set("text", "quoted_text"))
             }
             ret
           }
@@ -366,7 +366,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
         "Done!" 
       }.pipeTo(sender())
     case b => 
-      Future(EpitweetrActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
+      Future(EpisomerActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
   }
 }
 
@@ -522,7 +522,7 @@ object LuceneActor {
   }
   def getIndexKey(collection:String, forInstant:Instant) = {
     val timing = collection match {
-      case "tweets" => "week"
+      case "posts" => "week"
       case "country_counts" => "week"
       case "topwords" => "week"
       case "geolocated" => "week"
@@ -566,16 +566,16 @@ object LuceneActor {
   def getReadIndexes(collection:String, from:Option[Instant], to:Option[Instant])(implicit conf:Settings, holder:IndexHolder) = 
     getReadKeys(collection, from, to).map(key => getIndex(collection, key))
 
-  def add2Geolocate(tweets:TopicPosts, forcedGeo:Option[Map[String, String]], forcedGeoCodes:Option[Map[String, String]], topics:Option[Set[String]])
+  def add2Geolocate(posts:TopicPosts, forcedGeo:Option[Map[String, String]], forcedGeoCodes:Option[Map[String, String]], topics:Option[Set[String]])
     (implicit conf:Settings, holder:IndexHolder, ec: ExecutionContext) = 
   {
     var goGeo = false
     implicit val st = conf.getSparkStorage
     holder.dirs.synchronized {
       val toGeo = st.getNode(conf.togeolocatePath)
-      if(tweets.tweets.items.size > 0) {
+      if(posts.posts.items.size > 0) {
         if(toGeo.exists) toGeo.setContent("\n", WriteMode.append)
-        toGeo.setContent(EpiSerialisation.topicPostsFormat.write(tweets).toString, WriteMode.append)
+        toGeo.setContent(EpiSerialisation.topicPostsFormat.write(posts).toString, WriteMode.append)
       }
       val geolocating = st.getNode(conf.geolocatingPath)
 
@@ -697,17 +697,17 @@ object LuceneActor {
               .mapPartitions{iter => iter.flatMap{ i =>
                 val st = conf.getSparkStorage
                 val geoNode = st.getNode(conf.geolocatingPath)
-                val tweets  = if(geoNode.exists) {
+                val posts  = if(geoNode.exists) {
                   geoNode.getContentAsLines.map(json => EpiSerialisation.topicPostsFormat.read(JsonParser(json)))
                 } else {
                   Iterator[TopicPosts]()
                 }
-                val r = tweets.flatMap{case TopicPosts(network, topic, ts) => ts.items.filter(t => Math.abs(t.id.hashCode).toInt % par == i).map(t => (network, topic, t))}
+                val r = posts.flatMap{case TopicPosts(network, topic, ts) => ts.items.filter(t => Math.abs(t.id.hashCode).toInt % par == i).map(t => (network, topic, t))}
                 r
               }}
               .toDF
-              .as[(String, String, Post)].toDF("network", "topic", "tweet")
-              .select(col("network"), col("topic"), col("tweet.*"))
+              .as[(String, String, Post)].toDF("network", "topic", "post")
+              .select(col("network"), col("topic"), col("post.*"))
               .geolocate(
                 textLangCols = defaultTextLangCols
                 , minScore = conf.geolocationThreshold.get
@@ -752,10 +752,10 @@ object LuceneActor {
               .mapPartitions{iter =>
                 val indexes = HashMap[String, PostIndex]()
                 iter.map{case (geo, createdAt) =>
-                  val iKey = LuceneActor.getIndexKey("tweets", createdAt)
+                  val iKey = LuceneActor.getIndexKey("posts", createdAt)
                   implicit val holder = LuceneActor.holder
                   if(!indexes.contains(iKey)) {
-                    indexes(iKey) = LuceneActor.getIndex("tweets", iKey)
+                    indexes(iKey) = LuceneActor.getIndex("posts", iKey)
                     indexes(iKey).refreshReader()
                   }
                   indexes(iKey).indexGeolocated(geo)
@@ -770,7 +770,7 @@ object LuceneActor {
     val numGeo = holder.toGeolocate.get.unpersist.collect.sum
     val endTime = System.nanoTime
     LuceneActor.commit(closeDirectory = false)
-    l.msg(s"${(endTime - midTime)/1e9d} secs for geolocating ${numGeo} tweets")
+    l.msg(s"${(endTime - midTime)/1e9d} secs for geolocating ${numGeo} posts")
   }
 
 
@@ -798,12 +798,12 @@ object LuceneActor {
             .mapPartitions{iter => iter.flatMap{ i =>
                val st = conf.getSparkStorage
                val aggrNode = st.getNode(conf.aggregatingPath)
-               val tweets  = if(aggrNode.exists) {
+               val posts  = if(aggrNode.exists) {
                  aggrNode.getContentAsLines.map(json => EpiSerialisation.topicPostsFormat.read(JsonParser(json)))
                } else {
                  Iterator[TopicPosts]()
                }
-               tweets
+               posts
                  .flatMap{case TopicPosts(network, topic, tts) => tts.items.filter(t => Math.abs(t.id.hashCode).toInt % par == i).map(t => (network, topic, t))}
                  .map{case (network, topic, t) => (network, topic, t.id, LuceneActor.getIndexKey(collection.name, t.created_at))}
                
@@ -818,13 +818,13 @@ object LuceneActor {
               var index:PostIndex=null 
               (for((network, topic, id, key) <- iter) yield {  
                 if(lastKey != key) {
-                  index = LuceneActor.getIndex("tweets", key)(c, h)
+                  index = LuceneActor.getIndex("posts", key)(c, h)
                   index.refreshReader
                 }
                 index.searchPostAsJSON(id, topic, network) match {
                   case Some(s) => Some(s)
                   case _ => 
-                    l.msg(s"Cannot find tweet to aggregate $key, $id, $topic")
+                    l.msg(s"Cannot find post to aggregate $key, $id, $topic")
                     None
                 }
               }).flatMap(ot => ot)
@@ -878,7 +878,7 @@ object LuceneActor {
           }.get
     val numAggr = ds.collect.sum 
     LuceneActor.commit(closeDirectory = false)(holder)
-    l.msg(s"${(System.nanoTime - startTime)/1e9d} secs for aggregating ${numAggr} tweets in ${collection.name}")
+    l.msg(s"${(System.nanoTime - startTime)/1e9d} secs for aggregating ${numAggr} posts in ${collection.name}")
   }
 
   def recalculateHash()(implicit holder:IndexHolder, conf:Settings, ec:ExecutionContext){

@@ -1,12 +1,12 @@
 #' @title Run the episomer Shiny app
 #' @description Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
+#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @param host The host to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @param profile The profile to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
 #' @return The Shiny server object containing the launched application
-#' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the tweet collection process, manage all settings,
+#' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
 #'
 #' All its functionality is described on the episomer vignette.
@@ -333,7 +333,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           shiny::radioButtons(
             "alerts_display",
             label = NULL,
-            choices = list("Tweets" = "tweets", "Parameters" = "parameters"),
+            choices = list("Posts" = "posts", "Parameters" = "parameters"),
             selected = "parameters",
             inline = TRUE
           ),
@@ -928,8 +928,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             shiny::column(
               2,
               shiny::actionButton(
-                "conf_dismiss_past_tweets",
-                "Dismiss past tweets"
+                "conf_dismiss_past_posts",
+                "Dismiss past posts"
               )
             )
           ),
@@ -1067,8 +1067,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         shiny::column(
           4,
           shiny::numericInput(
-            "geotraining_tweets2add",
-            label = shiny::h4("Tweets to add"),
+            "geotraining_posts2add",
+            label = shiny::h4("Posts to add"),
             value = 100
           )
         ),
@@ -1223,7 +1223,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               "Dependencies" = "dependencies",
               "Machine Learning" = "machine-learning",
               "Aggregation" = "aggregations",
-              "Tweets" = "tweets",
+              "Posts" = "posts",
               "Logs" = "logs"
             ),
             selected = c("settings", "logs")
@@ -1245,8 +1245,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         shiny::column(
           3,
           shiny::dateRangeInput(
-            "snapshot_tweet_period",
-            label = shiny::h4("Tweet data period"),
+            "snapshot_post_period",
+            label = shiny::h4("Post data period"),
             start = d$date_min,
             end = d$date_end,
             min = d$date_min,
@@ -2600,8 +2600,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             refresh_config_data(e = cd, limit = list("topics"))
           }
         })
-        # action to dismiss past tweets
-        shiny::observeEvent(input$conf_dismiss_past_tweets, {
+        # action to dismiss past posts
+        shiny::observeEvent(input$conf_dismiss_past_posts, {
           # Setting values on the configuration so the search loop knows history needs to be dismissed
           conf$dismiss_past_request <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
           # saving configuration so the Requirements & alerts pipeline will see the changes
@@ -2736,13 +2736,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         # rendering the alerts
         # updates are launched automatically when any input value changes
 
-        # setting default value for number of alerts to return depending on wether we are displaying tweets or not
+        # setting default value for number of alerts to return depending on wether we are displaying posts or not
         shiny::observe({
           # Can also set the label and select items
           shiny::updateSelectInput(
             session,
             "alerts_limit",
-            selected = if (input$alerts_display == "tweets") "10" else "0"
+            selected = if (input$alerts_display == "posts") "10" else "0"
           )
         })
 
@@ -2756,14 +2756,14 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           output$alerts_table <- DT::renderDataTable({
             `%>%` <- magrittr::`%>%`
             shiny::isolate({
-              toptweets <- if (input$alerts_display == "tweets") 10 else 0
+              topposts <- if (input$alerts_display == "posts") 10 else 0
               progress_start("Getting alerts")
               alerts <- get_alerts(
                 topic = input$alerts_topics,
                 countries = as.numeric(input$alerts_countries),
                 from = input$alerts_period[[1]],
                 until = input$alerts_period[[2]],
-                toptweets = toptweets,
+                topposts = topposts,
                 limit = as.integer(input$alerts_limit),
                 progress = function(value, message) {
                   progress_set(value = value, message = message)
@@ -2777,7 +2777,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               )
             )
 
-            dt <- if (toptweets == 0) {
+            dt <- if (topposts == 0) {
               alerts %>%
                 dplyr::select(
                   "date",
@@ -2786,7 +2786,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "country",
                   "episomer_category",
                   "tops",
-                  "number_of_tweets",
+                  "number_of_posts",
                   "known_ratio",
                   "limit",
                   "no_historic",
@@ -2807,7 +2807,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     "Region" = "country",
                     "Category" = "episomer_category",
                     "Tops" = "tops",
-                    "Tweets" = "number_of_tweets",
+                    "Posts" = "number_of_posts",
                     "% from important user" = "known_ratio",
                     "Threshold" = "limit",
                     "Baseline" = "no_historic",
@@ -2824,17 +2824,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   escape = FALSE
                 )
             } else {
-              alerts$toptweets <- sapply(alerts$toptweets, function(tweetsbylang) {
-                if (length(tweetsbylang) == 0) "" else {
+              alerts$topposts <- sapply(alerts$topposts, function(postsbylang) {
+                if (length(postsbylang) == 0) "" else {
                   paste(
                     "<UL>",
-                    lapply(1:length(tweetsbylang), function(i) {
+                    lapply(1:length(postsbylang), function(i) {
                       paste(
                         "<LI>",
-                        names(tweetsbylang)[[i]],
+                        names(postsbylang)[[i]],
                         "<OL>",
                         paste(
-                          lapply(tweetsbylang[[i]], function(t) {
+                          lapply(postsbylang[[i]], function(t) {
                             paste0(
                               "<LI>",
                               htmltools::htmlEscape(t),
@@ -2861,8 +2861,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "country",
                   "episomer_category",
                   "tops",
-                  "number_of_tweets",
-                  "toptweets"
+                  "number_of_posts",
+                  "topposts"
                 ) %>%
                 DT::datatable(
                   colnames = c(
@@ -2872,8 +2872,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     "Region" = "country",
                     "Category" = "episomer_category",
                     "Tops" = "tops",
-                    "Tweets" = "number_of_tweets",
-                    "Top tweets" = "toptweets"
+                    "Posts" = "number_of_posts",
+                    "Top posts" = "topposts"
                   ),
                   filter = "top",
                   escape = FALSE
@@ -2908,10 +2908,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "Topic" = "topic",
                   "Region" = "country",
                   "Top words" = "topwords",
-                  "Tweets" = "number_of_tweets",
-                  "Top tweets" = "toptweets",
+                  "Posts" = "number_of_posts",
+                  "Top posts" = "topposts",
                   "Given Category" = "given_category",
-                  "Epitweetr Category" = "episomer_category"
+                  "Epipostr Category" = "episomer_category"
                 ),
                 filter = "top",
                 escape = FALSE
@@ -2966,7 +2966,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     countries = as.numeric(input$alerts_countries),
                     from = input$alerts_period[[1]],
                     until = input$alerts_period[[2]],
-                    toptweets = 10,
+                    topposts = 10,
                     limit = if (
                       !is.na(input$alerts_limit) &&
                         as.integer(input$alerts_limit) > 0
@@ -3009,7 +3009,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 countries = as.numeric(input$alerts_countries),
                 from = input$alerts_period[[1]],
                 until = input$alerts_period[[2]],
-                toptweets = 10,
+                topposts = 10,
                 limit = if (
                   !is.na(input$alerts_limit) && as.integer(input$alerts_limit) > 0
                 )
@@ -3180,14 +3180,14 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
             tryCatch(
               {
-                #update_geotraining_df(input$geotraining_tweets2add, progress = function(value, message) {progress_set(value = value /3, message = message)})
+                #update_geotraining_df(input$geotraining_posts2add, progress = function(value, message) {progress_set(value = value /3, message = message)})
                 progress_set(
                   value = 0.5,
                   message = "Retraining models and evaluating"
                 )
                 retrain_languages()
                 update_geotraining_df(
-                  input$geotraining_tweets2add,
+                  input$geotraining_posts2add,
                   progress = function(value, message) {
                     progress_set(value = 0.5 + value / 2, message = message)
                   }
@@ -3208,7 +3208,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           tryCatch(
             {
               update_geotraining_df(
-                input$geotraining_tweets2add,
+                input$geotraining_posts2add,
                 progress = function(value, message) {
                   progress_set(value = value, message = message)
                 }
@@ -3231,7 +3231,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               {
                 if (get_geotraining_path() == get_default_geotraining_path()) {
                   update_geotraining_df(
-                    input$geotraining_tweets2add,
+                    input$geotraining_posts2add,
                     progress = function(value, message) {
                       progress_set(value = value, message = message)
                     }
@@ -3267,9 +3267,9 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         shiny::observeEvent(input$data_anonymise, {
           shiny::showModal(shiny::modalDialog(
             title = "Warning",
-            "Please confirm you want to anonymise the tweets matching this search criteria, this action cannot be undone",
+            "Please confirm you want to anonymise the posts matching this search criteria, this action cannot be undone",
             footer = shiny::tagList(
-              shiny::actionButton("data_perform_anonymise", "Yes anonymise tweets"),
+              shiny::actionButton("data_perform_anonymise", "Yes anonymise posts"),
               shiny::modalButton("Cancel")
             )
           ))
@@ -3278,29 +3278,29 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         shiny::observeEvent(input$data_delete, {
           shiny::showModal(shiny::modalDialog(
             title = "Warning",
-            "Please confirm you want to delete the tweets matching this search criteria, this action cannot be undone",
+            "Please confirm you want to delete the posts matching this search criteria, this action cannot be undone",
             footer = shiny::tagList(
-              shiny::actionButton("data_perform_delete", "Yes delete tweets"),
+              shiny::actionButton("data_perform_delete", "Yes delete posts"),
               shiny::modalButton("Cancel")
             )
           ))
         })
 
         shiny::observeEvent(input$data_perform_delete, {
-          search_tweets_exp(hide_users = FALSE, action = "delete")
+          search_posts_exp(hide_users = FALSE, action = "delete")
         })
         shiny::observeEvent(input$data_perform_anonymise, {
-          search_tweets_exp(hide_users = FALSE, action = "anonymise")
+          search_posts_exp(hide_users = FALSE, action = "anonymise")
         })
 
         shiny::observeEvent(input$data_search_ano, {
-          search_tweets_exp(hide_users = TRUE)
+          search_posts_exp(hide_users = TRUE)
         })
 
         shiny::observeEvent(input$data_search, {
-          search_tweets_exp(hide_users = FALSE)
+          search_posts_exp(hide_users = FALSE)
         })
-        search_tweets_exp <- function(hide_users, action = NULL) {
+        search_posts_exp <- function(hide_users, action = NULL) {
           output$data_message <- shiny::renderText("")
           output$data_search_df <- DT::renderDataTable({
             `%>%` <- magrittr::`%>%`
@@ -3309,7 +3309,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               "created_at:[0 TO Z] NOT screen_name:user" else NULL)
             progress_start("Searching")
             shiny::isolate({
-              tweets <- search_tweets(
+              posts <- search_posts(
                 query = query,
                 topic = input$data_topics,
                 from = input$data_period[[1]],
@@ -3331,22 +3331,22 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               )
             })
 
-            if (!is.null(action) && nrow(tweets) > 0) {
+            if (!is.null(action) && nrow(posts) > 0) {
               processed <- 0
-              while (nrow(tweets) > 0) {
-                processed <- processed + nrow(tweets)
+              while (nrow(posts) > 0) {
+                processed <- processed + nrow(posts)
                 progress_set(
                   value = 0.5,
                   message = paste(
                     "Performing",
                     action,
                     processed,
-                    "tweets processed"
+                    "posts processed"
                   )
                 )
 
                 shiny::isolate({
-                  tweets <- search_tweets(
+                  posts <- search_posts(
                     query = query,
                     topic = input$data_topics,
                     from = input$data_period[[1]],
@@ -3375,28 +3375,28 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
             shiny::validate(
               shiny::need(
-                !is.null(tweets) && nrow(tweets) > 0,
-                'No tweets found for the provided filters'
+                !is.null(posts) && nrow(posts) > 0,
+                'No posts found for the provided filters'
               )
             )
-            output$data_message <- if (tweets$totalCount[[1]] > 1000) {
+            output$data_message <- if (posts$totalCount[[1]] > 1000) {
               shiny::renderText(paste(
                 "more than ",
-                tweets$totalCount[[1]],
-                " tweets found"
+                posts$totalCount[[1]],
+                " posts found"
               ))
             } else {
-              shiny::renderText(paste(tweets$totalCount[[1]], " tweets found"))
+              shiny::renderText(paste(posts$totalCount[[1]], " posts found"))
             }
 
             dt <- {
-              tweets$country_code <- if ("text_loc" %in% colnames(tweets))
-                tweets$text_loc$geo_country_code else ""
-              tweets$geo_name <- if ("text_loc" %in% colnames(tweets))
-                tweets$text_loc$geo_name else ""
-              tweets %>%
+              posts$country_code <- if ("text_loc" %in% colnames(posts))
+                posts$text_loc$geo_country_code else ""
+              posts$geo_name <- if ("text_loc" %in% colnames(posts))
+                posts$text_loc$geo_name else ""
+              posts %>%
                 dplyr::select(
-                  "tweet_id",
+                  "post_id",
                   "topic",
                   "country_code",
                   "geo_name",
@@ -3408,15 +3408,15 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 ) %>%
                 DT::datatable(
                   colnames = c(
-                    "Tweet Id" = "tweet_id",
+                    "Post Id" = "post_id",
                     "Topic" = "topic",
                     "Created" = "created_at",
                     "Country in text" = "country_code",
                     "Location in text" = "geo_name",
                     "User" = "screen_name",
                     "Text" = "text",
-                    "Retweet/Quoted text" = "linked_text",
-                    "Retweet/Quoted user" = "linked_screen_name"
+                    "Repost/Quoted text" = "linked_text",
+                    "Repost/Quoted user" = "linked_screen_name"
                   ),
                   filter = "top",
                   escape = TRUE
@@ -3436,7 +3436,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             create_snapshot(
               destination_dir = input$snapshot_folder,
               types = input$snapshot_types,
-              tweets_period = input$snapshot_tweet_period,
+              posts_period = input$snapshot_post_period,
               aggregated_period = input$snapshot_aggr_period,
               compress = input$snapshot_compress,
               progress = function(value, message) {

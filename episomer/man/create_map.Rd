@@ -5,6 +5,7 @@
 \title{Plot the map report on the episomer dashboard}
 \usage{
 create_map(
+  sms,
   topic = c(),
   countries = c(1),
   date_min = "1900-01-01",
@@ -24,7 +25,7 @@ create_map(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include reposts in the time series, default: FALSE}
 
 \item{caption}{Character(1) vector indicating a caption to print at the bottom of the chart, default: ""}
 
@@ -37,14 +38,14 @@ If null and all countries are selected +proj=robin is used (Robinson projection)
 A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the dataframe that was used to build the map.
 }
 \description{
-Generates a bubble map plot of number of tweets by countries, for one topic
+Generates a bubble map plot of number of posts by countries, for one topic
 }
 \details{
-Produces a bubble chart map for a particular topic on number of tweets collected based on the provided parameters.
-The map will display information at country level if more than one country is selected, otherwise it will display bubbles at the smallest possible location identified for each tweet within the period
+Produces a bubble chart map for a particular topic on number of posts collected based on the provided parameters.
+The map will display information at country level if more than one country is selected, otherwise it will display bubbles at the smallest possible location identified for each post within the period
 which could be any administrative level or city level.
 
-Tweets associated with a country but with no finer granularity are omitted when displaying a single country.
+Posts associated with a country but with no finer granularity are omitted when displaying a single country.
 
 When an aggregated zone is requested, all countries in that zone are included.
 

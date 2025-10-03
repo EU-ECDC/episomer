@@ -217,7 +217,7 @@ can_render <- function(input, d) {
     ),
     shiny::need(
       file.exists(conf$data_dir),
-      'Please go to configuration tab and setup tweet collection (no data directory found)'
+      'Please go to configuration tab and setup post collection (no data directory found)'
     ),
     shiny::need(
       check_series_present(),
@@ -251,17 +251,17 @@ get_alertsdb_html <- function() {
   shiny::validate(
     shiny::need(!is.null(alerts), 'No alerts generated for the selected period')
   )
-  alerts$toptweets <- sapply(alerts$toptweets, function(tweetsbylang) {
-    if (length(tweetsbylang) == 0) "" else {
+  alerts$topposts <- sapply(alerts$topposts, function(postsbylang) {
+    if (length(postsbylang) == 0) "" else {
       paste(
         "<UL>",
-        lapply(1:length(tweetsbylang), function(i) {
+        lapply(1:length(postsbylang), function(i) {
           paste(
             "<LI>",
-            names(tweetsbylang)[[i]],
+            names(postsbylang)[[i]],
             "<OL>",
             paste(
-              lapply(tweetsbylang[[i]], function(t) {
+              lapply(postsbylang[[i]], function(t) {
                 paste0(
                   "<LI>",
                   htmltools::htmlEscape(t),

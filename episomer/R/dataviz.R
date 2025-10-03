@@ -1,11 +1,11 @@
 #' @title Plot the trendline report of episomer dashboard
-#' @description Generates a trendline chart of number of tweets by region, for one topic, including alerts using the reweighted version of the EARS algorithm
+#' @description Generates a trendline chart of number of posts by region, for one topic, including alerts using the reweighted version of the EARS algorithm
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app select, default: c(1)
 #' @param date_type Character vector specifying the time granularity of the report either 'created_weeknum' or 'created_date', default: 'created_date'
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include reposts in the time series, default: FALSE
 #' @param alpha Numeric(1) value indicating the alert detection confidence, default: 0.025
 #' @param alpha_outlier Numeric(1) value indicating the outliers detection confidence for downweighting, default: 0.05
 #' @param k_decay Strength of outliers downweighting, default: 4
@@ -13,10 +13,10 @@
 #' @param bonferroni_correction Logical value indicating whether to apply the Bonferroni correction for signal detection, default: FALSE
 #' @param same_weekday_baseline Logical value indicating whether to use same day of weeks for building the baseline or consecutive days, default: FALSE
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the chart.
-#' @details Produces a multi-region line chart for a particular topic of number of tweets collected based on the provided parameters.
+#' @details Produces a multi-region line chart for a particular topic of number of posts collected based on the provided parameters.
 #' Alerts will be calculated using a modified version of the EARS algorithm that applies a Farrington inspired downweighting of previous outliers.
 #'
-#' Days in this function are considered as contiguous blocks of 24 hours starting for the previous hour of the last collected tweet.
+#' Days in this function are considered as contiguous blocks of 24 hours starting for the previous hour of the last collected post.
 #'
 #' This function requires \code{\link{search_loop}} and \code{\link{detect_loop}} to have already run successfully to show results.
 #' @examples
@@ -88,7 +88,7 @@ trend_line <- function(
       logenv = logenv
     )
   # checking if some data points have been returned or return empty char
-  if (nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) > 0) {
+  if (nrow(df %>% dplyr::filter(.data$number_of_posts > 0)) > 0) {
     topic <- unname(get_topics_labels()[stringr::str_replace_all(
       topic,
       "%20",
@@ -164,14 +164,14 @@ plot_trendline <- function(
           "\nRegion:",
           df$country[[i]],
           "\nNumber of messages: ",
-          df$number_of_tweets[[i]],
+          df$number_of_posts[[i]],
           "\nBaseline: ",
           round(df$baseline[[i]]),
           "\nThreshold: ",
           round(df$limit[[i]]),
           "\nDate:",
           df$date[[i]],
-          "\nKnown users tweets: ",
+          "\nKnown users posts: ",
           df$known_users[[i]],
           "\nKnown users ratio: ",
           round(df$known_ratio[[i]] * 100, 2),
@@ -191,14 +191,14 @@ plot_trendline <- function(
       "\nAlert: ",
       ifelse(df$alert == 1, "yes", "no"),
       "\nNumber of message: ",
-      df$number_of_tweets,
+      df$number_of_posts,
       "\nBaseline: ",
       round(df$baseline),
       "\nThreshold: ",
       round(df$limit),
       "\nDate:",
       df$date,
-      "\nKnown users tweets: ",
+      "\nKnown users posts: ",
       df$known_users,
       "\nKnown users ratio: ",
       round(df$known_ratio * 100, 2),
@@ -219,12 +219,12 @@ plot_trendline <- function(
   # Calculating breaks of y axis
   y_breaks <- unique(floor(pretty(seq(
     0,
-    (max(df$limit, df$number_of_tweets, na.rm = TRUE, 0) + 1) * 1.1
+    (max(df$limit, df$number_of_posts, na.rm = TRUE, 0) + 1) * 1.1
   ))))
 
-  # Calculating tweet location scope count message
+  # Calculating post location scope count message
   scope_count <- format(
-    sum(df$number_of_tweets),
+    sum(df$number_of_posts),
     big.mark = " ",
     scientific = FALSE
   )
@@ -237,7 +237,7 @@ plot_trendline <- function(
     df,
     ggplot2::aes(
       x = .data$date,
-      y = .data$number_of_tweets,
+      y = .data$number_of_posts,
       label = .data$Details
     )
   ) +
@@ -304,7 +304,7 @@ plot_trendline <- function(
     ) +
     ggplot2::xlab(paste(
       if (date_type == "created_weeknum") "Posted week" else "Posted date"
-    )) + #, "(days are 24 hour blocks ening on last aggregated tweet in period)")) +
+    )) + #, "(days are 24 hour blocks ening on last aggregated post in period)")) +
     ggplot2::ylab('Number of messages') +
     ggplot2::scale_y_continuous(
       breaks = y_breaks,
@@ -411,7 +411,7 @@ plot_trendline <- function(
 
   df <- dplyr::rename(
     df,
-    "Number of messages" = .data$number_of_tweets,
+    "Number of messages" = .data$number_of_posts,
     "Message date" = .data$date,
     "Topic" = .data$topic
   )
@@ -420,22 +420,22 @@ plot_trendline <- function(
 }
 
 #' @title Plot the map report on the episomer dashboard
-#' @description Generates a bubble map plot of number of tweets by countries, for one topic
+#' @description Generates a bubble map plot of number of posts by countries, for one topic
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app, default: c(1)
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include reposts in the time series, default: FALSE
 #' @param caption Character(1) vector indicating a caption to print at the bottom of the chart, default: ""
 #' @param proj Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format \code{\link[sp]{CRS-class}}?
 #' If null and all countries are selected +proj=robin is used (Robinson projection) otherwise the Lambert azimuthal equal-area projection will be chosen, default: NULL
 #' @param forplotly Logical(1) parameter indicating whether some hacks are activated to improve plotly rendering, default: FALSE
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the dataframe that was used to build the map.
-#' @details Produces a bubble chart map for a particular topic on number of tweets collected based on the provided parameters.
-#' The map will display information at country level if more than one country is selected, otherwise it will display bubbles at the smallest possible location identified for each tweet within the period
+#' @details Produces a bubble chart map for a particular topic on number of posts collected based on the provided parameters.
+#' The map will display information at country level if more than one country is selected, otherwise it will display bubbles at the smallest possible location identified for each post within the period
 #' which could be any administrative level or city level.
 #'
-#' Tweets associated with a country but with no finer granularity are omitted when displaying a single country.
+#' Posts associated with a country but with no finer granularity are omitted when displaying a single country.
 #'
 #' When an aggregated zone is requested, all countries in that zone are included.
 #'
@@ -537,33 +537,33 @@ create_map <- function(
           .data$geo_country_code %in% country_codes))
     ))
 
-  # Adding retweets if requested
+  # Adding reposts if requested
   if (!detailed) {
     if (with_quotes) {
-      df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) +
+      df$posts <- ifelse(is.na(df$quotes), 0, df$quotes) +
         ifelse(is.na(df$original), 0, df$original)
     } else {
-      df$tweets <- df$original
+      df$posts <- df$original
     }
   } else {
     if (with_quotes) {
-      df$tweets <- ifelse(is.na(df$quotes), 0, df$quotes) +
+      df$posts <- ifelse(is.na(df$quotes), 0, df$quotes) +
         ifelse(is.na(df$posts), 0, df$posts)
     } else {
-      df$tweets <- df$posts
+      df$posts <- df$posts
     }
   }
 
   #
   total_count <- (if (!detailed) {
-    sum(df$tweets)
+    sum(df$posts)
   } else {
     sum(
       (df %>%
         dplyr::filter(
           (!(.data$geo_country_code %in% country_codes)) &
             !(.data$geo_country_code %in% country_codes)
-        ))$tweets
+        ))$posts
     )
   })
 
@@ -577,7 +577,7 @@ create_map <- function(
       !is.na(.data$country_code) &
         (if (length(country_codes) == 0) TRUE else
           .data$country_code %in% country_codes) &
-        .data$tweets > 0 &
+        .data$posts > 0 &
         (if (detailed) !(.data$geo_code %in% country_codes) else TRUE)
     ))
   # aggregating by country or geo code depending on national or subnational level
@@ -585,7 +585,7 @@ create_map <- function(
     df %>%
       dplyr::group_by(.data$country_code, .data$geo_code) %>%
       dplyr::summarize(
-        count = sum(.data$tweets),
+        count = sum(.data$posts),
         Long = mean(.data$longitude),
         Lat = mean(.data$latitude),
         geo_name = max(.data$geo_name, na.rm = TRUE)
@@ -593,7 +593,7 @@ create_map <- function(
       dplyr::ungroup() else
     df %>%
       dplyr::group_by(.data$country_code) %>%
-      dplyr::summarize(count = sum(.data$tweets)) %>%
+      dplyr::summarize(count = sum(.data$posts)) %>%
       dplyr::ungroup())
   # returning an empty chart if no rows are found
   if (nrow(df) == 0) {
@@ -765,7 +765,7 @@ create_map <- function(
     paste(
       "\nRegion:",
       proj_df$Country,
-      "\nNumber of Tweets:",
+      "\nNumber of Posts:",
       proj_df$count,
       if (detailed) "\nLocation: " else "",
       if (detailed) proj_df$geo_name else "",
@@ -858,17 +858,17 @@ create_map <- function(
 }
 
 #' @title Plot the top words report on the episomer dashboard
-#' @description Generates a bar plot of most popular words in tweets, for one topic
+#' @description Generates a bar plot of most popular words in posts, for one topic
 #' @param topic Character(1) containing the topic to use for the report
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include reposts in the time series, default: FALSE
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
-#' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
+#' @details Produces a bar chart showing the occurrences of the most popular words in the collected posts based on the provided parameters.
 #'
-#' This report may be empty for combinations of countries and topics with very few tweets since for performance reasons, the calculation of top words is an approximation using chunks of 10.000 tweets.
+#' This report may be empty for combinations of countries and topics with very few posts since for performance reasons, the calculation of top words is an approximation using chunks of 10.000 posts.
 #'
 #' This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
@@ -916,16 +916,16 @@ create_topwords <- function(
 }
 
 #' @title Plot the top elements for a specific series on the episomer dashboard
-#' @description Generates a bar plot of most popular elements in tweets, for one topic. Top elements among ("topwords", "hashtags", "entities", "contexts", "urls")
+#' @description Generates a bar plot of most popular elements in posts, for one topic. Top elements among ("topwords", "hashtags", "entities", "contexts", "urls")
 #' @param topic Character(1) containing the topic to use for the report
 #' @param serie Character(1) name of the series to be used for the report. It should be one of ("topwords", "hashtags", "entities", "contexts", "urls")
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
-#' @param with_quotes Logical value indicating whether to include retweets in the time series, default: FALSE
+#' @param with_quotes Logical value indicating whether to include reposts in the time series, default: FALSE
 #' @param top numeric(1) Parameter indicating the number of words to show, default: 25
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
-#' @details Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
+#' @details Produces a bar chart showing the occurrences of the most popular words in the collected posts based on the provided parameters.
 #'
 #' This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
@@ -1018,7 +1018,7 @@ create_topchart <- function(
           .data$geo_country_code %in% country_codes)
     ))
 
-  # dealing with retweets if requested
+  # dealing with reposts if requested
 
   if (!with_quotes) {
     df$frequency <- df$original
