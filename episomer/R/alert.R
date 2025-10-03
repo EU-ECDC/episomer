@@ -1560,7 +1560,7 @@ get_alert_training_df <- function() {
       number_of_posts = .data$`Posts`,
       topposts = .data$`Top Posts`,
       given_category = .data$`Given Category`,
-      episomer_category = .data$`Epipostr Category`
+      episomer_category = .data$`Episomer Category`
     )
   current$`topposts` <- lapply(
     current$`topposts`,
@@ -1967,7 +1967,7 @@ write_alert_training_db <- function(
           gsub("\", \"", "\",\n        \"", jsonlite::toJSON(l, pretty = TRUE))
       ),
       `Given Category` = .data$given_category,
-      `Epipostr Category` = .data$episomer_category
+      `Episomer Category` = .data$episomer_category
     )
   openxlsx::writeDataTable(
     wb,

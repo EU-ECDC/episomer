@@ -72,1228 +72,1230 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
     save_tasks(get_tasks())
   }
   # Loading data for dashboard and configuration
-  if("dashboard" %in% profile) {
-      d <- refresh_dashboard_data()
-  }
+  d <- refresh_dashboard_data()
   if("admin" %in% profile) {
       cd <- refresh_config_data()
   }
 
-  # Defining dashboard page UI
-  ################################################
-  ######### DASHBOARD PAGE #######################
-  ################################################
-  dashboard_page <-
-    shiny::fluidPage(
-      shiny::fluidRow(
-        shiny::column(
-          3,
-          ################################################
-          ######### DASHBOARD FILTERS #####################
-          ################################################
-          shiny::actionButton("run_dashboard", "Run"),
-          shiny::selectInput(
-            "sms",
-            label = shiny::h4("Social Media"),
-            multiple = TRUE,
-            choices = d$sms,
-            selected = d$sms
-          ),
-          shiny::selectInput(
-            "topics",
-            label = shiny::h4("Topics"),
-            multiple = FALSE,
-            choices = d$topics
-          ),
-          shiny::selectInput(
-            "countries",
-            label = shiny::h4("Countries & regions"),
-            multiple = TRUE,
-            choices = d$countries
-          ),
-          shiny::selectInput(
-            "fixed_period",
-            label = shiny::h4("Period"),
-            multiple = FALSE,
-            choices = list(
-              "Last 7 days" = "last 7 days",
-              "Last 30 days" = "last 30 days",
-              "Last 60 days" = "last 60 days",
-              "Last 180 days" = "last 180 days",
-              "custom"
-            ),
-            selected = d$fixed_period
-          ),
-          shiny::conditionalPanel(
-            condition = "input.fixed_period == 'custom'",
-            shiny::dateRangeInput(
-              "period",
-              label = shiny::h4("Dates"),
-              start = d$date_start,
-              end = d$date_end,
-              min = d$date_min,
-              max = d$date_max,
-              format = "yyyy-mm-dd",
-              startview = "month"
-            )
-          ),
-          shiny::radioButtons(
-            "period_type",
-            label = shiny::h4("Time unit"),
-            choices = list(
-              "Days" = "created_date",
-              "Weeks" = "created_weeknum"
-            ),
-            selected = "created_date",
-            inline = TRUE
-          ),
-          shiny::h4("Include quotes"),
-          shiny::checkboxInput(
-            "with_quotes",
-            label = NULL,
-            value = conf$alert_with_quotes
-          ),
-          shiny::sliderInput(
-            "alpha_filter",
-            label = shiny::h4("Signal false positive rate"),
-            min = 0,
-            max = 0.3,
-            value = conf$alert_alpha,
-            step = 0.005
-          ),
-          shiny::sliderInput(
-            "alpha_outlier_filter",
-            label = shiny::h4("Outlier false positive rate"),
-            min = 0,
-            max = 0.3,
-            value = conf$alert_alpha_outlier,
-            step = 0.005
-          ),
-          shiny::sliderInput(
-            "k_decay_filter",
-            label = shiny::h4("Outlier downweight strength"),
-            min = 0,
-            max = 10,
-            value = conf$alert_k_decay,
-            step = 0.5
-          ),
-          shiny::h4("Bonferroni correction"),
-          shiny::checkboxInput(
-            "bonferroni_correction",
-            label = NULL,
-            value = conf$alert_with_bonferroni_correction
-          ),
-          shiny::numericInput(
-            "history_filter",
-            label = shiny::h4("Days in baseline"),
-            value = conf$alert_history
-          ),
-          shiny::h4("Same weekday baseline"),
-          shiny::checkboxInput(
-            "same_weekday_baseline",
-            label = NULL,
-            value = conf$alert_same_weekday_baseline
-          ),
-          shiny::fluidRow(
-            shiny::column(4, shiny::downloadButton("export_pdf", "PDF")),
-            shiny::column(4, shiny::downloadButton("export_md", "Md"))
-          )
-        ),
-        shiny::column(
-          9,
-          ################################################
-          ######### DASHBOARD PLOTS #######################
-          ################################################
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              shiny::fluidRow(
-                shiny::column(
-                  2,
-                  shiny::downloadButton("download_line_data", "Data")
-                ),
-                shiny::column(2, shiny::downloadButton("export_line", "image"))
-              ),
-              plotly::plotlyOutput("line_chart")
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              6,
-              shiny::fluidRow(
-                shiny::column(
-                  3,
-                  shiny::downloadButton("download_map_data", "Data")
-                ),
-                shiny::column(3, shiny::downloadButton("export_map", "image"))
-              ),
-              plotly::plotlyOutput(
-                "map_chart"
-              )
-            ),
-            shiny::column(
-              6,
-              shiny::fluidRow(
-                shiny::column(
-                  3,
-                  shiny::downloadButton("download_top1_data", "Data")
-                ),
-                shiny::column(3, shiny::downloadButton("export_top1", "image")),
-                shiny::column(6,"")
-              ),
-              plotly::plotlyOutput("top_chart1")
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              6,
-              shiny::fluidRow(
-                shiny::column(
-                  3,
-                  shiny::downloadButton("download_top2_data", "Data")
-                ),
-                shiny::column(3, shiny::downloadButton("export_top2", "image")),
-                shiny::column(6, "")
-              ),
-              plotly::plotlyOutput("top_chart2")
-            ),
-            shiny::column(
-              6,
-              shiny::fluidRow(
-                shiny::column(
-                  3,
-                  shiny::downloadButton("download_top3_data", "Data")
-                ),
-              ),
-              shiny::fluidRow(
-                shiny::column(12, shiny::htmlOutput("top_table_title"))
-              ),
-              shiny::fluidRow(
-                shiny::column(12, DT::dataTableOutput("top_table"))
-              ),
-              shiny::fluidRow(
-                shiny::column(12, shiny::htmlOutput("top_table_disc"))
-              )
-            )
-          )
-        )
-      )
-    )
-  # Defining alerts page UI
-  ################################################
-  ######### ALERTS PAGE ##########################
-  ################################################
-  alerts_page <-
-    shiny::fluidPage(
-      shiny::h3("Find alerts"),
+  if("dashboard" %in% profile) {
+      # Defining dashboard page UI
       ################################################
-      ######### ALERTS FILTERS #######################
+      ######### DASHBOARD PAGE #######################
       ################################################
-      shiny::fluidRow(
-        shiny::column(3, shiny::h4("Detection date")),
-        shiny::column(2, shiny::h4("Topics")),
-        shiny::column(2, shiny::h4("Countries & regions")),
-        shiny::column(2, shiny::h4("Display")),
-        shiny::column(1, shiny::h4("Limit")),
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          3,
-          shiny::dateRangeInput(
-            "alerts_period",
-            label = "",
-            start = d$date_end,
-            end = d$date_end,
-            min = d$date_min,
-            max = d$date_max,
-            format = "yyyy-mm-dd",
-            startview = "month"
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::selectInput(
-            "alerts_topics",
-            label = NULL,
-            multiple = TRUE,
-            choices = d$topics[d$topics != ""]
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::selectInput(
-            "alerts_countries",
-            label = NULL,
-            multiple = TRUE,
-            choices = d$countries
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::radioButtons(
-            "alerts_display",
-            label = NULL,
-            choices = list("Posts" = "posts", "Parameters" = "parameters"),
-            selected = "parameters",
-            inline = TRUE
-          ),
-        ),
-        shiny::column(
-          1,
-          shiny::selectInput(
-            "alerts_limit",
-            label = NULL,
-            multiple = FALSE,
-            choices = list(
-              "None" = "0",
-              "10" = "10",
-              "50" = "50",
-              "100" = "100",
-              "500" = "500"
-            )
-          )
-        ),
-      ),
-      shiny::fluidRow(
-        ################################################
-        ######### ALERTS FILTERS #######################
-        ################################################
-        shiny::column(
-          2,
-          shiny::actionButton("alerts_search", "Search alerts"),
-        ),
-        shiny::column(
-          2,
-          shiny::actionButton("alerts_close", "Hide search"),
-          shiny::conditionalPanel(
-            condition = "false",
-            shiny::textInput(
-              "alerts_show_search",
-              value = "false",
-              label = NULL
-            )
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::actionButton("alertsdb_add", "Add alerts to annotations")
-        ),
-        shiny::column(6)
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          12,
-          ################################################
-          ######### ALERTS TABLE #########################
-          ################################################
-          shiny::conditionalPanel(
-            condition = "input.alerts_show_search == 'true'",
-            DT::dataTableOutput("alerts_table"),
-          )
-        )
-      ),
-      shiny::h3("Alerts annotations"),
-      shiny::fluidRow(
-        shiny::column(
-          2,
-          shiny::actionButton("alertsdb_search", "Show annotations")
-        ),
-        shiny::column(
-          2,
-          shiny::actionButton("alertsdb_close", "Hide annotations")
-        ),
-        shiny::column(
-          2,
-          shiny::downloadButton("alertsdb_download", "Download annotations")
-        ),
-        shiny::column(
-          4,
-          shiny::fileInput(
-            "alertsdb_upload",
-            label = NULL,
-            buttonLabel = "Upload & evaluate annotations"
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::conditionalPanel(
-            condition = "false",
-            shiny::textInput("alertsdb_show", value = "false", label = NULL)
-          )
-        )
-      ),
-      shiny::fluidRow(
-        shiny::conditionalPanel(
-          condition = "input.alertsdb_show == 'true'",
-          shiny::column(
-            12,
-            ################################################
-            ######### ALERT ANNOTATIONS EVALUATION #########
-            ################################################
-            shiny::h4(
-              "Performance evaluation of alert classification algorithm"
-            ),
-            DT::dataTableOutput("alertsdb_runs_table"),
-            ################################################
-            ######### ANNOTATED ALERTS #####################
-            ################################################
-            shiny::h4(
-              "Database used for training the alert classification algorithm"
-            ),
-            DT::dataTableOutput("alertsdb_table")
-          )
-        )
-      )
-    )
-  # Defining configuration
-  ################################################
-  ######### CONFIGURATION PAGE####################
-  ################################################
-  config_page <-
-    shiny::fluidPage(
-      shiny::fluidRow(
-        shiny::column(
-          4,
-          ################################################
-          ######### STATUS PANEL #########################
-          ################################################
-          shiny::h3("Status"),
+      dashboard_page <-
+        shiny::fluidPage(
           shiny::fluidRow(
-            shiny::column(3, "episomer database"),
-            shiny::column(5, shiny::htmlOutput("fs_running")),
-            shiny::column(2, shiny::actionButton("activate_fs", "activate")),
-            shiny::column(2, shiny::actionButton("stop_fs", "stop"))
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Data collection & processing"),
-            shiny::column(5, shiny::htmlOutput("search_running")),
             shiny::column(
-              2,
-              shiny::actionButton("activate_search", "activate")
-            ),
-            shiny::column(2, shiny::actionButton("stop_search", "stop"))
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Requirements & alerts"),
-            shiny::column(5, shiny::htmlOutput("detect_running")),
-            shiny::column(
-              2,
-              shiny::actionButton("activate_detect", "activate")
-            ),
-            shiny::column(2, shiny::actionButton("stop_detect", "stop"))
-          ),
-          ################################################
-          ######### GENERAL PROPERTIES ###################
-          ################################################
-          shiny::h3("Signal detection"),
-          shiny::fluidRow(
-            shiny::column(3, "Signal false positive rate"),
-            shiny::column(
-              9,
-              shiny::sliderInput(
-                "conf_alpha",
+              3,
+              ################################################
+              ######### DASHBOARD FILTERS #####################
+              ################################################
+              shiny::actionButton("run_dashboard", "Run"),
+              shiny::selectInput(
+                "sms",
+                label = shiny::h4("Social Media"),
+                multiple = TRUE,
+                choices = d$sms,
+                selected = d$sms
+              ),
+              shiny::selectInput(
+                "topics",
+                label = shiny::h4("Topics"),
+                multiple = FALSE,
+                choices = d$topics
+              ),
+              shiny::selectInput(
+                "countries",
+                label = shiny::h4("Countries & regions"),
+                multiple = TRUE,
+                choices = d$countries
+              ),
+              shiny::selectInput(
+                "fixed_period",
+                label = shiny::h4("Period"),
+                multiple = FALSE,
+                choices = list(
+                  "Last 7 days" = "last 7 days",
+                  "Last 30 days" = "last 30 days",
+                  "Last 60 days" = "last 60 days",
+                  "Last 180 days" = "last 180 days",
+                  "custom"
+                ),
+                selected = d$fixed_period
+              ),
+              shiny::conditionalPanel(
+                condition = "input.fixed_period == 'custom'",
+                shiny::dateRangeInput(
+                  "period",
+                  label = shiny::h4("Dates"),
+                  start = d$date_start,
+                  end = d$date_end,
+                  min = d$date_min,
+                  max = d$date_max,
+                  format = "yyyy-mm-dd",
+                  startview = "month"
+                )
+              ),
+              shiny::radioButtons(
+                "period_type",
+                label = shiny::h4("Time unit"),
+                choices = list(
+                  "Days" = "created_date",
+                  "Weeks" = "created_weeknum"
+                ),
+                selected = "created_date",
+                inline = TRUE
+              ),
+              shiny::h4("Include quotes"),
+              shiny::checkboxInput(
+                "with_quotes",
                 label = NULL,
+                value = conf$alert_with_quotes
+              ),
+              shiny::sliderInput(
+                "alpha_filter",
+                label = shiny::h4("Signal false positive rate"),
                 min = 0,
                 max = 0.3,
                 value = conf$alert_alpha,
                 step = 0.005
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Outlier false positive rate"),
-            shiny::column(
-              9,
+              ),
               shiny::sliderInput(
-                "conf_alpha_outlier",
-                label = NULL,
+                "alpha_outlier_filter",
+                label = shiny::h4("Outlier false positive rate"),
                 min = 0,
                 max = 0.3,
                 value = conf$alert_alpha_outlier,
                 step = 0.005
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Outlier downweight strength"),
-            shiny::column(
-              9,
+              ),
               shiny::sliderInput(
-                "conf_k_decay",
-                label = NULL,
+                "k_decay_filter",
+                label = shiny::h4("Outlier downweight strength"),
                 min = 0,
                 max = 10,
                 value = conf$alert_k_decay,
                 step = 0.5
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Days in baseline"),
-            shiny::column(
-              9,
-              shiny::numericInput(
-                "conf_history",
-                label = NULL,
-                value = conf$alert_history
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Same weekday baseline"),
-            shiny::column(
-              9,
+              ),
+              shiny::h4("Bonferroni correction"),
               shiny::checkboxInput(
-                "conf_same_weekday_baseline",
-                label = NULL,
-                value = conf$alert_same_weekday_baseline
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Include quotes"),
-            shiny::column(
-              9,
-              shiny::checkboxInput(
-                "conf_with_quotes",
-                label = NULL,
-                value = conf$alert_with_quotes
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Bonferroni correction"),
-            shiny::column(
-              9,
-              shiny::checkboxInput(
-                "conf_with_bonferroni_correction",
+                "bonferroni_correction",
                 label = NULL,
                 value = conf$alert_with_bonferroni_correction
-              )
-            )
-          ),
-          shiny::h3("General"),
-          shiny::fluidRow(
-            shiny::column(3, "Data dir"),
-            shiny::column(9, shiny::span(conf$data_dir))
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Data collection & processing span (min)"),
-            shiny::column(
-              9,
+              ),
               shiny::numericInput(
-                "conf_collect_span",
+                "history_filter",
+                label = shiny::h4("Days in baseline"),
+                value = conf$alert_history
+              ),
+              shiny::h4("Same weekday baseline"),
+              shiny::checkboxInput(
+                "same_weekday_baseline",
                 label = NULL,
-                value = conf$collect_span
+                value = conf$alert_same_weekday_baseline
+              ),
+              shiny::fluidRow(
+                shiny::column(4, shiny::downloadButton("export_pdf", "PDF")),
+                shiny::column(4, shiny::downloadButton("export_md", "Md"))
               )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Requirements & alerts span (min)"),
+            ),
             shiny::column(
               9,
-              shiny::numericInput(
-                "conf_schedule_span",
-                label = NULL,
-                value = conf$schedule_span
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Launch slots"),
-            shiny::column(9, shiny::htmlOutput("conf_schedule_slots"))
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Password store"),
-            shiny::column(
-              9,
-              shiny::selectInput(
-                "conf_keyring",
-                label = NULL,
-                choices = c(
-                  "wincred",
-                  "macos",
-                  "file",
-                  "secret_service",
-                  "environment"
+              ################################################
+              ######### DASHBOARD PLOTS #######################
+              ################################################
+              shiny::fluidRow(
+                shiny::column(
+                  12,
+                  shiny::fluidRow(
+                    shiny::column(
+                      2,
+                      shiny::downloadButton("download_line_data", "Data")
+                    ),
+                    shiny::column(2, shiny::downloadButton("export_line", "image"))
+                  ),
+                  plotly::plotlyOutput("line_chart")
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(
+                  6,
+                  shiny::fluidRow(
+                    shiny::column(
+                      3,
+                      shiny::downloadButton("download_map_data", "Data")
+                    ),
+                    shiny::column(3, shiny::downloadButton("export_map", "image"))
+                  ),
+                  plotly::plotlyOutput(
+                    "map_chart"
+                  )
                 ),
-                selected = conf$keyring
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Spark cores"),
-            shiny::column(
-              9,
-              shiny::numericInput(
-                "conf_spark_cores",
-                label = NULL,
-                value = conf$spark_cores
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Spark memory"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "conf_spark_memory",
-                label = NULL,
-                value = conf$spark_memory
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Geolocation threshold"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "geolocation_threshold",
-                label = NULL,
-                value = conf$geolocation_threshold
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "GeoNames URL"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "conf_geonames_url",
-                label = NULL,
-                value = conf$geonames_url
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Simplified GeoNames"),
-            shiny::column(
-              9,
-              shiny::checkboxInput(
-                "conf_geonames_simplify",
-                label = NULL,
-                value = conf$geonames_simplify
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Stream database results"),
-            shiny::column(
-              9,
-              shiny::checkboxInput(
-                "conf_onthefly_api",
-                label = NULL,
-                value = conf$onthefly_api
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Maven repository"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "conf_maven_repo",
-                label = NULL,
-                value = conf$maven_repo
-              )
-            )
-          ),
-          shiny::conditionalPanel(
-            condition = "false",
-            shiny::textInput("os_type", value = .Platform$OS.type, label = NULL)
-          ),
-          shiny::conditionalPanel(
-            condition = "input.os_type == 'windows'",
-            shiny::fluidRow(
-              shiny::column(3, "Winutils URL"),
-              shiny::column(
-                9,
-                shiny::textInput(
-                  "conf_winutils_url",
-                  label = NULL,
-                  value = conf$winutils_url
+                shiny::column(
+                  6,
+                  shiny::fluidRow(
+                    shiny::column(
+                      3,
+                      shiny::downloadButton("download_top1_data", "Data")
+                    ),
+                    shiny::column(3, shiny::downloadButton("export_top1", "image")),
+                    shiny::column(6,"")
+                  ),
+                  plotly::plotlyOutput("top_chart1")
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(
+                  6,
+                  shiny::fluidRow(
+                    shiny::column(
+                      3,
+                      shiny::downloadButton("download_top2_data", "Data")
+                    ),
+                    shiny::column(3, shiny::downloadButton("export_top2", "image")),
+                    shiny::column(6, "")
+                  ),
+                  plotly::plotlyOutput("top_chart2")
+                ),
+                shiny::column(
+                  6,
+                  shiny::fluidRow(
+                    shiny::column(
+                      3,
+                      shiny::downloadButton("download_top3_data", "Data")
+                    ),
+                  ),
+                  shiny::fluidRow(
+                    shiny::column(12, shiny::htmlOutput("top_table_title"))
+                  ),
+                  shiny::fluidRow(
+                    shiny::column(12, DT::dataTableOutput("top_table"))
+                  ),
+                  shiny::fluidRow(
+                    shiny::column(12, shiny::htmlOutput("top_table_disc"))
+                  )
                 )
               )
             )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Region disclaimer"),
-            shiny::column(
-              9,
-              shiny::textAreaInput(
-                "conf_regions_disclaimer",
-                label = NULL,
-                value = conf$regions_disclaimer
-              )
-            )
-          ),
-          shiny::h2("Email authentication (SMTP)"),
-          shiny::fluidRow(
-            shiny::column(3, "Server"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "smtp_host",
-                label = NULL,
-                value = conf$smtp_host
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Port"),
-            shiny::column(
-              9,
-              shiny::numericInput(
-                "smtp_port",
-                label = NULL,
-                value = conf$smtp_port
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "From"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "smtp_from",
-                label = NULL,
-                value = conf$smtp_from
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Login"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "smtp_login",
-                label = NULL,
-                value = conf$smtp_login
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Password"),
-            shiny::column(
-              9,
-              shiny::passwordInput(
-                "smtp_password",
-                label = NULL,
-                value = conf$smtp_password
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Unsafe certificates"),
-            shiny::column(
-              9,
-              shiny::checkboxInput(
-                "smtp_insecure",
-                label = NULL,
-                value = conf$smtp_insecure
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::column(3, "Admin email"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "admin_email",
-                label = NULL,
-                value = conf$admin_email
-              )
-            )
-          ),
-          shiny::h2("Task registering"),
-          shiny::fluidRow(
-            shiny::column(3, "Custom date format"),
-            shiny::column(
-              9,
-              shiny::textInput(
-                "force_date_format",
-                label = NULL,
-                value = conf$force_date_format
-              )
-            )
-          ),
-          shiny::actionButton("save_properties", "Save settings")
-        ),
-        shiny::column(
-          8,
+          )
+        )
+  }
+
+  if("admin" %in% profile) {
+      # Defining alerts page UI
+      ################################################
+      ######### ALERTS PAGE ##########################
+      ################################################
+      alerts_page <-
+        shiny::fluidPage(
+          shiny::h3("Find alerts"),
           ################################################
-          ######### Requirements & alerts PANEL ######################
+          ######### ALERTS FILTERS #######################
           ################################################
-          shiny::h3("Requirements & alerts pipeline"),
-          shiny::h5("Manual tasks"),
+          shiny::fluidRow(
+            shiny::column(3, shiny::h4("Detection date")),
+            shiny::column(2, shiny::h4("Topics")),
+            shiny::column(2, shiny::h4("Countries & regions")),
+            shiny::column(2, shiny::h4("Display")),
+            shiny::column(1, shiny::h4("Limit")),
+          ),
           shiny::fluidRow(
             shiny::column(
               3,
-              shiny::actionButton("update_dependencies", "Run dependencies")
+              shiny::dateRangeInput(
+                "alerts_period",
+                label = "",
+                start = d$date_end,
+                end = d$date_end,
+                min = d$date_min,
+                max = d$date_max,
+                format = "yyyy-mm-dd",
+                startview = "month"
+              )
             ),
             shiny::column(
-              3,
-              shiny::actionButton("update_geonames", "Run GeoNames")
+              2,
+              shiny::selectInput(
+                "alerts_topics",
+                label = NULL,
+                multiple = TRUE,
+                choices = d$topics[d$topics != ""]
+              )
             ),
             shiny::column(
-              3,
-              shiny::actionButton("update_languages", "Run languages")
+              2,
+              shiny::selectInput(
+                "alerts_countries",
+                label = NULL,
+                multiple = TRUE,
+                choices = d$countries
+              )
             ),
             shiny::column(
-              3,
-              shiny::actionButton("request_alerts", "Run alerts")
+              2,
+              shiny::radioButtons(
+                "alerts_display",
+                label = NULL,
+                choices = list("Posts" = "posts", "Parameters" = "parameters"),
+                selected = "parameters",
+                inline = TRUE
+              ),
+            ),
+            shiny::column(
+              1,
+              shiny::selectInput(
+                "alerts_limit",
+                label = NULL,
+                multiple = FALSE,
+                choices = list(
+                  "None" = "0",
+                  "10" = "10",
+                  "50" = "50",
+                  "100" = "100",
+                  "500" = "500"
+                )
+              )
+            ),
+          ),
+          shiny::fluidRow(
+            ################################################
+            ######### ALERTS FILTERS #######################
+            ################################################
+            shiny::column(
+              2,
+              shiny::actionButton("alerts_search", "Search alerts"),
+            ),
+            shiny::column(
+              2,
+              shiny::actionButton("alerts_close", "Hide search"),
+              shiny::conditionalPanel(
+                condition = "false",
+                shiny::textInput(
+                  "alerts_show_search",
+                  value = "false",
+                  label = NULL
+                )
+              )
+            ),
+            shiny::column(
+              2,
+              shiny::actionButton("alertsdb_add", "Add alerts to annotations")
+            ),
+            shiny::column(6)
+          ),
+          shiny::fluidRow(
+            shiny::column(
+              12,
+              ################################################
+              ######### ALERTS TABLE #########################
+              ################################################
+              shiny::conditionalPanel(
+                condition = "input.alerts_show_search == 'true'",
+                DT::dataTableOutput("alerts_table"),
+              )
             )
           ),
-          DT::dataTableOutput("tasks_df"),
-          ################################################
-          ######### SOCIAL MEDIA PANDEL###################
-          ################################################
-          shiny::h2("Social medias"),
+          shiny::h3("Alerts annotations"),
           shiny::fluidRow(
-            shiny::column(4, "Social Media"),
-            shiny::column(8, "Configuration"),
-            style = "font-weight:bold"
+            shiny::column(
+              2,
+              shiny::actionButton("alertsdb_search", "Show annotations")
+            ),
+            shiny::column(
+              2,
+              shiny::actionButton("alertsdb_close", "Hide annotations")
+            ),
+            shiny::column(
+              2,
+              shiny::downloadButton("alertsdb_download", "Download annotations")
+            ),
+            shiny::column(
+              4,
+              shiny::fileInput(
+                "alertsdb_upload",
+                label = NULL,
+                buttonLabel = "Upload & evaluate annotations"
+              )
+            ),
+            shiny::column(
+              2,
+              shiny::conditionalPanel(
+                condition = "false",
+                shiny::textInput("alertsdb_show", value = "false", label = NULL)
+              )
+            )
           ),
+          shiny::fluidRow(
+            shiny::conditionalPanel(
+              condition = "input.alertsdb_show == 'true'",
+              shiny::column(
+                12,
+                ################################################
+                ######### ALERT ANNOTATIONS EVALUATION #########
+                ################################################
+                shiny::h4(
+                  "Performance evaluation of alert classification algorithm"
+                ),
+                DT::dataTableOutput("alertsdb_runs_table"),
+                ################################################
+                ######### ANNOTATED ALERTS #####################
+                ################################################
+                shiny::h4(
+                  "Database used for training the alert classification algorithm"
+                ),
+                DT::dataTableOutput("alertsdb_table")
+              )
+            )
+          )
+        )
+      # Defining configuration
+      ################################################
+      ######### CONFIGURATION PAGE####################
+      ################################################
+      config_page <-
+        shiny::fluidPage(
           shiny::fluidRow(
             shiny::column(
               4,
-              shiny::checkboxInput(
-                "conf_sm_activated_bluesky",
-                label = "Bluesky",
-                value = conf$sm_activated_bluesky
-              )
-            ),
-            shiny::column(
-              8,
-              shiny::conditionalPanel(
-                condition = "input.conf_sm_activated_bluesky == true",
-                shiny::checkboxInput(
-                  "conf_sm_alerts_bluesky",
-                  label = "Calculate alerts",
-                  value = conf$sm_alerts_bluesky
+              ################################################
+              ######### STATUS PANEL #########################
+              ################################################
+              shiny::h3("Status"),
+              shiny::fluidRow(
+                shiny::column(3, "episomer database"),
+                shiny::column(5, shiny::htmlOutput("fs_running")),
+                shiny::column(2, shiny::actionButton("activate_fs", "activate")),
+                shiny::column(2, shiny::actionButton("stop_fs", "stop"))
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Data collection & processing"),
+                shiny::column(5, shiny::htmlOutput("search_running")),
+                shiny::column(
+                  2,
+                  shiny::actionButton("activate_search", "activate")
                 ),
+                shiny::column(2, shiny::actionButton("stop_search", "stop"))
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Requirements & alerts"),
+                shiny::column(5, shiny::htmlOutput("detect_running")),
+                shiny::column(
+                  2,
+                  shiny::actionButton("activate_detect", "activate")
+                ),
+                shiny::column(2, shiny::actionButton("stop_detect", "stop"))
+              ),
+              ################################################
+              ######### GENERAL PROPERTIES ###################
+              ################################################
+              shiny::h3("Signal detection"),
+              shiny::fluidRow(
+                shiny::column(3, "Signal false positive rate"),
+                shiny::column(
+                  9,
+                  shiny::sliderInput(
+                    "conf_alpha",
+                    label = NULL,
+                    min = 0,
+                    max = 0.3,
+                    value = conf$alert_alpha,
+                    step = 0.005
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Outlier false positive rate"),
+                shiny::column(
+                  9,
+                  shiny::sliderInput(
+                    "conf_alpha_outlier",
+                    label = NULL,
+                    min = 0,
+                    max = 0.3,
+                    value = conf$alert_alpha_outlier,
+                    step = 0.005
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Outlier downweight strength"),
+                shiny::column(
+                  9,
+                  shiny::sliderInput(
+                    "conf_k_decay",
+                    label = NULL,
+                    min = 0,
+                    max = 10,
+                    value = conf$alert_k_decay,
+                    step = 0.5
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Days in baseline"),
+                shiny::column(
+                  9,
+                  shiny::numericInput(
+                    "conf_history",
+                    label = NULL,
+                    value = conf$alert_history
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Same weekday baseline"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "conf_same_weekday_baseline",
+                    label = NULL,
+                    value = conf$alert_same_weekday_baseline
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Include quotes"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "conf_with_quotes",
+                    label = NULL,
+                    value = conf$alert_with_quotes
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Bonferroni correction"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "conf_with_bonferroni_correction",
+                    label = NULL,
+                    value = conf$alert_with_bonferroni_correction
+                  )
+                )
+              ),
+              shiny::h3("General"),
+              shiny::fluidRow(
+                shiny::column(3, "Data dir"),
+                shiny::column(9, shiny::span(conf$data_dir))
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Data collection & processing span (min)"),
+                shiny::column(
+                  9,
+                  shiny::numericInput(
+                    "conf_collect_span",
+                    label = NULL,
+                    value = conf$collect_span
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Requirements & alerts span (min)"),
+                shiny::column(
+                  9,
+                  shiny::numericInput(
+                    "conf_schedule_span",
+                    label = NULL,
+                    value = conf$schedule_span
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Launch slots"),
+                shiny::column(9, shiny::htmlOutput("conf_schedule_slots"))
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Password store"),
+                shiny::column(
+                  9,
+                  shiny::selectInput(
+                    "conf_keyring",
+                    label = NULL,
+                    choices = c(
+                      "wincred",
+                      "macos",
+                      "file",
+                      "secret_service",
+                      "environment"
+                    ),
+                    selected = conf$keyring
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Spark cores"),
+                shiny::column(
+                  9,
+                  shiny::numericInput(
+                    "conf_spark_cores",
+                    label = NULL,
+                    value = conf$spark_cores
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Spark memory"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "conf_spark_memory",
+                    label = NULL,
+                    value = conf$spark_memory
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Geolocation threshold"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "geolocation_threshold",
+                    label = NULL,
+                    value = conf$geolocation_threshold
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "GeoNames URL"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "conf_geonames_url",
+                    label = NULL,
+                    value = conf$geonames_url
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Simplified GeoNames"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "conf_geonames_simplify",
+                    label = NULL,
+                    value = conf$geonames_simplify
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Stream database results"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "conf_onthefly_api",
+                    label = NULL,
+                    value = conf$onthefly_api
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Maven repository"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "conf_maven_repo",
+                    label = NULL,
+                    value = conf$maven_repo
+                  )
+                )
+              ),
+              shiny::conditionalPanel(
+                condition = "false",
+                shiny::textInput("os_type", value = .Platform$OS.type, label = NULL)
+              ),
+              shiny::conditionalPanel(
+                condition = "input.os_type == 'windows'",
                 shiny::fluidRow(
-                  shiny::column(3, "User"),
+                  shiny::column(3, "Winutils URL"),
                   shiny::column(
                     9,
                     shiny::textInput(
-                      "bsky_user",
+                      "conf_winutils_url",
                       label = NULL,
-                      value = if (is_secret_set("bsky_user"))
-                        get_secret("bsky_user") else NULL
-                    )
-                  )
-                ),
-                shiny::fluidRow(
-                  shiny::column(3, "Password"),
-                  shiny::column(
-                    9,
-                    shiny::passwordInput(
-                      "bsky_password",
-                      label = NULL,
-                      value = if (is_secret_set("bsky_password"))
-                        get_secret("bsky_password") else NULL
+                      value = conf$winutils_url
                     )
                   )
                 )
-              )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Region disclaimer"),
+                shiny::column(
+                  9,
+                  shiny::textAreaInput(
+                    "conf_regions_disclaimer",
+                    label = NULL,
+                    value = conf$regions_disclaimer
+                  )
+                )
+              ),
+              shiny::h2("Email authentication (SMTP)"),
+              shiny::fluidRow(
+                shiny::column(3, "Server"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "smtp_host",
+                    label = NULL,
+                    value = conf$smtp_host
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Port"),
+                shiny::column(
+                  9,
+                  shiny::numericInput(
+                    "smtp_port",
+                    label = NULL,
+                    value = conf$smtp_port
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "From"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "smtp_from",
+                    label = NULL,
+                    value = conf$smtp_from
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Login"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "smtp_login",
+                    label = NULL,
+                    value = conf$smtp_login
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Password"),
+                shiny::column(
+                  9,
+                  shiny::passwordInput(
+                    "smtp_password",
+                    label = NULL,
+                    value = conf$smtp_password
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Unsafe certificates"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "smtp_insecure",
+                    label = NULL,
+                    value = conf$smtp_insecure
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Admin email"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "admin_email",
+                    label = NULL,
+                    value = conf$admin_email
+                  )
+                )
+              ),
+              shiny::h2("Task registering"),
+              shiny::fluidRow(
+                shiny::column(3, "Custom date format"),
+                shiny::column(
+                  9,
+                  shiny::textInput(
+                    "force_date_format",
+                    label = NULL,
+                    value = conf$force_date_format
+                  )
+                )
+              ),
+              shiny::actionButton("save_properties", "Save settings")
             ),
-            style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-          ),
-          ################################################
-          ######### TOPICS PANEL ######################
-          ################################################
-          shiny::h3("Topics"),
+            shiny::column(
+              8,
+              ################################################
+              ######### Requirements & alerts PANEL ######################
+              ################################################
+              shiny::h3("Requirements & alerts pipeline"),
+              shiny::h5("Manual tasks"),
+              shiny::fluidRow(
+                shiny::column(
+                  3,
+                  shiny::actionButton("update_dependencies", "Run dependencies")
+                ),
+                shiny::column(
+                  3,
+                  shiny::actionButton("update_geonames", "Run GeoNames")
+                ),
+                shiny::column(
+                  3,
+                  shiny::actionButton("update_languages", "Run languages")
+                ),
+                shiny::column(
+                  3,
+                  shiny::actionButton("request_alerts", "Run alerts")
+                )
+              ),
+              DT::dataTableOutput("tasks_df"),
+              ################################################
+              ######### SOCIAL MEDIA PANDEL###################
+              ################################################
+              shiny::h2("Social medias"),
+              shiny::fluidRow(
+                shiny::column(4, "Social Media"),
+                shiny::column(8, "Configuration"),
+                style = "font-weight:bold"
+              ),
+              shiny::fluidRow(
+                shiny::column(
+                  4,
+                  shiny::checkboxInput(
+                    "conf_sm_activated_bluesky",
+                    label = "Bluesky",
+                    value = conf$sm_activated_bluesky
+                  )
+                ),
+                shiny::column(
+                  8,
+                  shiny::conditionalPanel(
+                    condition = "input.conf_sm_activated_bluesky == true",
+                    shiny::checkboxInput(
+                      "conf_sm_alerts_bluesky",
+                      label = "Calculate alerts",
+                      value = conf$sm_alerts_bluesky
+                    ),
+                    shiny::fluidRow(
+                      shiny::column(3, "User"),
+                      shiny::column(
+                        9,
+                        shiny::textInput(
+                          "bsky_user",
+                          label = NULL,
+                          value = if (is_secret_set("bsky_user"))
+                            get_secret("bsky_user") else NULL
+                        )
+                      )
+                    ),
+                    shiny::fluidRow(
+                      shiny::column(3, "Password"),
+                      shiny::column(
+                        9,
+                        shiny::passwordInput(
+                          "bsky_password",
+                          label = NULL,
+                          value = if (is_secret_set("bsky_password"))
+                            get_secret("bsky_password") else NULL
+                        )
+                      )
+                    )
+                  )
+                ),
+                style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
+              ),
+              ################################################
+              ######### TOPICS PANEL ######################
+              ################################################
+              shiny::h3("Topics"),
+              shiny::fluidRow(
+                shiny::column(3, shiny::h5("Available topics")),
+                shiny::column(
+                  2,
+                  shiny::downloadButton("conf_topics_download", "Download")
+                ),
+                shiny::column(
+                  2,
+                  shiny::downloadButton(
+                    "conf_orig_topics_download",
+                    "Download default"
+                  )
+                ),
+                shiny::column(
+                  3,
+                  shiny::fileInput(
+                    "conf_topics_upload",
+                    label = NULL,
+                    buttonLabel = "Upload"
+                  )
+                ),
+                shiny::column(
+                  2,
+                  shiny::actionButton(
+                    "conf_dismiss_past_posts",
+                    "Dismiss past posts"
+                  )
+                )
+              ),
+              shiny::fluidRow(
+                shiny::column(4, shiny::h5("Limit topic history"))
+              ),
+              DT::dataTableOutput("config_topics"),
+              ################################################
+              ######### LANGUAGES PANEL ######################
+              ################################################
+              shiny::h3("Languages"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::h5("Available languages")),
+                shiny::column(
+                  2,
+                  shiny::downloadButton("conf_lang_download", "Download")
+                ),
+                shiny::column(
+                  2,
+                  shiny::downloadButton(
+                    "conf_orig_lang_download",
+                    "Download default"
+                  )
+                ),
+                shiny::column(
+                  4,
+                  shiny::fileInput(
+                    "conf_lang_upload",
+                    label = NULL,
+                    buttonLabel = "Upload"
+                  )
+                ),
+              ),
+              shiny::fluidRow(
+                shiny::column(4, shiny::h5("Active languages")),
+                shiny::column(6, shiny::uiOutput("lang_items_0")),
+                shiny::column(1, shiny::actionButton("conf_lang_add", "+")),
+                shiny::column(1, shiny::actionButton("conf_lang_remove", "-")),
+              ),
+              DT::dataTableOutput("config_langs"),
+              ################################################
+              ######### IMPORTANT USERS ######################
+              ################################################
+              shiny::h3("Important users"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::h5("User file")),
+                shiny::column(
+                  2,
+                  shiny::downloadButton("conf_users_download", "Download")
+                ),
+                shiny::column(
+                  2,
+                  shiny::downloadButton(
+                    "conf_orig_users_download",
+                    "Download default"
+                  )
+                ),
+                shiny::column(
+                  4,
+                  shiny::fileInput(
+                    "conf_users_upload",
+                    label = NULL,
+                    buttonLabel = "Upload"
+                  )
+                ),
+              ),
+              ################################################
+              ######### SUSCRIBERS PANEL #####################
+              ################################################
+              shiny::h3("Subscribers"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::h5("Subscribers")),
+                shiny::column(
+                  2,
+                  shiny::downloadButton("conf_subscribers_download", "Download")
+                ),
+                shiny::column(
+                  2,
+                  shiny::downloadButton(
+                    "conf_orig_subscribers_download",
+                    "Download default"
+                  )
+                ),
+                shiny::column(
+                  4,
+                  shiny::fileInput(
+                    "conf_subscribers_upload",
+                    label = NULL,
+                    buttonLabel = "Upload"
+                  )
+                ),
+              ),
+              DT::dataTableOutput("config_subscribers"),
+              ################################################
+              ######### COUNTRIES / REGIONS PANEL ############
+              ################################################
+              shiny::h3("Countries & regions"),
+              shiny::fluidRow(
+                shiny::column(4, shiny::h5("Countries & regions")),
+                shiny::column(
+                  2,
+                  shiny::downloadButton("conf_countries_download", "Download")
+                ),
+                shiny::column(
+                  2,
+                  shiny::downloadButton(
+                    "conf_orig_countries_download",
+                    "Download defaults"
+                  )
+                ),
+                shiny::column(
+                  4,
+                  shiny::fileInput(
+                    "conf_countries_upload",
+                    label = NULL,
+                    buttonLabel = "Upload"
+                  )
+                ),
+              ),
+              DT::dataTableOutput("config_regions")
+            )
+          )
+        )
+      # Defining geo tuning page UI
+      ################################################
+      ######### GEOTRAINING PAGE #####################
+      ################################################
+      geotraining_page <-
+        shiny::fluidPage(
+          shiny::h3("Geo tagging training"),
           shiny::fluidRow(
-            shiny::column(3, shiny::h5("Available topics")),
+            ################################################
+            ######### GEO TAG FILTERS ######################
+            ################################################
             shiny::column(
-              2,
-              shiny::downloadButton("conf_topics_download", "Download")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton(
-                "conf_orig_topics_download",
-                "Download default"
+              4,
+              shiny::numericInput(
+                "geotraining_posts2add",
+                label = shiny::h4("Posts to add"),
+                value = 100
               )
             ),
             shiny::column(
-              3,
+              2,
+              shiny::actionButton("geotraining_update", "Geolocate annotations")
+            ),
+            shiny::column(
+              2,
+              shiny::downloadButton("geotraining_download", "Download annotations")
+            ),
+            shiny::column(
+              4,
               shiny::fileInput(
-                "conf_topics_upload",
+                "geotraining_upload",
                 label = NULL,
-                buttonLabel = "Upload"
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::actionButton(
-                "conf_dismiss_past_posts",
-                "Dismiss past posts"
+                buttonLabel = "Upload & evaluate annotations"
               )
             )
           ),
           shiny::fluidRow(
-            shiny::column(4, shiny::h5("Limit topic history"))
-          ),
-          DT::dataTableOutput("config_topics"),
-          ################################################
-          ######### LANGUAGES PANEL ######################
-          ################################################
-          shiny::h3("Languages"),
+            shiny::column(
+              12,
+              ################################################
+              ######### GEO TAG EVALUATION####################
+              ################################################
+              shiny::h4(
+                "Performance evaluation of geo tagging algorithm (finding location position in text)"
+              ),
+              DT::dataTableOutput("geotraining_eval_df"),
+              ################################################
+              ######### GEO TAG TABLE #########################
+              ################################################
+              shiny::h4("Database used for training the geo tagging algorithm"),
+              DT::dataTableOutput("geotraining_table")
+            )
+          )
+        )
+      ################################################
+      ######### DATA PROTECTION PAGE #################
+      ################################################
+      dataprotection_page <-
+        shiny::fluidPage(
+          shiny::h3("Data protection"),
           shiny::fluidRow(
-            shiny::column(4, shiny::h5("Available languages")),
+            ################################################
+            ######### TWEET SEARCH FILTERS #################
+            ################################################
+            shiny::column(2, shiny::h4("Topic")),
+            shiny::column(2, shiny::h4("Period")),
+            shiny::column(2, shiny::h4("Countries & regions")),
             shiny::column(
               2,
-              shiny::downloadButton("conf_lang_download", "Download")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton(
-                "conf_orig_lang_download",
-                "Download default"
-              )
-            ),
-            shiny::column(
-              4,
-              shiny::fileInput(
-                "conf_lang_upload",
+              shiny::h4("Users"),
+              shiny::radioButtons(
+                "data_mode",
                 label = NULL,
-                buttonLabel = "Upload"
-              )
+                choices = list(
+                  "Mentioning" = "mentioning",
+                  "From User" = "users",
+                  "Both" = "all"
+                ),
+                selected = "all",
+                inline = TRUE
+              ),
             ),
+            shiny::column(1, shiny::h4("Limit")),
+            shiny::column(3, shiny::h4("Action"))
           ),
           shiny::fluidRow(
-            shiny::column(4, shiny::h5("Active languages")),
-            shiny::column(6, shiny::uiOutput("lang_items_0")),
-            shiny::column(1, shiny::actionButton("conf_lang_add", "+")),
-            shiny::column(1, shiny::actionButton("conf_lang_remove", "-")),
-          ),
-          DT::dataTableOutput("config_langs"),
-          ################################################
-          ######### IMPORTANT USERS ######################
-          ################################################
-          shiny::h3("Important users"),
-          shiny::fluidRow(
-            shiny::column(4, shiny::h5("User file")),
             shiny::column(
               2,
-              shiny::downloadButton("conf_users_download", "Download")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton(
-                "conf_orig_users_download",
-                "Download default"
-              )
-            ),
-            shiny::column(
-              4,
-              shiny::fileInput(
-                "conf_users_upload",
+              shiny::selectInput(
+                "data_topics",
                 label = NULL,
-                buttonLabel = "Upload"
-              )
-            ),
-          ),
-          ################################################
-          ######### SUSCRIBERS PANEL #####################
-          ################################################
-          shiny::h3("Subscribers"),
-          shiny::fluidRow(
-            shiny::column(4, shiny::h5("Subscribers")),
-            shiny::column(
-              2,
-              shiny::downloadButton("conf_subscribers_download", "Download")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton(
-                "conf_orig_subscribers_download",
-                "Download default"
+                multiple = TRUE,
+                choices = d$topics[d$topics != ""]
               )
             ),
             shiny::column(
-              4,
-              shiny::fileInput(
-                "conf_subscribers_upload",
+              2,
+              shiny::dateRangeInput(
+                "data_period",
+                label = "",
+                start = d$date_end,
+                end = d$date_end,
+                min = d$date_min,
+                max = d$date_max,
+                format = "yyyy-mm-dd",
+                startview = "month"
+              )
+            ),
+            shiny::column(
+              2,
+              shiny::selectInput(
+                "data_countries",
                 label = NULL,
-                buttonLabel = "Upload"
-              )
-            ),
-          ),
-          DT::dataTableOutput("config_subscribers"),
-          ################################################
-          ######### COUNTRIES / REGIONS PANEL ############
-          ################################################
-          shiny::h3("Countries & regions"),
-          shiny::fluidRow(
-            shiny::column(4, shiny::h5("Countries & regions")),
-            shiny::column(
-              2,
-              shiny::downloadButton("conf_countries_download", "Download")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton(
-                "conf_orig_countries_download",
-                "Download defaults"
+                multiple = TRUE,
+                choices = d$countries
               )
             ),
             shiny::column(
-              4,
-              shiny::fileInput(
-                "conf_countries_upload",
+              2,
+              shiny::textInput("data_users", label = NULL, value = NULL)
+            ),
+            shiny::column(
+              1,
+              shiny::selectInput(
+                "data_limit",
                 label = NULL,
-                buttonLabel = "Upload"
+                multiple = FALSE,
+                choices = list("50" = "50", "100" = "100", "500" = "500"),
+                selected = "50"
               )
             ),
-          ),
-          DT::dataTableOutput("config_regions")
-        )
-      )
-    )
-  # Defining geo tuning page UI
-  ################################################
-  ######### GEOTRAINING PAGE #####################
-  ################################################
-  geotraining_page <-
-    shiny::fluidPage(
-      shiny::h3("Geo tagging training"),
-      shiny::fluidRow(
-        ################################################
-        ######### GEO TAG FILTERS ######################
-        ################################################
-        shiny::column(
-          4,
-          shiny::numericInput(
-            "geotraining_posts2add",
-            label = shiny::h4("Posts to add"),
-            value = 100
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::actionButton("geotraining_update", "Geolocate annotations")
-        ),
-        shiny::column(
-          2,
-          shiny::downloadButton("geotraining_download", "Download annotations")
-        ),
-        shiny::column(
-          4,
-          shiny::fileInput(
-            "geotraining_upload",
-            label = NULL,
-            buttonLabel = "Upload & evaluate annotations"
-          )
-        )
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          12,
-          ################################################
-          ######### GEO TAG EVALUATION####################
-          ################################################
-          shiny::h4(
-            "Performance evaluation of geo tagging algorithm (finding location position in text)"
-          ),
-          DT::dataTableOutput("geotraining_eval_df"),
-          ################################################
-          ######### GEO TAG TABLE #########################
-          ################################################
-          shiny::h4("Database used for training the geo tagging algorithm"),
-          DT::dataTableOutput("geotraining_table")
-        )
-      )
-    )
-  ################################################
-  ######### DATA PROTECTION PAGE #################
-  ################################################
-  dataprotection_page <-
-    shiny::fluidPage(
-      shiny::h3("Data protection"),
-      shiny::fluidRow(
-        ################################################
-        ######### TWEET SEARCH FILTERS #################
-        ################################################
-        shiny::column(2, shiny::h4("Topic")),
-        shiny::column(2, shiny::h4("Period")),
-        shiny::column(2, shiny::h4("Countries & regions")),
-        shiny::column(
-          2,
-          shiny::h4("Users"),
-          shiny::radioButtons(
-            "data_mode",
-            label = NULL,
-            choices = list(
-              "Mentioning" = "mentioning",
-              "From User" = "users",
-              "Both" = "all"
+            shiny::column(
+              3,
+              shiny::actionButton("data_search", "Search"),
+              shiny::actionButton("data_search_ano", "Anonym Search"),
+              shiny::actionButton("data_anonymise", "Anonymize"),
+              shiny::actionButton("data_delete", "Delete"),
             ),
-            selected = "all",
-            inline = TRUE
           ),
-        ),
-        shiny::column(1, shiny::h4("Limit")),
-        shiny::column(3, shiny::h4("Action"))
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          2,
-          shiny::selectInput(
-            "data_topics",
-            label = NULL,
-            multiple = TRUE,
-            choices = d$topics[d$topics != ""]
+          shiny::fluidRow(
+            shiny::column(12, shiny::htmlOutput("data_message"))
+          ),
+          shiny::fluidRow(
+            shiny::column(
+              12,
+              ################################################
+              ######### TWEET SEARCH RESULTS #################
+              ################################################
+              DT::dataTableOutput("data_search_df")
+            )
           )
-        ),
-        shiny::column(
-          2,
-          shiny::dateRangeInput(
-            "data_period",
-            label = "",
-            start = d$date_end,
-            end = d$date_end,
-            min = d$date_min,
-            max = d$date_max,
-            format = "yyyy-mm-dd",
-            startview = "month"
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::selectInput(
-            "data_countries",
-            label = NULL,
-            multiple = TRUE,
-            choices = d$countries
-          )
-        ),
-        shiny::column(
-          2,
-          shiny::textInput("data_users", label = NULL, value = NULL)
-        ),
-        shiny::column(
-          1,
-          shiny::selectInput(
-            "data_limit",
-            label = NULL,
-            multiple = FALSE,
-            choices = list("50" = "50", "100" = "100", "500" = "500"),
-            selected = "50"
-          )
-        ),
-        shiny::column(
-          3,
-          shiny::actionButton("data_search", "Search"),
-          shiny::actionButton("data_search_ano", "Anonym Search"),
-          shiny::actionButton("data_anonymise", "Anonymize"),
-          shiny::actionButton("data_delete", "Delete"),
-        ),
-      ),
-      shiny::fluidRow(
-        shiny::column(12, shiny::htmlOutput("data_message"))
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          12,
-          ################################################
-          ######### TWEET SEARCH RESULTS #################
-          ################################################
-          DT::dataTableOutput("data_search_df")
         )
-      )
-    )
-  ################################################
-  ######### TROUBLESHOOT PAGE ####################
-  ################################################
-  troubleshoot_page <-
-    shiny::fluidPage(
-      shiny::h3("Create snapshot file"),
-      shiny::fluidRow(
-        shiny::column(
-          6,
-          shiny::checkboxGroupInput(
-            "snapshot_types",
-            "Include:",
-            inline = TRUE,
-            choices = c(
-              "Settings" = "settings",
-              "Dependencies" = "dependencies",
-              "Machine Learning" = "machine-learning",
-              "Aggregation" = "aggregations",
-              "Posts" = "posts",
-              "Logs" = "logs"
+      ################################################
+      ######### TROUBLESHOOT PAGE ####################
+      ################################################
+      troubleshoot_page <-
+        shiny::fluidPage(
+          shiny::h3("Create snapshot file"),
+          shiny::fluidRow(
+            shiny::column(
+              6,
+              shiny::checkboxGroupInput(
+                "snapshot_types",
+                "Include:",
+                inline = TRUE,
+                choices = c(
+                  "Settings" = "settings",
+                  "Dependencies" = "dependencies",
+                  "Machine Learning" = "machine-learning",
+                  "Aggregation" = "aggregations",
+                  "Posts" = "posts",
+                  "Logs" = "logs"
+                ),
+                selected = c("settings", "logs")
+              )
             ),
-            selected = c("settings", "logs")
-          )
-        ),
-        shiny::column(
-          3,
-          shiny::dateRangeInput(
-            "snapshot_aggr_period",
-            label = shiny::h4("Aggregated data period"),
-            start = d$date_min,
-            end = d$date_end,
-            min = d$date_min,
-            max = d$date_max,
-            format = "yyyy-mm-dd",
-            startview = "month"
-          )
-        ),
-        shiny::column(
-          3,
-          shiny::dateRangeInput(
-            "snapshot_post_period",
-            label = shiny::h4("Post data period"),
-            start = d$date_min,
-            end = d$date_end,
-            min = d$date_min,
-            max = d$date_max,
-            format = "yyyy-mm-dd",
-            startview = "month"
-          )
-        )
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          12,
-          shiny::textInput(
-            "snapshot_folder",
-            value = ensure_snapshot_folder(),
-            label = "Destination folder"
+            shiny::column(
+              3,
+              shiny::dateRangeInput(
+                "snapshot_aggr_period",
+                label = shiny::h4("Aggregated data period"),
+                start = d$date_min,
+                end = d$date_end,
+                min = d$date_min,
+                max = d$date_max,
+                format = "yyyy-mm-dd",
+                startview = "month"
+              )
+            ),
+            shiny::column(
+              3,
+              shiny::dateRangeInput(
+                "snapshot_post_period",
+                label = shiny::h4("Post data period"),
+                start = d$date_min,
+                end = d$date_end,
+                min = d$date_min,
+                max = d$date_max,
+                format = "yyyy-mm-dd",
+                startview = "month"
+              )
+            )
           ),
-          shiny::checkboxInput(
-            "snapshot_compress",
-            "Compress snapshot",
-            value = FALSE
+          shiny::fluidRow(
+            shiny::column(
+              12,
+              shiny::textInput(
+                "snapshot_folder",
+                value = ensure_snapshot_folder(),
+                label = "Destination folder"
+              ),
+              shiny::checkboxInput(
+                "snapshot_compress",
+                "Compress snapshot",
+                value = FALSE
+              ),
+              shiny::p(
+                "It is recommended to stop the search and detect loop before running a snapshopt to ensure data consistency (embedded database must be running)"
+              ),
+              shiny::actionButton("build_snapshot", "Create snapshot")
+            )
           ),
-          shiny::p(
-            "It is recommended to stop the search and detect loop before running a snapshopt to ensure data consistency (embedded database must be running)"
+          shiny::h3("Diagnostics"),
+          shiny::h5("Automated diagnostic tasks"),
+          shiny::fluidRow(
+            shiny::column(
+              12,
+              shiny::actionButton("run_diagnostic", "run diagnostics")
+            )
           ),
-          shiny::actionButton("build_snapshot", "Create snapshot")
+          shiny::fluidRow(
+            shiny::column(
+              12,
+              ################################################
+              ######### DIAGNOSTIC TABLE #####################
+              ################################################
+              DT::dataTableOutput("diagnostic_table")
+            )
+          )
         )
-      ),
-      shiny::h3("Diagnostics"),
-      shiny::h5("Automated diagnostic tasks"),
-      shiny::fluidRow(
-        shiny::column(
-          12,
-          shiny::actionButton("run_diagnostic", "run diagnostics")
-        )
-      ),
-      shiny::fluidRow(
-        shiny::column(
-          12,
-          ################################################
-          ######### DIAGNOSTIC TABLE #####################
-          ################################################
-          DT::dataTableOutput("diagnostic_table")
-        )
-      )
-    )
-
+  }
   # Defining navigation UI
   ui_app <- function(profile) {
     args = list("episomer", id = "navbar_shinyapp")
@@ -2911,7 +2913,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "Posts" = "number_of_posts",
                   "Top posts" = "topposts",
                   "Given Category" = "given_category",
-                  "Epipostr Category" = "episomer_category"
+                  "Episomer Category" = "episomer_category"
                 ),
                 filter = "top",
                 escape = FALSE
