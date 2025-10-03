@@ -747,13 +747,13 @@ updated_geotraining_df <- function(
         `Location yes/no` = ifelse(.data$isLocation, "yes", "no"),
         `Associate country code` = NA,
         `Associate with` = NA,
-        `Source` = "Epipostr model",
+        `Source` = "Episomer model",
         `Post Id` = NA,
         `Lang` = .data$lang,
         `Post part` = NA,
-        `Epipostr match` = NA,
-        `Epipostr country match` = NA,
-        `Epipostr country code match` = NA
+        `Episomer match` = NA,
+        `Episomer country match` = NA,
+        `Episomer country code match` = NA
       )
     geo_training$Text <- stringr::str_trim(geo_training$Text)
     geo_training <- geo_training %>%
@@ -794,9 +794,9 @@ updated_geotraining_df <- function(
         `Post Id` = .data$post_id,
         `Lang` = .data$lang,
         `Post part` = "text",
-        `Epipostr match` = NA,
-        `Epipostr country match` = NA,
-        `Epipostr country code match` = NA
+        `Episomer match` = NA,
+        `Episomer country match` = NA,
+        `Episomer country code match` = NA
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
@@ -814,9 +814,9 @@ updated_geotraining_df <- function(
         `Post Id` = .data$post_id,
         `Lang` = .data$lang,
         `Post part` = "user description",
-        `Epipostr match` = NA,
-        `Epipostr country match` = NA,
-        `Epipostr country code match` = NA,
+        `Episomer match` = NA,
+        `Episomer country match` = NA,
+        `Episomer country code match` = NA,
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
@@ -834,9 +834,9 @@ updated_geotraining_df <- function(
         `Post Id` = .data$post_id,
         `Lang` = .data$lang,
         `Post part` = "user location",
-        `Epipostr match` = NA,
-        `Epipostr country match` = NA,
-        `Epipostr country code match` = NA,
+        `Episomer match` = NA,
+        `Episomer country match` = NA,
+        `Episomer country code match` = NA,
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = TRUE)
@@ -877,9 +877,9 @@ updated_geotraining_df <- function(
         text_col = "Text",
         lang_col = "Lang"
       )
-      ret$`Epipostr match` <- geoloc$geo_name
-      ret$`Epipostr country match` <- geoloc$geo_country
-      ret$`Epipostr country code match` <- geoloc$geo_country_code
+      ret$`Episomer match` <- geoloc$geo_name
+      ret$`Episomer country match` <- geoloc$geo_country
+      ret$`Episomer country code match` <- geoloc$geo_country_code
       ret$`Location in text` <- ifelse(
         (is.na(ret$`Location yes/no`) | ret$`Location yes/no` == "?") &
           ret$Type == "Text",
@@ -891,9 +891,9 @@ updated_geotraining_df <- function(
       message(
         "Models are not trained, getting geotraining dataset without evaluation"
       )
-      ret$`Epipostr match` <- NA
-      ret$`Epipostr country match` <- NA
-      ret$`Epipostr country code match` <- NA
+      ret$`Episomer match` <- NA
+      ret$`Episomer country match` <- NA
+      ret$`Episomer country code match` <- NA
     }
   )
   ret %>% arrange(dplyr::desc(.data$Type), .data$`Post part`)
