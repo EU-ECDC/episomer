@@ -280,9 +280,10 @@ get_reporting_date_counts <- function(
 
 # Calculating alerts for a particular period and a set of period
 calculate_region_alerts <- function(
+  sms,
   topic,
   country_codes = list(),
-  country_code_cols = "tweet_geo_country_code",
+  country_code_cols = "geo_country_code",
   start = NA,
   end = NA,
   with_quotes = FALSE,
@@ -306,7 +307,8 @@ calculate_region_alerts <- function(
     dataset = "country_counts",
     filter = list(
       topic = topic,
-      period = list(read_from_date, end)
+      period = list(read_from_date, end),
+      network = sms
     )
   ) %>%
     dplyr::filter(.data$topic == f_topic)
@@ -396,6 +398,7 @@ calculate_region_alerts <- function(
 
 # Calculating alerts for a set of regions and a specific period
 calculate_regions_alerts <- function(
+  sms,
   topic,
   regions = c(1),
   date_type = c("created_date"),
@@ -430,7 +433,8 @@ calculate_regions_alerts <- function(
       } else 1
     alerts <-
       calculate_region_alerts(
-        topic = topic,
+        sms = sms,
+	topic = topic,
         country_codes = all_regions[[regions[[i]]]]$codes,
         country_code_cols = "geo_country_code",
         start = as.Date(date_min),
@@ -625,7 +629,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
 
         data <- get_aggregates(
           serie$name,
-          filter = list(topic = ts, period = c(alert_to, alert_to))
+          filter = list(topic = ts, period = c(alert_to, alert_to), network = alerts_social_media()  )
         )
         data$frequency <- data$original
         data$item <- data[[serie$col]]

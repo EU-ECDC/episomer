@@ -1,5 +1,6 @@
 # Defining line chart from shiny app filters
 line_chart_from_filters <- function(
+  sms,
   topics,
   countries,
   period_type,
@@ -13,6 +14,7 @@ line_chart_from_filters <- function(
   same_weekday_baseline
 ) {
   trend_line(
+    sms = sms,
     topic = topics,
     countries = if (length(countries) == 0) c(1) else as.integer(countries),
     date_type = period_type,
@@ -28,8 +30,9 @@ line_chart_from_filters <- function(
   )
 }
 # Defining line chart from shiny app filters
-map_chart_from_filters <- function(topics, countries, period, with_quotes) {
+map_chart_from_filters <- function(sms, topics, countries, period, with_quotes) {
   create_map(
+    sms = sms,
     topic = topics,
     countries = if (length(countries) == 0) c(1) else as.integer(countries),
     date_min = period[[1]],
@@ -41,6 +44,7 @@ map_chart_from_filters <- function(topics, countries, period, with_quotes) {
 }
 # Defining top words chart from shiny app filters
 top_chart_from_filters <- function(
+  sms,
   topics,
   serie,
   fcountries,
@@ -58,6 +62,7 @@ top_chart_from_filters <- function(
     lapply(fcountries, function(i) unlist(regions[[i]]$codes))
   )
   create_topchart(
+    sms = sms,
     topic = topics,
     serie = serie,
     country_codes = countries,
@@ -73,6 +78,7 @@ top_chart_from_filters <- function(
   export_dashboard <- function(
     format,
     file,
+    sms,
     topics,
     countries,
     period_type,
@@ -100,6 +106,7 @@ top_chart_from_filters <- function(
           output_format = format,
           output_file = file,
           params = list(
+            "sms" = sms,
             "topics" = topics,
             "countries" = countries,
             "period_type" = period_type,

@@ -41,6 +41,7 @@
 #' @export
 #' @importFrom stringr str_replace_all
 trend_line <- function(
+  sms,
   topic,
   countries = c(1),
   date_type = "created_date",
@@ -71,6 +72,7 @@ trend_line <- function(
   # getting the data with counts and alerts from country counts
   df <-
     calculate_regions_alerts(
+      sms = sms,
       topic = tolower(topic),
       regions = countries,
       date_type = date_type,
@@ -85,8 +87,6 @@ trend_line <- function(
       same_weekday_baseline = same_weekday_baseline,
       logenv = logenv
     )
-  # YMX
-  # saveRDS(df, file.path(system.file("get_aggregates_explo", package = "episomer"), "df_calculate_regions_alerts.rds"))
   # checking if some data points have been returned or return empty char
   if (nrow(df %>% dplyr::filter(.data$number_of_tweets > 0)) > 0) {
     topic <- unname(get_topics_labels()[stringr::str_replace_all(
@@ -97,6 +97,7 @@ trend_line <- function(
     df$topic <- topic
     plot_trendline(
       df = df,
+      sms = sms,
       countries = countries,
       topic = topic,
       date_min = date_min,
@@ -116,6 +117,7 @@ trend_line <- function(
 # Plot the trend_line chart for shiny app
 plot_trendline <- function(
   df,
+  sms,
   countries,
   topic,
   date_min,
@@ -465,6 +467,7 @@ plot_trendline <- function(
 #' @importFrom sf st_crs st_transform  st_as_sf
 #' @importFrom stats setNames
 create_map <- function(
+  sms,
   topic = c(),
   countries = c(1),
   date_min = "1900-01-01",
@@ -507,11 +510,11 @@ create_map <- function(
   df <- (if (!detailed)
     get_aggregates(
       dataset = "country_counts",
-      filter = list(topic = tolower(topic), period = list(date_min, date_max))
+      filter = list(topic = tolower(topic), period = list(date_min, date_max), network = sms )
     ) else
     get_aggregates(
       dataset = "geolocated",
-      filter = list(topic = tolower(topic), period = list(date_min, date_max))
+      filter = list(topic = tolower(topic), period = list(date_min, date_max), network = sms)
     ))
 
   # retunrning empty chart if no data is found
@@ -893,6 +896,7 @@ create_map <- function(
 #' @importFrom utils head
 #'
 create_topwords <- function(
+  sms,
   topic,
   country_codes = c(),
   date_min = "1900-01-01",
@@ -901,6 +905,7 @@ create_topwords <- function(
   top = 25
 ) {
   create_topchart(
+    sms = sms,
     topic = topic,
     serie = "topwords",
     country_codes = country_codes,
@@ -949,6 +954,7 @@ create_topwords <- function(
 #' @importFrom utils head
 #'
 create_topchart <- function(
+  sms,
   topic,
   serie,
   country_codes = c(),
@@ -980,8 +986,8 @@ create_topchart <- function(
     list(
       topic = f_topic,
       period = list(date_min, date_max),
-      geo_country_code = country_codes
-    ) else list(topic = f_topic, period = list(date_min, date_max)))
+      geo_country_code = country_codes, network = sms
+    ) else list(topic = f_topic, period = list(date_min, date_max), network = sms))
 
   df <- try(get_aggregates(
     dataset = dataset,

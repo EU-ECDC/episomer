@@ -819,6 +819,17 @@ active_social_media <- function() {
   active_sm
 }
 
+alerts_social_media <- function() {
+  props <- names(conf)
+  sm_props <- props[grepl("^sm_alerts", props)]
+  alerts_sm_props <- sm_props[sapply(
+    sm_props,
+    function(sm_prop) conf[[sm_prop]]
+  )]
+  alerts_sm <- gsub("sm_alerts_", "", alerts_sm_props)
+  alerts_sm
+}
+
 # Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
 write_json_atomic <- function(x, path, ...) {
   file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)

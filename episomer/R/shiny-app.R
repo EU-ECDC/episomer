@@ -93,6 +93,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           ################################################
           shiny::actionButton("run_dashboard", "Run"),
           shiny::selectInput(
+            "sms",
+            label = shiny::h4("Social Media"),
+            multiple = TRUE,
+            choices = d$sms,
+            selected = d$sms
+          ),
+          shiny::selectInput(
             "topics",
             label = shiny::h4("Topics"),
             multiple = FALSE,
@@ -1403,6 +1410,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               can_render(input, d)
               # getting the chart
               chart <- line_chart_from_filters(
+                input$sms,
                 input$topics,
                 input$countries,
                 input$period_type,
@@ -1466,6 +1474,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
               # getting the chart
               chart <- map_chart_from_filters(
+                input$sms,
                 input$topics,
                 input$countries,
                 input$period,
@@ -1526,6 +1535,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
               # getting the chart
               chart <- top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "tags",
                 input$countries,
@@ -1576,6 +1586,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
               # getting the chart
               chart <- top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "topwords",
                 input$countries,
@@ -1645,6 +1656,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
               # getting the chart to obtain the table
               chart <- top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "urls",
                 input$countries,
@@ -1698,6 +1710,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             chart <-
               line_chart_from_filters(
+                input$sms,
                 input$topics,
                 input$countries,
                 input$period_type,
@@ -1741,6 +1754,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             write.csv(
               line_chart_from_filters(
+                input$sms,
                 input$topics,
                 input$countries,
                 input$period_type,
@@ -1779,6 +1793,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             write.csv(
               map_chart_from_filters(
+                input$sms,
                 input$topics,
                 input$countries,
                 input$period,
@@ -1809,6 +1824,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           },
           content = function(file) {
             chart <- map_chart_from_filters(
+              input$sms,
               input$topics,
               input$countries,
               input$period,
@@ -1847,6 +1863,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             write.csv(
               top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "tags",
                 input$countries,
@@ -1880,6 +1897,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             write.csv(
               top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "topwords",
                 input$countries,
@@ -1913,6 +1931,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             write.csv(
               top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "urls",
                 input$countries,
@@ -1947,6 +1966,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             chart <-
               top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "tags",
                 input$countries,
@@ -1987,6 +2007,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           content = function(file) {
             chart <-
               top_chart_from_filters(
+                input$sms,
                 input$topics,
                 "topwords",
                 input$countries,
@@ -2031,6 +2052,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             export_dashboard(
               "pdf_document",
               file,
+              input$sms,
               input$topics,
               input$countries,
               input$period_type,
@@ -2073,6 +2095,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             export_dashboard(
               "md_document",
               file,
+              input$sms,
               input$topics,
               input$countries,
               input$period_type,
