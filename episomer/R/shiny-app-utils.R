@@ -9,6 +9,10 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
     regions <- get_country_items()
     setNames(1:length(regions), sapply(regions, function(r) r$name))
   }
+  e$sms <- {
+    sms <- active_social_media()
+    setNames(sms, paste0(toupper(substr(sms, 1, 1)), substr(sms, 2, nchar(sms))))
+  }
   agg_dates <- get_aggregated_period()
   if (is.na(agg_dates$first) || is.na(agg_dates$last)) {
     agg_dates$first = Sys.Date()
