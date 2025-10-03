@@ -14,7 +14,7 @@ registers the alert detection task or stops if no configuration has been set or 
 }
 \details{
 Registers the alert detection task or stops if no configuration has been set or if it is already running.
-To generate alerts, this task needs the tweet collection to had successfully run since the last time it ran.
+To generate alerts, this task needs the post collection to had successfully run since the last time it ran.
 This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 }
 \examples{

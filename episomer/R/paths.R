@@ -1,12 +1,12 @@
 # Get path of search files (written by search loop)
-get_search_path <- function() file.path(conf$data_dir, "tweets", "search")
+get_search_path <- function() file.path(conf$data_dir, "posts", "search")
 
 # Get path of geolocated files (written by detect loop)
-get_geo_path <- function() file.path(conf$data_dir, "tweets", "geolocated")
+get_geo_path <- function() file.path(conf$data_dir, "posts", "geolocated")
 
 # Get path of search files (written by search loop)
 get_search_archive_path <- function()
-  file.path(conf$data_dir, "tweets", "search_archive")
+  file.path(conf$data_dir, "posts", "search_archive")
 
 # Get path of properties files (written by Shiny app)
 get_properties_path <- function() file.path(conf$data_dir, "properties.json")
@@ -226,17 +226,17 @@ get_lang_stamp_path <- function(code) {
   file.path(conf$data_dir, "languages", paste(code, ".txt.gz.stamp", sep = ""))
 }
 
-# Get tweet collection path
-get_tweet_togeo_path <- function() {
+# Get post collection path
+get_post_togeo_path <- function() {
   file.path(conf$data_dir, "geo", "togeolocate.json")
 }
-get_tweet_geoing_path <- function() {
+get_post_geoing_path <- function() {
   file.path(conf$data_dir, "geo", "geolocating.json")
 }
-get_tweet_toaggr_path <- function() {
+get_post_toaggr_path <- function() {
   file.path(conf$data_dir, "geo", "toaggregate.json")
 }
-get_tweet_aggring_path <- function() {
+get_post_aggring_path <- function() {
   file.path(conf$data_dir, "geo", "aggregating.json")
 }
 

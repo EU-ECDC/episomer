@@ -5,6 +5,7 @@
 \title{Plot the top elements for a specific series on the episomer dashboard}
 \usage{
 create_topchart(
+  sms,
   topic,
   serie,
   country_codes = c(),
@@ -25,7 +26,7 @@ create_topchart(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include reposts in the time series, default: FALSE}
 
 \item{top}{numeric(1) Parameter indicating the number of words to show, default: 25}
 }
@@ -33,10 +34,10 @@ create_topchart(
 A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 }
 \description{
-Generates a bar plot of most popular elements in tweets, for one topic. Top elements among ("topwords", "hashtags", "entities", "contexts", "urls")
+Generates a bar plot of most popular elements in posts, for one topic. Top elements among ("topwords", "hashtags", "entities", "contexts", "urls")
 }
 \details{
-Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
+Produces a bar chart showing the occurrences of the most popular words in the collected posts based on the provided parameters.
 
 This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 }

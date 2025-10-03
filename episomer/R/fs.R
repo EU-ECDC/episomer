@@ -12,11 +12,11 @@ get_scala_alert_training_url <- function() {
   paste(get_scala_api_endpoint(), "evaluate-alerts", sep = "")
 }
 
-get_scala_tweets_url <- function() {
+get_scala_posts_url <- function() {
   paste(get_scala_api_endpoint(), "posts", sep = "")
 }
 
-get_scala_geolocated_tweets_url <- function() {
+get_scala_geolocated_posts_url <- function() {
   paste(get_scala_api_endpoint(), "geolocated-posts", sep = "")
 }
 
@@ -52,11 +52,11 @@ get_scala_recalc_hash_url <- function() {
 
 #' @title Runs the episomer embedded database loop
 #' @description Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected tweets.
+#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @return nothing
 #' @details Launches the episomer embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
-#' the REST API provide episomer a way to send and retrieve data related with tweets and time series and to trigger geolocation or aggregation
+#' the REST API provide episomer a way to send and retrieve data related with posts and time series and to trigger geolocation or aggregation
 #' The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
 #' \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
 #' @examples
@@ -139,36 +139,36 @@ fs_loop <- function(data_dir = NA) {
   }
 }
 
-#' @title perform full text search on tweets collected with episomer
-#' @description  perform full text search on tweets collected with episomer (tweets migrated from episomer v<1.0.x are also included)
-#' @param query character. The query to be used if a text it will match the tweet text. To see how to match particular fields please see details, default:NULL
+#' @title perform full text search on posts collected with episomer
+#' @description  perform full text search on posts collected with episomer (posts migrated from episomer v<1.0.x are also included)
+#' @param query character. The query to be used if a text it will match the post text. To see how to match particular fields please see details, default:NULL
 #' @param topic character, Vector of topics to include on the search default:NULL
-#' @param from an object which can be converted to ‘"POSIXlt"’ only tweets posted after or on this date will be included, default:NULL
-#' @param to an object which can be converted to ‘"POSIXlt"’ only tweets posted before or on this date will be included, default:NULL
+#' @param from an object which can be converted to ‘"POSIXlt"’ only posts posted after or on this date will be included, default:NULL
+#' @param to an object which can be converted to ‘"POSIXlt"’ only posts posted before or on this date will be included, default:NULL
 #' @param countries character or numeric, the position or name of episomer regions to be included on the query, default:NULL
-#' @param mentioning character, limit the search to the tweets mentioning the given users, default:NULL
-#' @param users character, limit the search to the tweets created by the provided users, default:NULL
+#' @param mentioning character, limit the search to the posts mentioning the given users, default:NULL
+#' @param users character, limit the search to the posts created by the provided users, default:NULL
 #' @param hide_users logical, whether to hide user names on output replacing them by the USER keyword, default:FALSE
 #' @param action character, an action to be performed on the search results respecting the max parameter. Possible values are 'delete' or 'anonymise' , default:NULL
-#' @param max integer, maximum number of tweets to be included on the search, default:100
+#' @param max integer, maximum number of posts to be included on the search, default:100
 #' @param by_relevance logical, whether to sort the results by relevance of the matching query or by indexing order, default:FALSE
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @return a data frame containing the tweets matching the selected filters, the data frame contains the following columns: linked_user_location, linked_user_name, linked_user_description,
-#' screen_name, created_date, is_geo_located, user_location_loc, is_retweet, text, text_loc, user_id, hash, user_description, linked_lang, linked_screen_name, user_location, totalCount,
-#' created_at, topic_tweet_id, topic, lang, user_name, linked_text, tweet_id, linked_text_loc, hashtags, user_description_loc
+#' @return a data frame containing the posts matching the selected filters, the data frame contains the following columns: linked_user_location, linked_user_name, linked_user_description,
+#' screen_name, created_date, is_geo_located, user_location_loc, is_repost, text, text_loc, user_id, hash, user_description, linked_lang, linked_screen_name, user_location, totalCount,
+#' created_at, topic_post_id, topic, lang, user_name, linked_text, post_id, linked_text_loc, hashtags, user_description_loc
 #' @details
-#' episomer translate the query provided by all parameters into a single query that will be executed on tweet indexes which are weekly indexes.
+#' episomer translate the query provided by all parameters into a single query that will be executed on post indexes which are weekly indexes.
 #' The q parameter should respect the syntax of the Lucene classic parser \url{https://lucene.apache.org/core/8_5_0/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html}
 #' So other than the provided parameters, multi field queries are supported by using the syntax field_name:value1;value2
 #' AND, OR and -(for excluding terms) are supported on q parameter.
-#' Order by week is always applied before relevance so even if you provide by_relevance = TRUE all of the matching tweets of the first week will be returned first
+#' Order by week is always applied before relevance so even if you provide by_relevance = TRUE all of the matching posts of the first week will be returned first
 #' @examples
 #' if(FALSE){
 #'    #Running the detect loop
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
-#'    df <- search_tweets(
+#'    df <- search_posts(
 #'         q = "vaccination",
 #'         topic="COVID-19",
 #'         countries=c("Chile", "Australia", "France"),
@@ -177,7 +177,7 @@ fs_loop <- function(data_dir = NA) {
 #'    )
 #'    df$text
 #' }
-#' @rdname search_tweets
+#' @rdname search_posts
 #' @seealso
 #'  \code{\link{search_loop}}
 #'
@@ -185,7 +185,7 @@ fs_loop <- function(data_dir = NA) {
 #' @importFrom utils URLencode
 #' @importFrom jsonlite stream_in
 #' @export
-search_tweets <- function(
+search_posts <- function(
   query = NULL,
   topic = NULL,
   from = NULL,
@@ -199,7 +199,7 @@ search_tweets <- function(
   by_relevance = FALSE
 ) {
   u <- paste(
-    get_scala_tweets_url(),
+    get_scala_posts_url(),
     "?jsonnl=true&estimatecount=true&by_relevance=",
     tolower(by_relevance),
     sep = ""
@@ -272,22 +272,22 @@ search_tweets <- function(
     u <- paste(u, "&max=", max, sep = "")
   }
   u <- url(u)
-  tweets <- jsonlite::stream_in(u, verbose = FALSE)
-  tweets
+  posts <- jsonlite::stream_in(u, verbose = FALSE)
+  posts
 }
 
 
-# Registers a query to define custom aggregations on tweets
+# Registers a query to define custom aggregations on posts
 # it is generic enough to choose variables, aggregation and filters
-# deals with tweet deduplication at topic level
+# deals with post deduplication at topic level
 # regexp: regexp to limit the geolocation and search files to read
 # vars: variable to read (evaluated after aggregation if required)
 # sort_by: order to apply to the returned data frame
-# filter_by: expressions to use for filtering tweets
+# filter_by: expressions to use for filtering posts
 # sources_exp: variables to limit the source files to read (setting this will improve reading performance)
 # handler: function that to perform a custom R based transformation on data returned by SPARK
 # params: definition of custom param files to enable big queries
-set_aggregated_tweets <- function(
+set_aggregated_posts <- function(
   name,
   dateCol,
   pks,
@@ -299,7 +299,7 @@ set_aggregated_tweets <- function(
   sources_exp = list(),
   params = list()
 ) {
-  stop_if_no_config(paste("Cannot get tweets without configuration setup"))
+  stop_if_no_config(paste("Cannot get posts without configuration setup"))
   post_result <- httr::POST(
     url = get_scala_aggregate_url(),
     httr::content_type_json(),
@@ -442,10 +442,10 @@ stream_post <- function(uri, body, handler = NULL) {
 }
 
 # Get time difference since last request
-# This function is used from the Shiny app to report when was the last time that a request saved tweets
-# This is done by taking the last modified date of current year tweet files
+# This function is used from the Shiny app to report when was the last time that a request saved posts
+# This is done by taking the last modified date of current year post files
 last_fs_updates <- function(
-  collections = c("tweets", "topwords", "country_counts", "geolocated")
+  collections = c("posts", "topwords", "country_counts", "geolocated")
 ) {
   times <- lapply(collections, function(collection) {
     folders <- sort(list.files(

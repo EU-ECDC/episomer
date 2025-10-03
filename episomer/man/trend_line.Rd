@@ -5,6 +5,7 @@
 \title{Plot the trendline report of episomer dashboard}
 \usage{
 trend_line(
+  sms,
   topic,
   countries = c(1),
   date_type = "created_date",
@@ -30,7 +31,7 @@ trend_line(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include reposts in the time series, default: FALSE}
 
 \item{alpha}{Numeric(1) value indicating the alert detection confidence, default: 0.025}
 
@@ -48,13 +49,13 @@ trend_line(
 A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the chart.
 }
 \description{
-Generates a trendline chart of number of tweets by region, for one topic, including alerts using the reweighted version of the EARS algorithm
+Generates a trendline chart of number of posts by region, for one topic, including alerts using the reweighted version of the EARS algorithm
 }
 \details{
-Produces a multi-region line chart for a particular topic of number of tweets collected based on the provided parameters.
+Produces a multi-region line chart for a particular topic of number of posts collected based on the provided parameters.
 Alerts will be calculated using a modified version of the EARS algorithm that applies a Farrington inspired downweighting of previous outliers.
 
-Days in this function are considered as contiguous blocks of 24 hours starting for the previous hour of the last collected tweet.
+Days in this function are considered as contiguous blocks of 24 hours starting for the previous hour of the last collected post.
 
 This function requires \code{\link{search_loop}} and \code{\link{detect_loop}} to have already run successfully to show results.
 }

@@ -15,10 +15,10 @@ health_check(send_mail = TRUE, one_per_day = TRUE)
 A list of health check errors found
 }
 \description{
-It validates if episomer is not collecting tweets, aggregating tweets or not calculating alerts
+It validates if episomer is not collecting posts, aggregating posts or not calculating alerts
 }
 \details{
-This function sends an email to the defined administrator if episomer is not collecting tweets, aggregating tweets or not calculating alerts
+This function sends an email to the defined administrator if episomer is not collecting posts, aggregating posts or not calculating alerts
 }
 \examples{
 if(FALSE){

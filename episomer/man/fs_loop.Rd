@@ -7,7 +7,7 @@
 fs_loop(data_dir = NA)
 }
 \arguments{
-\item{data_dir}{Path to the 'data directory' containing application settings, models and collected tweets.
+\item{data_dir}{Path to the 'data directory' containing application settings, models and collected posts.
 If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
 }
 \value{
@@ -18,7 +18,7 @@ Infinite loop ensuring that the episomer embedded database is running (Lucene + 
 }
 \details{
 Launches the episomer embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
-the REST API provide episomer a way to send and retrieve data related with tweets and time series and to trigger geolocation or aggregation
+the REST API provide episomer a way to send and retrieve data related with posts and time series and to trigger geolocation or aggregation
 The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
 \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
 }

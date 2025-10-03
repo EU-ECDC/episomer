@@ -2,7 +2,7 @@ package org.ecdc.episomer
 
 import spray.json._
 import java.nio.file.{Paths, Files}
-import org.ecdc.twitter.{JavaBridge, Language}
+import org.ecdc.episomer.{JavaBridge, Language}
 import org.ecdc.episomer.geo.Geonames
 import org.ecdc.episomer.fs.EpiSerialisation
 import org.apache.spark.sql.{SparkSession}
@@ -76,7 +76,7 @@ case class Settings(epiHome:String) {
   def fsLongBatchTimeout = properties.fields.get("fs_long_batch_timeout").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(60*60*24)
   def fsPort = properties.fields.get("fs_port").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(8080)
   
-  def splitter = properties.fields.get("tweetSplitterRegex").map(v => v.asInstanceOf[JsString].value).getOrElse(Settings.defaultSplitter)
+  def splitter = properties.fields.get("postSplitterRegex").map(v => v.asInstanceOf[JsString].value).getOrElse(Settings.defaultSplitter)
   def forcedGeo = this.loadJson("geo/forced-geo.json").map(json => EpiSerialisation.forcedGeoFormat.read(json)) 
   def forcedGeoCodes = this.loadJson("geo/forced-geo-codes.json").map(json => EpiSerialisation.forcedGeoCodesFormat.read(json)) 
   def topicKeyWords = this.loadJson("geo/topic-keywords.json").map(json => EpiSerialisation.topicKeyWordsFormat.read(json)) 

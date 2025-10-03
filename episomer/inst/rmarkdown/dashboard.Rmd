@@ -9,7 +9,7 @@ params:
   period_type: "created_date"
   period: ["2020-01-01", "2020-03-31"]
   with_quotes: FALSE
-  location_type: "tweet"
+  location_type: "post"
   alert_alpha: 0.025
   alert_alpha_outlier: 0.05
   alert_k_decay: 4
@@ -101,7 +101,7 @@ top_chart_from_filters(
 
 ## Top URLS 
 
-### `r paste("Top URLS of tweets mentioning", params$topic, "from", params$periond[[1]], "to", params$period[[2]])`
+### `r paste("Top URLS of posts mentioning", params$topic, "from", params$periond[[1]], "to", params$period[[2]])`
 
 ```{r, echo = FALSE, message=FALSE, warning=FALSE}
 df <- top_chart_from_filters(
@@ -119,7 +119,7 @@ if (is.data.frame(df)) {
   "No data found for the selected filters"
 }
 ```
-Top urls table only considers tweet location, ignoring the location type parameter
+Top urls table only considers post location, ignoring the location type parameter
 
 
 

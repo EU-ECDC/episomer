@@ -6,14 +6,14 @@
 #'
 #' The alert calculation is based on the country_counts time series which stores alerts by country, hour and topics.
 #'
-#' For each country and region, the process starts by aggregating the last N days. A day is a block of consecutive 24 hours ending before the hour of the collected last tweet.
+#' For each country and region, the process starts by aggregating the last N days. A day is a block of consecutive 24 hours ending before the hour of the collected last post.
 #' N is defined by the alert baseline parameter on the configuration tab of the Shiny application (the default is N=7).
 #'
-#' An alert will be produced when the number of tweets observed is above the threshold calculated by the modified version of the EARS algorithm (for more details see the package vignette).
+#' An alert will be produced when the number of posts observed is above the threshold calculated by the modified version of the EARS algorithm (for more details see the package vignette).
 #' The behaviour of the alert detection algorithm is modified by the signal false positive rate (alpha), downweighting of previous alerts and weekly or daily baseline parameters
 #' as defined on the configuration tab of the Shiny application and the topics file.
 #'
-#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected tweets in the search folder and that the geotagging and aggregation tasks have already been run.
+#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the geotagging and aggregation tasks have already been run.
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
 #' if(FALSE){
@@ -22,7 +22,7 @@
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'
-#'    # calculating alerts for last day tweets and sending emails to subscribers
+#'    # calculating alerts for last day posts and sending emails to subscribers
 #'    generate_alerts()
 #' }
 #' @seealso
@@ -222,7 +222,7 @@ ears_t_reweighted <- function(
 
 
 # Getting alert daily counts taking in consideration a 24-hour sliding window since last full hour
-# the provided dataset is expected to be an hourly count by date with the following columns: tweets, known_users, created_date, created_hour
+# the provided dataset is expected to be an hourly count by date with the following columns: posts, known_users, created_date, created_hour
 get_reporting_date_counts <- function(
   df,
   topic,
@@ -264,7 +264,7 @@ get_reporting_date_counts <- function(
     df %>%
       dplyr::group_by(.data$reporting_date) %>%
       dplyr::summarise(
-        count = sum(.data$tweets),
+        count = sum(.data$posts),
         known_users = sum(.data$known_users)
       ) %>%
       dplyr::ungroup()
@@ -313,12 +313,12 @@ calculate_region_alerts <- function(
   ) %>%
     dplyr::filter(.data$topic == f_topic)
 
-  # Adding retweets on count if requested
+  # Adding reposts on count if requested
 
   df <- if (with_quotes) {
     df %>%
       dplyr::mutate(
-        tweets = ifelse(is.na(.data$quotes), 0, .data$quotes) +
+        posts = ifelse(is.na(.data$quotes), 0, .data$quotes) +
           ifelse(is.na(.data$original), 0, .data$original),
         known_users = .data$known_quotes + .data$known_original
       )
@@ -327,10 +327,10 @@ calculate_region_alerts <- function(
       dplyr::rename(
         known_users = .data$known_original
       ) %>%
-      mutate(tweets = .data$original)
+      mutate(posts = .data$original)
   }
   if (!is.null(logenv)) {
-    # Setting global variable for storing total number of tweets concerned including all country_cols
+    # Setting global variable for storing total number of posts concerned including all country_cols
     total_df <- df %>%
       dplyr::filter(
         (length(country_codes) == 0 |
@@ -449,10 +449,10 @@ calculate_regions_alerts <- function(
         logenv = logenv
       )
     alerts <- dplyr::rename(alerts, date = .data$reporting_date)
-    alerts <- dplyr::rename(alerts, number_of_tweets = .data$count)
+    alerts <- dplyr::rename(alerts, number_of_posts = .data$count)
     alerts$date <- as.Date(alerts$date, origin = '1970-01-01')
     if (nrow(alerts) > 0) alerts$country <- all_regions[[regions[[i]]]]$name
-    alerts$known_ratio = alerts$known_users / alerts$number_of_tweets
+    alerts$known_ratio = alerts$known_users / alerts$number_of_posts
     alerts
   })
 
@@ -464,11 +464,11 @@ calculate_regions_alerts <- function(
     df <- df %>%
       dplyr::group_by(week = strftime(.data$date, "%G%V"), .data$country) %>%
       dplyr::summarise(
-        c = sum(.data$number_of_tweets),
+        c = sum(.data$number_of_posts),
         a = max(.data$alert),
         d = min(.data$date),
         ku = sum(.data$known_users),
-        kr = sum(.data$known_users) / sum(.data$number_of_tweets),
+        kr = sum(.data$known_users) / sum(.data$number_of_posts),
         l = 0,
         b = 0
       ) %>%
@@ -486,7 +486,7 @@ calculate_regions_alerts <- function(
       ) %>%
       dplyr::rename(
         date = .data$d,
-        number_of_tweets = .data$c,
+        number_of_posts = .data$c,
         alert = .data$a,
         known_users = .data$ku,
         known_ratio = .data$kr,
@@ -687,12 +687,12 @@ do_next_alerts <- function(tasks = get_tasks()) {
         )
       alert_training <- get_alert_training_df()
       if (length(unique(alert_training$episomer_category)) > 1) {
-        # Adding tweets to alerts
-        m <- paste("Adding toptweets")
+        # Adding posts to alerts
+        m <- paste("Adding topposts")
         message(m)
         tasks <- update_alerts_task(tasks, "running", m)
-        alerts <- add_toptweets(alerts, 10)
-        m <- paste("Classifying alerts toptweets")
+        alerts <- add_topposts(alerts, 10)
+        m <- paste("Classifying alerts topposts")
         message(m)
         tasks <- update_alerts_task(tasks, "running", m)
         alerts <- classify_alerts(
@@ -700,8 +700,8 @@ do_next_alerts <- function(tasks = get_tasks()) {
             dplyr::mutate(test = FALSE, augmented = FALSE, deleted = FALSE),
           retrain = FALSE
         )
-        # Removing top tweets
-        alerts$toptweets <- NULL
+        # Removing top posts
+        alerts$topposts <- NULL
         alerts$id <- NULL
       }
       f <- file(alert_file, open = "ab")
@@ -722,7 +722,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
 #' as displayed at the Shiny App to filter the signals to return., default: numeric()
 #' @param from Date defining the beginning of the period of signals to return, default: '1900-01-01'
 #' @param until Date defining the end of the period of signals to return, default: '2100-01-01'
-#' @param toptweets Integer number of top tweets to be added to the alert. These are obtained from the tweet index based on topwords and Lucene score, default: 0
+#' @param topposts Integer number of top posts to be added to the alert. These are obtained from the post index based on topwords and Lucene score, default: 0
 #' @param limit Maximum number of alerts returned, default: 0
 #' @param duplicates Character, action to decide what to do with alerts generated on the same day. Options are "all" (keep all alerts), "first" get only first alert and "last" for getting only the last alert
 #' @param progress Function, function to report progress it should receive two parameter a progress between 0 and 1 and a message, default: empty function
@@ -758,7 +758,7 @@ get_alerts <- function(
   countries = numeric(),
   from = "1900-01-01",
   until = "2100-01-01",
-  toptweets = 0,
+  topposts = 0,
   limit = 0,
   duplicates = "all",
   progress = function(a, b) {
@@ -829,7 +829,7 @@ get_alerts <- function(
           .data$topic,
           .data$country,
           .data$hour,
-          .data$number_of_tweets
+          .data$number_of_posts
         ) %>%
         dplyr::group_by(.data$topic, .data$country) %>%
         dplyr::mutate(rank = rank(.data$hour, ties.method = "first")) %>%
@@ -857,9 +857,9 @@ get_alerts <- function(
         set.seed(26062012)
         df <- df[sample(nrow(df), limit), ]
       }
-      # Adding top tweets if required
-      if (toptweets > 0) {
-        df <- add_toptweets(df, toptweets, progress = progress)
+      # Adding top posts if required
+      if (topposts > 0) {
+        df <- add_topposts(df, topposts, progress = progress)
       }
       # Calculating top columns
       df$tops <- paste(
@@ -955,11 +955,11 @@ get_alerts <- function(
   }
 }
 
-# Add top tweets from the tweet index to the alert data frame
+# Add top posts from the post index to the alert data frame
 # A query is done to the index for each topic alert to consider top words detected
-add_toptweets <- function(
+add_topposts <- function(
   df,
-  toptweets,
+  topposts,
   ignore_place = FALSE,
   progress = function(a, b) {
   }
@@ -970,7 +970,7 @@ add_toptweets <- function(
     function(v) v[nchar(v) > 0]
   )
 
-  df$toptweets <- if (nrow(df) == 0) character() else {
+  df$topposts <- if (nrow(df) == 0) character() else {
     sapply(1:nrow(df), function(i) {
       created_from = (if (df$hour[[i]] == 23) {
         df$date[[i]]
@@ -985,9 +985,9 @@ add_toptweets <- function(
       } else paste0(df$date[[i]], "T", df$hour[[i]], "Z"))
       match_codes <- codes[[df$country[[i]]]]
       if (is.null(match_codes)) "" else {
-        progress(i / nrow(df), "Getting alerts tweets")
-        tweets <- lapply(conf$languages, function(lang) {
-          res <- search_tweets(
+        progress(i / nrow(df), "Getting alerts posts")
+        posts <- lapply(conf$languages, function(lang) {
+          res <- search_posts(
             query = paste0(
               "created_at:[",
               created_from,
@@ -1007,24 +1007,24 @@ add_toptweets <- function(
                   paste0(paste0("\"", topwords[[i]], "\""), collapse = " OR "),
                   ") AND "
                 )),
-              "is_retweet:false"
+              "is_repost:false"
             ),
             topic = df$topic[[i]],
             from = as.character(as.Date(df$date[[i]]) - 1),
             to = df$date[[i]],
-            max = toptweets,
+            max = topposts,
             by_relevance = TRUE
           )
           if (length(res) == 0) character(0) else res$text
         })
         jsonlite::toJSON(setNames(
-          tweets,
+          posts,
           lapply(conf$languages, function(l) l$code)
         ))
       }
     })
   }
-  df$toptweets <- lapply(df$toptweets, function(json) jsonlite::fromJSON(json))
+  df$topposts <- lapply(df$topposts, function(json) jsonlite::fromJSON(json))
   df
 }
 
@@ -1041,20 +1041,20 @@ get_subscribers <- function() {
   df$`Alert category` <- if (!"Alert category" %in% colnames(df)) NA else
     as.character(df$`Alert category`)
   df$`Alert Slots` <- as.character(df$`Alert Slots`)
-  df$`One tweet alerts` <- if (!"One tweet alerts" %in% colnames(df)) TRUE else
+  df$`One post alerts` <- if (!"One post alerts" %in% colnames(df)) TRUE else
     ifelse(
-      as.character(df$`One tweet alerts`) %in% c("0", "no", "No", "FALSE"),
+      as.character(df$`One post alerts`) %in% c("0", "no", "No", "FALSE"),
       FALSE,
       TRUE
     )
-  df$`Topics ignoring 1 tweet alerts` <- if (
-    !"Topics ignoring 1 tweet alerts" %in% colnames(df)
+  df$`Topics ignoring 1 post alerts` <- if (
+    !"Topics ignoring 1 post alerts" %in% colnames(df)
   )
-    NA else as.character(df$`Topics ignoring 1 tweet alerts`)
-  df$`Regions ignoring 1 tweet alerts` <- if (
-    !"Regions ignoring 1 tweet alerts" %in% colnames(df)
+    NA else as.character(df$`Topics ignoring 1 post alerts`)
+  df$`Regions ignoring 1 post alerts` <- if (
+    !"Regions ignoring 1 post alerts" %in% colnames(df)
   )
-    NA else as.character(df$`Regions ignoring 1 tweet alerts`)
+    NA else as.character(df$`Regions ignoring 1 post alerts`)
   df
 }
 
@@ -1100,17 +1100,17 @@ send_alert_emails <- function(tasks = get_tasks()) {
           )
         }
       )
-      one_tweet_alerts <- subscribers$`One tweet alerts`[[i]]
-      ignore_one_tweet_topics <- if (
-        is.na(subscribers$`Topics ignoring 1 tweet alerts`[[i]])
+      one_post_alerts <- subscribers$`One post alerts`[[i]]
+      ignore_one_post_topics <- if (
+        is.na(subscribers$`Topics ignoring 1 post alerts`[[i]])
       )
         NA else
-        strsplit(subscribers$`Topics ignoring 1 tweet alerts`[[i]], ";")[[1]]
-      ignore_one_tweet_regions <- if (
-        is.na(subscribers$`Regions ignoring 1 tweet alerts`[[i]])
+        strsplit(subscribers$`Topics ignoring 1 post alerts`[[i]], ";")[[1]]
+      ignore_one_post_regions <- if (
+        is.na(subscribers$`Regions ignoring 1 post alerts`[[i]])
       )
         NA else
-        strsplit(subscribers$`Regions ignoring 1 tweet alerts`[[i]], ";")[[1]]
+        strsplit(subscribers$`Regions ignoring 1 post alerts`[[i]], ";")[[1]]
 
       # Adding users' statistics if these do not exist already
       if (!exists(user, where = tasks$alerts$sent))
@@ -1159,17 +1159,17 @@ send_alert_emails <- function(tasks = get_tasks()) {
             # Getting the maximum values to report for that alert
             if (
               !exists(
-                paste(key, "number_of_tweets", sep = "-"),
+                paste(key, "number_of_posts", sep = "-"),
                 last_metrics
               ) ||
-                last_metrics[[paste(key, "number_of_tweets", sep = "-")]] <
-                  user_alerts$number_of_tweets[[i]]
+                last_metrics[[paste(key, "number_of_posts", sep = "-")]] <
+                  user_alerts$number_of_posts[[i]]
             ) {
               last_metrics[[paste(
                 key,
-                "number_of_tweets",
+                "number_of_posts",
                 sep = "-"
-              )]] <- user_alerts$number_of_tweets[[i]]
+              )]] <- user_alerts$number_of_posts[[i]]
               last_metrics[[paste(
                 key,
                 "baseline",
@@ -1181,41 +1181,41 @@ send_alert_emails <- function(tasks = get_tasks()) {
                 sep = "-"
               )]] <- user_alerts$known_users[[i]]
             }
-            # Getting the last 1 tweet alert per region and topic so the next can be reported as first in day
+            # Getting the last 1 post alert per region and topic so the next can be reported as first in day
             if (
               !exists(
-                paste(key, "last_one_tweet_rank", sep = "-"),
+                paste(key, "last_one_post_rank", sep = "-"),
                 last_metrics
               )
             )
-              last_metrics[[paste(key, "last_one_tweet_rank", sep = "-")]] <- -1
+              last_metrics[[paste(key, "last_one_post_rank", sep = "-")]] <- -1
             if (
-              user_alerts$number_of_tweets[[i]] == 1 &&
-                last_metrics[[paste(key, "last_one_tweet_rank", sep = "-")]] <
+              user_alerts$number_of_posts[[i]] == 1 &&
+                last_metrics[[paste(key, "last_one_post_rank", sep = "-")]] <
                   user_alerts$rank[[i]]
             )
               last_metrics[[paste(
                 key,
-                "last_one_tweet_rank",
+                "last_one_post_rank",
                 sep = "-"
               )]] <- user_alerts$rank[[i]]
           }
           # Excluding alerts that are not the first in the day for the specific topic and region
           # This is done because only the first alert on the day is reported
-          # One exception is done for alerts that have been increased from 1 tweet
+          # One exception is done for alerts that have been increased from 1 post
           user_alerts <- user_alerts %>%
             dplyr::filter(
               .data$rank == 1 |
                 .data$rank ==
                   (unlist(last_metrics[paste(
                     .data$key,
-                    "last_one_tweet_rank",
+                    "last_one_post_rank",
                     sep = "-"
                   )]) +
                     1)
             )
 
-          # Removing potential duplicates added by the increased from 1 tweet exception
+          # Removing potential duplicates added by the increased from 1 post exception
           user_alerts <- user_alerts %>%
             dplyr::arrange(
               .data$topic,
@@ -1227,9 +1227,9 @@ send_alert_emails <- function(tasks = get_tasks()) {
           # Now metrics are updated to last observed alert
           user_alerts <- user_alerts %>%
             dplyr::mutate(
-              number_of_tweets = unlist(last_metrics[paste(
+              number_of_posts = unlist(last_metrics[paste(
                 .data$key,
-                "number_of_tweets",
+                "number_of_posts",
                 sep = "-"
               )]),
               baseline = unlist(last_metrics[paste(
@@ -1243,15 +1243,15 @@ send_alert_emails <- function(tasks = get_tasks()) {
                 sep = "-"
               )])
             )
-          #Removing one tweet alerts depending on user options
+          #Removing one post alerts depending on user options
           user_alerts <- user_alerts %>%
             dplyr::filter(
-              .data$number_of_tweets > 1 |
-                (one_tweet_alerts &
-                  (all(is.na(ignore_one_tweet_topics)) |
-                    !(.data$topic %in% ignore_one_tweet_topics)) &
-                  (all(is.na(ignore_one_tweet_regions)) |
-                    !(.data$country %in% ignore_one_tweet_regions)))
+              .data$number_of_posts > 1 |
+                (one_post_alerts &
+                  (all(is.na(ignore_one_post_topics)) |
+                    !(.data$topic %in% ignore_one_post_topics)) &
+                  (all(is.na(ignore_one_post_regions)) |
+                    !(.data$country %in% ignore_one_post_regions)))
             )
         }
 
@@ -1331,16 +1331,16 @@ send_alert_emails <- function(tasks = get_tasks()) {
             user_alerts %>%
               dplyr::arrange(
                 .data$topic,
-                dplyr::desc(.data$number_of_tweets)
+                dplyr::desc(.data$number_of_posts)
               ) %>%
               dplyr::group_by(.data$topic) %>%
               dplyr::mutate(rank = rank(.data$topic, ties.method = "first")) %>%
               dplyr::filter(.data$rank < 3) %>%
               dplyr::summarize(
                 top = paste(.data$country, collapse = ", "),
-                max_tweets = max(.data$number_of_tweets)
+                max_posts = max(.data$number_of_posts)
               ) %>%
-              dplyr::arrange(dplyr::desc(.data$max_tweets)),
+              dplyr::arrange(dplyr::desc(.data$max_posts)),
             3
           )
 
@@ -1369,13 +1369,13 @@ send_alert_emails <- function(tasks = get_tasks()) {
 
           # Getting the html table for each region
           non_one_alert_tables <- get_alert_tables(
-            user_alerts %>% dplyr::filter(.data$number_of_tweets > 1),
+            user_alerts %>% dplyr::filter(.data$number_of_posts > 1),
             group_topics = TRUE
           )
           one_alert_table <- get_alert_tables(
-            user_alerts %>% dplyr::filter(.data$number_of_tweets == 1),
+            user_alerts %>% dplyr::filter(.data$number_of_posts == 1),
             group_topics = FALSE,
-            ungrouped_title = "1 Tweet alerts"
+            ungrouped_title = "1 Post alerts"
           )
 
           # Applying email template
@@ -1465,12 +1465,12 @@ get_alert_tables <- function(
   group_topics = TRUE,
   ungrouped_title = "Alerts"
 ) {
-  # Getting an array of countries with alerts sorted on descending order by the total number of tweets
+  # Getting an array of countries with alerts sorted on descending order by the total number of posts
   topics <- (alerts %>%
     dplyr::group_by(.data$topic) %>%
-    dplyr::summarize(tweets = sum(.data$number_of_tweets)) %>%
+    dplyr::summarize(posts = sum(.data$number_of_posts)) %>%
     dplyr::ungroup() %>%
-    dplyr::arrange(dplyr::desc(.data$tweets)))$topic
+    dplyr::arrange(dplyr::desc(.data$posts)))$topic
   if (!group_topics) topics = NA
 
   alert_tables <- (if (nrow(alerts) > 0) {
@@ -1481,7 +1481,7 @@ get_alert_tables <- function(
         "</h5>",
         alerts %>%
           dplyr::filter(is.na(t) | .data$topic == t) %>%
-          dplyr::arrange(dplyr::desc(.data$number_of_tweets)) %>%
+          dplyr::arrange(dplyr::desc(.data$number_of_posts)) %>%
           dplyr::select(
             `Date` = .data$`date`,
             `Hour` = .data$`hour`,
@@ -1489,7 +1489,7 @@ get_alert_tables <- function(
             `Region` = .data$`country`,
             `Tops` = .data$`tops`,
             `Category` = .data$`episomer_category`,
-            `Tweets` = .data$`number_of_tweets`,
+            `Posts` = .data$`number_of_posts`,
             `% from important user` = .data$`known_ratio`,
             `Threshold` = .data$`limit`,
             `Baseline` = .data$`no_historic`,
@@ -1499,7 +1499,7 @@ get_alert_tables <- function(
             `Bonf. corr.` = .data$`bonferroni_correction`,
             `Same weekday baseline` = .data$`same_weekday_baseline`,
             `Day_rank` = .data$`rank`,
-            `With retweets` = .data$`with_quotes`,
+            `With reposts` = .data$`with_quotes`,
             `Location` = .data$`location_type`
           ) %>%
           xtable::xtable() %>%
@@ -1557,13 +1557,13 @@ get_alert_training_df <- function() {
       topic = .data$`Topic`,
       country = .data$`Region`,
       topwords = .data$`Top words`,
-      number_of_tweets = .data$`Tweets`,
-      toptweets = .data$`Top Tweets`,
+      number_of_posts = .data$`Posts`,
+      topposts = .data$`Top Posts`,
       given_category = .data$`Given Category`,
-      episomer_category = .data$`Epitweetr Category`
+      episomer_category = .data$`Epipostr Category`
     )
-  current$`toptweets` <- lapply(
-    current$`toptweets`,
+  current$`topposts` <- lapply(
+    current$`topposts`,
     function(json) jsonlite::fromJSON(json)
   )
   current %>%
@@ -1614,8 +1614,8 @@ get_alert_balanced_df <- function(
       .keep_all = TRUE
     )
   alerts_to_augment$hour <- sapply(alerts_to_augment$date, function(v) 23)
-  # adding extra tweets ignoring location to build augmented alerts
-  alerts_to_augment <- add_toptweets(
+  # adding extra posts ignoring location to build augmented alerts
+  alerts_to_augment <- add_topposts(
     alerts_to_augment,
     1000,
     ignore_place = TRUE,
@@ -1623,7 +1623,7 @@ get_alert_balanced_df <- function(
   )
 
   # Iterating over categories to augment
-  # Creating alerts to augment underepresented categories, using same settings than existing alerts but looking for more tweets not limiting by country
+  # Creating alerts to augment underepresented categories, using same settings than existing alerts but looking for more posts not limiting by country
   alerts_for_augment <- list()
   smallest_cat <- Inf
   if (nrow(cat_to_augment) > 0) {
@@ -1632,43 +1632,43 @@ get_alert_balanced_df <- function(
       cat <- cat_to_augment$given_category[[icat]]
       to_add <- cat_to_augment$missing[[icat]]
       size_after_augment <- cat_to_augment$n[[icat]]
-      tweets_exhausted <- FALSE
-      found_tweets <- FALSE
+      posts_exhausted <- FALSE
+      found_posts <- FALSE
       ialert <- 1
-      # Looping over all alerts with extra tweets for this category until no more new tweets are found or the expected number of alerts to add is reach
-      while (to_add > 0 && !tweets_exhausted) {
+      # Looping over all alerts with extra posts for this category until no more new posts are found or the expected number of alerts to add is reach
+      while (to_add > 0 && !posts_exhausted) {
         # looping over alerts to augment which have
         if (alerts_to_augment$given_category[[ialert]] == cat) {
-          toptweets <- alerts_to_augment$toptweets[[ialert]]
-          # getting the index of tweets to extract from 5 to five per language, it will start on 10 since these have already been used by original alerts
-          if (!exists("itweet", where = toptweets)) toptweets$itweet <- 7
-          # getting tweets to add
-          langs <- names(toptweets)
-          langs <- langs[langs != "itweet"]
-          i0 <- toptweets$itweet + 1
+          topposts <- alerts_to_augment$topposts[[ialert]]
+          # getting the index of posts to extract from 5 to five per language, it will start on 10 since these have already been used by original alerts
+          if (!exists("ipost", where = topposts)) topposts$ipost <- 7
+          # getting posts to add
+          langs <- names(topposts)
+          langs <- langs[langs != "ipost"]
+          i0 <- topposts$ipost + 1
           i1 <- i0 + 5
-          # getting new tweets
-          new_tweets <- lapply(langs, function(l) {
-            if (length(toptweets[[l]]) >= i1) toptweets[[l]][i0:i1] else if (
-              length(toptweets[[l]]) > i0
+          # getting new posts
+          new_posts <- lapply(langs, function(l) {
+            if (length(topposts[[l]]) >= i1) topposts[[l]][i0:i1] else if (
+              length(topposts[[l]]) > i0
             )
-              toptweets[[l]][i0:length(toptweets[[l]])] else list()
+              topposts[[l]][i0:length(topposts[[l]])] else list()
           })
-          toptweets$itweet <- i1
-          alerts_to_augment$toptweets[[ialert]] <- toptweets
-          # counting new tweets
-          tcount <- sum(sapply(new_tweets, function(t) length(t)))
+          topposts$ipost <- i1
+          alerts_to_augment$topposts[[ialert]] <- topposts
+          # counting new posts
+          tcount <- sum(sapply(new_posts, function(t) length(t)))
           # message(paste("cat", cat, "to_add",to_add, "ialert", ialert, "i0", i0, "i1", i1, "tcount", tcount))
           if (tcount > 0) {
-            found_tweets <- TRUE
-            new_tweets <- setNames(new_tweets, langs)
+            found_posts <- TRUE
+            new_posts <- setNames(new_posts, langs)
             alerts_for_augment[[length(alerts_for_augment) + 1]] <- (list(
               date = alerts_to_augment$date[[ialert]],
               topic = alerts_to_augment$topic[[ialert]],
               country = alerts_to_augment$country[[ialert]],
               topwords = alerts_to_augment$topwords[[ialert]],
-              number_of_tweets = alerts_to_augment$number_of_tweets[[ialert]],
-              toptweets = new_tweets,
+              number_of_posts = alerts_to_augment$number_of_posts[[ialert]],
+              topposts = new_posts,
               given_category = alerts_to_augment$given_category[[ialert]],
               episomer_category = NA,
               augmented = TRUE,
@@ -1680,8 +1680,8 @@ get_alert_balanced_df <- function(
         }
         if (ialert == nrow(alerts_to_augment)) {
           ialert <- 1
-          if (!found_tweets) tweets_exhausted <- TRUE
-          found_tweets <- FALSE
+          if (!found_posts) posts_exhausted <- TRUE
+          found_posts <- FALSE
         } else {
           ialert <- ialert + 1
         }
@@ -1703,11 +1703,11 @@ get_alert_balanced_df <- function(
           function(r) r$country
         )),
         topwords = sapply(alerts_for_augment, function(r) r$topwords),
-        number_of_tweets = sapply(
+        number_of_posts = sapply(
           alerts_for_augment,
-          function(r) r$number_of_tweets
+          function(r) r$number_of_posts
         ),
-        toptweets = lapply(alerts_for_augment, function(r) r$toptweets),
+        topposts = lapply(alerts_for_augment, function(r) r$topposts),
         given_category = sapply(
           alerts_for_augment,
           function(r) r$given_category
@@ -1960,14 +1960,14 @@ write_alert_training_db <- function(
       `Topic` = .data$topic,
       `Region` = .data$country,
       `Top words` = .data$topwords,
-      `Tweets` = .data$number_of_tweets,
-      `Top Tweets` = lapply(
-        .data$toptweets,
+      `Posts` = .data$number_of_posts,
+      `Top Posts` = lapply(
+        .data$topposts,
         function(l)
           gsub("\", \"", "\",\n        \"", jsonlite::toJSON(l, pretty = TRUE))
       ),
       `Given Category` = .data$given_category,
-      `Epitweetr Category` = .data$episomer_category
+      `Epipostr Category` = .data$episomer_category
     )
   openxlsx::writeDataTable(
     wb,

@@ -25,7 +25,7 @@ This task will also update SVM models to predict whether a word is a location th
 
 The indexing is developed in SPARK and Lucene.
 
-A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected tweets in the search folder and that the tasks \code{\link{download_dependencies}}
+A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the tasks \code{\link{download_dependencies}}
 and \code{\link{update_geonames}} has been run successfully.
 
 Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.

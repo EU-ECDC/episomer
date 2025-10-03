@@ -30,7 +30,7 @@ get_stop_words <- function(language_code) {
   }
 }
 
-# calculate top words for a text data frame this function is being used for calculating topwords on chunks of tweets
+# calculate top words for a text data frame this function is being used for calculating topwords on chunks of posts
 # the connection is the target file to write the results into
 pipe_top_words <- function(
   df,
@@ -45,14 +45,14 @@ pipe_top_words <- function(
   # Tokenisation and counting top max_words popular words
   # the count will be done separately for each present group
 
-  if (!("tweet_geo_country_code" %in% colnames(df)))
-    df$tweet_geo_country_code <- NA
+  if (!("post_geo_country_code" %in% colnames(df)))
+    df$post_geo_country_code <- NA
 
   wc <- if (nrow(df) == 0) {
     data.frame(
       topic = character(),
       created_date = character(),
-      tweet_geo_country_code = character(),
+      post_geo_country_code = character(),
       tokens = character(),
       count = numeric(),
       original = numeric(),
@@ -86,18 +86,18 @@ pipe_top_words <- function(
         .data$tokens,
         .data$topic,
         .data$created_date,
-        .data$tweet_geo_country_code
+        .data$post_geo_country_code
       ) %>%
       dplyr::summarize(
         count = dplyr::n(),
-        original = sum(!.data$is_retweet),
-        retweets = sum(.data$is_retweet)
+        original = sum(!.data$is_repost),
+        reposts = sum(.data$is_repost)
       ) %>%
       dplyr::ungroup() %>%
       dplyr::group_by(
         .data$topic,
         .data$created_date,
-        .data$tweet_geo_country_code
+        .data$post_geo_country_code
       ) %>%
       dplyr::top_n(n = max_words, wt = .data$count) %>%
       dplyr::ungroup()

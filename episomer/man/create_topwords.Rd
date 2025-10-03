@@ -5,6 +5,7 @@
 \title{Plot the top words report on the episomer dashboard}
 \usage{
 create_topwords(
+  sms,
   topic,
   country_codes = c(),
   date_min = "1900-01-01",
@@ -22,7 +23,7 @@ create_topwords(
 
 \item{date_max}{Date indicating end of the reporting period, default: "2100-01-01"}
 
-\item{with_quotes}{Logical value indicating whether to include retweets in the time series, default: FALSE}
+\item{with_quotes}{Logical value indicating whether to include reposts in the time series, default: FALSE}
 
 \item{top}{numeric(1) Parameter indicating the number of words to show, default: 25}
 }
@@ -30,12 +31,12 @@ create_topwords(
 A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the data frame that was used to build the map.
 }
 \description{
-Generates a bar plot of most popular words in tweets, for one topic
+Generates a bar plot of most popular words in posts, for one topic
 }
 \details{
-Produces a bar chart showing the occurrences of the most popular words in the collected tweets based on the provided parameters.
+Produces a bar chart showing the occurrences of the most popular words in the collected posts based on the provided parameters.
 
-This report may be empty for combinations of countries and topics with very few tweets since for performance reasons, the calculation of top words is an approximation using chunks of 10.000 tweets.
+This report may be empty for combinations of countries and topics with very few posts since for performance reasons, the calculation of top words is an approximation using chunks of 10.000 posts.
 
 This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 }

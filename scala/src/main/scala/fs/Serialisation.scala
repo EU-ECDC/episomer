@@ -1,6 +1,6 @@
 package org.ecdc.episomer.fs
 
-import org.ecdc.episomer.EpitweetrActor
+import org.ecdc.episomer.EpisomerActor
 import org.ecdc.episomer.geo.{GeoTrainings, GeoTraining, GeoTrainingSource, GeoTrainingPart}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.{JsString, JsNull, JsValue, JsNumber, DefaultJsonProtocol, JsonFormat, RootJsonFormat, JsObject, JsArray, JsBoolean, JsField, JsonParser}
@@ -50,7 +50,7 @@ object schemas {
 }
 
 case class Posts(items:Seq[Post])
-case class TopicPosts(netowrk:String, topic:String, tweets:Posts)
+case class TopicPosts(netowrk:String, topic:String, posts:Posts)
 case class Post(
     id:String, 
     uri:String, 
@@ -81,9 +81,9 @@ case class TaggedAlert(
   date:String,
   topic:String,
   country:String,
-  number_of_tweets:Int, 
+  number_of_posts:Int, 
   topwords:Option[String],
-  toptweets:Map[String, Seq[String]],
+  topposts:Map[String, Seq[String]],
   given_category:Option[String],
   episomer_category:Option[String],
   test:Option[Boolean],
@@ -91,15 +91,15 @@ case class TaggedAlert(
   deleted:Option[Boolean],
 
 ) {
-  def setEpitweetrCategory(cat:String) =  
+  def setEpisomerCategory(cat:String) =  
     TaggedAlert(
       id = id,
       date = date,
       topic = topic,
       country = country,
-      number_of_tweets = number_of_tweets, 
+      number_of_posts = number_of_posts, 
       topwords = topwords,
-      toptweets = toptweets,
+      topposts = topposts,
       given_category = given_category,
       episomer_category = Some(cat),
       test = test,
@@ -194,8 +194,8 @@ case class Aggregation(
 object EpiSerialisation
   extends SprayJsonSupport
     with DefaultJsonProtocol {
-    implicit val luceneSuccessFormat = jsonFormat1(EpitweetrActor.Success.apply)
-    implicit val luceneFailureFormat = jsonFormat1(EpitweetrActor.Failure.apply)
+    implicit val luceneSuccessFormat = jsonFormat1(EpisomerActor.Success.apply)
+    implicit val luceneFailureFormat = jsonFormat1(EpisomerActor.Failure.apply)
     implicit val datesProcessedFormat = jsonFormat2(LuceneActor.DatesProcessed.apply)
     implicit val periodResponseFormat = jsonFormat3(LuceneActor.PeriodResponse.apply)
     implicit val commitRequestFormat = jsonFormat0(LuceneActor.CommitRequest.apply)
@@ -296,7 +296,7 @@ object EpiSerialisation
                   .map(v => v.asInstanceOf[JsString].value)
                   .map(v => GeoTrainingSource(v))
                   .getOrElse(GeoTrainingSource.manual), 
-                tweetId = fields.get("Post Id").map(v => v.asInstanceOf[JsString].value),
+                postId = fields.get("Post Id").map(v => v.asInstanceOf[JsString].value),
                 lang = fields.get("Lang")
                   .map(v => v.asInstanceOf[JsString].value.toLowerCase)
                   .map{
@@ -304,12 +304,12 @@ object EpiSerialisation
                     case "all" => None
                     case v => Some(v)
                   }.flatten,
-                tweetPart = fields.get("Post part")
+                postPart = fields.get("Post part")
                   .map(v => v.asInstanceOf[JsString].value)
                   .map(v => GeoTrainingPart(v)), 
-                foundLocation = fields.get("Epitweetr match").map(v => v.asInstanceOf[JsString].value) , 
-                foundLocationCode = fields.get("Epitweetr country match").map(v => v.asInstanceOf[JsString].value), 
-                foundCountryCode = fields.get("Epitweetr country code match").map(v => v.asInstanceOf[JsString].value)
+                foundLocation = fields.get("Episomer match").map(v => v.asInstanceOf[JsString].value) , 
+                foundLocationCode = fields.get("Episomer country match").map(v => v.asInstanceOf[JsString].value), 
+                foundCountryCode = fields.get("Episomer country code match").map(v => v.asInstanceOf[JsString].value)
               )
           case _ =>
             throw new Exception(s"@epi cannot deserialize $value to GeoTraining")
@@ -322,8 +322,8 @@ object EpiSerialisation
         case JsArray(items) => Posts(items = items.map(t => postFormat.read(t)).toSeq)
         /*case JsObject(fields) =>
           (fields.get("statuses"), fields.get("data"), fields.get("meta")) match {
-            case (Some(JsArray(items)), _, _) => Posts(items = items.map(t => tweetV1Format.read(t)).toSeq)
-            case (None, Some(JsArray(tweets)), _)  => tweetsV2Format.read(value).toV1
+            case (Some(JsArray(items)), _, _) => Posts(items = items.map(t => postV1Format.read(t)).toSeq)
+            case (None, Some(JsArray(posts)), _)  => postsV2Format.read(value).toV1
             case (None, None, Some(_))  =>  Posts(items = Seq[Post]()) 
             case _ => throw new Exception("@epi cannot find expected statuses array on search Json result")
           }*/

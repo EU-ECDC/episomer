@@ -6,7 +6,7 @@ cached <- new.env()
 #' @description Read and returns the required aggregated dataset for the selected period and topics defined by the filter.
 #' @param dataset A character(1) vector with the name of the series to request, it must be one of 'country_counts', 'geolocated', 'topwords', 'hashtags', 'entities', 'urls', 'contexts', default: 'country_counts'
 #' @param cache Whether to use the cache for lookup and storing the returned dataframe, default: TRUE
-#' @param filter A named list defining the filter to apply on the requested series, it should be on the shape of a named list e.g. list(tweet_geo_country_code=list('FR', 'DE')) default: list()
+#' @param filter A named list defining the filter to apply on the requested series, it should be on the shape of a named list e.g. list(post_geo_country_code=list('FR', 'DE')) default: list()
 #' @param top_field Name of the top field used with top_frequency to enable optimisation for getting only most frequent elements. It will only keep top 500 items after first 50k lines on reverse index order
 #' @param top_freq character, Name of the frequency fields used with top_field to enable optimisation for getting only most frequent elements.
 #' It will only keep top 500 items after first 50k rows on reverse index order
@@ -22,27 +22,27 @@ cached <- new.env()
 #'
 #' The available time series are:
 #' \itemize{
-#'   \item{"country_counts" counting tweets and retweets by posted date, hour and country}
+#'   \item{"country_counts" counting posts and reposts by posted date, hour and country}
 #'
-#'   \item{"geolocated" counting tweets and retweets by posted date and the smallest possible geolocated unit (city, administrative level or country)}
+#'   \item{"geolocated" counting posts and reposts by posted date and the smallest possible geolocated unit (city, administrative level or country)}
 #'
-#'   \item{"topwords" counting tweets and retweets by posted date, country and the most popular words, (this excludes words used in the topic search)}
+#'   \item{"topwords" counting posts and reposts by posted date, country and the most popular words, (this excludes words used in the topic search)}
 #' }
 #' The returned dataset can be cached for further calls if requested. Only one dataset per series is cached.
 #' @examples
 #' if(FALSE){
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
-#'    # Getting all country tweets between 2020-jan-10 and 2020-jan-31 for all topics
+#'    # Getting all country posts between 2020-jan-10 and 2020-jan-31 for all topics
 #'    df <- get_aggregates(
 #'      dataset = "country_counts",
 #'      filter = list(period = c("2020-01-10", "2020-01-31"))
 #'    )
 #'
-#'    # Getting all country tweets for the topic dengue
+#'    # Getting all country posts for the topic dengue
 #'    df <- get_aggregates(dataset = "country_counts", filter = list(topic = "dengue"))
 #'
-#'    # Getting all country tweets between 2020-jan-10 and 2020-jan-31 for the topic dengue
+#'    # Getting all country posts between 2020-jan-10 and 2020-jan-31 for the topic dengue
 #'     df <- get_aggregates(
 #'         dataset = "country_counts",
 #'          filter = list(topic = "dengue", period = c("2020-01-10", "2020-01-31"))
@@ -210,12 +210,12 @@ get_aggregates <- function(
 
 # This function registers the aggregated series that are computed by episomer.
 # Each series is defined by a name a date column, primary keys columns, variables columns, group by columns and sources expressions
-# Each registered series uses the set_aggregated_tweets function
+# Each registered series uses the set_aggregated_posts function
 # This function is periodically called bt the search loop.
 register_series <- function() {
   `%>%` <- magrittr::`%>%`
   #geolocated"
-  set_aggregated_tweets(
+  set_aggregated_posts(
     name = "geolocated",
     dateCol = "created_date",
     pks = list(
@@ -273,13 +273,13 @@ register_series <- function() {
     collapse = ","
   )
   # Getting top words aggregation
-  set_aggregated_tweets(
+  set_aggregated_posts(
     name = "topwords",
     dateCol = "created_date",
     pks = list(
       "created_date",
       "topic",
-      "tweet_geo_country_code",
+      "post_geo_country_code",
       "token",
       "network"
     ),
@@ -297,7 +297,7 @@ register_series <- function() {
     ),
     #, sort_by = list(
     #  "topic"
-    #  , "tweet_geo_country_code"
+    #  , "post_geo_country_code"
     #  , "created_at"
     #)
     filter_by = list(
@@ -358,7 +358,7 @@ register_series <- function() {
   )
 
   # Aggregation by country level
-  set_aggregated_tweets(
+  set_aggregated_posts(
     name = "country_counts",
     dateCol = "created_date",
     pks = list(
@@ -394,7 +394,7 @@ register_series <- function() {
     params = params
   )
   # Getting tags aggregation
-  set_aggregated_tweets(
+  set_aggregated_posts(
     name = "tags",
     dateCol = "created_date",
     pks = list(
@@ -404,7 +404,7 @@ register_series <- function() {
       "entity",
       "network"
     ),
-    aggr = list(frequency = "sum", original = "sum", retweets = "sum"),
+    aggr = list(frequency = "sum", original = "sum", reposts = "sum"),
     sources_exp = c(
       list(
         "network",
@@ -434,7 +434,7 @@ register_series <- function() {
     )
   )
   # Getting tags aggregation
-  set_aggregated_tweets(
+  set_aggregated_posts(
     name = "urls",
     dateCol = "created_date",
     pks = list(
@@ -474,7 +474,7 @@ register_series <- function() {
     )
   )
   # Getting tags aggregation
-  set_aggregated_tweets(
+  set_aggregated_posts(
     name = "categories",
     dateCol = "created_date",
     pks = list(
@@ -572,7 +572,7 @@ get_aggregated_period <- function() {
   cached$last_agg_request_value
 }
 
-# Utility function to ask episomer to recalculate hashes of stored tweets in Lucene indexes.
+# Utility function to ask episomer to recalculate hashes of stored posts in Lucene indexes.
 # This function is experimental for testing parallel scan of indexes
 # This function is deprecated since no significant performance gain was observed
 recalculate_hash <- function() {
@@ -605,15 +605,15 @@ add_missing <- function(df, dataset) {
       topic = "char",
       created_date = "date",
       user_geo_country_code = "char",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       user_geo_code = "char",
-      tweet_geo_code = "char",
-      tweet_longitude = "num",
-      tweet_latitude = "num",
+      post_geo_code = "char",
+      post_longitude = "num",
+      post_latitude = "num",
       user_longitude = "num",
       user_latitude = "num",
-      retweets = "int",
-      tweets = "int",
+      reposts = "int",
+      posts = "int",
       created_weeknum = "int"
     )
   } else if (dataset == "country_counts") {
@@ -621,11 +621,11 @@ add_missing <- function(df, dataset) {
       topic = "char",
       created_date = "date",
       created_hour = "char",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       user_geo_country_code = "char",
-      retweets = "int",
-      tweets = "int",
-      known_retweets = "int",
+      reposts = "int",
+      posts = "int",
+      known_reposts = "int",
       known_original = "int",
       created_weeknum = "int"
     )
@@ -634,10 +634,10 @@ add_missing <- function(df, dataset) {
       token = "char",
       topic = "char",
       created_date = "date",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       frequency = "int",
       original = "int",
-      retweets = "int",
+      reposts = "int",
       created_weeknum = "int"
     )
   } else if (dataset == "hashtags") {
@@ -645,10 +645,10 @@ add_missing <- function(df, dataset) {
       hashtag = "char",
       topic = "char",
       created_date = "date",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       frequency = "int",
       original = "int",
-      retweets = "int",
+      reposts = "int",
       created_weeknum = "int"
     )
   } else if (dataset == "urls") {
@@ -656,10 +656,10 @@ add_missing <- function(df, dataset) {
       url = "char",
       topic = "char",
       created_date = "date",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       frequency = "int",
       original = "int",
-      retweets = "int",
+      reposts = "int",
       created_weeknum = "int"
     )
   } else if (dataset == "entities") {
@@ -667,10 +667,10 @@ add_missing <- function(df, dataset) {
       entity = "char",
       topic = "char",
       created_date = "date",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       frequency = "int",
       original = "int",
-      retweets = "int",
+      reposts = "int",
       created_weeknum = "int"
     )
   } else if (dataset == "contexts") {
@@ -678,10 +678,10 @@ add_missing <- function(df, dataset) {
       context = "char",
       topic = "char",
       created_date = "date",
-      tweet_geo_country_code = "char",
+      post_geo_country_code = "char",
       frequency = "int",
       original = "int",
-      retweets = "int",
+      reposts = "int",
       created_weeknum = "int"
     )
   })

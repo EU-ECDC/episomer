@@ -36,7 +36,7 @@ Nothing
 Load episomer application settings from the designated data directory
 }
 \details{
-episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting tweets or detecting alerts the user has to designate this folder.
+episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting posts or detecting alerts the user has to designate this folder.
 When a user wants to use episomer from the R console they will need to call this function for initialisation.
 The 'data_folder' can also be given as a parameter for program launch functions \code{\link{episomer_app}}, \code{\link{search_loop}} or \code{\link{detect_loop}}, which will internally call this function.
 

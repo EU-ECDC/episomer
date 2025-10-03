@@ -6,7 +6,7 @@ import demy.mllib.index.implicits._
 import org.apache.spark.sql.{SparkSession, Column, Dataset, DataFrame}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.ecdc.twitter.Language
+import org.ecdc.episomer.Language
 import Language.LangTools
 import Geonames.Geolocate
 

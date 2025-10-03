@@ -9,7 +9,7 @@ get_alerts(
   countries = numeric(),
   from = "1900-01-01",
   until = "2100-01-01",
-  toptweets = 0,
+  topposts = 0,
   limit = 0,
   duplicates = "all",
   progress = function(a, b) {
@@ -26,7 +26,7 @@ as displayed at the Shiny App to filter the signals to return., default: numeric
 
 \item{until}{Date defining the end of the period of signals to return, default: '2100-01-01'}
 
-\item{toptweets}{Integer number of top tweets to be added to the alert. These are obtained from the tweet index based on topwords and Lucene score, default: 0}
+\item{topposts}{Integer number of top posts to be added to the alert. These are obtained from the post index based on topwords and Lucene score, default: 0}
 
 \item{limit}{Maximum number of alerts returned, default: 0}
 

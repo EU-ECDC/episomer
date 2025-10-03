@@ -1,4 +1,4 @@
-package org.ecdc.twitter 
+package org.ecdc.episomer 
 
 import org.ecdc.episomer.geo.Geonames
 import org.ecdc.episomer.ProcessID
@@ -15,7 +15,7 @@ import demy.mllib.text.Word2VecApplier
 import Language.LangTools
 import Geonames.Geolocate
 import org.ecdc.episomer.API 
-object Tweets {
+object Episomer {
   def main(args: Array[String]): Unit = {
     val cmd = Map(
      "fsService" -> Set("epiHome")

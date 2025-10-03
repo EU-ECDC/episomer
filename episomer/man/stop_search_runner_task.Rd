@@ -2,7 +2,7 @@
 % Please edit documentation in R/scheduler.R
 \name{stop_search_runner_task}
 \alias{stop_search_runner_task}
-\title{Stops the tweet collection task}
+\title{Stops the post collection task}
 \usage{
 stop_search_runner_task()
 }
@@ -10,10 +10,10 @@ stop_search_runner_task()
 Nothing
 }
 \description{
-stops the tweet collection task
+stops the post collection task
 }
 \details{
-Stops the tweet collection task if it is already running
+Stops the post collection task if it is already running
 This function will try also deactivate the respective scheduled task on Windows.
 }
 \examples{
