@@ -2421,11 +2421,11 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           conf$smtp_password <- input$smtp_password
           conf$admin_email <- input$admin_email
           conf$force_date_format <- input$force_date_format
-          # Saving Bluesky propertes
+          # Saving Bluesky propertes          
           sm_api_set_auth(
             network = "bluesky",
-            shiny_input_list = shiny::reactiveValuesToList(input)
-          )                    
+            shiny_input_list = input
+          )              
           conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
           conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
 
