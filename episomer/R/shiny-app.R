@@ -35,29 +35,6 @@
 #' @importFrom dplyr select
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
-
-dashboard_app <- function(
-  data_dir = NA,
-  host = NULL,
-  port = NULL
-) {
-  episomer_app(
-    data_dir = data_dir,
-    profile = "dashboard",
-    host = host,
-    port = port
-  )
-}
-
-admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
-  episomer_app(
-    data_dir = data_dir,
-    profile = "admin",
-    host = host,
-    port = port
-  )
-}
-
 episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host = NULL, port = NULL) {
   old <- options()
   on.exit(options(old))
@@ -3522,5 +3499,28 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
     options = options(
       shiny.fullstacktrace = TRUE
     )
+  )
+}
+#' @rdname episomer_app
+dashboard_app <- function(
+  data_dir = NA,
+  host = NULL,
+  port = NULL
+) {
+  episomer_app(
+    data_dir = data_dir,
+    profile = "dashboard",
+    host = host,
+    port = port
+  )
+}
+
+#' @rdname episomer_app
+admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
+  episomer_app(
+    data_dir = data_dir,
+    profile = "admin",
+    host = host,
+    port = port
   )
 }

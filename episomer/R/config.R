@@ -470,7 +470,7 @@ copy_plans_from <- function(temp) {
 #' @description Permanently saves configuration changes to the data folder (excluding Twitter credentials, but not SMTP credentials)
 #' @param data_dir Path to a directory to save configuration settings, Default: conf$data_dir
 #' @param properties Whether to save the general properties to the properties.json file, default: TRUE
-#' @param topics Whether to save topic download plans to the topics.json file, default: TRUE
+#' @param sm_topics Whether to save topic download plans to the topics.json file, default: TRUE
 #' @return Nothing
 #' @details Permanently saves configuration changes to the data folder (excluding Twitter credentials, but not SMTP credentials)
 #' to save Twitter credentials please use \code{\link{set_bsky_auth}}

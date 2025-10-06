@@ -17,6 +17,8 @@ create_map(
 )
 }
 \arguments{
+\item{sms}{Social media}
+
 \item{topic}{Character(1) containing the topic to use for the report}
 
 \item{countries}{Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app, default: c(1)}

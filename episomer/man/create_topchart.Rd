@@ -16,6 +16,8 @@ create_topchart(
 )
 }
 \arguments{
+\item{sms}{Social media}
+
 \item{topic}{Character(1) containing the topic to use for the report}
 
 \item{serie}{Character(1) name of the series to be used for the report. It should be one of ("topwords", "hashtags", "entities", "contexts", "urls")}

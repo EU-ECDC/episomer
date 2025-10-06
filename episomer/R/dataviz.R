@@ -1,5 +1,6 @@
 #' @title Plot the trendline report of episomer dashboard
 #' @description Generates a trendline chart of number of posts by region, for one topic, including alerts using the reweighted version of the EARS algorithm
+#' @param sms Social media
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app select, default: c(1)
 #' @param date_type Character vector specifying the time granularity of the report either 'created_weeknum' or 'created_date', default: 'created_date'
@@ -421,6 +422,7 @@ plot_trendline <- function(
 
 #' @title Plot the map report on the episomer dashboard
 #' @description Generates a bubble map plot of number of posts by countries, for one topic
+#' @param sms Social media
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app, default: c(1)
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
@@ -859,6 +861,7 @@ create_map <- function(
 
 #' @title Plot the top words report on the episomer dashboard
 #' @description Generates a bar plot of most popular words in posts, for one topic
+#' @param sms Social media
 #' @param topic Character(1) containing the topic to use for the report
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()
 #' @param date_min Date indicating start of the reporting period, default: "1900-01-01"
@@ -917,6 +920,7 @@ create_topwords <- function(
 
 #' @title Plot the top elements for a specific series on the episomer dashboard
 #' @description Generates a bar plot of most popular elements in posts, for one topic. Top elements among ("topwords", "hashtags", "entities", "contexts", "urls")
+#' @param sms Social media
 #' @param topic Character(1) containing the topic to use for the report
 #' @param serie Character(1) name of the series to be used for the report. It should be one of ("topwords", "hashtags", "entities", "contexts", "urls")
 #' @param country_codes Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()

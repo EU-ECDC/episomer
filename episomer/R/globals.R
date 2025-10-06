@@ -14,5 +14,13 @@ utils::globalVariables(c(
   "iso_a2_eh",
   "Details",
   "selected",
-  "count"
+  "count",
+  "app_error",
+  "attrs",
+  "browseURL",
+  "cd",
+  "get_token",
+  "parse_plan",
+  "progress_close",
+  "progress_start"
 ))
