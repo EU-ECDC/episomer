@@ -434,7 +434,7 @@ setup_config <- function(
     kr <- get_key_ring(conf$keyring)
     conf$auth <- list()
     # Fetching and updating variables from keyring
-    for (v in c("bsky_user", "bsky_password")) {
+    for (v in c("bluesky_user", "bluesky_password")) {
       if (is_secret_set(v)) {
         conf$auth[[v]] <- get_secret(v)
       }
@@ -590,30 +590,6 @@ format_topics <- function(topics) {
     t$plan <- lapply(t$plan, format_plan)
     t
   })
-}
-
-#' @title Save Blusky credentials (login and password) and store them securely
-#' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
-#' @param bsky_user Username
-#' @param bsky_password Password
-#' @details Update Twitter authentication tokens in configuration object
-#' @examples
-#' if(FALSE){
-#'  #Setting the configuration values
-#'    set_bsky_auth(
-#'      bsky_user = "your user here",
-#'      bsky_password = "your password",
-#'    )
-#' }
-#' @seealso
-#' \code{\link{save_config}}
-#' @rdname set_bsky_auth
-#' @export
-set_bsky_auth <- function(bsky_user = "", bsky_password = "") {
-  conf$auth$bsky_user <- bsky_user
-  conf$auth$bsky_password <- bsky_password
-  set_secret("bsky_user", bsky_user)
-  set_secret("bsky_password", bsky_password)
 }
 
 # Merging two or more configuration files as a list, latest takes precedence over firsts
