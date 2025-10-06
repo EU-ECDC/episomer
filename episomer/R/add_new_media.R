@@ -30,8 +30,6 @@ keep_roxygen_and_function_declarations <- function(file_content) {
   return(text_to_keep)
 }
 
-writeLines(keep_roxygen_and_function_declarations(file_content), "R/toto.R")
-
 #' @noRd
 create_api_and_plan_files_for_new_social_media <- function(
   new_media,
