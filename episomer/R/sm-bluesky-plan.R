@@ -1,5 +1,7 @@
 #' @noRd
+# @function_def_start (do not delete)
 sm_plan_parse_attributes_bluesky <- function(...) {
+# @function_def_end (do not delete)
   p <- list(...)
   ret <- list(
     "plan_max_date" = if (!is.null(unlist(p$plan_max_date)))
@@ -19,7 +21,9 @@ sm_plan_parse_attributes_bluesky <- function(...) {
 }
 
 #' @noRd
+# @function_def_start (do not delete)
 sm_plan_format_bluesky <- function(plan) {
+# @function_def_end (do not delete)
   if (!is.null(plan$plan_max_date))
     plan$plan_max_date = strftime(
       plan$plan_max_date,
@@ -42,7 +46,9 @@ sm_plan_format_bluesky <- function(plan) {
 }
 
 #' @noRd
+# @function_def_start (do not delete)
 sm_plan_first_attributes_bluesky <- function() {
+# @function_def_end (do not delete)
   list(
     plan_max_date = strftime(Sys.time(), "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
     plan_min_date = strftime(Sys.Date() - conf$collect_history_days, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
@@ -51,7 +57,9 @@ sm_plan_first_attributes_bluesky <- function() {
 }
 
 #' @noRd
+# @function_def_start (do not delete)
 sm_plan_next_attributes_bluesky <- function(plans) {
+# @function_def_end (do not delete)
   list(
     plan_max_date = strftime(Sys.time(), "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
     plan_min_date = strftime(
@@ -64,7 +72,9 @@ sm_plan_next_attributes_bluesky <- function(plans) {
 }
 
 #' @noRd
+# @function_def_start (do not delete)
 sm_plan_get_progress_bluesky <- function(plan) {
+# @function_def_end (do not delete)
   if (
     !is.null(plan$plan_max_date) &&
       !is.null(plan$plan_min_date) &&
@@ -78,7 +88,9 @@ sm_plan_get_progress_bluesky <- function(plan) {
 }
 
 #' @noRd
+# @function_def_start (do not delete)
 sm_api_update_plan_after_request_bluesky <- function(plan, results) {
+# @function_def_end (do not delete)
   if (!is.null(results$pagination$min_created_at)) {
     plan$current_min_date <- lubridate::as_datetime(
       results$pagination$min_created_at
@@ -87,13 +99,17 @@ sm_api_update_plan_after_request_bluesky <- function(plan, results) {
   return(plan)
 }
 
+# @function_def_start (do not delete)
 sm_api_got_rows_bluesky <- function(results) {
+# @function_def_end (do not delete)
   (exists("posts", results) & length(results$posts) > 0)
 }
 
 
 #' @noRd
+# @function_def_start (do not delete)
 sm_plan_search_info_bluesky <- function(plan) {
+# @function_def_end (do not delete)
   info = ""
   if (is.null(plan$current_min_date)) {
     info = paste(
