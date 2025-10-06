@@ -148,7 +148,7 @@ On the server side of the app, you should adapt the call to `sm_api_set_auth()` 
 ```{r, eval = FALSE}
 sm_api_set_auth(
   network = "new_media",
-  shiny_input_list = shiny::reactiveValuesToList(input)
+  shiny_input_list = input
 )
 ```
 
