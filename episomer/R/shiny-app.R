@@ -879,10 +879,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                       shiny::column(
                         9,
                         shiny::textInput(
-                          "bsky_user",
+                          "bluesky_user",
                           label = NULL,
-                          value = if (is_secret_set("bsky_user"))
-                            get_secret("bsky_user") else NULL
+                          value = if (is_secret_set("bluesky_user"))
+                            get_secret("bluesky_user") else NULL
                         )
                       )
                     ),
@@ -891,10 +891,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                       shiny::column(
                         9,
                         shiny::passwordInput(
-                          "bsky_password",
+                          "bluesky_password",
                           label = NULL,
-                          value = if (is_secret_set("bsky_password"))
-                            get_secret("bsky_password") else NULL
+                          value = if (is_secret_set("bluesky_password"))
+                            get_secret("bluesky_password") else NULL
                         )
                       )
                     )
@@ -2422,10 +2422,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           conf$admin_email <- input$admin_email
           conf$force_date_format <- input$force_date_format
           # Saving Bluesky propertes
-          set_bsky_auth(
-            bsky_user = input$bsky_user,
-            bsky_password = input$bsky_password
-          )
+          sm_api_set_auth(
+            network = "bluesky",
+            shiny_input_list = shiny::reactiveValuesToList(input)
+          )                    
           conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
           conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
 
