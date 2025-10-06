@@ -1,0 +1,155 @@
+---
+title: "Add a new social media"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{add_new_social_media}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(episomer)
+```
+
+## Pre-requisites
+
+Before trying to add a new social media, you need to ensure that you are in "development mode", i.e:
+
+- the package sources are cloned in your computer
+- your working directory is the root of the R package
+- you have made a call to `devtools::load_all()` in your R console
+
+## Add a new social media
+
+### Creates API and plan files
+
+In order to add a new social media, you need to follow the following steps:
+
+- call the `add_new_social_media()` function:
+
+```{r, eval = FALSE}
+add_new_social_media(social_media = "new_media")
+```
+
+2 files are expected to be created:
+
+- `R/sm-new_media-api.R`: API functions for the new social media
+- `R/sm-new_media-plan.R`: Plan functions for the new social media
+
+Functions are provided as "skeleton" to be filled, it's advised to look at the existing functions for the reference social media (i.e "bluesky") and adapt the functions to the new social media.
+
+### Edit `config.R`
+
+In `config.R`, please look at any reference to the reference social media (i.e "bluesky") and adapt the functions to the new social media.
+
+The following functions are expected to be adapted:
+
+- `save_config()`
+
+example:
+
+```{r, eval = FALSE}
+temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
+temp$sm_activated_bluesky <- conf$sm_activated_bluesky
+```
+
+needs to be completed with:
+
+```{r, eval = FALSE}
+temp$sm_alerts_new_media <- conf$sm_alerts_new_media
+temp$sm_activated_new_media <- conf$sm_activated_new_media
+```
+
+- `get_empty_config()`
+
+example:
+
+```{r, eval = FALSE}
+ret$sm_alerts_bluesky <- TRUE
+ret$sm_activated_bluesky <- TRUE
+```
+
+needs to be completed with:
+
+```{r, eval = FALSE}
+ret$sm_alerts_new_media <- TRUE
+ret$sm_activated_new_media <- TRUE
+```
+
+- `setup_config()`
+
+example:
+
+```{r, eval = FALSE}
+conf$sm_alerts_bluesky <- temp$sm_alerts_bluesky
+conf$sm_activated_bluesky <- temp$sm_activated_bluesky
+```
+
+needs to be completed with:
+
+```{r, eval = FALSE}
+conf$sm_alerts_new_media <- temp$sm_alerts_new_media
+conf$sm_activated_new_media <- temp$sm_activated_new_media
+```
+
+The following should be completed, depending on the credentials you are using (user/password, token ...):
+
+```{r, eval = FALSE}
+for (v in c("bluesky_user", "bluesky_password")) {
+  if (is_secret_set(v)) {
+    conf$auth[[v]] <- get_secret(v)
+  }
+}
+```
+
+### Adapt the shiny app
+
+In the `R/shiny-app.R` file, please look at any reference to the reference social media (i.e "bluesky") and adapt the functions to the new social media.
+
+In particular, be vigilant to the way of configuring the credentials for the new social media.
+
+Below, an example of the current behavior for the bluesky social media, on the UI side of the app:
+
+```{r, eval = FALSE}             
+shiny::textInput(
+  "bluesky_user",
+  label = NULL,
+  value = if (is_secret_set("bluesky_user")) {
+    get_secret("bluesky_user")
+  } else {
+    NULL
+  }
+)
+```
+
+```{r, eval = FALSE}
+shiny::passwordInput(
+  "bluesky_password",
+  label = NULL,
+  value = if (is_secret_set("bluesky_password")) {
+    get_secret("bluesky_password")
+  } else {
+    NULL
+  }
+)
+```
+
+Note that the elements names used to set up the credentials, here `bluesky_user` and `bluesky_password`, should match the ones used in the `config.R` file.
+
+On the server side of the app, you should adapt the call to `sm_api_set_auth()` to use the new social media.
+
+```{r, eval = FALSE}
+sm_api_set_auth(
+  network = "new_media",
+  shiny_input_list = shiny::reactiveValuesToList(input)
+)
+```
+
+`sm_api_set_auth()` is a generic function that will call the appropriate function to set the credentials for the new social media. It expects the function `set_new_media_auth()` to be defined in the `R/sm-new_media-api.R` file.
