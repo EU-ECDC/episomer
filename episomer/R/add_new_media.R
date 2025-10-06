@@ -31,6 +31,7 @@ keep_roxygen_and_function_declarations <- function(file_content) {
 }
 
 #' @noRd
+#' @importFrom utils browseURL
 create_api_and_plan_files_for_new_social_media <- function(
   new_media,
   ref_media = "bluesky"

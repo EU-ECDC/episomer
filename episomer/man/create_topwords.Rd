@@ -15,6 +15,8 @@ create_topwords(
 )
 }
 \arguments{
+\item{sms}{Social media}
+
 \item{topic}{Character(1) containing the topic to use for the report}
 
 \item{country_codes}{Character vector containing the ISO 3166-1 alpha-2 countries to plot, default: c()}
