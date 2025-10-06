@@ -10,11 +10,11 @@ sm_api_get_token_bluesky()
 bluesky_create_session(handle = NULL, password = NULL)
 }
 \arguments{
-\item{handle}{Bluesky handle}
+\item{handle}{bluesky handle}
 
-\item{password}{Bluesky password}
+\item{password}{bluesky password}
 
-\item{login_url}{Bluesky login URL}
+\item{login_url}{bluesky login URL}
 }
 \value{
 Token
@@ -27,7 +27,7 @@ Get token
 Get bearer token
 }
 \details{
-You can find more information about the Bluesky API here: \url{https://docs.bsky.app/docs/api/com-atproto-server-create-session}
+You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/com-atproto-server-create-session}
 }
 \examples{
 \dontrun{
