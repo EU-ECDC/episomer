@@ -75,7 +75,7 @@ add_new_social_media <- function(
 ) {
   create_api_and_plan_files_for_new_social_media(social_media, social_media_ref)
   cli::cli_alert_success("Added new social media files in the R/ folder successfully")
-  cli::cli_alert_info("For next steps, please look at the vignette Adding a new social media")
+  cli::cli_alert_info("For next steps, please look at the vignette vignettes/add_new_social_media.Rmds")
   return(invisible(TRUE))
 }
 
