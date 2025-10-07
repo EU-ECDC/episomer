@@ -3,15 +3,10 @@ keep_roxygen_and_function_declarations <- function(file_content) {
   text_to_keep <- character(0)
   function_body <- FALSE
 
-    for (l in 1:length(file_content)) {
+  for (l in 1:length(file_content)) {
     l_clean <- trimws(file_content[l])
-    is_roxygen <- grepl("^#'", l_clean)
     is_function_start <- grepl("@function_def_start", l_clean)
     is_function_end <- grepl("@function_def_end", l_clean)
-
-    if (is_roxygen) {
-      text_to_keep <- c(text_to_keep, l_clean)
-    }
 
     if (function_body & !is_function_start &!is_function_end) {
       text_to_keep <- c(text_to_keep, l_clean)
@@ -51,9 +46,6 @@ create_api_and_plan_files_for_new_social_media <- function(
     " created - please look at the file ",
     paste0("R/sm-", new_media, "-api.R")
   ))
-  if (interactive()) {
-    browseURL(paste0("R/sm-", new_media, "-api.R"))
-  }
 
   plan_file <- paste0("R/sm-", ref_media, "-plan.R")
   plan_file_content <- readLines(plan_file)
@@ -68,9 +60,6 @@ create_api_and_plan_files_for_new_social_media <- function(
     " created - please look at the file ",
     paste0("R/sm-", new_media, "-plan.R")
   ))
-  if (interactive()) {
-    browseURL(paste0("R/sm-", new_media, "-plan.R"))
-  }
   cli::cli_alert_info("To keep the documentation up to date, please run devtools::document()")
 
   return(invisible(TRUE))
@@ -95,7 +84,7 @@ is_r_folder_present <- function() {
   R_files <- list.files("R")
   if (length(R_files) == 0) {
     stop(
-      "No R files found in the R directory - you should probably run devtools::load_all() first"
+      "No R files found in the R directory - you should probably run devtools::load_all() first and set the current directory to the episomer foler (with the R subfolder)"
     )
   }
   return(TRUE)

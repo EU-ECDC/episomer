@@ -42,7 +42,7 @@ sm_api_update_plan_after_request <- function(plan, results) {
 }
 
 sm_api_set_auth <- function(network, shiny_input_list) {
-  get(sprintf("set_%s_auth", network))(
+  get(sprintf("sm_api_set_auth_%s", network))(
     shiny_input_list
   )
 }

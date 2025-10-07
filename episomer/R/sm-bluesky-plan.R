@@ -1,5 +1,6 @@
-#' @noRd
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_plan_parse_attributes_bluesky <- function(...) {
 # @function_def_end (do not delete)
   p <- list(...)
@@ -20,8 +21,9 @@ sm_plan_parse_attributes_bluesky <- function(...) {
   ret
 }
 
-#' @noRd
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_plan_format_bluesky <- function(plan) {
 # @function_def_end (do not delete)
   if (!is.null(plan$plan_max_date))
@@ -45,8 +47,9 @@ sm_plan_format_bluesky <- function(plan) {
   plan
 }
 
-#' @noRd
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_plan_first_attributes_bluesky <- function() {
 # @function_def_end (do not delete)
   list(
@@ -56,8 +59,9 @@ sm_plan_first_attributes_bluesky <- function() {
   )
 }
 
-#' @noRd
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_plan_next_attributes_bluesky <- function(plans) {
 # @function_def_end (do not delete)
   list(
@@ -71,8 +75,9 @@ sm_plan_next_attributes_bluesky <- function(plans) {
   )
 }
 
-#' @noRd
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_plan_get_progress_bluesky <- function(plan) {
 # @function_def_end (do not delete)
   if (
@@ -87,8 +92,9 @@ sm_plan_get_progress_bluesky <- function(plan) {
   }
 }
 
-#' @noRd
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_api_update_plan_after_request_bluesky <- function(plan, results) {
 # @function_def_end (do not delete)
   if (!is.null(results$pagination$min_created_at)) {
@@ -100,14 +106,16 @@ sm_api_update_plan_after_request_bluesky <- function(plan, results) {
 }
 
 # @function_def_start (do not delete)
+
+#' @noRd
 sm_api_got_rows_bluesky <- function(results) {
 # @function_def_end (do not delete)
   (exists("posts", results) & length(results$posts) > 0)
 }
 
+# @function_def_start (do not delete)
 
 #' @noRd
-# @function_def_start (do not delete)
 sm_plan_search_info_bluesky <- function(plan) {
 # @function_def_end (do not delete)
   info = ""
