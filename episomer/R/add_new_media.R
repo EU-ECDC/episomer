@@ -84,7 +84,7 @@ is_r_folder_present <- function() {
   R_files <- list.files("R")
   if (length(R_files) == 0) {
     stop(
-      "No R files found in the R directory - you should probably run devtools::load_all() first and set the current directory to the episomer foler (with the R subfolder)"
+      "No R files found in the R directory - you should probably run devtools::load_all() first and set the current directory to the episomer folder (with the R subfolder)"
     )
   }
   return(TRUE)
