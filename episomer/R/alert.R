@@ -589,11 +589,15 @@ do_next_alerts <- function(tasks = get_tasks()) {
         tasks <- update_alerts_task(tasks, "running", m)
       }
       calculate_regions_alerts(
-        topic = topic,
-        regions = 1:length(regions),
+        sms = "bluesky",
+        topic = tolower(topic),
+        #regions = 1:length(regions),
+        regions = 1,
         date_type = "created_date",
-        date_min = alert_to,
-        date_max = alert_to,
+        # date_min = alert_to,
+        # date_max = alert_to,
+        date_min = "2025-08-23",
+        date_max = "2025-09-22",
         with_quotes = conf$alert_with_quotes,
         alpha = as.numeric(get_topics_alphas()[[topic]]),
         alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]),
