@@ -812,8 +812,8 @@ get_alerts <- function(
       if (!("k_decay" %in% colnames(df)))
         df$k_decay <- as.numeric(sapply(df$topic, function(t) NA))
       # Adding default hashtags
-      if (!("hashtags" %in% colnames(df)))
-        df$hashtags <- sapply(df$topic, function(t) NA)
+      if (!("tags" %in% colnames(df))) #YMX: a modifier?
+        df$tags <- sapply(df$topic, function(t) NA)
       # Adding default urls
       if (!("urls" %in% colnames(df)))
         df$urls <- sapply(df$topic, function(t) NA)
@@ -874,8 +874,8 @@ get_alerts <- function(
           ""
         ),
         ifelse(
-          !is.na(df$hashtags),
-          paste("<li><b>Top Hashtags</b>: ", df$hashtags, "</li>\n"),
+          !is.na(df$tags),
+          paste("<li><b>Top tags</b>: ", df$tags, "</li>\n"),
           ""
         ),
         ifelse(
