@@ -2755,9 +2755,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 'No alerts generated for the selected period'
               )
             )
-
-            dt <- if (topposts == 0) {
-              alerts %>%
+            if (topposts == 0) {
+            dt <-   alerts %>%
                 dplyr::select(
                   "date",
                   "hour",
@@ -2773,7 +2772,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "same_weekday_baseline",
                   "rank",
                   "with_quotes",
-                  "location_type",
                   "alpha",
                   "alpha_outlier",
                   "k_decay"
@@ -2794,7 +2792,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     "Same weekday baseline" = "same_weekday_baseline",
                     "Day rank" = "rank",
                     "With quotes" = "with_quotes",
-                    "Location" = "location_type",
                     "Alert FPR (alpha)" = "alpha",
                     "Outlier FPR (alpha)" = "alpha_outlier",
                     "Downweight strenght" = "k_decay"
@@ -2832,7 +2829,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 }
               })
 
-              alerts %>%
+              dt <- alerts %>%
                 dplyr::select(
                   "date",
                   "hour",
@@ -3502,6 +3499,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
   )
 }
 #' @rdname episomer_app
+#' @export
 dashboard_app <- function(
   data_dir = NA,
   host = NULL,
@@ -3516,6 +3514,7 @@ dashboard_app <- function(
 }
 
 #' @rdname episomer_app
+#' @export
 admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
   episomer_app(
     data_dir = data_dir,
