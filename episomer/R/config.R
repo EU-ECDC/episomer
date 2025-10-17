@@ -310,9 +310,13 @@ setup_config <- function(
   if (!ignore_topics) {
     plans_path = get_plans_paths()
     # updating plans and topics if requested
+    plans_exists <- FALSE
     topics_plans <- lapply(plans_path, function(p) {
-      if (file.exists(p))
-        jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE) else
+      if (file.exists(p)) {
+        plans_exists <- TRUE
+        jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE) 
+      }
+      else
         list()
     })
     # merging topics from different SM
@@ -326,7 +330,7 @@ setup_config <- function(
     topics <- {
       t <- list()
       t$md5 <- as.vector(tools::md5sum(user_topics_path))
-      if (t$md5 != temp$topics_md5) {
+      if (t$md5 != temp$topics_md5 && plans_exists) {
         t$df <- readxl::read_excel(user_topics_path)
         topics_changed <- TRUE
       }
