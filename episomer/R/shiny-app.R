@@ -820,7 +820,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 ),
                 shiny::column(
                   3,
-                  shiny::actionButton("request_alerts", "Run alerts")
+                  shiny::actionButton("request_alerts", "Run alerts")                  
                 )
               ),
               DT::dataTableOutput("tasks_df"),
@@ -2365,7 +2365,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           )
           # refreshing the tasks data
           refresh_config_data(cd, list("tasks"))
-        })
+        })      
 
         ######### PROPERTIES LOGIC ##################
         # action to save properties
@@ -2755,10 +2755,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 'No alerts generated for the selected period'
               )
             )
-
-            dt <- if (topposts == 0) {
-              alerts %>%
+            if (topposts == 0) {
+            dt <-   alerts %>%
                 dplyr::select(
+                  "sm",
                   "date",
                   "hour",
                   "topic",
@@ -2773,13 +2773,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "same_weekday_baseline",
                   "rank",
                   "with_quotes",
-                  "location_type",
                   "alpha",
                   "alpha_outlier",
                   "k_decay"
                 ) %>%
                 DT::datatable(
                   colnames = c(
+                    "Social media" = "sm",
                     "Date" = "date",
                     "Hour" = "hour",
                     "Topic" = "topic",
@@ -2794,7 +2794,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     "Same weekday baseline" = "same_weekday_baseline",
                     "Day rank" = "rank",
                     "With quotes" = "with_quotes",
-                    "Location" = "location_type",
                     "Alert FPR (alpha)" = "alpha",
                     "Outlier FPR (alpha)" = "alpha_outlier",
                     "Downweight strenght" = "k_decay"
@@ -2832,7 +2831,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 }
               })
 
-              alerts %>%
+              dt <- alerts %>%
                 dplyr::select(
                   "date",
                   "hour",
