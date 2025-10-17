@@ -2758,6 +2758,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             if (topposts == 0) {
             dt <-   alerts %>%
                 dplyr::select(
+                  "sm",
                   "date",
                   "hour",
                   "topic",
@@ -2778,6 +2779,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 ) %>%
                 DT::datatable(
                   colnames = c(
+                    "Social media" = "sm",
                     "Date" = "date",
                     "Hour" = "hour",
                     "Topic" = "topic",
