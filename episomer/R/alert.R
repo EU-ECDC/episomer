@@ -829,7 +829,7 @@ get_alerts <- function(
       if (!("k_decay" %in% colnames(df)))
         df$k_decay <- as.numeric(sapply(df$topic, function(t) NA))
       # Adding default hashtags
-      if (!("tags" %in% colnames(df))) #YMX: a modifier?
+      if (!("tags" %in% colnames(df)))
         df$tags <- sapply(df$topic, function(t) NA)
       # Adding default urls
       if (!("urls" %in% colnames(df)))
