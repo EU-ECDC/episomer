@@ -634,7 +634,7 @@ translate_query <- function(sm, q) {
 # Get topics data frame as displayed on the Shiny configuration tab
 get_topics_df <- function() {
   df <- data.frame(
-    Topics = sapply(conf$topics, function(t) t$topic),
+    Topics = sapply(conf$topics, function(t) tolower(t$topic)),
     Label = sapply(conf$topics, function(t) t$label),
     Query = sapply(conf$topics, function(t) t$query),
     QueryLength = sapply(conf$topics, function(t) nchar(t$query)),
