@@ -578,53 +578,32 @@ do_next_alerts <- function(tasks = get_tasks()) {
       envir = rlang::current_env()
     )
 
-    # Get active social media platforms for alerts
-    active_sms <- alerts_social_media()
-    # active_sms <- "bluesky"
-    
-    # calculating alerts per social media platform and topic
-    alerts <- lapply(active_sms, function(sm) {
-      message(paste("Processing alerts for social media:", sm))
-      
-      # Parallel processing for topics within each social media platform
-      sm_alerts <- parallel::parLapply(cl, 1:length(topics), function(i) {
-        topic <- topics[[i]]
-        setup_config(data_dir)
-        m <- paste("Getting alerts for", sm, topic, i, alert_to, (Sys.time()))
-        message(m)
-        if (i %% cores == 0) {
-          tasks <- update_alerts_task(tasks, "running", m)
-        }
-        calculate_regions_alerts(
-          sms = sm,
-          topic = tolower(topic),
-          regions = 1:length(regions),
-          # regions = 1,
-          date_type = "created_date",
-          date_min = alert_to,
-          date_max = alert_to,
-          # date_min = "2025-08-23",
-          # date_max = "2025-09-22",
-          with_quotes = conf$alert_with_quotes,
-          alpha = as.numeric(get_topics_alphas()[[topic]]),
-          alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]),
-          k_decay = as.numeric(get_topics_k_decays()[[topic]]),
-          no_historic = as.numeric(conf$alert_history),
-          bonferroni_correction = conf$alert_with_bonferroni_correction,
-          same_weekday_baseline = conf$alert_same_weekday_baseline
-        ) %>%
-          dplyr::mutate(topic = topic, sm = sm) %>%
-          dplyr::filter(!is.na(.data$alert) & .data$alert == 1)
-      })
-      
-      # Combine alerts for this social media platform
-      if (length(sm_alerts) > 0) {
-        Reduce(x = sm_alerts, f = function(df1, df2) {
-          dplyr::bind_rows(df1, df2)
-        })
-      } else {
-        data.frame()
+    # calculating alerts per topic
+    alerts <- parallel::parLapply(cl, 1:length(topics), function(i) {
+      #alerts <- lapply(1:length(topics), function(i) {
+      topic <- topics[[i]]
+      setup_config(data_dir)
+      m <- paste("Getting alerts for", topic, i, alert_to, (Sys.time()))
+      message(m)
+      if (i %% cores == 0) {
+        tasks <- update_alerts_task(tasks, "running", m)
       }
+      calculate_regions_alerts(
+        topic = topic,
+        regions = 1:length(regions),
+        date_type = "created_date",
+        date_min = alert_to,
+        date_max = alert_to,
+        with_quotes = conf$alert_with_quotes,
+        alpha = as.numeric(get_topics_alphas()[[topic]]),
+        alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]),
+        k_decay = as.numeric(get_topics_k_decays()[[topic]]),
+        no_historic = as.numeric(conf$alert_history),
+        bonferroni_correction = conf$alert_with_bonferroni_correction,
+        same_weekday_baseline = conf$alert_same_weekday_baseline
+      ) %>%
+        dplyr::mutate(topic = topic) %>%
+        dplyr::filter(!is.na(.data$alert) & .data$alert == 1)
     })
 
     # Joining all day alerts on a single data frame
@@ -829,8 +808,8 @@ get_alerts <- function(
       if (!("k_decay" %in% colnames(df)))
         df$k_decay <- as.numeric(sapply(df$topic, function(t) NA))
       # Adding default hashtags
-      if (!("tags" %in% colnames(df))) #YMX: a modifier?
-        df$tags <- sapply(df$topic, function(t) NA)
+      if (!("hashtags" %in% colnames(df)))
+        df$hashtags <- sapply(df$topic, function(t) NA)
       # Adding default urls
       if (!("urls" %in% colnames(df)))
         df$urls <- sapply(df$topic, function(t) NA)
@@ -891,8 +870,8 @@ get_alerts <- function(
           ""
         ),
         ifelse(
-          !is.na(df$tags),
-          paste("<li><b>Top tags</b>: ", df$tags, "</li>\n"),
+          !is.na(df$hashtags),
+          paste("<li><b>Top Hashtags</b>: ", df$hashtags, "</li>\n"),
           ""
         ),
         ifelse(
