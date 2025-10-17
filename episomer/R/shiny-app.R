@@ -3502,6 +3502,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
   )
 }
 #' @rdname episomer_app
+#' @export
 dashboard_app <- function(
   data_dir = NA,
   host = NULL,
@@ -3516,6 +3517,7 @@ dashboard_app <- function(
 }
 
 #' @rdname episomer_app
+#' @export
 admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
   episomer_app(
     data_dir = data_dir,
