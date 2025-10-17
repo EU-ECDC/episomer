@@ -11,7 +11,7 @@ save_config(data_dir = conf$data_dir, properties = TRUE, sm_topics = NULL)
 
 \item{properties}{Whether to save the general properties to the properties.json file, default: TRUE}
 
-\item{topics}{Whether to save topic download plans to the topics.json file, default: TRUE}
+\item{sm_topics}{Whether to save topic download plans to the topics.json file, default: TRUE}
 }
 \value{
 Nothing
