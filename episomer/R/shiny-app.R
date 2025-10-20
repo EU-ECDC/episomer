@@ -1378,7 +1378,20 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         ################################################
         ######### DASHBOARD LOGIC ######################
         ################################################
-        shiny::observeEvent(input$run_dashboard, {
+        # updating the topics if they change on the configuraton page
+
+	shiny::observe({
+	  d$topics_refresh_flag()
+	  shiny::isolate(refresh_dashboard_data(d))
+	  shiny::updateSelectInput(
+             session,
+             "topics",
+	     choices = d$topics
+	  )
+	})
+
+	# dashboard actions
+	shiny::observeEvent(input$run_dashboard, {
           # rendering line chart
           rep = new.env()
           progress_start("Generating report", rep)
@@ -2571,12 +2584,16 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           df <- input$conf_topics_upload
           if (!is.null(df) && nrow(df) > 0) {
             uploaded <- df$datapath[[1]]
-            file.copy(
-              uploaded,
-              paste(conf$data_dir, "topics.xlsx", sep = "/"),
-              overwrite = TRUE
-            )
-            refresh_config_data(e = cd, limit = list("topics"))
+            if(file.exists(uploaded)) {
+              file.copy(
+                uploaded,
+                paste(conf$data_dir, "topics.xlsx", sep = "/"),
+                overwrite = TRUE
+              )
+	      file.remove(uploaded)
+              refresh_config_data(e = cd, limit = list("topics"))
+	      d$topics_refresh_flag(cd$topics_refresh_flag())
+	    }
           }
         })
         # action to dismiss past posts

@@ -58,7 +58,7 @@ search_loop <- function(
   parallel::parLapply(cl, sms, function(sm) {
       # redirecting output to the sm file
       if(log_to_file) {
-          jobs_dir <- file.path(conf$data_dir, "jobs")
+          jobs_dir <- file.path(data_dir, "jobs")
           outcon <- file(file.path(jobs_dir, sprintf("search.%s.log", sm)), open = "a")
           sink(outcon)
           sink(outcon, type = "message")

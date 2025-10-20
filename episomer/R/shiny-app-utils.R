@@ -38,6 +38,10 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
   )
     strftime(agg_dates$last - 180, format = "%Y-%m-%d") else e$date_min)
   e$date_end <- e$date_max
+  
+  if (!exists("topics_refresh_flag", envir = e)) {
+    e$topics_refresh_flag <- shiny::reactiveVal(0)
+  }
   return(e)
 }
 

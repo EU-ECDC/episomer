@@ -314,7 +314,11 @@ setup_config <- function(
     topics_plans <- lapply(plans_path, function(p) {
       if (file.exists(p)) {
         plans_exists <- TRUE
-        jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE) 
+        tops <- jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE)
+	for(i in seq(1, length(tops$topics), along.with=tops$topics)) {
+	  tops$topics[[i]]$topic = tolower(tops$topics[[i]]$topic)
+	}
+	tops
       }
       else
         list()
@@ -330,7 +334,7 @@ setup_config <- function(
     topics <- {
       t <- list()
       t$md5 <- as.vector(tools::md5sum(user_topics_path))
-      if (t$md5 != temp$topics_md5 && plans_exists) {
+      if (t$md5 != temp$topics_md5 || !plans_exists) {
         t$df <- readxl::read_excel(user_topics_path)
         topics_changed <- TRUE
       }
@@ -344,6 +348,8 @@ setup_config <- function(
         exists("df", where = topics) &&
         length(active_social_media()) > 0
     ) {
+      # changing topics to lowercase
+      topics$df$Topic <- tolower(topics$df$Topic)
       distinct_topics <- as.list(unique(topics$df$Topic))
       adjusted_topics <- list()
       i_adjusted <- 1
@@ -370,7 +376,7 @@ setup_config <- function(
               queries$Query[[i_query]]
             )) {
               #Looking for the next matching entry in json file
-              while (
+	      while (
                 i_tmp <= length(temp$topics) &&
                   ((temp$topics[[i_tmp]]$topic != topic &&
                     temp$topics[[i_tmp]]$network == sm) ||
@@ -634,7 +640,7 @@ translate_query <- function(sm, q) {
 # Get topics data frame as displayed on the Shiny configuration tab
 get_topics_df <- function() {
   df <- data.frame(
-    Topics = sapply(conf$topics, function(t) tolower(t$topic)),
+    Topics = sapply(conf$topics, function(t) t$topic),
     Label = sapply(conf$topics, function(t) t$label),
     Query = sapply(conf$topics, function(t) t$query),
     QueryLength = sapply(conf$topics, function(t) nchar(t$query)),
@@ -663,12 +669,6 @@ get_topics_labels <- function() {
     dplyr::group_by(.data$Topics) %>%
     dplyr::summarise(label = .data$Label[which(!is.na(.data$Label))[1]]) %>%
     dplyr::ungroup())
-
-  t <- dplyr::bind_rows(
-    t,
-    t %>%
-      dplyr::mutate(Topics = tolower(.data$Topics))
-  )
   setNames(t$label, t$Topics)
 }
 
