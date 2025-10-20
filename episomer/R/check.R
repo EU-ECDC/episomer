@@ -405,18 +405,22 @@ check_fs_running <- function() {
   }
 }
 
-# check Twitter authentication
-last_check_twitter_auth <- new.env()
+# check sm authentication
+last_check_sm_auth <- new.env()
 
-check_twitter_auth <- function() {
-  ok <- tryCatch(
+check_sm_auth <- function() {
+    lastsm = "No active SM"
+    ok <- tryCatch(
     {
-      token <- get_token(request_new = FALSE)
-      ok <- "Token" %in%
-        class(token) ||
-        "bearer" %in% class(token) ||
-        is.character(token)
-      last_check_twitter_auth$value <- ok
+      ok <- FALSE
+      for(sm in active_social_media()) {
+	lastsm = sm
+        token <- sm_api_get_token(sm)
+        ok <- is.character(token) && length(token)  > 0
+        if(!ok)
+	  break
+      }
+      last_check_sm_auth$value <- ok
       ok
     },
     warning = function(m) {
@@ -428,15 +432,15 @@ check_twitter_auth <- function() {
   )
   if (ok) TRUE else {
     warning(
-      "Cannot create a Twitter token, please choose an authentication method on the configuration page"
+      sprintf("Cannot create a token for %s, please choose an authentication method on the configuration page", lastsm)
     )
   }
 }
-check_last_twitter_auth <- function() {
-  if (exists("value", last_check_twitter_auth) && last_check_twitter_auth$value)
+check_last_sm_auth <- function() {
+  if (exists("value", last_check_sm_auth) && last_check_sm_auth$value)
     TRUE else {
     warning(
-      "Cannot create a Twitter token, please choose an authentication method on the configuration page"
+      "Cannot create a social media token, please choose an authentication method on the configuration page"
     )
     FALSE
   }
@@ -545,10 +549,10 @@ check_tar_gz <- function() {
 #' @title Run automatic sanity checks
 #' @description It runs a set of automated sanity checks for helping the user to troubleshot issues
 #' @return Data frame containing the statuses of all realized checks
-#' @details This function executes a series of sanity checks, concerning, Java, bitness, task status, dependencies and Twitter authentication.
+#' @details This function executes a series of sanity checks, concerning, Java, bitness, task status, dependencies and social media authentication.
 #' @examples
 #' if(FALSE){
-#'    #importing epitweer
+#'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
@@ -558,10 +562,10 @@ check_tar_gz <- function() {
 #' @rdname check_all
 #' @export
 check_all <- function() {
-  check_twitter_auth()
+  check_sm_auth()
   checks <- list(
     scheduler = check_scheduler,
-    twitter_auth = check_last_twitter_auth,
+    sm_auth = check_last_sm_auth,
     search_running = check_search_running,
     database_running = check_fs_running,
     posts = check_posts_present,
@@ -798,7 +802,7 @@ update_session_info <- function() {
 #' - 'logs': Log files produced automatically on windows task scheduler tasks.
 #' @examples
 #' if(FALSE){
-#'    #importing epitweer
+#'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())

@@ -1116,26 +1116,17 @@ loop_run_issues <- function(loop_name) {
       "Please manually run the 'Run dependencies' step. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
     }
   } else if (loop_name == "search") {
-    token <- tryCatch(
-      get_token(request_new = FALSE),
-      error = function(e) NULL,
-      warning = function(e) NULL
-    )
-    token_ok <- "Token" %in%
-      class(token) ||
-      "bearer" %in% class(token) ||
-      is.character(token)
-    if (
-      !is.na(t$dependencies$status) &&
-        t$dependencies$status == "success" &&
-        !is.na(t$geonames$status) &&
-        t$geonames$status == "success" &&
-        !is.na(t$languages$status) &&
-        t$languages$status == "success" &&
-        token_ok
-    )
-      "" else
-      "Please activate 'Requirement & alerts' task. To run 'Data collection & processing' task, you have to successfully complete the tasks for dependencies, GeoNames and languages. You also need to provide your Twitter credentials and click on 'Save settings'"
+    auth_ok <- check_sm_auth()
+    if(!auth_ok) {
+      "episomer could not create an authentication token, please make sure you have entered valid credentials in the configuration page and click on 'Save settings'"
+    } else if (is.na(t$dependencies$status) || t$dependencies$status != "success") {
+      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Dependencies'"
+    } else if (is.na(t$geonames$status) || t$geonames$status != "success") {
+      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Geonames'"
+    } else if (is.na(t$languages$status) || t$languages$status != "success") {
+      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Languages'"
+    }
+      else ""
   } else if (loop_name == "detect") {
     ""
   } else stop(paste("Unlnown loop", loop_name))

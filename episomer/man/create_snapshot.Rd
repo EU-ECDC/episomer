@@ -45,7 +45,7 @@ Different kinds of data can be included on the snapshot depending on the type of
 }
 \examples{
 if(FALSE){
-   #importing epitweer
+   #importing episomer
    library(episomer)
    message('Please choose the episomer data directory')
    setup_config(file.choose())
