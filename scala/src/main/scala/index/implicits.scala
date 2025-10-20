@@ -10,6 +10,7 @@ import org.apache.hadoop.conf.Configuration
 import demy.storage.Storage
 import demy.util.{log => l}
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.parallel.CollectionConverters._
 
 object implicits {
   implicit class DatasetUtil(val ds: Dataset[_]) {
@@ -84,7 +85,7 @@ object implicits {
       val rightApplied = right.select(
         Array(text.as("_text_")) 
         ++ (popularity match {case Some(c) => Array(c.as("_pop_")) case _ => Array[Column]()}) 
-        ++ (if(queries.size == 1) rightSelect
+        ++ (if(queries.size == 1) rightSelect.toSeq
             else queries.map(q => struct(rightSelect:_*).as(s"${q.toString().split("`").last}_res"))
         ) :_*)
 

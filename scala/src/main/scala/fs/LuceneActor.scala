@@ -33,6 +33,7 @@ import scala.util.{Try, Success, Failure}
 import java.nio.charset.StandardCharsets
 import spray.json.JsonParser
 import scala.collection.parallel.ForkJoinTaskSupport
+import scala.collection.parallel.CollectionConverters._
 import java.util.concurrent.ForkJoinPool
 
 

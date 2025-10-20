@@ -7,7 +7,7 @@ import org.apache.lucene.analysis.LowerCaseFilter
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute
 import org.apache.lucene.util.AttributeFactory
 import java.io.IOException
-import org.apache.lucene.analysis.util.TokenFilterFactory
+import org.apache.lucene.analysis.TokenFilterFactory
 
 
 class AcronymFilterFactory(args:java.util.Map[String,String]) extends TokenFilterFactory(args) {

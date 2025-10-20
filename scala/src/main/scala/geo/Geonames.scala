@@ -102,7 +102,7 @@ case class Geonames(source:String, destination:String, simplify:Boolean = false)
               nBefore = nBefore,
               nAfter = nAfter,
               forcedEntities = forcedGeo,
-              forcedFilters = forcedGeoCodes.map{_.mapValues(v => ("geo_code", v))},
+              forcedFilters = forcedGeoCodes.map{_.mapValues(v => ("geo_code", v)).toMap},
               closestTo = closestTo
             )
             withEnt.toDF(withEnt.schema.map(f => renameCols.get(f.name).getOrElse(f.name)):_* )

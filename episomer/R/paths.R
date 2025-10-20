@@ -139,7 +139,7 @@ get_jars_dest_path <- function() file.path(conf$data_dir, "jars")
 get_app_jar_path <- function()
   system.file(
     "java",
-    "ecdc-twitter-bundle_2.12-1.0.jar",
+    "ecdc-episomer-bundle_2.13-1.0.jar",
     package = get_package_name()
   )
 
