@@ -1,7 +1,6 @@
 #!/bin/bash
 export OPENBLAS_NUM_THREADS=1
-export SPARK_VERSION=3.0.3
-export PATH=$JAVA_HOME/bin:$PATH
+#export PATH=$JAVA_HOME/bin:$PATH
 
 if [ -z ${EPI_HOME+x} ]; then echo "please set EPI_HOME is unset"; exit 1; fi
 export TEMPDIR=$EPI_HOME/tmp

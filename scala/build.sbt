@@ -1,11 +1,11 @@
-lazy val sparkVersion = if(System.getenv("SPARK_VERSION")==null) "3.0.3" else System.getenv("SPARK_VERSION")
-lazy val akkaVersion = "2.6.8"
-lazy val akkaHttpVersion = "10.2.4"
-lazy val luceneVersion = "8.5.0"
+lazy val sparkVersion = if(System.getenv("SPARK_VERSION")==null) "4.0.1" else System.getenv("SPARK_VERSION")
+lazy val akkaVersion = "2.8.8" //"2.10.9"
+lazy val akkaHttpVersion = "10.5.3"//"10.7.2"
+lazy val luceneVersion = "10.3.1"
 lazy val root = (project in file("."))
   .settings(
-    name := "ecdc-twitter-bundle",
-    scalaVersion := "2.12.20",
+    name := "ecdc-episomer-bundle",
+    scalaVersion := "2.13.17",
     retrieveManaged := true,
     useCoursier := false, 
     version := "1.0",
@@ -14,16 +14,17 @@ lazy val root = (project in file("."))
     libraryDependencies += "org.apache.spark" %% "spark-mllib" % sparkVersion,
     libraryDependencies += "org.apache.lucene" % "lucene-core" % luceneVersion, 
     libraryDependencies += "org.apache.lucene" % "lucene-queryparser" % luceneVersion,
-    libraryDependencies += "org.apache.lucene" % "lucene-analyzers-common" % luceneVersion, 
+    libraryDependencies += "org.scala-lang.modules" %% "scala-parallel-collections" % "1.2.0", 
+//    libraryDependencies += "org.apache.lucene" % "lucene-analyzers-common" % luceneVersion, 
     libraryDependencies += "org.apache.lucene" % "lucene-suggest" % luceneVersion,
-    libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.5",
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % "test",
+    libraryDependencies += "org.scalactic" %% "scalactic" % "3.2.19",
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test",
     libraryDependencies += "com.github.fommil.netlib" % "all" % "1.1.2" pomOnly(),
-    libraryDependencies += "org.apache.httpcomponents" % "httpmime" % "4.5.6" ,
+    libraryDependencies += "org.apache.httpcomponents.client5" % "httpclient5" % "5.5.1" ,
     libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion,
     libraryDependencies += "com.typesafe.akka" %% "akka-http" % akkaHttpVersion ,
     libraryDependencies += "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
-    libraryDependencies += "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.4.2",
+    libraryDependencies += "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.11.0",
     scalacOptions ++= Seq("-deprecation", "-feature"),
     assemblyMergeStrategy in assembly := {
       case PathList("org","aopalliance", xs @ _*) => MergeStrategy.last

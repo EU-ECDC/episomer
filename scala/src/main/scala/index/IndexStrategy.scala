@@ -177,7 +177,7 @@ trait IndexStrategy {
         .flatMap(hit => {
           if(hit.score < minScore) None
           else {
-            val doc = this.searcher.doc(hit.docId)
+            val doc = this.searcher.storedFields.document(hit.docId)
             Some(new GenericRowWithSchema(
               values = outFields.toArray.map(field => {
                 val lucField = doc.getField(field.name)

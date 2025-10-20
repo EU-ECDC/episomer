@@ -1,8 +1,8 @@
-package demy.storage
+/*package demy.storage
 
 import demy.util.log
 import demy.util.implicits._
-import org.apache.http.impl.client.HttpClients
+import org.apache.http.impl.client.aHttpClients
 import org.apache.http.client.methods.{HttpPost, HttpGet, HttpPut}
 import org.apache.http.entity.mime.MultipartEntityBuilder
 import org.apache.http.entity.ContentType
@@ -182,4 +182,4 @@ object EpiFiles {
           case _ => None
       }
   }
-}
+}*/

@@ -246,7 +246,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
       val doc = if(res.scoreDocs.size == 0) {
         None
       } else {
-         Some(searcher.getIndexReader.document(res.scoreDocs(0).doc))
+         Some(searcher.getIndexReader.storedFields.document(res.scoreDocs(0).doc))
       }
       doc.map{d => EpiSerialisation.luceneDocFormat.customWrite(d, asArray = Set("tags","urls","categories"))}
         .map{json => EpiSerialisation.postFormat.read(json)}
@@ -267,7 +267,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
       val doc = if(res.scoreDocs.size == 0) {
         None
       } else {
-         Some(searcher.getIndexReader.document(res.scoreDocs(0).doc))
+         Some(searcher.getIndexReader.storedFields.document(res.scoreDocs(0).doc))
       }
       doc.map(d => EpiSerialisation.luceneDocFormat.customWrite(d, asArray = Set("tags","urls", "categories")).toString)
     } match {
@@ -304,7 +304,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
       if(res.scoreDocs.size == 0) {
           None
       } else {
-         Some(searcher.getIndexReader.document(res.scoreDocs(0).doc))
+         Some(searcher.getIndexReader.storedFields.document(res.scoreDocs(0).doc))
       }
     } match {
       case Success(r) =>
@@ -333,7 +333,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
           this.writer.get.updateDocument(new Term("topic_post_id", s"${geo.topic.toLowerCase}_${geo.id}_${geo.network}"), doc)
           true
       case _ =>
-        print("mmmmmmmmmmmmmmmmmm..... ")
+        print("weird... a postid seems to be missing..... ")
         false
     }     
   }
@@ -348,7 +348,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
     q match  {
       case bq:BooleanQuery => 
         val bqb = new BooleanQuery.Builder()
-        bq.clauses.asScala.foreach{c => bqb.add(smarterQuery(c.getQuery), c.getOccur)}
+        bq.clauses.asScala.foreach{c => bqb.add(smarterQuery(c.query()), c.occur())}
         bqb.build
       case tq:TermQuery =>
         val field = tq.getTerm.field
@@ -412,7 +412,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
                 }
 
                 val r = search(query = q, after = after, sort = sort)(searcher.get)
-                val t = r.scoreDocs.map(doc => searcher.get.getIndexReader.document(doc.doc))
+                val t = r.scoreDocs.map(doc => searcher.get.getIndexReader.storedFields.document(doc.doc))
 
                 // Refining the query after 100k elements are obtained if the scope is only top Elements
                 topFieldLimit match { 
