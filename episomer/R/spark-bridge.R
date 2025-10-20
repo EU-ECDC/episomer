@@ -340,8 +340,8 @@ download_sbt_dependencies <- function(tasks = get_tasks()) {
     l <- nchar(p[[4]])
     substr(p[[5]], l + 2, nchar(p[[5]]))
   })
-  versions <- gsub("\\.([^\\.]*)$", "", versions)
-  versions2 <- gsub("\\-([^\\-]*)$", "", versions)
+  versions <-  gsub("\\.([^\\.]*)$", "", versions)
+  versions2 <- gsub("-(.*)$", "", versions)
   urls <- paste(
     tasks$dependencies$maven_repo,
     gsub("\\.", "/", sapply(parts, `[[`, 3)),
