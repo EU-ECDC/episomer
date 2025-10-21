@@ -11,7 +11,7 @@ cp "$cdir/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-1.0.jar" "$cdir/epis
 git archive --format zip --output "$cdir/episomer/java/ecdc-episomer-bundle_2.13-1.0-source.zip" HEAD 
 
 cd "$cdir"
-Rscript devscripts/renv.R
-Rscript devscripts/package.R
+#Rscript devscripts/renv.R
+#Rscript devscripts/package.R
 
 cd "$cdir"

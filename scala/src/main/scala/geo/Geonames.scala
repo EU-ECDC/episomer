@@ -154,7 +154,7 @@ case class Geonames(source:String, destination:String, simplify:Boolean = false)
       val allCities = util.checkpoint(
         df = spark.read.option("sep", "\t").csv(source) //'http://download.geonames.org/export/dump/'
            .toDF(newNames: _*)
-           .withColumn("population",expr("cast(population as int)"))
+           .withColumn("population",expr("cast(population as bigint)"))
            .withColumn("id", col("id").cast(IntegerType))
            .withColumn("longitude", col("longitude").cast(DoubleType))
            .withColumn("latitude", col("latitude").cast(DoubleType))
