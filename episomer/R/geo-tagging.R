@@ -480,7 +480,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #'
 #' @export
 #' @importFrom utils download.file
-update_languages <- function(tasks = get_tasks()) {
+update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
   stop_if_no_config()
   old <- options()
   on.exit(options(old))
@@ -511,17 +511,19 @@ update_languages <- function(tasks = get_tasks()) {
             lang_code = tasks$languages$codes[[i]],
             lang_start = TRUE
           )
-          temp <- tempfile()
-          # downloading the file
-          download.file(tasks$languages$url[[i]], temp, mode = "wb")
-          file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
-          tasks <- update_languages_task(
-            tasks,
-            "running",
-            paste("downloaded", tasks$languages$name[[i]]),
-            lang_code = tasks$languages$codes[[i]],
-            lang_done = TRUE
-          )
+          if(!reuse_downloads || !file.exists(tasks$languages$vectors[[i]])) { 
+            temp <- tempfile()
+            # downloading the file
+            download.file(tasks$languages$url[[i]], temp, mode = "wb")
+            file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
+            tasks <- update_languages_task(
+              tasks,
+              "running",
+              paste("downloaded", tasks$languages$name[[i]]),
+              lang_code = tasks$languages$codes[[i]],
+              lang_done = TRUE
+            )
+	  }
         } else if (tasks$languages$statuses[[i]] %in% c("to remove")) {
           # requesting to delete language data
           # deleting language files

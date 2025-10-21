@@ -98,6 +98,9 @@ spark_job <- function(args) {
         sep = ""
       ),
       paste("-Xmx", conf$spark_memory, sep = ""), #memory limits
+      paste("--add-opens=java.base/java.nio=ALL-UNNAMED"), #allowing proper serialisation in spark of ByteArray
+      paste("--add-opens=java.base/java.lang.invoke=ALL-UNNAMED"), #allowing proper serialisation in spark of ByteArray
+      paste("--add-opens=java.base/java.util=ALL-UNNAMED"), #allowing proper serialisation in spark of ByteArray
       paste(get_blas_java_opt()), #Java blas specific options
       "org.ecdc.episomer.Episomer", #episomer scala main class
       args #arguments to the call

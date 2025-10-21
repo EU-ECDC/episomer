@@ -93,7 +93,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         implicit val st = conf.getSparkStorage
         import s.implicits._
         val readyLangs = GeoTraining.trainedLanguages()
-        if(conf.languages.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.size} are ready")
+        if(conf.languages.get.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.get.size} are ready")
         val df0 = 
           toGeo.toDS
             .withColumn("lang", udf((lang:String) =>  if(lang == null || lang == "all") null else lang).apply(col("lang")))
@@ -151,7 +151,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         implicit val st = conf.getSparkStorage
         import s.implicits._
         val readyLangs = GeoTraining.trainedLanguages()
-        if(conf.languages.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.size} are ready")
+        if(conf.languages.get.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.get.size} are ready")
         
         val r = new Random(197912)
         val annotated = r.shuffle(trainingSet.filter(t => !t.isLocation.isEmpty))
