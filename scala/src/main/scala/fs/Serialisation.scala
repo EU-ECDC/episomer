@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField
 import scala.collection.JavaConverters._
 import java.net.URLDecoder
 import org.apache.spark.sql.types._
+import java.nio.charset.StandardCharsets
 
 object schemas {
   val geoLocationSchema = StructType(Seq(
@@ -388,6 +389,8 @@ object EpiSerialisation
               (fname, JsString(transform.get(fname).map{case (s, r) =>f.stringValue.replaceAll(s, r)}.getOrElse(f.stringValue)))
             else if(f.binaryValue != null && f.binaryValue.length == 1)
               (fname, JsBoolean(f.binaryValue.bytes(0) == 1.toByte))
+            else if(f.binaryValue != null)
+              (fname, Some(new String(f.binaryValue.bytes,  StandardCharsets.UTF_8)).map(v => JsString(transform.get(fname).map{case (s, r) =>v.replaceAll(s, r)}.getOrElse(v))).get)
             else 
               throw new NotImplementedError(f"Serializing lucene field is only supported for boolean, number and string so far and got $f")
           } ++

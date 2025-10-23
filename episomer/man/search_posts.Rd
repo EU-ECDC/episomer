@@ -43,9 +43,8 @@ search_posts(
 If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
 }
 \value{
-a data frame containing the posts matching the selected filters, the data frame contains the following columns: linked_user_location, linked_user_name, linked_user_description,
-screen_name, created_date, is_geo_located, user_location_loc, is_repost, text, text_loc, user_id, hash, user_description, linked_lang, linked_screen_name, user_location, totalCount,
-created_at, topic_post_id, topic, lang, user_name, linked_text, post_id, linked_text_loc, hashtags, user_description_loc
+a data frame containing the posts matching the selected filters, the data frame contains the following columns: user_name, created_date, is_geo_located, is_quote, text, 
+text_loc, user_id, hash, quote_lang, totalCount, created_at, topic_post_id, topic, lang, user_name, quoted_text, id, quopted_text_loc, tags
 }
 \description{
 perform full text search on posts collected with episomer (posts migrated from episomer v<1.0.x are also included)

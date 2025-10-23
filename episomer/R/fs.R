@@ -153,9 +153,8 @@ fs_loop <- function(data_dir = NA) {
 #' @param max integer, maximum number of posts to be included on the search, default:100
 #' @param by_relevance logical, whether to sort the results by relevance of the matching query or by indexing order, default:FALSE
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @return a data frame containing the posts matching the selected filters, the data frame contains the following columns: linked_user_location, linked_user_name, linked_user_description,
-#' screen_name, created_date, is_geo_located, user_location_loc, is_repost, text, text_loc, user_id, hash, user_description, linked_lang, linked_screen_name, user_location, totalCount,
-#' created_at, topic_post_id, topic, lang, user_name, linked_text, post_id, linked_text_loc, hashtags, user_description_loc
+#' @return a data frame containing the posts matching the selected filters, the data frame contains the following columns: user_name, created_date, is_geo_located, is_quote, text, 
+#' text_loc, user_id, hash, quote_lang, totalCount, created_at, topic_post_id, topic, lang, user_name, quoted_text, id, quopted_text_loc, tags 
 #' @details
 #' episomer translate the query provided by all parameters into a single query that will be executed on post indexes which are weekly indexes.
 #' The q parameter should respect the syntax of the Lucene classic parser \url{https://lucene.apache.org/core/8_5_0/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html}
@@ -271,6 +270,7 @@ search_posts <- function(
   if (!is.null(max)) {
     u <- paste(u, "&max=", max, sep = "")
   }
+  #message(u)
   u <- url(u)
   posts <- jsonlite::stream_in(u, verbose = FALSE)
   posts
