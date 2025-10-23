@@ -11,7 +11,7 @@ import org.apache.lucene.store.{ FSDirectory, MMapDirectory}
 import org.apache.lucene.index.{IndexWriter, IndexReader, DirectoryReader,IndexWriterConfig}
 import org.apache.lucene.analysis.Analyzer
 import org.apache.lucene.document.{Document, TextField, StringField, IntPoint, LongPoint, DoublePoint, FloatPoint, Field, StoredField, DoubleDocValuesField, BinaryPoint}
-import org.apache.lucene.index.Term
+import org.apache.lucene.index.{Term, IndexOptions}
 import org.apache.lucene.search.{TopDocs, BooleanQuery, PrefixQuery}
 import org.apache.lucene.search.BooleanClause.Occur
 import scala.util.{Try,Success,Failure}
@@ -66,6 +66,9 @@ object PostIndex {
 }
 
 case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var searcher:IndexSearcher, index:FSDirectory, writeEnabled:Boolean){
+  val textFields = Set("text", "quoted_text")
+  val pointFields = Set("quoted_text_loc.geo_id", "text_loc.geo_id")
+  val booleanFields = Set("is_quote", "is_geo_located")
   def isOpen = {
     if(writeEnabled)
       this.writer.get.isOpen
@@ -123,7 +126,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
       post.categories.map(arr => {if(arr.size > 0) doc.add(new StoredField("categories", arr.mkString("\n")))})
       doc
   }
-  def sparkRowDoc(row:Row, pk:Option[Seq[String]]=None, textFields:Set[String]=Set[String](), oldDoc:Option[Document], aggr:Map[String, String]) = {
+  def sparkRowDoc(row:Row, pk:Option[Seq[String]]=None, oldDoc:Option[Document], aggr:Map[String, String]) = {
     val doc = new Document()
     val pkVal = HashMap[String, String]()
     row.schema.fields.zipWithIndex.foreach{case (StructField(name, dataType, nullable, metadata), i) =>
@@ -135,8 +138,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
       }
       if(!row.isNullAt(i)) {
         dataType match {
-          case StringType if !textFields.contains(name) =>  doc.add(new StringField(name, row.getAs[String](i), Field.Store.YES))
-          case StringType if textFields.contains(name) =>  doc.add(new TextField(name, row.getAs[String](i), Field.Store.YES))
+          case StringType =>  doc.add(new StringField(name, row.getAs[String](i), Field.Store.YES))
           case IntegerType => 
             doc.add(new IntPoint(name, applyIntAggregation(row.getAs[Int](i), name, aggr, oldDoc)))
             doc.add(new StoredField(name, applyIntAggregation(row.getAs[Int](i), name, aggr, oldDoc)))
@@ -222,10 +224,10 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
       throw new Exception("Cannot index  on a read only index")
     this.writer.get.updateDocument(new Term("topic_post_id", s"${topic.toLowerCase}_${post.id}_${network}"), doc)
   }
-  def indexSparkRow(row:Row, pk:Seq[String], textFields:Set[String]=Set[String](), aggr:Map[String, String] =Map[String, String]() ) = {
+  def indexSparkRow(row:Row, pk:Seq[String], aggr:Map[String, String] =Map[String, String]() ) = {
     val oldDoc = searchRow(row, pk)
      
-    val doc = this.sparkRowDoc(row = row, pk = Some(pk), textFields = textFields, oldDoc = oldDoc, aggr = aggr)
+    val doc = this.sparkRowDoc(row = row, pk = Some(pk), oldDoc = oldDoc, aggr = aggr)
     //if(pk.contains("token")) {
     //  print(s"old $oldDoc \nnew $doc \n\n")
     //}
@@ -542,8 +544,8 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
     val pk = doc.getField(pkName).stringValue 
     this.writer.get.deleteDocuments(new Term(pkName, pk))
   }
-  def searchReplaceInDoc(doc:Document, pkName:String, updateMap:Map[String, (String, String)], textFields:Set[String] = Set[String]()){
-    val pk = doc.getField(pkName).stringValue 
+  def searchReplaceInDoc(doc:Document, pkName:String, updateMap:Map[String, (String, String)]){
+    val pk = doc.getField(pkName).stringValue
     updateMap.foreach{case (field, (s, r)) =>
       if(doc.get(field)!=null) {
         val old = doc.getField(field).stringValue 
@@ -551,7 +553,8 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
         doc.add(new StringField(field, old.replaceAll(s, r), Field.Store.YES ))
       }
     }
-    this.writer.get.updateDocument(new Term(pkName, pk), rebuildDoc(doc, textFields))
+    val ndoc =  rebuildDoc(doc)
+    this.writer.get.updateDocument(new Term(pkName, pk), ndoc)
   }
   def updateHash(doc:Document, pkName:String){
     val pk = doc.getField(pkName).stringValue 
@@ -561,32 +564,41 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
     this.writer.get.updateDocument(new Term(pkName, pk), rebuildDoc(doc))
   }
 
-  def rebuildDoc(doc:Document, textFields:Set[String] = Set[String]()) = {
+  def rebuildDoc(doc:Document) = {
     val ndoc = new Document()
     doc.getFields.asScala.toSeq.foreach{f =>
-      if(textFields.contains(f.name)) {
+      if(this.textFields.contains(f.name)) {
         ndoc.add(new TextField(f.name, f.stringValue, Field.Store.YES))  
-      } else if(f.binaryValue != null) {
+      } else if(f.binaryValue != null && this.booleanFields.contains(f.name)) {
         ndoc.add(new StringField(f.name, if(f.binaryValue == 1.toByte) "true" else "false", Field.Store.NO ))
         ndoc.add(new StoredField(f.name, f.binaryValue))
       } else if(f.numericValue != null) {
+        val index = this.pointFields.contains(f.name)
         f.numericValue match {
           case v:java.lang.Integer =>
-            ndoc.add(new IntPoint(f.name, v))
+            if(index)
+                ndoc.add(new IntPoint(f.name, v))
             ndoc.add(new StoredField(f.name, v))
           case v:java.lang.Float => 
-            ndoc.add(new FloatPoint(f.name, v))
+            if(index)
+              ndoc.add(new FloatPoint(f.name, v))
             ndoc.add(new StoredField(f.name, v))
           case v:java.lang.Double =>
-            ndoc.add(new DoublePoint(f.name, v))
+            if(index)
+              ndoc.add(new DoublePoint(f.name, v))
             ndoc.add(new StoredField(f.name, v))
           case v:java.lang.Long => 
-            ndoc.add(new LongPoint(f.name, v))
+            if(index)
+              ndoc.add(new LongPoint(f.name, v))
             ndoc.add(new StoredField(f.name, v))
           case _ => throw new NotImplementedError("I do not know how convert ${v.getClass.getName} into lucene document")
         }
-      } else if(f.stringValue != null)
-        ndoc.add(new StringField(f.name, f.stringValue, Field.Store.YES))
+      } else if(f.stringValue != null) {
+          if(f.fieldType().indexOptions()==IndexOptions.NONE)
+            ndoc.add(new StoredField(f.name, f.stringValue))
+          else 
+            ndoc.add(new StringField(f.name, f.stringValue, Field.Store.YES))
+      }
       else
         throw new NotImplementedError("I do not know how convert ${f} into lucene document")
     }

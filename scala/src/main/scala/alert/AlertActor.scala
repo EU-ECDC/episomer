@@ -332,8 +332,8 @@ object AlertActor {
          .select((
            baseCols.map(c => col(c)) ++
            Seq(
-	             udf((row:Seq[Row]) => {
-                 row.map(vectors => vectors.getAs[MLVector](0)).reduceOption(_.sum(_)).getOrElse(null)
+	       udf((row:Any) => {
+                 row.asInstanceOf[Seq[Row]].map(vectors => vectors.getAs[MLVector](0)).reduceOption(_.sum(_)).getOrElse(null)
                })
                .apply(
        	         concat(
@@ -343,8 +343,8 @@ object AlertActor {
        	           :_*
        	         )
                ).as("word_vec"),
-             udf((count:Int)=> 1 - Math.pow(Math.E, -1.0*count/1000.0)).apply(col("number_of_posts")).as("adjusted_count")
-	         )):_*
+               udf((count:Int)=> 1 - Math.pow(Math.E, -1.0*count/1000.0)).apply(col("number_of_posts")).as("adjusted_count")
+	   )):_*
          )
 	       //Removing potentially empty alerts
          //.where(col("word_vec").isNotNull)

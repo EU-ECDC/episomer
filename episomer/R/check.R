@@ -71,9 +71,9 @@ get_java_version <- function() {
   }
 }
 
-java_min_version <- function() 8
-java_max_version <- function() 11
-java_tested_version <- function() 14
+java_min_version <- function() 17
+java_max_version <- function() 21
+java_tested_version <- function() 21
 # check Java version
 check_java_version <- function() {
   java_version <- get_java_version()
@@ -95,6 +95,17 @@ check_java_version <- function() {
       ". Some users have reported that your version also works, but it is recommended to use previous compatible Java versions"
     ))
     FALSE
+  } else {
+    warning(paste(
+      "Your current Java version is",
+      java_version,
+      ". episomer needs Java versions between ",
+      java_min_version(),
+      " and ",
+      java_max_version()
+    ))
+    FALSE
+    
   }
 }
 
@@ -941,12 +952,13 @@ create_snapshot <- function(
       episomer_files("fs/posts", posts_period[[1]], posts_period[[2]])
     )
   if ("logs" %in% types)
+    jobs_dir <- file.path(conf$data_dir, "jobs")
     items <- c(
       items,
       list(
-        "detect.log" = "~/episomer/detect.log",
-        "fs.log" = "~/episomer/fs.log",
-        "search.log" = "~/episomer/search.log"
+        "detect.log" = file.path(jobs_dir, "detect.log"),
+        "fs.log" =  file.path(jobs_dir, "fs.log"),
+        "search.log" =  file.path(jobs_dir, "search.log")
       )
     )
   nb <- length(items)

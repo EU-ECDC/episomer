@@ -17,7 +17,7 @@ scala/lib_managed
 scala/.bsp
 scala/null
 *.jar
-episomer/java/ecdc-twitter-bundle_2.12-1.0-source.zip
+episomer/java/ecdc-episomer-bundle_2.13-1.0-source.zip
 episomer_*.pdf
 vignette_*.pdf
 install/

@@ -348,7 +348,7 @@ object GeoTraining {
         "Post texts", 
         annotated.filter(gt => gt.source == GeoTrainingSource.post && gt.postPart == Some(GeoTrainingPart.text) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
         annotated.filter(gt => gt.source != GeoTrainingSource.post || gt.postPart != Some(GeoTrainingPart.text) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
-      ),(
+      )/*,(
         "Post location", 
         annotated.filter(gt => gt.source == GeoTrainingSource.post  && gt.postPart == Some(GeoTrainingPart.userLocation) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
         annotated.filter(gt => gt.source != GeoTrainingSource.post  || gt.postPart != Some(GeoTrainingPart.userLocation) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
@@ -356,7 +356,7 @@ object GeoTraining {
         "Post user description", 
         annotated.filter(gt => gt.source == GeoTrainingSource.post && gt.postPart == Some(GeoTrainingPart.userDescription) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
         annotated.filter(gt => gt.source != GeoTrainingSource.post || gt.postPart != Some(GeoTrainingPart.userDescription) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
-      )/*,(
+      ),(
         "Model Location", 
         annotated.filter(gt => gt.source == GeoTrainingSource.episomerModel && gt.category.toLowerCase == "location" && Math.abs(gt.id().hashCode) % l < trainingRatio * l),
         annotated.filter(gt => gt.source != GeoTrainingSource.episomerModel || gt.category.toLowerCase != "location" || Math.abs(gt.id().hashCode) % l >= trainingRatio * l)
@@ -424,7 +424,7 @@ object GeoTraining {
   def trainedLanguages()(implicit conf:Settings, storage:Storage) = {
     conf.languages.get.filter{lang => 
        Seq("I")
-         .forall(t => /*!l.areVectorsNew() &&*/ storage.getNode(s"${lang.modelPath}.${t}").exists)
+         .forall(t => !lang.areVectorsNew() && storage.getNode(s"${lang.modelPath}.${t}").exists)
     }
   }
   def getModels(testId:Option[String]=None, languages:Seq[Language])(implicit storage:Storage) = { 

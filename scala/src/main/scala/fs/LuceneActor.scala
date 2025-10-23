@@ -186,7 +186,7 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
             if(action == Some("delete")) {
               index.deleteDoc(doc, "topic_post_id")  
             } else if(action == Some("anonymise")) {
-              index.searchReplaceInDoc(doc, pkName = "topic_post_id", updateMap = anoMap, textFields = Set("text", "quoted_text"))
+              index.searchReplaceInDoc(doc, pkName = "topic_post_id", updateMap = anoMap)
             }
             ret
           }

@@ -4,7 +4,7 @@ repos = "https://cran.asnr.fr/"
 
 if(!("devtools" %in% installed.packages()[,"Package"]))
   install.packages("devtools", repos = repos)
-fast <- TRUE
+fast <- FALSE
 
 if(!fast) {
     devtools::install_deps("episomer")

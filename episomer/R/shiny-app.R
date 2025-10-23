@@ -2775,7 +2775,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             if (topposts == 0) {
             dt <-   alerts %>%
                 dplyr::select(
-                  "sm",
                   "date",
                   "hour",
                   "topic",
@@ -2796,7 +2795,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 ) %>%
                 DT::datatable(
                   colnames = c(
-                    "Social media" = "sm",
                     "Date" = "date",
                     "Hour" = "hour",
                     "Topic" = "topic",
@@ -3301,7 +3299,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             `%>%` <- magrittr::`%>%`
             shiny::removeModal()
             query <- (if (!is.null(action) && action == "anonymise")
-              "created_at:[0 TO Z] NOT screen_name:user" else NULL)
+              "created_at:[0 TO Z] NOT user_name:user" else NULL)
             progress_start("Searching")
             shiny::isolate({
               posts <- search_posts(
@@ -3389,29 +3387,23 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 posts$text_loc$geo_country_code else ""
               posts$geo_name <- if ("text_loc" %in% colnames(posts))
                 posts$text_loc$geo_name else ""
-              posts %>%
-                dplyr::select(
-                  "post_id",
-                  "topic",
-                  "country_code",
-                  "geo_name",
-                  "created_at",
-                  "text",
-                  "screen_name",
-                  "linked_text",
-                  "linked_screen_name"
-                ) %>%
+              cols <- c("id","topic","country_code","geo_name","created_at","text","user_name","quoted_text")
+	      for(c in cols) {
+	        if(!(c %in% names(posts)))
+			posts[c] <- ""
+	      }
+	      posts %>%
+                dplyr::select(cols) %>%
                 DT::datatable(
                   colnames = c(
-                    "Post Id" = "post_id",
+                    "Post Id" = "id",
                     "Topic" = "topic",
                     "Created" = "created_at",
                     "Country in text" = "country_code",
                     "Location in text" = "geo_name",
-                    "User" = "screen_name",
+                    "User" = "user_name",
                     "Text" = "text",
-                    "Repost/Quoted text" = "linked_text",
-                    "Repost/Quoted user" = "linked_screen_name"
+                    "Repost/Quoted text" = "quoted_text"
                   ),
                   filter = "top",
                   escape = TRUE
@@ -3498,9 +3490,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
   }
 
   app_error <- function(e, env = cd) {
+    message("000000000000000000000000000")
+    message(class(e))
+    message(paste(e))
+    message("--------------------------------")
+
     message(e)
+    message("11111111111111111111111111")
     progress_close(env = env)
+    message("2222222222222222222222222222")
     shiny::showNotification(paste(e), type = "error")
+    message("33333333333333333333333333333")
   }
 
   # Printing PID
