@@ -83,7 +83,8 @@ spark_job <- function(args) {
     } else {
       Sys.setenv(
         OPENBLAS_NUM_THREADS = 1,
-        HADOOP_HOME = get_winutils_hadoop_home_path()
+        HADOOP_HOME = get_winutils_hadoop_home_path(),
+        PATH = paste(file.path(get_winutils_hadoop_home_path(), "bin"), Sys.getenv("PATH"), sep = ";")
       ) #Default windows environment variables
       ""
     },
