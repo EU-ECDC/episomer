@@ -795,8 +795,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     value = conf$force_date_format
                   )
                 )
-              ),
-              shiny::actionButton("save_properties", "Save settings")
+              )
             ),
             shiny::column(
               8,
@@ -2383,53 +2382,40 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         ######### PROPERTIES LOGIC ##################
         reactive_elements_to_save_in_conf <- shiny::reactive({
           list(
-         collect_span = input$conf_collect_span,
-          schedule_span = input$conf_schedule_span,
-          keyring = input$conf_keyring,
-          spark_cores = input$conf_spark_cores,
-          spark_memory = input$conf_spark_memory,
-          onthefly_api = input$conf_onthefly_api,
+          conf_collect_span = input$conf_collect_span,
+          conf_schedule_span = input$conf_schedule_span,
+          conf_keyring = input$conf_keyring,
+          conf_spark_cores = input$conf_spark_cores,
+          conf_spark_memory = input$conf_spark_memory,
+          conf_onthefly_api = input$conf_onthefly_api,
           geolocation_threshold = input$geolocation_threshold,
-          geonames_url = input$conf_geonames_url,
-          maven_repo = input$conf_maven_repo,
-          winutils_url = input$conf_winutils_url,
-          geonames_simplify = input$conf_geonames_simplify,
-          regions_disclaimer = input$conf_regions_disclaimer,
-          alert_alpha = input$conf_alpha,
-          alert_alpha_outlier = input$conf_alpha_outlier,
-          alert_k_decay = input$conf_k_decay,
-          alert_history = input$conf_history,
-          alert_same_weekday_baseline = input$conf_same_weekday_baseline,
-          alert_with_bonferroni_corection = input$conf_with_bonferroni_correction,
-          alert_with_quotes = input$conf_with_quotes,
-          smtp_host = input$smtp_host,
-          smtp_port = input$smtp_port,
-          smtp_from = input$smtp_from,
-          smtp_login = input$smtp_login,
-          smtp_insecure = input$smtp_insecure,
-          smtp_password = input$smtp_password,
-          admin_email = input$admin_email,
-          force_date_format = input$force_date_format,
-          sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          sm_activated_bluesky = input$conf_sm_activated_bluesky            
+          conf_geonames_url = input$conf_geonames_url,
+          conf_maven_repo = input$conf_maven_repo,
+          conf_winutils_url = input$conf_winutils_url,
+          conf_geonames_simplify = input$conf_geonames_simplify,
+          conf_regions_disclaimer = input$conf_regions_disclaimer,
+          conf_alpha = input$conf_alpha,
+          conf_alpha_outlier = input$conf_alpha_outlier,
+          conf_k_decay = input$conf_k_decay,
+          conf_history = input$conf_history,
+          conf_same_weekday_baseline = input$conf_same_weekday_baseline,
+          conf_with_bonferroni_corection = input$conf_with_bonferroni_correction,
+          conf_with_quotes = input$conf_with_quotes,
+          conf_smtp_host = input$conf_smtp_host,
+          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
+          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky            
           )
     })
     debounced_elements_to_save_in_conf <- shiny::debounce(reactive_elements_to_save_in_conf, 3000)
 
-        # action to save properties
-        #shiny::observeEvent(input$save_properties, {
-        shiny::observeEvent(debounced_elements_to_save_in_conf(), {
-          browser()
+        shiny::observeEvent(debounced_elements_to_save_in_conf(), {          
           conf <- update_config_from_input(conf, debounced_elements_to_save_in_conf())
 
           # Saving Bluesky propertes          
           sm_api_set_auth(
             network = "bluesky",
             shiny_input_list = input
-          )               
-
-          conf$sm_alerts_bluesky <- debounced_elements_to_save_in_conf()$conf_sm_alerts_bluesky
-          conf$sm_activated_bluesky <- debounced_elements_to_save_in_conf()$conf_sm_activated_bluesky
+          )                      
 
           # Saving properties.json
           save_config(data_dir = data_dir)
