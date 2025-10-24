@@ -442,13 +442,7 @@ setup_config <- function(
   #Setting up keyring
   if (!ignore_keyring) {
     kr <- get_key_ring(conf$keyring)
-    conf$auth <- list()
     # Fetching and updating variables from keyring
-    for (v in c("bluesky_user", "bluesky_password")) {
-      if (is_secret_set(v)) {
-        conf$auth[[v]] <- get_secret(v)
-      }
-    }
     if (is_secret_set("smtp_password")) {
       conf$smtp_password <- get_secret("smtp_password")
     }
@@ -628,14 +622,34 @@ merge_config_lists <- function(configs, property) {
 
 # parse topic query and translate it to particular social media quert language
 translate_query <- function(sm, q) {
-  q_parts <- trimws(strsplit(q, "[,\n]+")[[1]])
-  q_parts <- q_parts[q_parts != ""]
-  neg_parts <- q_parts[startsWith(q_parts, "-")]
-  neg_parts <- substr(neg_parts, 2, 1000)
-  pos_parts <- q_parts[!startsWith(q_parts, "-")]
-  pos_parts <- strsplit(pos_parts, "/")
-  sm_api_translate_query(network = sm, parts = pos_parts, excluded = neg_parts)
+  r = list()
+  q = gsub(" or ", "|", q) 
+  q = gsub(" OR ", "|", q) 
+  q = gsub(" AND ", "&", q) 
+  q = gsub(" and ", "&", q) 
+  ors <- trimws(strsplit(q, "\\|")[[1]])
+  ors <- ors[ors != ""]
+  for(i in 1:length(ors)) {
+    r[[i]] <- list(neg = list(), pos=list())
+    ands <- trimws(strsplit(ors[[i]], "&")[[1]])
+    ands <- ands[ands != ""]
+    for(j in 1:length(ands)) {
+       if(startsWith(ands[[j]], "-")) {
+           neg <- trimws(strsplit(ands[[j]], "-")[[1]])
+           neg <- substr(neg, 2, 1000)
+           neg <- neg[neg != ""]
+           r[[i]]$neg <- c(r[[i]]$neg, neg)
+       } else {
+           pos <- trimws(strsplit(ands[[j]], "/")[[1]])
+           r[[i]]$pos <- c(r[[i]]$pos, list(pos))
+       }
+      
+    }
+    
+  }
+  sm_api_translate_query(network = sm, r)
 }
+
 
 # Get topics data frame as displayed on the Shiny configuration tab
 get_topics_df <- function() {

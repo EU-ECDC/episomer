@@ -26,8 +26,8 @@ sm_api_get_token <- function(network) {
   get(sprintf("sm_api_get_token_%s", network))()
 }
 
-sm_api_translate_query <- function(network, parts, excluded) {
-  get(sprintf("sm_api_translate_query_%s", network))(parts, excluded)
+sm_api_translate_query <- function(network, parsed) {
+  get(sprintf("sm_api_translate_query_%s", network))(parsed)
 }
 
 sm_api_search <- function(query, token, plan) {
