@@ -2399,31 +2399,39 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           conf_k_decay = input$conf_k_decay,
           conf_history = input$conf_history,
           conf_same_weekday_baseline = input$conf_same_weekday_baseline,
-          conf_with_bonferroni_corection = input$conf_with_bonferroni_correction,
+          conf_with_bonferroni_correction = input$conf_with_bonferroni_correction,
           conf_with_quotes = input$conf_with_quotes,
-          conf_smtp_host = input$conf_smtp_host,
+          conf_smtp_host = input$smtp_host,
+          conf_smtp_port = input$smtp_port,
+          conf_smtp_insecure = input$smtp_insecure,
+          conf_admin_email = input$admin_email,
+          conf_smtp_from = input$smtp_from,
+          conf_smtp_login = input$smtp_login,
+          conf_smtp_password = input$smtp_password,
           conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky            
-          )
+          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
+          conf_force_date_format = input$force_date_format
+	  )
     })
     debounced_elements_to_save_in_conf <- shiny::debounce(reactive_elements_to_save_in_conf, 3000)
 
         shiny::observeEvent(debounced_elements_to_save_in_conf(), {          
-          conf <- update_config_from_input(conf, debounced_elements_to_save_in_conf())
+          update_config_from_input(debounced_elements_to_save_in_conf())
 
           # Saving Bluesky propertes          
           sm_api_set_auth(
             network = "bluesky",
             shiny_input_list = input
           )                      
-
+          
           # Saving properties.json
-          save_config(data_dir = data_dir)
+          save_config(
+            data_dir = conf$data_dir,
+          )
 
           # Forcing update on properties dependant refresh (e.g. time slots)
           cd$properties_refresh_flag(Sys.time())
 
-          print("updated config")
         }, ignoreInit = TRUE)
 
         ######### IMPORTANT USERS LOGIC ###########

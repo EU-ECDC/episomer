@@ -21,18 +21,19 @@ sm_api_get_token_bluesky <- function() {
 
 
 # @function_def_start (do not delete)
-sm_api_translate_query_bluesky <- function(parts, excluded) {
+sm_api_translate_query_bluesky <- function(parsed) {
 # @function_def_end (do not delete)
-  queries = list()
-  comb = do.call(expand.grid, parts)
-  if (nrow(comb) > 0) {
-    ret <- lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ])))
-    if (length(excluded) > 0)
-      ret <- paste(ret, do.call(paste, as.list(paste0("-", excluded))))
-    ret
-  } else {
-    list()
+  ret = list()
+  for(i in 1:length(parsed)) {
+     comb = do.call(expand.grid, parsed[[i]]$pos)
+     if (nrow(comb) > 0) {
+       r <- lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ])))
+       if (length(parsed[[i]]$neg) > 0)
+         r <- paste(r, do.call(paste, as.list(paste0("-", parsed[[i]]$neg))))
+       ret = c(ret, r)
+     }
   }
+  ret
 }
 
 
@@ -127,8 +128,6 @@ sm_api_set_auth_bluesky <- function(shiny_input_list) {
   if(!"bluesky_password" %in% names(shiny_input_list)) {
     stop("bluesky_password is not in the shiny_input_list")
   }
-  conf$auth$bluesky_user <- shiny_input_list$bluesky_user
-  conf$auth$bluesky_password <- shiny_input_list$bluesky_password
   set_secret("bluesky_user", shiny_input_list$bluesky_user)
   set_secret("bluesky_password", shiny_input_list$bluesky_password)
 }
