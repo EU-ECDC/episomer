@@ -770,9 +770,14 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
           password = conf$smtp_password,
           reuse = FALSE
         ))
-      message("Health check failed, sending email")
+      message(sprintf("Health check failed, sending email from %s to %s\n%s", conf$smtp_from, conf$admin_email, paste(alerts, collapse="\n")))
       tryCatch(
         smtp(msg),
+        warning = function(e)
+          message(paste(
+            "Warning: Cannot send email. The following error occured",
+            e
+          )),
         error = function(e)
           message(paste(
             "Warning: Cannot send email. The following error occured",
