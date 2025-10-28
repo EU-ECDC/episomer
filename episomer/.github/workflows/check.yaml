@@ -5,7 +5,7 @@ on:
   push:
     branches: [main, master, test-ci]
 
-name: check_r.yml
+name: check.yml
 
 permissions:
   contents: write
