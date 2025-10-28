@@ -55,7 +55,7 @@ This behaviour can be changed by setting the environment variable 'ecdc_social_t
 Changes made to conf can be stored permanently (except for 'data_dir') using:
 \itemize{
   \item{\code{\link{save_config}}, or}
-   \item{\code{\link{set_auth}}}
+   \item{\code{\link{sm_api_set_auth_bluesky}}}
 }
 }
 \examples{
@@ -68,7 +68,7 @@ if(FALSE){
 }
 \seealso{
 \code{\link{save_config}}
-\code{\link{set_auth}}
+\code{\link{sm_api_set_auth_bluesky}}
 \code{\link{episomer_app}}
 \code{\link{search_loop}}
 \code{\link{detect_loop}}

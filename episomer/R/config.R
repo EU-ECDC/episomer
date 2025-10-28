@@ -190,7 +190,7 @@ get_empty_config <- function(data_dir) {
 #' Changes made to conf can be stored permanently (except for 'data_dir') using:
 #' \itemize{
 #'   \item{\code{\link{save_config}}, or}
-#'    \item{\code{\link{set_auth}}}
+#'    \item{\code{\link{sm_api_set_auth_bluesky}}}
 #' }
 #' @examples
 #' if(FALSE){
@@ -201,7 +201,7 @@ get_empty_config <- function(data_dir) {
 #' }
 #' @seealso
 #' \code{\link{save_config}}
-#' \code{\link{set_auth}}
+#' \code{\link{sm_api_set_auth_bluesky}}
 #' \code{\link{episomer_app}}
 #' \code{\link{search_loop}}
 #' \code{\link{detect_loop}}
@@ -478,7 +478,7 @@ copy_plans_from <- function(temp) {
 #' @param sm_topics Whether to save topic download plans to the topics.json file, default: TRUE
 #' @return Nothing
 #' @details Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
-#' to save social media credentials please use \code{\link{set_auth}}
+#' to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
@@ -493,7 +493,7 @@ copy_plans_from <- function(temp) {
 #' @rdname save_config
 #' @seealso
 #' \code{\link{setup_config}}
-#' \code{\link{set_auth}}
+#' \code{\link{sm_api_set_auth_bluesky}}
 #' @export
 save_config <- function(
   data_dir = conf$data_dir,

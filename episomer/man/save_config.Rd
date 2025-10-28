@@ -21,7 +21,7 @@ Permanently saves configuration changes to the data folder (excluding social med
 }
 \details{
 Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
-to save social media credentials please use \code{\link{set_auth}}
+to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
 }
 \examples{
 if(FALSE){
@@ -37,5 +37,5 @@ if(FALSE){
 }
 \seealso{
 \code{\link{setup_config}}
-\code{\link{set_auth}}
+\code{\link{sm_api_set_auth_bluesky}}
 }
