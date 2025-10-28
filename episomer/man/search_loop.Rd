@@ -2,6 +2,7 @@
 % Please edit documentation in R/search.R
 \name{search_loop}
 \alias{search_loop}
+\alias{search_loop_worker}
 \title{Runs the search loop}
 \usage{
 search_loop(
@@ -10,27 +11,41 @@ search_loop(
   log_to_file = TRUE,
   max_requests = 0
 )
+
+search_loop_worker(network, data_dir = NA, sandboxed = FALSE, max_requests = 0)
 }
 \arguments{
-\item{data_dir}{optional path to the 'data directory' containing application settings, models and collected posts. If not provided it will reuse the last set on the current session.
-If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, Default: NA}
+\item{data_dir}{The data directory to use.}
+
+\item{sandboxed}{Whether to run in sandboxed mode.}
+
+\item{log_to_file}{logical indicating if the search loop should log to a file. Default: TRUE}
+
+\item{max_requests}{The maximum number of requests to perform.}
+
+\item{network}{The social media network to search on.}
 }
 \value{
+Nothing
+
 Nothing
 }
 \description{
 Infinite loop ensuring the permanent collection of posts
 }
 \details{
-The detect loop is a pure R function designed for downloading posts from the Twitter search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
-round-robin philosophy and respecting Twitter API rate-limits.
+The detect loop is a pure R function designed for downloading posts from the social media search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
+round-robin philosophy and respecting social media API rate-limits.
 
 The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect posts respecting a 'collect_span' window
 in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 
 To see more details about the collection algorithm please see episomer vignette.
 
-In order to work, this task needs Bluessky credentials, which can be set on the Shiny app or using \code{\link{set_bsky_auth}}
+In order to work, this task needs Bluessky credentials, which can be set on the Shiny app or using \code{\link{set_auth}}
+
+The search loop worker is a function that runs the search loop for a given social media network.
+It is used to run the search loop in a separate process.
 }
 \examples{
 if(FALSE){
@@ -41,5 +56,5 @@ if(FALSE){
 }
 }
 \seealso{
-\code{\link{set_twitter_app_auth}}
+\code{\link{set_auth}}
 }
