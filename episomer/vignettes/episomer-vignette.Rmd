@@ -50,14 +50,14 @@ The package includes  an interactive web application (Shiny app) with six pages:
 
 On the dashboard, users can view the aggregated number of posts over time, the location of these posts on a map and different most frequent elements found in or extracted from these posts (words, hashtags, URLs, contexts and entities). These visualisations can be filtered by the topic, location and time period you are interested in. Other filters are available and include the possibility to adjust the time unit of the timeline, whether reposts/quotes should be included, what kind of geolocation types you are interested in, the sensitivity of the prediction interval for the signal detection, and the number of days used to calculate the threshold for signals. This information is also downloadable directly from this interface in the form of data, pictures, and/or reports.
 
-More information on the methodology used is available in the [episomer peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
+More information on the methodology used is available in the [episomer peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/epitweetr/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
 
 **Shiny app dashboard:**
 
 <center>Fig 1: Shiny app dashboard figure</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/dashboard.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/dashboard.png")
 ```
 
 
@@ -66,7 +66,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/dash
 <center>Fig 2: Shiny app alerts page</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/alerts.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/alerts.png")
 ```
 
 
@@ -75,7 +75,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/aler
 <center>Fig 3: Shiny app geotag evaluation page</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/geotag_evaluation.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/geotag_evaluation.png")
 ```
 
 **Shiny app data protection page:**
@@ -83,7 +83,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/geot
 <center>Fig 4: Shiny app data protection page</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/data_protection.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/data_protection.png")
 ```
 
 **Shiny app configuration page:**
@@ -91,7 +91,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/data
 <center>Fig 5: Shiny app configuration page</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/config.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/config.png")
 ```
 
 
@@ -100,7 +100,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/conf
 <center>Fig 6: Shiny app troubleshoot page</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/troubleshoot.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/troubleshoot.png")
 ```
 
 ## Background
@@ -132,7 +132,7 @@ The primary objective of `episomer` is to use the Twitter Standard Search API ve
 Its secondary objective is to enable the user through an interactive web interface to explore the trend of posts by time, geographical location and topic, including information on top words and numbers of posts from trusted users, using charts and tables.
 
 ### Repository of episomer material and training
-More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/episomer/discussions). This [post](https://github.com/EU-ECDC/episomer/discussions/7) contains a summary of links and materials of relevance for new users.
+More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/epitweetr/discussions). This [post](https://github.com/EU-ECDC/epitweetr/discussions/7) contains a summary of links and materials of relevance for new users.
 
 ## Hardware requirements
 
@@ -304,7 +304,7 @@ episomer_app("data_dir")
 -   In the configuration page of the Shiny app, in the manual tasks of the "Requirements & alerts pipeline", click on "Run dependencies", "Run GeoNames" and "Run languages" (their status will change to “pending”). This allows the 'Requirements & alerts' pipeline to download the elements needed. As long as no languages are added and no updates are available in geonames.org, these tasks have to be run only the first time you install `episomer`.
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/run_tasks.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/run_tasks.png")
 ```
 
 -   Set up the Twitter authentication using a Twitter account or a Twitter developer app, see section *Collection of posts>Twitter authentication* for more details
@@ -436,7 +436,7 @@ You can authenticate the collection of posts by using a **Twitter account** (thi
         -   If you have rpost 1.0.2+, you will need to enter your bearer token. For previous versions the information to enter is: App Name, API key, API key secret, access token and access token secret
         
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/twitter_authentication.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/twitter_authentication.png")
 ```
 
 #### Topics and post collection queries
@@ -448,7 +448,7 @@ A query consists of keywords and operators that are used to match post attribute
 `episomer` comes with a default list of topics as used by the ECDC Epidemic Intelligence team. You can view details of the list of topics in the Shiny app configuration page (see screenshot below). In addition, the colour coding in the downloadable file allows users to see if the query for a topic is too long (red colour) and the topic should be split in several queries.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/topics.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/topics.png")
 ```
 
 In the configuration page, you can also download the list of topics, modify and upload it to `episomer`. The new list of topics will then be used for post collection and visible in the Shiny app. The list of topics is an Excel file (\*.xlsx) as it handles user-specific regional settings (e.g. delimiters) and special characters well. You can create your own list of topics and upload it too, noting that the structure should include at least:
@@ -474,7 +474,7 @@ The topics.xlsx file additionally includes the following fields:
 -   "Rank" is the number of queries per topic
 
 ```{r echo=FALSE, fig.cap="", out.width = '80%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/Example_topics_list.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/Example_topics_list.png")
 ```
 
 When uploading your own file, please modify the topic and query fields, but do not modify the column titles.
@@ -493,7 +493,7 @@ All subsequent “search plans” are done in scheduled intervals that are set u
 For example, if the “search plan” begins at 4 am on the 10^th^ of November 2021, `episomer` will launch requests for posts corresponding to its queries for the four-hour period from 4 am to midnight on the 10^th^ of November 2021. `episomer` starts by collecting the most recent posts (the ones from 4 am) and continues backwards. If during the four-hour time period between 4 am and midnight the API does not return any more results, the “search plan” for this query is considered completed.
 
 ```{r echo=FALSE, fig.cap="", out.width = '80%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/Schedule_plan_image.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/Schedule_plan_image.png")
 ```
 
 However, if topics are very popular (e.g. COVID-19 in 2020 and 2021), then the “search plan” for a query in a given four-hour window may not be completed. If this happens, `episomer` will move on to the “search plans” for the subsequent four-hour window, and put any previous incomplete “search plan” in a queue to execute when “search plans” for this new four-hour window are completed.
@@ -537,7 +537,7 @@ An example is the COVID-19 pandemic in 2020. In early 2020, there was limited in
 If search plans cannot be finished, several search plans per query may be in a queue:
 
 ```{r echo=FALSE, fig.cap="", out.width = '80%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/Search_plan_queues.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/Search_plan_queues.png")
 ```
 
 This design can have the draw back of slowing down big topics collection since `episomer` is trying to rebuilt last 7 days of history. If you are not interested in rebuilding history on a particular point of time, you can click on the "Dismiss past posts" button which will discard all previous/historical plans and will start collecting new data.
@@ -573,7 +573,7 @@ To validate the candidate against geonames, a score is associated with the proba
 You can select which languages you would like to check for other kinds of words by selecting the active language desired within the configuration page of the Shiny app and clicking on the "+" icon:
 
 ```{r echo=FALSE, fig.cap="", out.width = '80%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/config_languages.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/config_languages.png")
 ```
 
 In addition, you can unselect languages by selecting the language within the configuration page of the Shiny app and clicking on the "-"  icon. 
@@ -751,7 +751,7 @@ The subscribers can receive real-time alerts (i.e. as soon as the detection loop
 When including more than one topic and/or region in the subscribers list, these should be separated by semi-colon (;) with no spaces (e.g. Ebola;infectious diseases;dengue). The names must match the column “Topics” in the list of topics and the column “Name” in the country/region list from the configuration page.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/subscribers.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/subscribers.png")
 ```
 
 ###  Folder structure
@@ -847,7 +847,7 @@ You can select one item from the drop-down list of topics, which is populated by
 **Countries & regions**
 
 ```{r echo=FALSE, fig.cap="", out.width = '40%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/topics_countries.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/topics_countries.png")
 ```
 
 If you select **World (all)**, all posts are displayed regardless of their geolocation. You can select an individual country, you can select regions and subregions, and you can select several items at the same time. You can also start typing in the text field and select the geographical item from the drop-down list.
@@ -855,7 +855,7 @@ If you select **World (all)**, all posts are displayed regardless of their geolo
 **Period**
 
 ```{r echo=FALSE, fig.cap="", out.width = '40%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/period.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/period.png")
 ```
 
 You can select from the past 7 (the default), 30, 60 or 180 days. You can also select "custom" and a calendar option to select study period will appear. These periods will be the time period for inclusion in the visualisations. When selecting custom period, please ensure that the first date is at least one day before the second date.
@@ -863,7 +863,7 @@ You can select from the past 7 (the default), 30, 60 or 180 days. You can also s
 **Time unit**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/time_unit.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/time_unit.png")
 ```
 
 You can display the timeline for the number of posts with weeks or days as units of time. The default is days.
@@ -871,7 +871,7 @@ You can display the timeline for the number of posts with weeks or days as units
 **Include Reposts/quotes**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/include_reposts.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/include_reposts.png")
 ```
 
 By default, reposts are not included in any of the visualisations. If “include reposts/quotes” is checked, the visualisations display results of posts and reposts/quotes. Otherwise, the visualisations display only posts (without reposts/quotes).
@@ -879,7 +879,7 @@ By default, reposts are not included in any of the visualisations. If “include
 **Location type**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/location_type.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/location_type.png")
 ```
 
 Posts are geolocated into regions, subregions and countries. “Location type” indicates what should be used for geolocation:
@@ -893,7 +893,7 @@ Posts are geolocated into regions, subregions and countries. “Location type”
 **Signal detection false positive rate**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/signal_detection_fpr.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/signal_detection_fpr.png")
 ```
 
 Using the slider, you can explore the differences in the signals generated when changing the alpha parameter for the false positive rate. Note that this will not change the signal false positive rate for the alert emails. This is just a tool for the user to explore this parameter. The default is 0.025. A higher false positive rate will increase the sensitivity and possibly the number of signals detected, and vice versa.
@@ -901,7 +901,7 @@ Using the slider, you can explore the differences in the signals generated when 
 **Outlier false positive rate and outlier downweight strength**
 
 ```{r echo=FALSE, fig.cap="", out.width = '40%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/outlier_dashboard.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/outlier_dashboard.png")
 ```
 
 The outlier false positive rate relates to the false positive rate for determining what an outlier is when downweighting previous outliers/signals. The lower the value, the fewer previous outliers will potentially be included. A higher value will potentially include more previous outliers.
@@ -911,7 +911,7 @@ The outlier downweight strength determines how much an outlier will be downweigh
 **Bonferroni correction**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/Bonferroni_correction.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/Bonferroni_correction.png")
 ```
 
 The Bonferroni correction is selected by default. It accounts for false positive signal detection through multiple testing. For country-specific signal detection, the alpha is divided by the number of countries. For continent-specific signal detection, the alpha is divided by the number continents.
@@ -921,7 +921,7 @@ If you do not wish to use this correction, you can uncheck it.
 **Days in baseline**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/days_in_baseline.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/days_in_baseline.png")
 ```
 
 The default days in baseline is 7. The user can explore the effect of having different days in the baseline. This is only for the visualisation, any changes made for the email alerts have to be made in the configuration page.
@@ -929,7 +929,7 @@ The default days in baseline is 7. The user can explore the effect of having dif
 **Same weekday baseline**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/same_weekday_baseline.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/same_weekday_baseline.png")
 ```
 
 It is possible that there is a "day of the week effect", where more posts may be posted on a given day of the week (e.g. Monday) than on other days. You can also select to calculate the baseline not on consecutive days, but on the past N days that correspond to the same 24 hour window N days back. This way if N = 7, the baseline is calculated using the “days” from -7, -14, -21, -28, -35, -42, -49 and -56 (if the current "day" is zero).
@@ -942,7 +942,7 @@ The timeline graph is a time series, where you can see the number of posts for a
 If you hover over the graph, you obtain extra information on country, date, number of posts and the number of posts from the list of known users, the ratio of known users to unknown users, whether the number of posts was associated with a signal and what the threshold and the alpha was.
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/hover_trendline.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/hover_trendline.png")
 ```
 
 
@@ -952,7 +952,7 @@ The map shows a proportional symbol map of the posts by country and by topic for
 The geographical information for the map is based on the choice in the filters: the country/region/subregion and the location type (post, user or both).
 
 ```{r echo=FALSE, fig.cap="", out.width = '60%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/hover_map.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/hover_map.png")
 ```
 
 When you hover over the map, you can get information on number of posts and names of the geographical units underlying the circles on the map.
@@ -962,7 +962,7 @@ When selecting one country, the symbols show the geographical distribution of po
 #### Most frequent words, hashtags, URLs, context and entities found in or extracted from posts
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/top_words.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/top_words.png")
 ```
 
 These graphs display the top elements of posts by topic for the study period for the geographical units chosen, and according to the filter on post/repost.
@@ -1031,7 +1031,7 @@ The alert annotation spreadsheet has two sheets that will be used as explained b
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/alerts.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/alerts.png")
 ```
 
 ### The geotag page
@@ -1068,7 +1068,7 @@ The geolocation spreadsheet has the following columns:
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/geotag_evaluation.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/geotag_evaluation.png")
 ```
 
 ### The data protection page
@@ -1088,7 +1088,7 @@ The following controls are available:
 In the configuration page, you can change settings of the tool, you can check the status of the various processes/pipelines of the tool and you can add, delete and modify topics and their associated requests, languages for geolocation and the list of the “important users” and email alert subscribers. When changing anything in the “Signal detection” or “General” sections, do not forget to click on the “Update Properties” button at the end of the “General” section. The following sections describe the configuration page in more detail.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/config.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/config.png")
 ```
 
 **Status**
@@ -1096,7 +1096,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/conf
 The status section enables you to quickly assess the latest time point and/or status of the processes for post collection (Post Search), and geolocation, aggregation and signal detection (Detection pipeline).
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/status.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/status.png")
 ```
 
 In the status section, you can tell if the embedded database, the search pipeline and the detect pipeline processes are running. You can click on “activate” or “stop” the episomer tasks. On Windows the tasks wim be permanently registered as scheduled tasks so they will run automatically or can be manually run from the Windows task scheduler.
@@ -1115,7 +1115,7 @@ The 'Requirements & alerts pipeline' table gives more information about the stat
 Alerts dates should be more recent if the 'data collection & processing' and 'requirements & alerts' pipelines are active and running. These are scheduled according to the detect span. The status can include running, scheduled, pending, failed or aborted (if it has failed more than three times).
 
 ```{r echo=FALSE, fig.cap="", out.width = '70%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/detection_pipeline.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/detection_pipeline.png")
 ```
 
 
@@ -1124,7 +1124,7 @@ knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/dete
 In the signal detection section in the configuration page, you can set the signal false positive rate alpha parameter, which increases (if larger) the the detection interval (more signals are detected), or decreases (if smaller) the detection interval (fewer signals are detected).
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/signal_detection_config.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/signal_detection_config.png")
 ```
 
 The outlier false positive rate relates to the false positive rate for determining what an outlier is when downweighting previous outliers/signals. The lower the value, the fewer previous outliers will potentially be included. A higher value will potentially include more previous outliers.
@@ -1145,7 +1145,7 @@ When changing anything in the “Signal detection” section, do not forget to c
 **General**
 
 ```{r echo=FALSE, fig.cap="", out.width = '40%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/general.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/general.png")
 ```
 
 -   In **Data directory** you can view the directory that `episomer` uses to store the post and associated data collected. This is also the directory that the dashboard uses to obtain the datasets for displaying the visualisations. You need to set this folder when you launch `episomer` or set the environment variable 'EPI\_HOME'.
@@ -1193,7 +1193,7 @@ The admin email will receive episomer notifications of regular sanity checks of 
 See section *“How does it work? General architecture behind episomer > Collection of posts > Twitter authentication”* for more details on how to do the Twitter authentication.
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/twitter_authentication.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/twitter_authentication.png")
 ```
 
 **Email authentication (SMTP)**
@@ -1215,7 +1215,7 @@ A query consists of keywords and operators that are used to match on post attrib
 In the topics section on the configuration page, you can view the topic, the associated query, the query length and how many active search plans are associated with the query. If more than one search plan is active, this means that `episomer` did not manage to collect all possible posts in the last session. Additionally, you can see the progress and the number of requests from the last search plan.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/topics.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/topics.png")
 ```
 
 **Languages**
@@ -1225,7 +1225,7 @@ In the languages section, you can determine which language models are used to id
 **All default languages (English, French, Spanish and Portuguese) must be downloaded before adding new languages or deleting any of the default languages.**
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/languages.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/languages.png")
 ```
 
 ### The troubleshoot page
@@ -1240,7 +1240,7 @@ Back-ups your `episomer` installation with all its settings and data on a single
 Provides a list of automatic checks and hints for using `episomer` with all its functionalities. Click on "Run diagnostics" to see the list of checks, whether it passed the check ("true") or not ("false"), and hints in case it did not pass the check. More detailed information can be found in [Annex II](#annexII) of this user documentation.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/troubleshoot.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/troubleshoot.png")
 ```
 
 ### Downloading outputs from the interactive user interface (Shiny app)
@@ -1357,14 +1357,14 @@ Figure 5 below shows the upper limit of the signal detection threshold for `epis
 <center>Fig 5: Upper limit with and without downweighting for the episomer Ebola data</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
-knitr::include_graphics("https://github.com/EU-ECDC/episomer/raw/master/img/ebola.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/ebola.png")
 ```
 
 ## Annex II: Troubleshooting and tips {#annexII}
 
 This annex contains some tips and common solutions to errors or issues that `episomer` users may encounter, including an explanation on the checks included in the troubleshoot page.
 
-In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
+In addition, you can also visit the [general post](https://github.com/EU-ECDC/epitweetr/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
 
 ### The troubleshoot page
 After running the diagnostics in the troubleshoot page, you can see the checks and status on the following aspects:
