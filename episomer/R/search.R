@@ -6,8 +6,8 @@
 #' @param log_to_file logical indicating if the search loop should log to a file. Default: TRUE
 #' @param max_requests integer indicating the maximum number of requests to perform. If 0, the search loop will run indefinitely. Default: 0
 #' @return Nothing
-#' @details The detect loop is a pure R function designed for downloading posts from the Twitter search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
-#' round-robin philosophy and respecting Twitter API rate-limits.
+#' @details The detect loop is a pure R function designed for downloading posts from the social media search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
+#' round-robin philosophy and respecting social media API rate-limits.
 #'
 #' The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect posts respecting a 'collect_span' window
 #' in minutes, which is defined on the Shiny app and defaults to 60 minutes.
@@ -151,7 +151,7 @@ search_loop_worker <- function(
     }
 
     # Calculating how the time episomer should wait before executing each active plan. If bigger than zero then episomer will wait.
-    # If waiting happens here, it means that episomer is able to collect all posts under current twitter rate limits, so it could collect more topics or sooner.
+    # If waiting happens here, it means that episomer is able to collect all posts under current social media rate limits, so it could collect more topics or sooner.
     if (!sandboxed) {
       wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
         can_wait_for(plans = conf$topics[[i]]$plan)
@@ -346,7 +346,7 @@ search_topic <- function(
 }
 
 
-# Helper function to parse Twitter date as provided by the Twitter API
+# Helper function to parse social media date as provided by the social media API
 parse_date <- function(str_date) {
   curLocale <- Sys.getlocale("LC_TIME")
   on.exit(Sys.setlocale("LC_TIME", curLocale))
