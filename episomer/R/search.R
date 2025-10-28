@@ -14,7 +14,7 @@
 #'
 #' To see more details about the collection algorithm please see episomer vignette.
 #'
-#' In order to work, this task needs Bluessky credentials, which can be set on the Shiny app or using \code{\link{set_auth}}
+#' In order to work, this task needs Bluesky credentials, which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}}
 #'
 #' @examples
 #' if(FALSE){
@@ -25,7 +25,7 @@
 #' }
 #' @rdname search_loop
 #' @seealso
-#' \code{\link{set_auth}}
+#' \code{\link{sm_api_set_auth_bluesky}}
 #' @export
 search_loop <- function(
   data_dir = NA,

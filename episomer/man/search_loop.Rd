@@ -42,7 +42,7 @@ in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 
 To see more details about the collection algorithm please see episomer vignette.
 
-In order to work, this task needs Bluessky credentials, which can be set on the Shiny app or using \code{\link{set_auth}}
+In order to work, this task needs Bluesky credentials, which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}}
 
 The search loop worker is a function that runs the search loop for a given social media network.
 It is used to run the search loop in a separate process.
@@ -56,5 +56,5 @@ if(FALSE){
 }
 }
 \seealso{
-\code{\link{set_auth}}
+\code{\link{sm_api_set_auth_bluesky}}
 }
