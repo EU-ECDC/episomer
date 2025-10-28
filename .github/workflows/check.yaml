@@ -40,17 +40,18 @@ jobs:
             http-user-agent: ${{ matrix.config.http-user-agent }}
             use-public-rspm: true
 
-        - name: Install private GitHub packages
-          run: |
-            install.packages("devtools")
-            devtools::install("episomer/")
-          shell: Rscript {0}
+        # - name: Install local package
+        #   run: |
+        #     install.packages("devtools")
+        #     devtools::install_local("episomer/")
+        #   shell: Rscript {0}
           
   
         - uses: r-lib/actions/setup-r-dependencies@v2
           with:
             extra-packages: any::rcmdcheck
             needs: check
+            working-directory: episomer
   
         - uses: r-lib/actions/check-r-package@v2
           with:
