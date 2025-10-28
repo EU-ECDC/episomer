@@ -590,7 +590,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
       if (i %% cores == 0) {
         tasks <- update_alerts_task(tasks, "running", m)
       }
-      episomer:::calculate_regions_alerts(
+      calculate_regions_alerts(
         sms = sms,
         topic = tolower(topic),
         regions = 1:length(regions),
@@ -601,9 +601,9 @@ do_next_alerts <- function(tasks = get_tasks()) {
         # date_min = "2025-08-23",
         # date_max = "2025-09-22",
         with_quotes = conf$alert_with_quotes,
-        alpha = as.numeric(episomer:::get_topics_alphas()[[topic]]),
-        alpha_outlier = as.numeric(episomer:::get_topics_alpha_outliers()[[topic]]),
-        k_decay = as.numeric(episomer:::get_topics_k_decays()[[topic]]),
+        alpha = as.numeric(get_topics_alphas()[[topic]]),
+        alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]),
+        k_decay = as.numeric(get_topics_k_decays()[[topic]]),
         no_historic = as.numeric(conf$alert_history),
         bonferroni_correction = conf$alert_with_bonferroni_correction,
         same_weekday_baseline = conf$alert_same_weekday_baseline
