@@ -444,6 +444,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #' @title Updates local copies of languages
 #' @description Downloading and indexing a fresh version of language models tagged for update on the Shiny app configuration tab
 #' @param tasks Tasks object for reporting progress and error messages, default: get_tasks()
+#' @param reuse_downloads logical indicating if the downloads should be reused if they already exist, default: FALSE
 #' @return The list of tasks updated with produced messages
 #' @details Run a one shot task to download and index a local fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models}.
 #' A fasttext model is a collection of vectors for a language automatically produced scrolling a big corpus of text that can be used to capture the semantic of a word.

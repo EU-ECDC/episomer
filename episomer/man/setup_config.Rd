@@ -27,7 +27,9 @@ default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv
 
 \item{ignore_topics}{Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE}
 
-\item{save_first}{Whether to save current settings before loading new ones from disk, default: list()}
+\item{save_properties_first}{Whether to save current settings before loading new ones from disk, default: FALSE}
+
+\item{save_topics_first}{List of topics to save before loading new ones from disk, default: list()}
 }
 \value{
 Nothing
@@ -53,7 +55,7 @@ This behaviour can be changed by setting the environment variable 'ecdc_social_t
 Changes made to conf can be stored permanently (except for 'data_dir') using:
 \itemize{
   \item{\code{\link{save_config}}, or}
-   \item{\code{\link{set_bsky_auth}}}
+   \item{\code{\link{set_auth}}}
 }
 }
 \examples{
@@ -66,7 +68,7 @@ if(FALSE){
 }
 \seealso{
 \code{\link{save_config}}
-\code{\link{set_bsky_auth}}
+\code{\link{set_auth}}
 \code{\link{episomer_app}}
 \code{\link{search_loop}}
 \code{\link{detect_loop}}
