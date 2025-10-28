@@ -436,7 +436,6 @@ bluesky_parse_features <- function(post) {
 #'
 #' @param handle bluesky handle
 #' @param password bluesky password
-#' @param login_url bluesky login URL
 #'
 #' @return List with access_jwt and did
 #' @export

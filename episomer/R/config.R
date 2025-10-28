@@ -170,7 +170,8 @@ get_empty_config <- function(data_dir) {
 #' @param ignore_keyring Whether to skip loading settings from the keyring (Twitter and SMTP credentials), default: FALSE
 #' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
-#' @param save_first Whether to save current settings before loading new ones from disk, default: list()
+#' @param save_properties_first Whether to save current settings before loading new ones from disk, default: FALSE
+#' @param save_topics_first List of topics to save before loading new ones from disk, default: list()
 #' @return Nothing
 #' @details episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting posts or detecting alerts the user has to designate this folder.
 #' When a user wants to use episomer from the R console they will need to call this function for initialisation.
@@ -189,7 +190,7 @@ get_empty_config <- function(data_dir) {
 #' Changes made to conf can be stored permanently (except for 'data_dir') using:
 #' \itemize{
 #'   \item{\code{\link{save_config}}, or}
-#'    \item{\code{\link{set_bsky_auth}}}
+#'    \item{\code{\link{set_auth}}}
 #' }
 #' @examples
 #' if(FALSE){
@@ -200,7 +201,7 @@ get_empty_config <- function(data_dir) {
 #' }
 #' @seealso
 #' \code{\link{save_config}}
-#' \code{\link{set_bsky_auth}}
+#' \code{\link{set_auth}}
 #' \code{\link{episomer_app}}
 #' \code{\link{search_loop}}
 #' \code{\link{detect_loop}}
@@ -477,7 +478,7 @@ copy_plans_from <- function(temp) {
 #' @param sm_topics Whether to save topic download plans to the topics.json file, default: TRUE
 #' @return Nothing
 #' @details Permanently saves configuration changes to the data folder (excluding Twitter credentials, but not SMTP credentials)
-#' to save Twitter credentials please use \code{\link{set_bsky_auth}}
+#' to save Twitter credentials please use \code{\link{set_auth}}
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
@@ -492,7 +493,7 @@ copy_plans_from <- function(temp) {
 #' @rdname save_config
 #' @seealso
 #' \code{\link{setup_config}}
-#' \code{\link{set_bsky_auth}}
+#' \code{\link{set_auth}}
 #' @export
 save_config <- function(
   data_dir = conf$data_dir,

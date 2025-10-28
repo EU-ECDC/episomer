@@ -14,8 +14,8 @@ registers the post collection task or stops if no configuration has been set or 
 }
 \details{
 Registers the post collextion task or stops if no configuration has been set or if it is already running.
-Twitter authentication needs to be previously set on the shiny app or by calling set_twitter_app_auth().
-You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'twitter_auth')
+Bluesky authentication needs to be previously set on the shiny app or by calling set_auth().
+You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'bluesky_auth')
 This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 }
 \examples{
