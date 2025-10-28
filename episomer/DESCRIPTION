@@ -78,7 +78,6 @@ Imports:
     stringr,
     stats,
     tibble,
-    tidytext,
     tools,
     utils,
     xtable,
