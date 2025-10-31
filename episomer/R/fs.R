@@ -402,7 +402,7 @@ stream_post <- function(uri, body, handler = NULL) {
     }
   )
   if (httr::status_code(post_result) != 200) {
-    message(uri)
+    #message(uri)
     message(httr::status_code(post_result))
     message(httr::content(post_result, "text", encoding = "UTF-8"))
     stop()

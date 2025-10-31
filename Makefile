@@ -48,3 +48,6 @@ R-test:
 
 spark:
 	devscripts/spark-interpreter.sh
+
+scala:
+	devscripts/scala-interpreter.sh

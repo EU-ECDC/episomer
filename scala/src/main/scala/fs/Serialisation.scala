@@ -2,7 +2,7 @@ package org.ecdc.episomer.fs
 
 import org.ecdc.episomer.EpisomerActor
 import org.ecdc.episomer.geo.{GeoTrainings, GeoTraining, GeoTrainingSource, GeoTrainingPart}
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import org.apache.pekko.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.{JsString, JsNull, JsValue, JsNumber, DefaultJsonProtocol, JsonFormat, RootJsonFormat, JsObject, JsArray, JsBoolean, JsField, JsonParser}
 import java.time.Instant
 import java.time.format.DateTimeFormatter
