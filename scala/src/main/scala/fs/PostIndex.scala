@@ -406,7 +406,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
               searcher = Some(this.useSearcher()) 
               first = false
             }
-            val (res, ret) = Iterator.range(0, 3).map{iTry =>
+            val (res, ret) = Iterator.range(0, 5).map{iTry =>
               Try{
                 if(iTry > 0) {
                   l.msg(s"Retrying failed search $query $iTry $after on ${this.index.getDirectory}")
@@ -447,10 +447,11 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
               } match {
                 case Success(p) => Some(p)
                 case Failure(f) => 
-                  if(iTry >=2) {
+                  if(iTry >= 4 ) {
                     l.msg(s"Too many retries of post search\n ${f}")
                     throw f
                   }
+                  Thread.sleep(500) 
                   None
               }
             }.flatMap(e => e)
