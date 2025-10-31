@@ -13,8 +13,6 @@ bluesky_create_session(handle = NULL, password = NULL)
 \item{handle}{bluesky handle}
 
 \item{password}{bluesky password}
-
-\item{login_url}{bluesky login URL}
 }
 \value{
 Token

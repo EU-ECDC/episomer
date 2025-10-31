@@ -52,6 +52,7 @@ sm_api_translate_query_bluesky <- function(parsed) {
 #' @return List with posts and next cursor for resumption
 #' @export
 #' @importFrom httr2 request req_url_query req_headers req_perform resp_body_json is_online resp_status last_response req_retry
+#' @importFrom magrittr %>%
 #' @importFrom lubridate as_datetime
 sm_api_search_bluesky <- function(
   query,
@@ -67,7 +68,7 @@ sm_api_search_bluesky <- function(
   number_of_posts_per_request <- 100
 
   # Make a single request and return results
-  req <- httr2::request(search_url) |>
+  req <- httr2::request(search_url) %>%
     httr2::req_url_query(
       q = query,
       limit = number_of_posts_per_request,
@@ -75,22 +76,22 @@ sm_api_search_bluesky <- function(
     )
 
   if (!is.null(plan$plan_min_date)) {
-    req <- req |>
+    req <- req %>%
       httr2::req_url_query(since = bluesky_format_date(plan$plan_min_date))
   }
   if (!is.null(plan$current_min_date)) {
-    req <- req |>
+    req <- req %>%
       httr2::req_url_query(
         until = bluesky_format_date(plan$current_min_date - 0.000001)
       )
   } else {
-    req <- req |>
+    req <- req %>%
       httr2::req_url_query(until = bluesky_format_date(plan$plan_max_date))
   }
 
   # Must find a way to check for invalid token
-  resp <- req |>
-    httr2::req_headers(Authorization = paste("Bearer", token)) |>
+  resp <- req %>%
+    httr2::req_headers(Authorization = paste("Bearer", token)) %>%
     httr2::req_retry(
       max_tries = max_retries,
       retry_on_failure = TRUE,
@@ -436,7 +437,6 @@ bluesky_parse_features <- function(post) {
 #'
 #' @param handle bluesky handle
 #' @param password bluesky password
-#' @param login_url bluesky login URL
 #'
 #' @return List with access_jwt and did
 #' @export
@@ -468,8 +468,8 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     stop("No internet connection")
   }
 
-  resp <- httr2::request(login_url) |>
-    httr2::req_body_json(list(identifier = handle, password = password)) |>
+  resp <- httr2::request(login_url) %>%
+    httr2::req_body_json(list(identifier = handle, password = password)) %>%
     httr2::req_perform()
 
   httr2::resp_check_status(resp)
@@ -495,10 +495,10 @@ bluesky_check_token_validity <- function(
   access_jwt,
   search_url = "https://bsky.social/xrpc/app.bsky.feed.searchPosts"
 ) {
-  simple_request <- httr2::request(search_url) |>
-    httr2::req_url_query(q = "covid19", limit = 1, sort = "latest") |>
-    httr2::req_headers(Authorization = paste("Bearer", access_jwt)) |>
-    httr2::req_error(is_error = \(resp) FALSE) |>
+  simple_request <- httr2::request(search_url) %>%
+    httr2::req_url_query(q = "covid19", limit = 1, sort = "latest") %>%
+    httr2::req_headers(Authorization = paste("Bearer", access_jwt)) %>%
+    httr2::req_error(is_error = \(resp) FALSE) %>%
     httr2::req_perform()
   if (httr2::resp_status(simple_request) == 401) {
     message("Invalid token. Creating a new session.")

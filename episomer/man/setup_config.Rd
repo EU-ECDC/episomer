@@ -21,13 +21,15 @@ If not provided it takes the value of the latest call to setup_config in the cur
 default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
    "") Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer")}
 
-\item{ignore_keyring}{Whether to skip loading settings from the keyring (Twitter and SMTP credentials), default: FALSE}
+\item{ignore_keyring}{Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE}
 
 \item{ignore_properties}{Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE}
 
 \item{ignore_topics}{Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE}
 
-\item{save_first}{Whether to save current settings before loading new ones from disk, default: list()}
+\item{save_properties_first}{Whether to save current settings before loading new ones from disk, default: FALSE}
+
+\item{save_topics_first}{List of topics to save before loading new ones from disk, default: list()}
 }
 \value{
 Nothing
@@ -43,8 +45,8 @@ The 'data_folder' can also be given as a parameter for program launch functions 
 This call will fill (or refresh) a package scoped environment 'conf' that will store the settings. Settings stored in conf are:
 \itemize{
   \item{General properties of the Shiny app (stored in properties.json)}
-  \item{Download plans from the Twitter collection process (stored in topics.json merged with data from the topics.xlsx file}
-  \item{Credentials for Twitter API and SMTP stored in the defined keyring}
+  \item{Download plans from the social media collection process (stored in topics.json merged with data from the topics.xlsx file}
+  \item{Credentials for social media APIs and SMTP stored in the defined keyring}
 }
 
 When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
@@ -53,7 +55,7 @@ This behaviour can be changed by setting the environment variable 'ecdc_social_t
 Changes made to conf can be stored permanently (except for 'data_dir') using:
 \itemize{
   \item{\code{\link{save_config}}, or}
-   \item{\code{\link{set_bsky_auth}}}
+   \item{\code{\link{sm_api_set_auth_bluesky}}}
 }
 }
 \examples{
@@ -66,7 +68,7 @@ if(FALSE){
 }
 \seealso{
 \code{\link{save_config}}
-\code{\link{set_bsky_auth}}
+\code{\link{sm_api_set_auth_bluesky}}
 \code{\link{episomer_app}}
 \code{\link{search_loop}}
 \code{\link{detect_loop}}
