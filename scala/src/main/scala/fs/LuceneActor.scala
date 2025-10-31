@@ -153,7 +153,9 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
             val posts = if(!mentions.isEmpty) {
               val reg = ("(?i)" + mentions.get.map(m => s"@$m\\b").mkString("|")).r
               val filtered = noFilter.filter{case (doc, totalCount) => 
-                Seq(doc.getField("text").stringValue(), if(doc.getField("quoted_text") ==null) null else doc.getField("quoted_text").stringValue()).exists(t => t != null && !reg.findFirstIn(t).isEmpty)
+                ((Seq(doc.getField("text").stringValue(), if(doc.getField("quoted_text") ==null) null else doc.getField("quoted_text").stringValue()).exists(t => t != null && !reg.findFirstIn(t).isEmpty))
+                ||
+                (users.isEmpty || users.get.map(_.toLowerCase).contains(doc.getField("user_name").stringValue().toLowerCase)))
               }
               filtered.map{case(doc, count) => (doc, (1.0*count*filtered.size/noFilter.size).toLong)}
             }

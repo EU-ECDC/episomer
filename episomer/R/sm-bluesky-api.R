@@ -24,12 +24,12 @@ sm_api_get_token_bluesky <- function() {
 sm_api_translate_query_bluesky <- function(parsed) {
 # @function_def_end (do not delete)
   ret = list()
-  for(i in 1:length(parsed)) {
-     comb = do.call(expand.grid, parsed[[i]]$pos)
+  for(i in 1:length(parsed$ors)) {
+     comb = do.call(expand.grid, parsed$ors[[i]])
      if (nrow(comb) > 0) {
-       r <- lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ])))
-       if (length(parsed[[i]]$neg) > 0)
-         r <- paste(r, do.call(paste, as.list(paste0("-", parsed[[i]]$neg))))
+       r <- paste(lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ]))))
+       if(length(parsed$neg)>0) 
+          r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
        ret = c(ret, r)
      }
   }

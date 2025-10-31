@@ -314,6 +314,9 @@ calculate_region_alerts <- function(
     dplyr::filter(.data$topic == f_topic)
 
   # Adding reposts on count if requested
+  if(!"original" %in% names(df))
+     df["original"] <- as.integer(sapply(if(nrow(df)>0) 1:nrow(df) else integer(0), function(x) 0))
+
 
   df <- if (with_quotes) {
     df %>%
