@@ -1625,13 +1625,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 " "
               )])
               paste(
-                "<h4>Top URLS of messages mentioning",
+                "<h5 style=\"font-weight:bold;font-family:Helvetica;font-size:16px\">Top URLS of messages mentioning",
                 topic,
                 "from",
                 input$period[[1]],
                 "to",
                 input$period[[2]],
-                "</h4>"
+                "</h5>"
               )
             })
           })
@@ -1677,7 +1677,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           output$top_table_disc <- shiny::isolate({
             shiny::renderText({
               progress_close(rep)
-              "<br/><br/>Top urls table only considers message location"
             })
           })
         })
@@ -3270,7 +3269,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             title = "Warning",
             "Please confirm you want to anonymise the posts matching this search criteria, this action cannot be undone",
             footer = shiny::tagList(
-              shiny::actionButton("data_perform_anonymise", "Yes anonymise posts"),
+              shiny::actionButton("data_perform_anonymise", "Yes, anonymise posts"),
               shiny::modalButton("Cancel")
             )
           ))
@@ -3281,7 +3280,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             title = "Warning",
             "Please confirm you want to delete the posts matching this search criteria, this action cannot be undone",
             footer = shiny::tagList(
-              shiny::actionButton("data_perform_delete", "Yes delete posts"),
+              shiny::actionButton("data_perform_delete", "Yes, delete posts"),
               shiny::modalButton("Cancel")
             )
           ))

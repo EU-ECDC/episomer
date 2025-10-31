@@ -107,9 +107,10 @@ get_aggregates <- function(
     for (field in names(filter)) {
       if (
         exists(field, where = filter) &&
-          !(field %in% c("last_aggregate", "period"))
+          !(field %in% c("last_aggregate", "period")) &&
+	  nrow(ret) > 0
       ) {
-        filt = filter[[field]]
+        filt <- filter[[field]]
         ret <- ret %>%
           dplyr::filter(!!as.symbol(field) %in% filt)
       }
@@ -599,116 +600,5 @@ recalculate_hash <- function() {
 # This is necessary to ensure that all expected columns are present for data produced
 # in old episomer versions
 add_missing <- function(df, dataset) {
-  cols <- colnames(df)
-  defaults <- (if (dataset == "geolocated") {
-    list(
-      topic = "char",
-      created_date = "date",
-      user_geo_country_code = "char",
-      post_geo_country_code = "char",
-      user_geo_code = "char",
-      post_geo_code = "char",
-      post_longitude = "num",
-      post_latitude = "num",
-      user_longitude = "num",
-      user_latitude = "num",
-      reposts = "int",
-      posts = "int",
-      created_weeknum = "int"
-    )
-  } else if (dataset == "country_counts") {
-    list(
-      topic = "char",
-      created_date = "date",
-      created_hour = "char",
-      post_geo_country_code = "char",
-      user_geo_country_code = "char",
-      reposts = "int",
-      posts = "int",
-      known_reposts = "int",
-      known_original = "int",
-      created_weeknum = "int"
-    )
-  } else if (dataset == "topwords") {
-    list(
-      token = "char",
-      topic = "char",
-      created_date = "date",
-      post_geo_country_code = "char",
-      frequency = "int",
-      original = "int",
-      reposts = "int",
-      created_weeknum = "int"
-    )
-  } else if (dataset == "hashtags") {
-    list(
-      hashtag = "char",
-      topic = "char",
-      created_date = "date",
-      post_geo_country_code = "char",
-      frequency = "int",
-      original = "int",
-      reposts = "int",
-      created_weeknum = "int"
-    )
-  } else if (dataset == "urls") {
-    list(
-      url = "char",
-      topic = "char",
-      created_date = "date",
-      post_geo_country_code = "char",
-      frequency = "int",
-      original = "int",
-      reposts = "int",
-      created_weeknum = "int"
-    )
-  } else if (dataset == "entities") {
-    list(
-      entity = "char",
-      topic = "char",
-      created_date = "date",
-      post_geo_country_code = "char",
-      frequency = "int",
-      original = "int",
-      reposts = "int",
-      created_weeknum = "int"
-    )
-  } else if (dataset == "contexts") {
-    list(
-      context = "char",
-      topic = "char",
-      created_date = "date",
-      post_geo_country_code = "char",
-      frequency = "int",
-      original = "int",
-      reposts = "int",
-      created_weeknum = "int"
-    )
-  })
-  for (attr in names(defaults)) {
-    type <- defaults[attr]
-    if (!(attr %in% cols)) {
-      if (nrow(df) == 0 && type == "char") df[attr] <- character() else if (
-        nrow(df) == 0 && type == "date"
-      )
-        df[attr] <- as.Date(character()) else if (
-        nrow(df) == 0 && type == "int"
-      )
-        df[attr] <- integer() else if (nrow(df) == 0 && type == "num")
-        df[attr] <- numeric() else if (nrow(df) > 0 && type == "char")
-        df[attr] <- as.character(NA) else if (nrow(df) > 0 && type == "date")
-        df[attr] <- as.Date(NA) else if (nrow(df) > 0 && type == "int")
-        df[attr] <- as.integer(NA) else if (nrow(df) > 0 && type == "num")
-        df[attr] <- as.numeric(NA) else
-        stop(paste(
-          "unexpected default case with type",
-          type,
-          "for",
-          attr,
-          "with length",
-          nrow(df)
-        ))
-    }
-  }
   return(df)
 }
