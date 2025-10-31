@@ -401,7 +401,7 @@ bluesky_parse_features <- function(post) {
       if ("features" %in% names(facet)) {
         for (feature in facet$features) {
           ftype <- feature[["$type"]]
-          if (ftype == "app.bsky.richtext.facet#tag") {
+          if (ftype == "app.bsky.richtext.facet#tag" || ftype == "app.bsky.richtext.facet#hashtag") {
             ret$tags <- c(ret$tags, feature[["tag"]])
           } else if (ftype == "app.bsky.richtext.facet#link") {
             ret$urls <- c(ret$urls, feature[["uri"]])

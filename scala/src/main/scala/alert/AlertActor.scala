@@ -10,15 +10,15 @@ import org.ecdc.episomer.{Settings, EpisomerActor}
 import org.ecdc.episomer.{Language}
 import org.ecdc.episomer.Language.LangTools
 import org.ecdc.episomer.fs.{TextToGeo, TaggedAlert, AlertRun}
-import akka.pattern.{ask, pipe}
+import org.apache.pekko.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
 import scala.util.Try
-import akka.actor.{ActorSystem, Actor, ActorLogging, Props}
-import akka.pattern.ask
-import akka.actor.ActorRef
-import akka.Done
-import akka.util.{ByteString, Timeout}
+import org.apache.pekko.actor.{ActorSystem, Actor, ActorLogging, Props}
+import org.apache.pekko.pattern.ask
+import org.apache.pekko.actor.ActorRef
+import org.apache.pekko.Done
+import org.apache.pekko.util.{ByteString, Timeout}
 import scala.collection.JavaConverters._
 import org.apache.spark.sql.{SparkSession, Column, Dataset, Row, DataFrame}
 import org.apache.spark.sql.functions.{col, lit, array_join, udf, concat}
