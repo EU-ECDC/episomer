@@ -45,7 +45,6 @@ sm_api_translate_query_bluesky <- function(parsed) {
 #' @param token Access token
 #' @param plan Plan object
 #' @param max_retries Maximum number of retries
-#' @param errors_for_retries Errors for retries
 #' @param verbose Whether to print progress messages
 #' @details You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/app-bsky-feed-search-posts}
 #' Additionnaly more information about the "post" object is available here: \url{https://atproto.blue/en/latest/atproto/atproto_client.models.app.bsky.feed.defs.html#atproto_client.models.app.bsky.feed.defs.PostView}
@@ -59,7 +58,6 @@ sm_api_search_bluesky <- function(
   token,
   plan,
   max_retries = 20,
-  errors_for_retries = c(420, 500, 503),
   verbose = TRUE
 ) {
 # @function_def_end (do not delete)
@@ -137,7 +135,8 @@ sm_api_set_auth_bluesky <- function(shiny_input_list) {
 bluesky_rate_limited_check <- function(resp) {
   if (httr2::resp_status(resp) == 429) {
     identical(httr2::resp_header(resp, "RateLimit-Remaining"), "0")
-  } else if (httr2::resp_status(resp) == 503) {
+  } else if (httr2::resp_status(resp) %in% c(420, 500, 503, 502)) {
+    message(sprintf("Error %s encountered.", httr2::resp_status(resp)))
     TRUE
   } else {
     FALSE
@@ -147,8 +146,11 @@ bluesky_rate_limited_check <- function(resp) {
 #' @noRd
 bluesky_rerun_after_rate_limit <- function(resp) {
   if (httr2::resp_status(resp) == 429) {
-    time <- as.numeric(resp_header(resp, "RateLimit-Reset"))
-    time - unclass(Sys.time())
+    message("Rate limit exceeded. Waiting for reset.")
+    time <- as.numeric(httr2::resp_header(resp, "RateLimit-Reset"))
+    reset_after <- time - unclass(Sys.time())
+    message(sprintf("Rate limit reset in %s seconds.", reset_after))
+    return(reset_after)
   } else {
     return(NA)
   }
