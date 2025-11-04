@@ -99,7 +99,7 @@ sm_api_search_bluesky <- function(
     httr2::req_perform()
   # Get results
   json <- httr2::resp_body_json(resp)
-  bluesky_parse_response(json)
+  bluesky_parse_response(json, plan$current_min_date)
 }
 
 # @function_def_start (do not delete)
@@ -168,11 +168,10 @@ bluesky_parse_date <- function(date_input) {
   lubridate::as_datetime(unlist(date_input))
 }
 #' @noRd
-bluesky_parse_response <- function(response) {
+bluesky_parse_response <- function(response, current_min_date) {
   first <- function(x) unlist(x[min(1, length(x))])
   res = list(
     network = "bluesky",
-    count = length(response$posts),
     pagination = list(min_created_at = NULL)
   )
   res[["posts"]] = lapply(response$posts, function(post) {
@@ -205,7 +204,11 @@ bluesky_parse_response <- function(response) {
         ret <- NULL
     }
 
-
+    # checking if there are posts after the current min date. If it is the case we remove them since it breaks search loop pagination and can enter into a endless loop.
+    if (!is.null(current_min_date) && bluesky_parse_date(record$createdAt) > current_min_date)  {
+        warning(sprintf("Ignoring post with creation (%s) after the upper bound: (%s), uri: (%s)", current_min_date, record$createdAt, ret$uri))
+        ret <- NULL
+    }
     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
     #if(!is.null(quote$text) && nchar(quote$text) > 0)
     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), isq = ret$is_quote, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
@@ -217,12 +220,15 @@ bluesky_parse_response <- function(response) {
       res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p))]
   }
   if (length(res$posts) > 0) {
+      res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
+  }
+  if (length(res$posts) > 0) {
     res$pagination$min_created_at <- Reduce(
       function(x, y) if (x < y) x else y,
       lapply(res$posts, `[[`, "created_at")
     )
-    res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
-  }
+  } 
+  res$count = length(res$posts)
   res
 }
 
