@@ -4,7 +4,7 @@
 \alias{sm_api_search_bluesky}
 \title{Search posts for a given query}
 \usage{
-sm_api_search_bluesky(query, token, plan, max_retries = 20, verbose = TRUE)
+sm_api_search_bluesky(query, token, plan, max_retries = 10, verbose = TRUE)
 }
 \arguments{
 \item{query}{query to search for}

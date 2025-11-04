@@ -333,7 +333,7 @@ The following sections describe in detail the above general principles. The sett
 
 #### Use of the Bluesky search API version
 
-`episomer` uses the Bluesky search API. This es a service provided by Bluesky enabling users to access posts free of charge. There are no mentions about exhaustiviness on the documentaton but it seens to be return same results as standard Bluesky search. HERE It searches against a sample of recent posts published in the past 7 days and it focuses on relevance and not completeness. This means that some posts and users may be missing from search results.
+`episomer` uses the Bluesky search API 'searhPost' endpoint [*https://bsky.social/xrpc/app.bsky.feed.searchPosts*]. This service enable authenticated users to access published messages free of charge. There are no mentions about exhaustiviness on the documentaton but it appears to return same results as Bluesky search feature in the user app. There is no limit on the number period of messaged that can be obtained but by defaulr, episomer will limit to last 30 days (this parameter can be changed in the configuration page)  HERE It searches against a sample of recent posts published in the past 7 days and it focuses on relevance and not completeness. This means that some posts and users may be missing from search results.
 
 While this may be a limitation in other fields of public health or research, the `episomer` development team believe that for the objective of signal detection a sample of posts is sufficient to detect potential threats of importance in combination with other type of sources.
 
