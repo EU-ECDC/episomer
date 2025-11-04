@@ -170,7 +170,7 @@ get_aggregates <- function(
       message(time.taken)
       ret
     }
-    message(q_url)
+    #message(q_url)
     agg_df = (if (conf$onthefly_api)
       jsonlite::stream_in(url(q_url), verbose = FALSE) else {
       if (!file.exists(file.path(conf$data_dir, "tmp")))

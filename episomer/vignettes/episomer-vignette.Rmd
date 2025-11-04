@@ -42,15 +42,15 @@ pkg_url <- package_desc$URL
 
 ## Description
 
-The `episomer` package allows you to automatically monitor trends of posts by time, place and topic. This automated monitoring aims at early detecting public health threats through the detection of signals (e.g. an unusual increase in the number of posts for a specific time, place and topic). The `episomer` package was designed to focus on infectious diseases, and it can be extended to all hazards or other fields of study by modifying the topics and keywords.
+The `episomer` package allows you to automatically monitor trends of posts by time, place and topic in social media platforms. This automated monitoring aims at early detecting public health threats through the detection of signals (e.g. an unusual increase in the number of posts for a specific time, place and topic). This release of `episomer` collect posts from Bluesky using its API (https://docs.bsky.app/), but can be extended to support otherSocial Media providers. The `episomer` package was designed to focus on infectious diseases, and it can be extended to all hazards or other fields of study by modifying the topics and keywords.
 
-The general principle behind `episomer` is that it collects posts and related metadata from the Twitter Standard API versions 1.1 (https://developer.twitter.com/en/docs/twitter-api/v1/posts/search/overview) and 2 (https://developer.twitter.com/en/docs/twitter-api/posts/search/api-reference/get-posts-search-recent) according to specified topics and stores these posts on your computer on a database that can operate to calculate statistics or as a search engine. `episomer` geolocalises the posts and collects information on key words, URLs, hashtags within a post but also entities and context detected by the Twitter API 2. Posts are aggregated according to topic and geographical location. Next, a signal detection algorithm identifies the number of posts (by topic and geographical location) that exceeds what is expected for a given day. If a number of posts exceeds what is expected, `episomer` sends out email alerts to notify those who need to further investigate these signals following the epidemic intelligence processes (filtering, validation, analysis and preliminary assessment).
+The general principle behind `episomer` is that it collects posts and related metadata according to specified topics. Posts are stored on your computer on a database that can operate to calculate statistics or as a search engine. `episomer` geolocalises the posts and collects information on key words, URLs and hashtags within a post. Posts are aggregated according to topic and geographical location. Next, a signal detection algorithm identifies the number of posts (by topic and geographical location) that exceeds what is expected for a given day. If a number of posts exceeds what is expected, `episomer` sends out email alerts to notify those who need to further investigate these signals following the epidemic intelligence processes (filtering, validation, analysis and preliminary assessment).
 
 The package includes  an interactive web application (Shiny app) with six pages: the dashboard, where a user can visualise and explore posts (Fig 1), the alerts page, where you can view the current alerts and train machine learning models for alert classification on user defined categories (Fig 2), the geotag page, where you can evaluate the geolocation algorithm and provide annotations for improving its performance (Fig 3), the data protection page, where the user can search, anonymise and delete posts from the episomer database to support data deletion requests (Fig 4), the configuration page, where you can change settings and check the status of the underlying processes (Fig 5), and the troubleshoot page, with automatic checks and hints for using `episomer` with all its functionalities (Fig 6). 
 
-On the dashboard, users can view the aggregated number of posts over time, the location of these posts on a map and different most frequent elements found in or extracted from these posts (words, hashtags, URLs, contexts and entities). These visualisations can be filtered by the topic, location and time period you are interested in. Other filters are available and include the possibility to adjust the time unit of the timeline, whether reposts/quotes should be included, what kind of geolocation types you are interested in, the sensitivity of the prediction interval for the signal detection, and the number of days used to calculate the threshold for signals. This information is also downloadable directly from this interface in the form of data, pictures, and/or reports.
+On the dashboard, users can view the aggregated number of posts over time, the location of these posts on a map and different most frequent elements found in or extracted from these posts (words, hashtags and URLs). These visualisations can be filtered by the topic, location and time period you are interested in. Other filters are available and include the possibility to adjust the time unit of the timeline, whether quotes should be included, the sensitivity of the prediction interval for the signal detection, and the number of days used to calculate the threshold for signals. This information is also downloadable directly from this interface in the form of data, pictures, and/or reports.
 
-More information on the methodology used is available in the [episomer peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/epitweetr/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
+More information on the methodology used is available in the [episomer peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
 
 **Shiny app dashboard:**
 
@@ -123,16 +123,16 @@ Some signals are not detected at all or are not detected early enough by the met
 
 The analysis of trends from social media by topic, time and place generates relevant signals for early detection.
 
-In 2019, ECDC developed a prototype of a manual R-based tool for the early detection of public health threats from Twitter data. The `episomer` package is an extension of this prototype, to allow a wider geolocation of posts and greater automatisation, which first version was published in October 2020.
+In 2019, ECDC developed a prototype of a manual R-based tool for the early detection of public health threats from X (formerly known as Twitter) data. In October 2020 ECDC published published `epitweetr` an R package to collecting data from X, achieving a wider geolocation of posts, increased performance and greater automatisation, but `epitweetr` was discontinued because of changes in the X API terms & conditions and archived on CRAN. `episomer` is an extension of `epitweetr`, designed to support multiple social media platforms and consequently achieving higher reliability.
 
 ### Objectives of episomer
 
-The primary objective of `episomer` is to use the Twitter Standard Search API version 1.1 and Twitter Recent Search API version 2 in order to detect early signals of potential threats by topic and by geographical unit.
+The primary objective of `episomer` is to use Social Media API's in order to detect early signals of potential threats by topic and by geographical unit.
 
 Its secondary objective is to enable the user through an interactive web interface to explore the trend of posts by time, geographical location and topic, including information on top words and numbers of posts from trusted users, using charts and tables.
 
 ### Repository of episomer material and training
-More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/epitweetr/discussions). This [post](https://github.com/EU-ECDC/epitweetr/discussions/7) contains a summary of links and materials of relevance for new users.
+More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/episomer/discussions). This [post](https://github.com/EU-ECDC/episomer/discussions/7) contains a summary of links and materials of relevance for new users.
 
 ## Hardware requirements
 
@@ -159,7 +159,7 @@ You can find below a summary of the steps required to install `episomer`. Furthe
 3. Select the folder (or create a new folder) for `episomer`
 4. Launch the `episomer` Shiny app (ensure to indicate the full path to your data directory)
 5. Check the troubleshoot page
-6. Modify the parameters in the configuration page as needed. The following must be set up by the user to enable all functionalities: Twitter credentials, SMTP for the email sending alert emails and status emails and list of subscribers. The remaining parameters have default values that can be modified by the user if needed. Always remember to save settings.
+6. Modify the parameters in the configuration page as needed. The following must be set up by the user to enable all functionalities: Bluesky credentials, SMTP for the email sending alert emails and status emails and list of subscribers. The remaining parameters have default values that can be modified by the user if needed. Settings are auto-saved after change.
 7. Activate 'Requirements & alerts' pipeline in the configuration page
 5. When requested in the dependencies task, activate 'episomer database'
 6. After the task languages is completed, activate 'Data collection & processing'
@@ -171,8 +171,7 @@ Before using `episomer`, the following items need to be installed:
 
 -   R version 3.6.3 or higher
 
--   Java 1.8 eg. openjdk version "1.8" [*https://www.java.com/download/*]. The 64-bit rather than the 32-bit version is preferred, due to memory limitations. In Mac, also the Java Development Kit
-[*https://docs.oracle.com/javase/9/install/installation-jdk-and-jre-macos.htm*](https://docs.oracle.com/javase/9/install/installation-jdk-and-jre-macos.htm)]
+-   Java 17-21 64-bit, e.g. [*https://learn.microsoft.com/en-us/java/openjdk/download*](https://learn.microsoft.com/en-us/java/openjdk/download) refers to the Microsoft releases of java for multiple platforms including Windows and Mac.
 
 -   If you are running it in Windows, you will also need Microsoft Visual C++ which in most cases it is likely to be pre-installed:
 
@@ -217,7 +216,7 @@ If you would like to develop `episomer` further, then the following development 
 
 `episomer` will need to download some dependencies in order to work. The tool will do this automatically the first time the alert detection process is launched. The Shiny app configuration page will allow you to change the target URLs of these dependencies, which are the following:
 
-- *CRAN JARs*: Transitive dependencies for running Spark, Lucene and embedded scala code. *[https://repo1.maven.org/maven2]*
+- *CRAN JARs*: Transitive dependencies for running Spark, Lucene, Pekko and embedded scala code. *[https://repo1.maven.org/maven2]*
 
 - *Winutils.exe* (Windows only) This is a Hadoop binary necessary for running SPARK locally on Windows *[https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe]*. 
 
@@ -233,26 +232,31 @@ install.packages(episomer)
 
 #### Environment variables
 
-Additionally, the R environment needs to know where the Java installation home is. To check this, type in the R console:
+Additionally, if you want to use a java version different than your system default, the R environment needs to know where the Java installation home is. To check this, type in the R console:
+
+```{r, eval=FALSE, echo=TRUE}
+system("java -version")
+```
+
+This command should return the version of the java version available to R. In case this command returns something different than a version between 17 and 21, you have yo provide the location of the right version of java by setting the JAVA\_HOME environment variable. Please follow your specific operating system (OS) instructions for doing so. You should be able to detect the current value of JAVA\_HOME by running this instruction:
 
 ```{r, eval=FALSE, echo=TRUE}
 Sys.getenv("JAVA_HOME")
 ```
+The java binary (executable) should be located in the subfolder "bin" os JAVA\_HOME.
 
-If the command returns null or empty, then you will need to set the Java Home environment variable, for your operating system (OS). Please see your specific OS instructions. In some cases, `episomer` can work without setting the Java Home environment variable.
-
-The first time you run the application, if the tool cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted Twitter credentials. Please choose a strong password and remember it. You will be asked for this password each time you run the tool. You can avoid this by setting a system environment variable named ecdc\_twitter\_tool\_kr\_password containing the chosen password.
+The first time you run the application, if the tool cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted Bluesky credentials. Please choose a strong password and remember it. You will be asked for this password each time you run the tool. You can avoid this by setting a system environment variable named ecdc\_twitter\_tool\_kr\_password containing the chosen password.
 
 #### Launching the episomer Shiny app
 
-You can launch the `episomer` Shiny app from the R session by typing in the R console. Replace “data\_dir” with the designated data directory (full path) which is a local folder you choose to store posts, time series and configuration files in:
+You can launch the `episomer` Shiny app from the R session by typing in the R console. Replace “data\_dir” with the designated data directory (full path) which is a local folder you choose to store posts, time series configuration files and logs in:
 
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
 episomer_app("data_dir")
 ```
 
-Please note that the data directory entered in R should have '/' instead of '\\' (an example of a correct path would be 'C:/user/name/Documents'). This applies especially in Windows if you copy the path from the File Explorer.
+Please note that the data directory entered in R should have '/' instead of '\\' (an example of a correct path would be 'C:/user/name/episomer'). This applies especially in Windows if you copy the path from the File Explorer.
 
 Alternatively, you can use a launcher: In an executable .bat or shell file type the following (replacing “data\_dir” with the designated data directory):
 
@@ -260,42 +264,11 @@ R --vanilla -e episomer::episomer\_app("data\_dir")
 
 You can check that all requirements are properly installed in the troubleshoot page. More information is available in section *The interactive user application (Shiny app)>Dashboard:The interactive user interface for visualisation>The troubleshoot page*
 
-### Adding a new new social media
-EpiSoMeR is designed to support multiple social media data collection.
+### Setting up data collection and the alert detection loop
 
-#### Common post format
-In order to support multiple social media, epiSoMeR transforms each response containing posts into a standardised common format. This format simplifies the handling of distinc types of social media.
+In order to use `episomer`, you will need to collect and process messsages from social media, run the 'episomer database' and 'Requirements & alerts' pipelines. Further details are also available in subsequent sections of this user documentation. A summary of the steps needed is as follows:
 
-The common post format is defined as follow
-
-
-- Response attributes
-  - network: string
-  - posts: [...]
-  - count: number, 
-  - pagination":\{...\}
-- post in posts
-    - id: string
-    - uri: string
-    - created\_at: datetime
-    - user\_name: string
-    - text: string
-    - lang: string
-    - quoted\_text: string
-    - quoted\_lang: string
-    - tags: [...]
-    - urls: [...]
-    - categories: [...]
-- tag in post.tags: string
-- url in post.urls: string
-- category in post.categories: string
-- pagination: attributes used for paginating requests
-
-### Setting up post collection and the alert detection loop
-
-In order to use `episomer`, you will need to collect and process posts, run the 'episomer database' and 'Requirements & alerts' pipelines. Further details are also available in subsequent sections of this user documentation. A summary of the steps needed is as follows:
-
--   Launch the Shiny app (from the R console) 
+-   Launch the Shiny app (from the R console) replacing 'data\_dir' with the full path of your data folder e.g. 'C:/user/name/episomer'
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
 episomer_app("data_dir")
@@ -307,9 +280,7 @@ episomer_app("data_dir")
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/run_tasks.png")
 ```
 
--   Set up the Twitter authentication using a Twitter account or a Twitter developer app, see section *Collection of posts>Twitter authentication* for more details
-
--   If you want to use the Twitter API v2, you have to request access from the Twitter developer portal. More information on [*https://developer.twitter.com/en/docs/twitter-api/getting-started/getting-access-to-the-twitter-api*]
+-   Set up the episomer authentication using your Bluesky login and password.
 
 -   Activate the embedded database 
 
@@ -336,19 +307,6 @@ search_loop("data_dir")
 
    -   You can confirm that the post collection is running, if the 'Data collection & processing' status is "Running" in the Shiny app configuration page (green text in screenshot above) and "true" in the Shiny app troubleshoot page.
    
--   Activate the episomer database
-
-    -   Windows: Click on the “episomer database” activate button
-
-    -   Other platforms: In a new R session, run the following command
-    
-```{r, eval=FALSE, echo=TRUE}
-library(episomer)
-fs_loop("data_dir")
-```
-
-   -   You can confirm that the episomer database is active if the 'episomer database' status is "Running" in the Shiny app configuration page (green text in screenshot above) and "true" in the Shiny app troubleshoot page.
-
 -   Activate the 'Requirements & alerts' pipeline:
 
     -   Windows: Click on the “Requirements & alerts pipeline” activation button
@@ -373,10 +331,9 @@ The following sections describe in detail the above general principles. The sett
 
 ###  Collection of posts
 
+#### Use of the Bluesky search API version
 
-#### Use of the Twitter Standard Search API version 1.1 and Twitter Recent Search API version 2
-
-`episomer` uses the Twitter Standard Search API version 1.1 and/or Twitter Recent Search API version 2. The advantage of these APIs is that these are a free service provided by Twitter enabling users of `episomer` to access posts free of charge. The search API is not meant to be an exhaustive source of posts. It searches against a sample of recent posts published in the past 7 days and it focuses on relevance and not completeness. This means that some posts and users may be missing from search results.
+`episomer` uses the Bluesky search API. This es a service provided by Bluesky enabling users to access posts free of charge. There are no mentions about exhaustiviness on the documentaton but it seens to be return same results as standard Bluesky search. HERE It searches against a sample of recent posts published in the past 7 days and it focuses on relevance and not completeness. This means that some posts and users may be missing from search results.
 
 While this may be a limitation in other fields of public health or research, the `episomer` development team believe that for the objective of signal detection a sample of posts is sufficient to detect potential threats of importance in combination with other type of sources.
 
