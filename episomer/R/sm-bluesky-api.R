@@ -57,7 +57,7 @@ sm_api_search_bluesky <- function(
   query,
   token,
   plan,
-  max_retries = 20,
+  max_retries = 10,
   verbose = TRUE
 ) {
 # @function_def_end (do not delete)
