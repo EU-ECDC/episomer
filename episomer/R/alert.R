@@ -310,58 +310,61 @@ calculate_region_alerts <- function(
       period = list(read_from_date, end),
       network = sms
     )
-  ) %>%
-    dplyr::filter(.data$topic == f_topic)
+  ) 
+  if(nrow(df) > 0) {
+    # Adding original if missing
+    if(!"original" %in% names(df))
+       df["original"] <- sapply(1:nrow(df), function(x) 0)
 
-  # Adding reposts on count if requested
-  if(!"original" %in% names(df))
-     df["original"] <- as.integer(sapply(if(nrow(df)>0) 1:nrow(df) else integer(0), function(x) 0))
+    # filtering by topic
+    df <- df %>% dplyr::filter(.data$topic == f_topic)
 
-
-  df <- if (with_quotes) {
-    df %>%
-      dplyr::mutate(
-        posts = ifelse(is.na(.data$quotes), 0, .data$quotes) +
-          ifelse(is.na(.data$original), 0, .data$original),
-        known_users = .data$known_quotes + .data$known_original
-      )
-  } else {
-    df %>%
-      dplyr::rename(
-        known_users = .data$known_original
-      ) %>%
-      mutate(posts = .data$original)
-  }
-  if (!is.null(logenv)) {
+    # adding requotes if required
+    df <- if (with_quotes) {
+      df %>%
+        dplyr::mutate(
+          posts = ifelse(is.na(.data$quotes), 0, .data$quotes) +
+            ifelse(is.na(.data$original), 0, .data$original),
+          known_users = .data$known_quotes + .data$known_original
+        )
+    } else {
+      df %>%
+        dplyr::rename(
+          known_users = .data$known_original
+        ) %>%
+        mutate(posts = .data$original)
+    }
     # Setting global variable for storing total number of posts concerned including all country_cols
-    total_df <- df %>%
-      dplyr::filter(
-        (length(country_codes) == 0 |
-          (.data$geo_country_code %in% country_codes))
+    if (!is.null(logenv)) {
+      total_df <- df %>%
+        dplyr::filter(
+          (length(country_codes) == 0 |
+            (.data$geo_country_code %in% country_codes))
+        )
+      total_count <- sum(
+        (get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>%
+          dplyr::filter(.data$reporting_date >= start))$count
       )
-    total_count <- sum(
-      (get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>%
-        dplyr::filter(.data$reporting_date >= start))$count
+      logenv$total_count <- if (exists("total_count", logenv))
+        logenv$total_count + total_count else total_count
+    }
+    # filtering by country codes
+    df <- (if (length(country_codes) == 0) df else if (
+      length(country_code_cols) == 1
     )
-    logenv$total_count <- if (exists("total_count", logenv))
-      logenv$total_count + total_count else total_count
+      dplyr::filter(
+        df,
+        .data$topic == f_topic &
+          (!!as.symbol(country_code_cols[[1]])) %in% country_codes
+      ) else if (length(country_code_cols) == 2)
+      dplyr::filter(
+        df,
+        .data$topic == f_topic &
+          (!!as.symbol(country_code_cols[[1]])) %in% country_codes |
+          (!!as.symbol(country_code_cols[[2]])) %in% country_codes
+      ) else
+      stop("get geo count does not support more than two country code columns"))
   }
-  # filtering by country codes
-  df <- (if (length(country_codes) == 0) df else if (
-    length(country_code_cols) == 1
-  )
-    dplyr::filter(
-      df,
-      .data$topic == f_topic &
-        (!!as.symbol(country_code_cols[[1]])) %in% country_codes
-    ) else if (length(country_code_cols) == 2)
-    dplyr::filter(
-      df,
-      .data$topic == f_topic &
-        (!!as.symbol(country_code_cols[[1]])) %in% country_codes |
-        (!!as.symbol(country_code_cols[[2]])) %in% country_codes
-    ) else
-    stop("get geo count does not support more than two country code columns"))
   # Getting univariate time series aggregating by day
   counts <- get_reporting_date_counts(df, topic, read_from_date, end, end)
   if (nrow(counts) > 0) {
