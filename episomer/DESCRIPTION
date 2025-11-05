@@ -1,6 +1,6 @@
 Package: episomer
 Title: Early Detection of Public Health Threats from Social Media Data
-Version: 3.0.5
+Version: 3.0.12
 Authors@R: c( 
      person(given = "Laura",
             family = "Espinosa",
@@ -78,7 +78,6 @@ Imports:
     stringr,
     stats,
     tibble,
-    tidytext,
     tools,
     utils,
     xtable,

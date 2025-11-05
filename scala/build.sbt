@@ -1,6 +1,6 @@
 lazy val sparkVersion = if(System.getenv("SPARK_VERSION")==null) "4.0.1" else System.getenv("SPARK_VERSION")
-lazy val akkaVersion = "2.8.8" //"2.10.9"
-lazy val akkaHttpVersion = "10.5.3"//"10.7.2"
+lazy val pekkoVersion = "1.2.1"//"2.8.8" //"2.10.9"
+lazy val pekkoHttpVersion = "1.3.0"//"10.5.3"//"10.7.2"
 lazy val luceneVersion = "10.3.1"
 lazy val root = (project in file("."))
   .settings(
@@ -21,9 +21,9 @@ lazy val root = (project in file("."))
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % "test",
     libraryDependencies += "com.github.fommil.netlib" % "all" % "1.1.2" pomOnly(),
     libraryDependencies += "org.apache.httpcomponents.client5" % "httpclient5" % "5.5.1" ,
-    libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion,
-    libraryDependencies += "com.typesafe.akka" %% "akka-http" % akkaHttpVersion ,
-    libraryDependencies += "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
+    libraryDependencies += "org.apache.pekko" %% "pekko-stream" % pekkoVersion,
+    libraryDependencies += "org.apache.pekko" %% "pekko-http" % pekkoHttpVersion ,
+    libraryDependencies += "org.apache.pekko" %% "pekko-http-spray-json" % pekkoHttpVersion,
     libraryDependencies += "com.github.swagger-akka-http" %% "swagger-akka-http" % "2.11.0",
     scalacOptions ++= Seq("-deprecation", "-feature"),
     assemblyMergeStrategy in assembly := {

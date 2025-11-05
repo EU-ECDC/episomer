@@ -17,7 +17,35 @@ knitr::opts_chunk$set(
 ```{r setup}
 library(episomer)
 ```
+## Introduction
 
+### Common post format
+In order to support multiple social media, epiSoMeR transforms each response containing posts into a standardised common format. This format simplifies the handling of distinc types of social media.
+
+The common post format is defined as follow
+
+
+- Response attributes
+  - network: string
+  - posts: [...]
+  - count: number, 
+  - pagination":\{...\}
+- post in posts
+    - id: string
+    - uri: string
+    - created\_at: datetime
+    - user\_name: string
+    - text: string
+    - lang: string
+    - quoted\_text: string
+    - quoted\_lang: string
+    - tags: [...]
+    - urls: [...]
+    - categories: [...]
+- tag in post.tags: string
+- url in post.urls: string
+- category in post.categories: string
+- pagination: attributes used for paginating requests
 ## Pre-requisites
 
 Before trying to add a new social media, you need to ensure that you are in "development mode", i.e:

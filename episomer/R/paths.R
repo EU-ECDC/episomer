@@ -1,6 +1,9 @@
 # Get path of search files (written by search loop)
 get_search_path <- function() file.path(conf$data_dir, "posts", "search")
 
+# Get path of search files (written by search loop)
+get_search_touch_path <- function() file.path(conf$data_dir, "search.touched")
+
 # Get path of geolocated files (written by detect loop)
 get_geo_path <- function() file.path(conf$data_dir, "posts", "geolocated")
 

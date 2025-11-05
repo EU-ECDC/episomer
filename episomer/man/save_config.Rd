@@ -17,11 +17,11 @@ save_config(data_dir = conf$data_dir, properties = TRUE, sm_topics = NULL)
 Nothing
 }
 \description{
-Permanently saves configuration changes to the data folder (excluding Twitter credentials, but not SMTP credentials)
+Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
 }
 \details{
-Permanently saves configuration changes to the data folder (excluding Twitter credentials, but not SMTP credentials)
-to save Twitter credentials please use \code{\link{set_bsky_auth}}
+Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
+to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
 }
 \examples{
 if(FALSE){
@@ -37,5 +37,5 @@ if(FALSE){
 }
 \seealso{
 \code{\link{setup_config}}
-\code{\link{set_bsky_auth}}
+\code{\link{sm_api_set_auth_bluesky}}
 }

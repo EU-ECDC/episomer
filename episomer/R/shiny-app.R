@@ -795,8 +795,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     value = conf$force_date_format
                   )
                 )
-              ),
-              shiny::actionButton("save_properties", "Save settings")
+              )
             ),
             shiny::column(
               8,
@@ -1626,13 +1625,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 " "
               )])
               paste(
-                "<h4>Top URLS of messages mentioning",
+                "<h5 style=\"font-weight:bold;font-family:Helvetica;font-size:16px\">Top URLS of messages mentioning",
                 topic,
                 "from",
                 input$period[[1]],
                 "to",
                 input$period[[2]],
-                "</h4>"
+                "</h5>"
               )
             })
           })
@@ -1678,7 +1677,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           output$top_table_disc <- shiny::isolate({
             shiny::renderText({
               progress_close(rep)
-              "<br/><br/>Top urls table only considers message location"
             })
           })
         })
@@ -2381,50 +2379,59 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         })      
 
         ######### PROPERTIES LOGIC ##################
-        # action to save properties
-        shiny::observeEvent(input$save_properties, {
-          # copying input data to conf
-          conf$collect_span <- input$conf_collect_span
-          conf$schedule_span <- input$conf_schedule_span
-          conf$keyring <- input$conf_keyring
-          conf$spark_cores <- input$conf_spark_cores
-          conf$spark_memory <- input$conf_spark_memory
-          conf$onthefly_api <- input$conf_onthefly_api
-          conf$geolocation_threshold <- input$geolocation_threshold
-          conf$geonames_url <- input$conf_geonames_url
-          conf$maven_repo <- input$conf_maven_repo
-          conf$winutils_url <- input$conf_winutils_url
-          conf$geonames_simplify <- input$conf_geonames_simplify
-          conf$regions_disclaimer <- input$conf_regions_disclaimer
-          conf$alert_alpha <- input$conf_alpha
-          conf$alert_alpha_outlier <- input$conf_alpha_outlier
-          conf$alert_k_decay <- input$conf_k_decay
-          conf$alert_history <- input$conf_history
-          conf$alert_same_weekday_baseline <- input$conf_same_weekday_baseline
-          conf$alert_with_bonferroni_corection <- input$conf_with_bonferroni_correction
-          conf$alert_with_quotes <- input$conf_with_quotes
-          conf$smtp_host <- input$smtp_host
-          conf$smtp_port <- input$smtp_port
-          conf$smtp_from <- input$smtp_from
-          conf$smtp_login <- input$smtp_login
-          conf$smtp_insecure <- input$smtp_insecure
-          conf$smtp_password <- input$smtp_password
-          conf$admin_email <- input$admin_email
-          conf$force_date_format <- input$force_date_format
+        reactive_elements_to_save_in_conf <- shiny::reactive({
+          list(
+          conf_collect_span = input$conf_collect_span,
+          conf_schedule_span = input$conf_schedule_span,
+          conf_keyring = input$conf_keyring,
+          conf_spark_cores = input$conf_spark_cores,
+          conf_spark_memory = input$conf_spark_memory,
+          conf_onthefly_api = input$conf_onthefly_api,
+          geolocation_threshold = input$geolocation_threshold,
+          conf_geonames_url = input$conf_geonames_url,
+          conf_maven_repo = input$conf_maven_repo,
+          conf_winutils_url = input$conf_winutils_url,
+          conf_geonames_simplify = input$conf_geonames_simplify,
+          conf_regions_disclaimer = input$conf_regions_disclaimer,
+          conf_alpha = input$conf_alpha,
+          conf_alpha_outlier = input$conf_alpha_outlier,
+          conf_k_decay = input$conf_k_decay,
+          conf_history = input$conf_history,
+          conf_same_weekday_baseline = input$conf_same_weekday_baseline,
+          conf_with_bonferroni_correction = input$conf_with_bonferroni_correction,
+          conf_with_quotes = input$conf_with_quotes,
+          conf_smtp_host = input$smtp_host,
+          conf_smtp_port = input$smtp_port,
+          conf_smtp_insecure = input$smtp_insecure,
+          conf_admin_email = input$admin_email,
+          conf_smtp_from = input$smtp_from,
+          conf_smtp_login = input$smtp_login,
+          conf_smtp_password = input$smtp_password,
+          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
+          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
+          conf_force_date_format = input$force_date_format
+	  )
+    })
+    debounced_elements_to_save_in_conf <- shiny::debounce(reactive_elements_to_save_in_conf, 3000)
+
+        shiny::observeEvent(debounced_elements_to_save_in_conf(), {          
+          update_config_from_input(debounced_elements_to_save_in_conf())
+
           # Saving Bluesky propertes          
           sm_api_set_auth(
             network = "bluesky",
             shiny_input_list = input
-          )              
-          conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
-          conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
-
+          )                      
+          
           # Saving properties.json
-          save_config(data_dir = conf$data_dir)
+          save_config(
+            data_dir = conf$data_dir,
+          )
 
           # Forcing update on properties dependant refresh (e.g. time slots)
           cd$properties_refresh_flag(Sys.time())
-        })
+
+        }, ignoreInit = TRUE)
 
         ######### IMPORTANT USERS LOGIC ###########
         # downloading current important users file
@@ -3262,7 +3269,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             title = "Warning",
             "Please confirm you want to anonymise the posts matching this search criteria, this action cannot be undone",
             footer = shiny::tagList(
-              shiny::actionButton("data_perform_anonymise", "Yes anonymise posts"),
+              shiny::actionButton("data_perform_anonymise", "Yes, anonymise posts"),
               shiny::modalButton("Cancel")
             )
           ))
@@ -3273,7 +3280,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             title = "Warning",
             "Please confirm you want to delete the posts matching this search criteria, this action cannot be undone",
             footer = shiny::tagList(
-              shiny::actionButton("data_perform_delete", "Yes delete posts"),
+              shiny::actionButton("data_perform_delete", "Yes, delete posts"),
               shiny::modalButton("Cancel")
             )
           ))

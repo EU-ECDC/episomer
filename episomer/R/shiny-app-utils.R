@@ -320,3 +320,35 @@ ensure_snapshot_folder <- function() {
   if (!dir.exists(path)) dir.create(path, recursive = TRUE)
   path
 }
+
+update_config_from_input <- function(input) {
+  conf$collect_span <- input$conf_collect_span
+  conf$schedule_span <- input$conf_schedule_span
+  conf$keyring <- input$conf_keyring
+  conf$spark_cores <- input$conf_spark_cores
+  conf$spark_memory <- input$conf_spark_memory
+  conf$onthefly_api <- input$conf_onthefly_api
+  conf$geolocation_threshold <- input$geolocation_threshold
+  conf$geonames_url <- input$conf_geonames_url
+  conf$maven_repo <- input$conf_maven_repo
+  conf$winutils_url <- input$conf_winutils_url
+  conf$geonames_simplify <- input$conf_geonames_simplify
+  conf$regions_disclaimer <- input$conf_regions_disclaimer
+  conf$alert_alpha <- input$conf_alpha
+  conf$alert_alpha_outlier <- input$conf_alpha_outlier
+  conf$alert_k_decay <- input$conf_k_decay
+  conf$alert_history <- input$conf_history
+  conf$alert_same_weekday_baseline <- input$conf_same_weekday_baseline
+  conf$alert_with_bonferroni_correction <- input$conf_with_bonferroni_correction
+  conf$alert_with_quotes <- input$conf_with_quotes
+  conf$smtp_host <- input$conf_smtp_host
+  conf$smtp_port <- input$conf_smtp_port
+  conf$smtp_from <- input$conf_smtp_from
+  conf$smtp_login <- input$conf_smtp_login
+  conf$smtp_insecure <- input$conf_smtp_insecure
+  conf$smtp_password <- input$conf_smtp_password
+  conf$admin_email <- input$conf_admin_email
+  conf$force_date_format <- input$conf_force_date_format
+  conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
+  conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
+}
