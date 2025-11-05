@@ -2,6 +2,7 @@
 % Please edit documentation in R/alert.R
 \name{calculate_region_alerts}
 \alias{calculate_region_alerts}
+\alias{calculate_regions_alerts}
 \title{calculate alerts for for a particular region}
 \usage{
 calculate_region_alerts(
@@ -20,6 +21,23 @@ calculate_region_alerts(
   same_weekday_baseline = FALSE,
   logenv = NULL
 )
+
+calculate_regions_alerts(
+  sms,
+  topic,
+  regions = c(1),
+  date_type = c("created_date"),
+  date_min = as.Date("1900-01-01"),
+  date_max = as.Date("2100-01-01"),
+  with_quotes = FALSE,
+  alpha = 0.025,
+  alpha_outlier = 0.05,
+  k_decay = 4,
+  no_historic = 7,
+  bonferroni_correction = FALSE,
+  same_weekday_baseline = FALSE,
+  logenv = NULL
+)
 }
 \arguments{
 \item{sms}{A given social media for which aggregations have been calculated}
@@ -27,6 +45,8 @@ calculate_region_alerts(
 \item{topic}{Limit the alert detection to the given topic}
 
 \item{country_codes}{List with the codes of countries to be aggregated for this alerts}
+
+\item{country_code_cols}{the name of the column containing the country codes}
 
 \item{start}{the start date for the period in consideration}
 
@@ -48,9 +68,24 @@ to include when computing baseline parameters, default: 7}
 \item{bonferroni_m}{Number the value to apply the bonferrony correction it specify the global number of timeseries being observed}
 
 \item{same_weekday_baseline}{whether to calculate baseline using same weekdays or any day, default: FALSE}
+
+\item{logenv}{an environment variable to store the total number of posts concerned including all country_cols}
+
+\item{regions}{List with the codes of regions to be aggregated for this alerts}
+
+\item{date_type}{the type of date to be used for the period in consideration}
+
+\item{date_min}{the start date for the period in consideration}
+
+\item{date_max}{the end date for the period in consideration}
+
+\item{bonferroni_correction}{whether to apply the bonferroni correction to the alerts, default: FALSE}
 }
 \value{
 A dataframe containing the monitored time point for the given coutnries and topic,
+        the upper limit and whether a signal is detected or not.
+
+A dataframe containing the monitored time point for the given regions and topic,
         the upper limit and whether a signal is detected or not.
 }
 \description{
@@ -63,7 +98,22 @@ for algorithm details see package vignette.
 if(FALSE){
    library(episomer)
    #Running the alerts for France in topic covid-19
-   df <-calculate_region_alerts(sms="bluesky", topic="covid-19", country_codes = "FR", start=as.Date("2025-09-20"), end=as.Date("2025-09-30"))
+   df <-calculate_region_alerts(sms="bluesky",
+                                topic="covid-19",
+                                country_codes = "FR",
+                                start=as.Date("2025-09-20"),
+                                end=as.Date("2025-09-30"))
+   show(df)
+}
+if(FALSE){
+   library(episomer)
+   #Running the alerts for World in topic covid-19
+   df <-calculate_regions_alerts(
+                                sms="bluesky",
+                                topic="covid-19",                                 
+                                date_min=as.Date("2025-09-20"),
+                                date_max=as.Date("2025-09-30")
+)
    show(df)
 }
 }

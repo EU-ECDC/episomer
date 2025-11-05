@@ -283,6 +283,7 @@ get_reporting_date_counts <- function(
 #' @param sms A given social media for which aggregations have been calculated
 #' @param topic Limit the alert detection to the given topic 
 #' @param country_codes List with the codes of countries to be aggregated for this alerts
+#' @param country_code_cols the name of the column containing the country codes
 #' @param start the start date for the period in consideration
 #' @param end the end date for the period in consideration
 #' @param with_quotes wether to consder quotes in the time series to evaluate
@@ -295,6 +296,7 @@ get_reporting_date_counts <- function(
 #' to include when computing baseline parameters, default: 7
 #' @param bonferroni_m Number the value to apply the bonferrony correction it specify the global number of timeseries being observed
 #' @param same_weekday_baseline whether to calculate baseline using same weekdays or any day, default: FALSE
+#' @param logenv an environment variable to store the total number of posts concerned including all country_cols
 #' @return A dataframe containing the monitored time point for the given coutnries and topic,
 #'         the upper limit and whether a signal is detected or not.
 #' @details for algorithm details see package vignette.
@@ -302,7 +304,11 @@ get_reporting_date_counts <- function(
 #' if(FALSE){
 #'    library(episomer)
 #'    #Running the alerts for France in topic covid-19
-#'    df <-calculate_region_alerts(sms="bluesky", topic="covid-19", country_codes = "FR", start=as.Date("2025-09-20"), end=as.Date("2025-09-30"))
+#'    df <-calculate_region_alerts(sms="bluesky",
+#'                                 topic="covid-19",
+#'                                 country_codes = "FR",
+#'                                 start=as.Date("2025-09-20"),
+#'                                 end=as.Date("2025-09-30"))
 #'    show(df)
 #' }
 #' @rdname calculate_region_alerts
@@ -438,7 +444,29 @@ calculate_region_alerts <- function(
   }
 }
 
-# Calculating alerts for a set of regions and a specific period
+#' Calculating alerts for a set of regions and a specific period
+#' @param regions List with the codes of regions to be aggregated for this alerts
+#' @param date_type the type of date to be used for the period in consideration
+#' @param date_min the start date for the period in consideration
+#' @param date_max the end date for the period in consideration
+#' @param bonferroni_correction whether to apply the bonferroni correction to the alerts, default: FALSE
+#' @return A dataframe containing the monitored time point for the given regions and topic,
+#'         the upper limit and whether a signal is detected or not.
+#' @examples
+#' if(FALSE){
+#'    library(episomer)
+#'    #Running the alerts for World in topic covid-19
+#'    df <-calculate_regions_alerts(
+#'                                 sms="bluesky",
+#'                                 topic="covid-19",                                 
+#'                                 date_min=as.Date("2025-09-20"),
+#'                                 date_max=as.Date("2025-09-30")
+#' )
+#'    show(df)
+#' }
+#' @rdname calculate_region_alerts
+#' @export
+#' @importFrom magrittr `%>%`
 calculate_regions_alerts <- function(
   sms,
   topic,
