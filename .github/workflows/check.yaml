@@ -1,7 +1,7 @@
 # Workflow derived from https://github.com/posit-dev/setup-air/tree/main/examples
 on:
   pull_request:
-    branches: [main, master]
+    branches: [main, master, dev]
   push:
     branches: [main, master, test-ci]
 
