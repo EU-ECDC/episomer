@@ -315,6 +315,13 @@ calculate_region_alerts <- function(
     # Adding original if missing
     if(!"original" %in% names(df))
        df["original"] <- sapply(1:nrow(df), function(x) 0)
+    if(!"geo_country_code" %in% names(df))
+       df["geo_country_code"] <- NA
+    if(!"known_quotes" %in% names(df))
+       df["known_quotes"] <- sapply(1:nrow(df), function(x) 0)
+    if(!"known_original" %in% names(df))
+       df["known_original"] <- sapply(1:nrow(df), function(x) 0)
+
 
     # filtering by topic
     df <- df %>% dplyr::filter(.data$topic == f_topic)

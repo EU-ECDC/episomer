@@ -333,65 +333,18 @@ The following sections describe in detail the above general principles. The sett
 
 #### Use of the Bluesky search API version
 
-`episomer` uses the Bluesky search API 'searhPost' endpoint [*https://bsky.social/xrpc/app.bsky.feed.searchPosts*]. This service enable authenticated users to access published messages free of charge. There are no mentions about exhaustiviness on the documentaton but it appears to return same results as Bluesky search feature in the user app. There is no limit on the number period of messaged that can be obtained but by defaulr, episomer will limit to last 30 days (this parameter can be changed in the configuration page)  HERE It searches against a sample of recent posts published in the past 7 days and it focuses on relevance and not completeness. This means that some posts and users may be missing from search results.
+`episomer` uses the Bluesky search API 'searchPost' endpoint [*https://bsky.social/xrpc/app.bsky.feed.searchPosts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustivieness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the user app. There is no limit on the number period of messaged that can be obtained but by default, episomer will limit to last 30 days (this parameter can be changed in the configuration page). There is no limitation on the period for the search, but `episomer` limits by default the data collection on the last 30 days (this parameter can be change in the configuration page).
 
-While this may be a limitation in other fields of public health or research, the `episomer` development team believe that for the objective of signal detection a sample of posts is sufficient to detect potential threats of importance in combination with other type of sources.
+Other attributes of the `searchPost` endpoint includes:
 
-Other attributes of the Twitter Standard Search API version 1.1 include:
-
--   Only posts from the last 5–8 days are indexed by Twitter
-
--   A maximum of 180 requests every 15 minutes are supported by the Twitter Standard Search API (450 requests every 15 minutes if you are using the Twitter developer app credentials; see next section)
+-   A maximum of 3000 requests every 5 minutes are supported by the Bluesky API
 
 -   Each request returns a maximum of 100 posts and/or reposts
 
-Other attributes of the Twitter Recent Search API version 2  include:
+#### Blueskly authentication
 
--   Only posts from the last week days are indexed by Twitter
+In order to collect data from Bluesky you need to provide user credentials to `episomer`. This is done by entering your loggin and password as used on the login page of Bluesky. These settings are provided in the congiguration page.
 
--   A maximum of 300 requests every 15 minutes are supported
-
--   Each request returns a maximum of 100 posts and/or reposts
-
--   500.000 posts per month in the [essential access level](https://developer.twitter.com/en/docs/twitter-api/getting-started/about-twitter-api#v2-access-level). You can upgrade it for free to elevated access level allowing for up to 2 million posts per month.
-
-If you are using both endpoints, `episomer` will alternate between them when the limits are reached.
-
-
-#### Twitter authentication
-
-You can authenticate the collection of posts by using a **Twitter account** (this approach uses the rpost package app) or by using a **Twitter application**. For the latter, you will need a Twitter developer account, which can take some time to obtain, due to verification procedures. We recommend using a Twitter account via the rpost package for testing purposes and short-term use, and the Twitter developer application for long-term use.
-
--   **Using a Twitter account:** delegated via rpost (user authentication)
-
-    -   You will need a Twitter account (username and password)
-
-    -   The rpost package will send a request to Twitter, so it can access your Twitter account on your behalf
-
-    -   A pop-up window will appear where you can enter your Twitter user name and password to confirm that the application can access Twitter on your behalf. You will send this token each time you access posts. If you are already logged in Twitter, this pop-up window may not appear and automatically take the credentials of the 'active' Twitter account in the machine
-    
-    -   You can only use Twitter API version 1.1
-
--   **Using a Twitter developer app:** via `episomer` (app authentication)
-
-    -   You will need to create a Twitter developer account, if you have not created it yet: [*https://developer.twitter.com/en/docs/twitter-api/getting-started/getting-access-to-the-twitter-api*]
-
-    -   Follow the instuctions, answer the questions to activate the Twitter API v2 using Essential or Elevated access.
-
-    -   Next, you need to create a project and an associated developer app during the onboarding process, which will provide you a set of credentials that you will use to authenticate all requests to the API. 
-
-    -   Save your OAuth settings
-
-        -   Add them to the configuration page in the Shiny app (see image below)
-
-        -   With this information, `episomer` can request a token at any time directly to Twitter. The advantage of this method is that the token is not connected to any user information and posts are returned independently of any user context.
-        
-        -   With this app, you can perform 450 requests every 15 minutes instead of the 180 requests every 15 minutes that authenticating using Twitter account allows.  
-
-        -   You can activate Twitter API version 2 in the configuration page
-
-        -   If you have rpost 1.0.2+, you will need to enter your bearer token. For previous versions the information to enter is: App Name, API key, API key secret, access token and access token secret
-        
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/twitter_authentication.png")
 ```
@@ -400,7 +353,14 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 After the Twitter authentication, you need to specify a list of topics in `episomer` to indicate which posts to collect. For each topic, you have one or more queries that `episomer` uses to collect the relevant posts (e.g. several queries for a topic using different terminology and/or languages). 
 
-A query consists of keywords and operators that are used to match post attributes. Keywords separated by a space indicate an AND clause. You can also use an OR operator. A minus sign before the keyword (with no space between the sign and the keyword) indicates the keyword should not be in the post attributes. While queries can be up to 512 characters long, best practice is to limit your query to 10 keywords and operators and limit complexity of the query, meaning that sometimes you need more than one query per topic. If a query surpasses this limit, it is recommended to split the topic in several queries. 
+A query consists of keywords and operators that are used to match post attributes. Since episomer is designed to support multiple social media, it has its own structure for writinh queries which is translated to match each provider syntax. The expected format of queries is defined by the follwoing rules.
+-   No parenthesis are supported
+-   Sub queries be sepparated by the OR keyword e.g. *measles OR sarampion*
+-   If a subquery contain multiple terms they have to be concatenated with the AND keyword e.g. *measles AND feaver OR sarampion AND fiebre*
+-   Excluded terms can be included at the end of a subquery or as a separate subquery using a minus sign. They are always applied to all subqueriese.g.  *measles AND feaver OR sarampion AND fiebre -vaccination - vacunas* 
+-   You can provide synonyms on terms of a subquery using the "/" operator e.g. the previous example can be rewritten as  *measles/sarampion AND feaver/fiebre -vaccination - vacunas*. Use synonyms with caution. When the OR syntax is not supported natively the number of underlying queries grows as an geometric progression.
+-   Other special characters are passed to the query provider without modification e.g. exact match using double quotes.
+-  To avoid issues in social media providers a best practice is to limit your query to 10 keywords and operators and limit complexity of the query. If a query surpasses this limit, it is recommended to split the topic in several queries. 
 
 `episomer` comes with a default list of topics as used by the ECDC Epidemic Intelligence team. You can view details of the list of topics in the Shiny app configuration page (see screenshot below). In addition, the colour coding in the downloadable file allows users to see if the query for a topic is too long (red colour) and the topic should be split in several queries.
 
@@ -408,17 +368,17 @@ A query consists of keywords and operators that are used to match post attribute
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/topics.png")
 ```
 
-In the configuration page, you can also download the list of topics, modify and upload it to `episomer`. The new list of topics will then be used for post collection and visible in the Shiny app. The list of topics is an Excel file (\*.xlsx) as it handles user-specific regional settings (e.g. delimiters) and special characters well. You can create your own list of topics and upload it too, noting that the structure should include at least:
+In the configuration page, you can also download the list of topics, modify and upload it to `episomer`. The new list of topics will then be used for data collection and visible in the Shiny app. The list of topics is an Excel file (\*.xlsx) as it handles user-specific regional settings (e.g. delimiters) and special characters well. You can create your own list of topics and upload it too, noting that the structure should include at least:
 
--   The name of the topic, with the header “Topic” in the Excel spreadsheet. This name should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter.
+-   The name of the topic, with the header “Topic” in the Excel spreadsheet. The name of the topic is not visible in reports and it is the identifier of the topic. Modifying this field its equivalent to remove and create a new topic. This name should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter and it is case insensitive.
 
--   The query, with the header “Query” in the Excel spreadsheet. This is the query `episomer` uses in its requests to obtain posts from the Twitter Standard Search API. See above for syntax and constraints of queries.
+-   The label of the topic, with the header “Label” in the Excel spreadsheet. The label of the topic is shown on reports and can be changed wihout impact in data collection. This label should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter.
+
+-   The query, with the header “Query” in the Excel spreadsheet. This is the query `episomer` uses in its requests to obtain posts from the social media API's. See above for syntax and constraints of queries.
 
 The topics.xlsx file additionally includes the following fields:
 
--   An ID, with the header “\#” in the Excel spreadsheet, noting a running integer identifier for the topic.
-
--   A label, with the header “Label” in the Excel spreadsheet, which is displayed in the drop-down topic menu of the Shiny app tabs.
+-   An ID, with the header “\#” in the Excel spreadsheet, this number is just a reference for you and has no impact in the application.
 
 -   An alpha parameter, with the header “Signal alpha (FPR)” in the Excel spreadsheet. FPR stands for "false positive rate". Increasing the alpha will decrease the threshold for signal detection, resulting in an increased sensitivity and possibly obtaining more signals. Setting this alpha can be done empirically and according to the importance and nature of the topic.
 
@@ -439,11 +399,11 @@ When uploading your own file, please modify the topic and query fields, but do n
 
 #### Scheduled plans to collect posts
 
-As a reminder, `episomer` is scheduled to make 180 requests (queries) to Twitter API every 15 minutes with the user authentication; or 450 (v1.1) or 300 (v2) requests every 15 minutes if you are using Twitter developer app credentials depending on the API version you use. Each request can return 100 posts. The requests return posts and reposts. These are returned in JSON format, which is a light-weighted data format.
+As a reminder, `episomer` is scheduled to respect the rate limits of underlying data providers and performs multiple requests to obtain published messages. Each request return 100 posts. The requests return posts and quotes. These are returned in JSON format, which is a light-weighted data format.
 
 In order to collect the maximum number of posts, given the API limitations, and in order for popular topics not to prevent other topics from being adequately collected, `episomer` uses “search plans” for each query.
 
-The first “search plan” for a query will collect posts from the current date-time backwards until 7 days (7 days because of the Standard Search API limitation) before the current “search plan” was implemented. The first “search plan” is the biggest, as no posts have been collected so far.
+The first “search plan” for a query will collect posts from the current date-time backwards until 30 days (this parameter can be changed in the configuration but depends also on API limitations) before the current “search plan” was implemented. The first “search plan” is the biggest, as no posts have been collected so far.
 
 All subsequent “search plans” are done in scheduled intervals that are set up in the configuration page of the `episomer` Shiny app (see section *The interactive Shiny app > the configuration page > General*). For illustration purposes, let us consider the search plans are scheduled at four-hour intervals. The plans collect posts for a specific query from the current date-time back until four hours before the date-time when the current “search plan” is implemented (see image below). `episomer` will make as many requests (each returning up to 100 posts) during the four-hour interval as needed to obtain all posts created within that four-hour interval.
 
@@ -457,27 +417,29 @@ However, if topics are very popular (e.g. COVID-19 in 2020 and 2021), then the �
 
 Each “search plan” stores the following information:
 
-  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  Field            Type        Description
-  ---------------- ----------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  expected\_end    Timestamp   End DateTime of the current search window
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Field                 Type        Description
+  --------------------- ----------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Network               Text        The name of the social media associated to this plan
 
-  scheduled\_for   Timestamp   The scheduled DateTime for the next request. On plan creation this will be the current DateTime and after each request this value will be set to a future DateTime. To establish the future DateTime, the application will estimate the number of requests necessary to finish. If it estimates that N requests are necessary, the next schedule will be in 1/N of the remaining time.
+  expected\_end         Timestamp   End DateTime of the current search window
 
-  start\_on        Timestamp   The DateTime when the first request of the plan was finished
+  scheduled\_for        Timestamp   The scheduled DateTime for the next request. On plan creation this will be the current DateTime and after each request this value will be set to a future DateTime. To establish the future DateTime, the application will estimate the number of requests necessary to finish. If it estimates that N requests are necessary, the next schedule will be in 1/N of the remaining time.
 
-  end\_on          Timestamp   The DateTime when the last request of the plan was finished if that request reached a 100% plan progress.
+  start\_on             Timestamp   The DateTime when the first request of the plan was finished
 
-  max\_id          Long        The max Twitter id targeted by this plan, which will be defined after the first request
+  end\_on               Timestamp   The DateTime when the last request of the plan was finished if that request reached a 100% plan progress.
 
-  since\_id        Long        The last post id returned by the last request of this plan. The next request will start collecting posts before this value. This value is updated after each requests and allows the Twitter API to return posts before min\_time(p~i~)
+  plan\_max\_date       Timestamp   The latest date for which this plan will collect messages, it will be defined after the first request.
 
-  since\_target    Long        If a previous plan exists, this value stores the first post id that was downloaded for that plan. The current plan will not collect posts before that id. This value allows the Twitter API to return posts after p~i~-time\_back
+  plan\_min\_date       Timestamp   The oldest date for which this plan will collect messages it will defined after the first request. The next plan will start collecting posts before this value.
 
-  requests         Int         Number of requests performed as part of the plan
+  current\_min\_date    Timestamp   The oldest date for which this plan has actually collected messages. This value is updated after each requests and allow next request to keep going backwards until the plan\_min\_date
 
-  progress         Double      Progress of the current plan as a percentage. It is calculated as (current\$max\_id - current\$since\_id)/(current\$max\_id - current\$since\_target). If the Twitter API returns no posts the progress is set to 100%. This only applies for non error responses containing an empty list of posts.
-  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  requests              Int         Number of requests performed as part of the plan
+
+  progress              Double      Progress of the current plan as a percentage. It is calculated as (current$plan\_max\_date - current\$current\_min\_date)/(current\$plan\_max\_date - current\$plan\_min\_date). If the Twitter API returns no posts the progress is set to 100%. This only applies for non error responses containing an empty list of posts.
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 `episomer` will execute plans according to these rules:
 
@@ -485,11 +447,9 @@ Each “search plan” stores the following information:
 
 -   `episomer` will execute the plans with the minimum number of requests already performed. This ensures that all scheduled plans perform the same number of requests.
 
--   As a result of the two previous rules, requests for topics under the 180 limit of the Twitter Standard Search API (or 450 if you are using Twitter developer app authentication) will be executed first and will produce higher progress than topics over the limit.
+-   As a result of the two previous rules, requests for topics with less messages will end first and will produce higher progress than topics with higher volume of tweets. Particularly when a topic has more messaged than those allowed to be downloaded by the API rate limits, these plans will be paused as newer plans are scheduled for future completion. The rationale behind this is that topics with such a large number of posts that the 4-hour search window is not sufficient to collect them, are likely to already be a known topic of interest. Therefore, priority should be given to smaller topics and possibly less well-known topics.
 
-The rationale behind this is that topics with such a large number of posts that the 4-hour search window is not sufficient to collect them, are likely to already be a known topic of interest. Therefore, priority should be given to smaller topics and possibly less well-known topics.
-
-An example is the COVID-19 pandemic in 2020. In early 2020, there was limited information available regarding COVID-19, which allowed detecting signals with meaningful information or updates (e.g. new countries reporting cases or confirming that it was caused by a coronavirus). However, throughout the pandemic, this topic became more popular and the broad topic of COVID-19 was not effective for signal detection and was taking up a lot of time and requests for `episomer`. In such a case it is more relevant to prioritise the collection of smaller topics such as sub-topics related to COVID-19 (e.g. vaccine AND COVID-19), or to make sure you do not miss other events with less social media attention.
+An example is the COVID-19 pandemic in 2020. In early 2020, there was limited information available regarding COVID-19, which allowed detecting signals with meaningful information or updates (e.g. new countries reporting cases or confirming that it was caused by a coronavirus). However, throughout the pandemic, this topic became more popular and the broad topic of COVID-19 was not effective for signal detection and was taking up a lot of time and requests for `epitweetr`. In such a case it is more relevant to prioritise the collection of smaller topics such as sub-topics related to COVID-19 (e.g. vaccine AND COVID-19), or to make sure you do not miss other events with less social media attention.
 
 If search plans cannot be finished, several search plans per query may be in a queue:
 
@@ -497,19 +457,15 @@ If search plans cannot be finished, several search plans per query may be in a q
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/Search_plan_queues.png")
 ```
 
-This design can have the draw back of slowing down big topics collection since `episomer` is trying to rebuilt last 7 days of history. If you are not interested in rebuilding history on a particular point of time, you can click on the "Dismiss past posts" button which will discard all previous/historical plans and will start collecting new data.
+This design can have the draw back of slowing down big topics collection since `episomer` is trying to rebuilt last 30 days of history. If you are not interested in rebuilding history on a particular point of time, you can click on the "Dismiss past posts" button which will discard all previous/historical plans and will start collecting new data.
 
-### Geolocation
+### Geolocating locations referenced in message content
 
-In a parallel process to the collection of posts, `episomer` attempts to geolocate all collected posts using a supervised machine learning process. This process runs automatically after posts are collected.
+In a parallel process to the collection of posts, `episomer` attempts to geolocate all collected posts using a supervised machine learning process. This process runs automatically after posts are collected. `episomer` stores location if mentioned in the text of a post (or a reposted or quoted post). 
 
-`episomer` stores two types of geolocation for a post: post location, which is geolocation information within the text of a post (or a reposted or quoted post), and user location from the available metadata. For signal detection, the preferred location is used (i.e., post location) while in the dashboard both types can be visualised. 
+The post location is extracted and stored by `episomer` based on the geolocation information found within a post text. In case a quoted post, it will extract the geolocation information from the original content and the text accompagning the quote. If neither are available, no post location is stored based on post text.
 
-#### Geolocation based on post location
-
-The post location is extracted and stored by `episomer` based on the geolocation information found within a post text. In case of a repost or quoted post, it will extract the geolocation information from the original post text that was reposted or quoted. If neither are available, no post location is stored based on post text.
-
-`episomer` identifies if a post text contains reference to a particular location by breaking down the post text into sets of words and evaluating those which are more likely to be a location by using a machine learning model. If several parts of the text are likely to be a location, `episomer` will chose the one closest to a topic. After the location candidate has been identified `episomer` matches these words against a reference database, which is geonames.org. This is a geographical database available and accessible through various web services, under a Creative Commons attribution license. The GeoNames.org database contains over 25,000,000 geographical names. `episomer` uses by default those limited to currently existing ones and those with a known population (so just over 500,000 names). You can change this default parameter in the Shiny app configuration page, by unchecking "Simplified geonames". The database also contains longitude and latitude attributes of localities and variant spellings (cross-references), which are useful for finding purposes, as well as non-Roman script spellings of many of these names.
+`episomer` identifies if a post text contains reference to a particular location by breaking down the post text into sets of words and evaluating those which are more likely to be a location by using a machine learning model. If several parts of the text are likely to be a location, `episomer` will chose the one closest to a topici based on keywoeds provided. After the location candidate has been identified `episomer` matches these words against a reference database, which is geonames.org. This is a geographical database available and accessible through various web services, under a Creative Commons attribution license. The GeoNames.org database contains over 25,000,000 geographical names. `episomer` uses by default those with a known population (so just over 500,000 names). You can change this default parameter in the Shiny app configuration page, by unchecking "Simplified geonames". The database also contains longitude and latitude attributes of localities and variant spellings (cross-references), which are useful for finding purposes, as well as non-Roman script spellings of many of these names.
 
 The matches can be performed at any level of administrative geography. The matching is powered by Apache Lucene, which is an open-source high-performance full-featured text search engine library.
 
@@ -542,28 +498,11 @@ A minimum score (i.e., "geolocation threshold") can be globally set in the gener
 
 The threshold is empirically chosen and can be evaluated against a human read of posts and post locations, in the geotag evaluation page.
 
-#### Geolocation based on user location
-
-Different types of user locations are available from the metadata provided through the Twitter API. `episomer` selects the best user location for the aggregated files using the following order:
-
-  - the user’s exact or approximate location at time of the post (provided by the API)
-  
-  - if the user’s location is not available and the post is a repost or a quoted post, then the user’s exact or approximate location at time of the repost/quoted post is used (provided by the API)
-  
-  - if not available, then the user declared location is used
-  
-  - if not available, then the “home” in the public profile is used. 
-
-
-With exact locations, the longitude and latitude are provided. If it is the estimated location, `episomer` calculates the longitude and latitude from GeoNames.org.
-
-If user location information provided by the API is not available, then `episomer` will calculate longitude and latitude from the user declared location or the place name given in the user “public profile”, using GeoNames.org.
-
 #### Improving and evaluating geolocation performance
 
 In the Geotag page, `episomer` will allow you to download the data that was used to build the classifiers for location identificaion. The predefined annotations are based on location vs non-location words. Locations are extracted from geonames.org database. Non-location words are obtained from common words in the downloaded models that are not present in GeoNames. You will be able to add posts to the annotation database and to manually annotate them until you reach the expected level of performance.
 
-To help you on the evaluation process, `episomer` will calculate standard machine learning metrics for evaluating its capacity to identify the right location of geolocation words. These metrics are separately calculated by different type of texts: post location, post text, post user description and total.
+To help you on the evaluation process, `episomer` will calculate standard machine learning metrics for evaluating its capacity to identify the right location of geolocation words..
 
 
 #### Stored geolocated post information
@@ -572,29 +511,23 @@ The geolocation of the match is stored as a country code (using the ISO 3166 sta
 
 ### Most frequent elements found in and extracted from posts
 
-`Episomer` counts five types of elements in posts
+`Episomer` counts trhree types of elements in posts
 
   - Words: Words present in posts. Words are then aggregated in the topwords time series
 
-  - Hashtags: hashtags present in posts. Hashtags are then aggregated in the hashtags time series
+  - Hashtags: hashtags present in posts. Hashtags are then aggregated in the tags time series
 
   - URLs: URLs present in posts. URLs are then aggregated in the URLs time series
 
-  - Entities: Entities are automatically extracted and identified by the Twitter API v2. These are then aggregated in the entities time series. This information is only available when the API v2 is activated and properly configured. As per [*Twitter documentation*](https://developer.twitter.com/en/docs/labs/annotations) "Entities are comprised of people, places, products, and organizations [...]. They are programmatically assigned based on what is explicitly mentioned in the post text".  
-
-  - Contexts: Contexts are automatically extracted and identified by the Twitter API v2. These are then aggregated in the contexts time series. This information is only available when the API v2 is activated and properly configured. As per [*Twitter documentation*](https://developer.twitter.com/en/docs/labs/annotations) "[Context are] derived from the analysis of a post’s text and will include a domain and entity pairing which can be used to discover posts on topics that may have been previously difficult to surface [...]. [It uses] a list of 50+ domains to categorize posts".  
-
-Note that, differently to the other visualisation figures, the most frequent elements found in and extracted from posts are always based on the geolocation related to “post location” and not to “user location” regardless of the filter selected in the dashboard. Topwords & hashtags and entities & contexts are shown in the same figure, respectively.
-
 #### Aggregation of data
 
-The aggregation process produces data on five subfolders in "fs" folder: geolocated, country\_counts, topwords, urls, hashtags, entities and contexts. These folders are splitted on week subfolders and each contains a Lucene index with the aggregated information. This data can be extracted as a dataframe through the public package function 'get\_aggregates'
+The aggregation process produces data on five subfolders in "fs" folder: geolocated, country\_counts, topwords, urls, tags, entities and contexts. These folders are splitted on week subfolders and each contains a Lucene index with the aggregated information. This data can be extracted as a dataframe through the public package function 'get\_aggregates'
 
-In the geolocated time series, the number of posts or reposts are stored by topic, date, post text, post geolocation, post longitude and post latitude, and user geolocation, user longitude and user latitude. Each of these entries also has the country associated with the post text geolocation and the country associated with the user geolocation . Note that posts without geolocation information are also included.
+In the geolocated time series, the number of posts or reposts are stored by topic, date, post text, post geolocation, post longitude and post latitude. Each of these entries also has the country associated with the post text geolocation. Note that posts without geolocation information are also included.
 
-The country\_counts serie is used to create the trend line in the Shiny app. This is a smaller time serie, without the longitude and latitude information, and includes the number of posts by hour within a day, by country (according to post location or user location), topic (see screenshot), and whether a post was a repost or not. The known\_reposts and known\_original fields give the number of posts or reposts from a list of “important users”. In this file, posts without geolocation are also included. Including posts without geolocation information enables you to view all posts when selecting “world” as a region, regardless of whether geolocation was successful or not.
+The country\_counts serie is used to create the trend line in the Shiny app. This is a smaller time serie, without the longitude and latitude information, and includes the number of posts by hour within a day, by country (according to post location or user location), topic (see screenshot), and whether a post was a quote or not. The known\_reposts and known\_original fields give the number of posts or reposts from a list of “important users”. In this file, posts without geolocation are also included. Including posts without geolocation information enables you to view all posts when selecting “world” as a region, regardless of whether geolocation was successful or not.
 
-The aggregation by top element is stored in the topwords, URLs, hashtags, contexts and entities subfolders in the fs folder which contain the number of posts and/or reposts by topic, top element, date, country of post location and whether a post was a repost or not (see screenshot).
+The aggregation by top element is stored in the topwords, URLs and tags subfolders in the fs folder which contain the number of posts and/or reposts by topic, top element, date, country of post location and whether a post was a repost or not (see screenshot).
 
 ### Signal detection
 
@@ -713,7 +646,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 ###  Folder structure
 
-`episomer` stores and aggregates posts. When launching the application, you have to designate the  and the configuration in the “data folder” you have to designate when launching the application.
+`episomer` stores and aggregates posts. When launching the application, you have to designate the location for storint the  data and the configuratio in the “data folder” you have to designate when launching the application.
 
 Within the **data** folder there are three JSON files:
 
