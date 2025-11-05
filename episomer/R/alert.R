@@ -278,7 +278,36 @@ get_reporting_date_counts <- function(
   }
 }
 
-# Calculating alerts for a particular period and a set of period
+#' @title calculate alerts for for a particular region
+#' @description calculate alerts for a region and topic using provided parameters to the episomer signal detection funtction
+#' @param sms A given social media for which aggregations have been calculated
+#' @param topic Limit the alert detection to the given topic 
+#' @param country_codes List with the codes of countries to be aggregated for this alerts
+#' @param start the start date for the period in consideration
+#' @param end the end date for the period in consideration
+#' @param with_quotes wether to consder quotes in the time series to evaluate
+#' @param alpha The alpha is used to compute the upper limit of the prediction interval:
+#' (1-alpha) * 100\%, default: 0.025
+#' @param alpha_outlier Residuals beyond 1-alpha_outlier quantile of the
+#'              the t(n-k-1) distribution are downweighted, default: 0.05
+#' @param k_decay Power k in the expression (r_star/r_threshold)^k determining the weight, default: 4
+#' @param no_historic Number of previous values i.e -1, -2, ..., no_historic
+#' to include when computing baseline parameters, default: 7
+#' @param bonferroni_m Number the value to apply the bonferrony correction it specify the global number of timeseries being observed
+#' @param same_weekday_baseline whether to calculate baseline using same weekdays or any day, default: FALSE
+#' @return A dataframe containing the monitored time point for the given coutnries and topic,
+#'         the upper limit and whether a signal is detected or not.
+#' @details for algorithm details see package vignette.
+#' @examples
+#' if(FALSE){
+#'    library(episomer)
+#'    #Running the alerts for France in topic covid-19
+#'    df <-calculate_region_alerts(sms="bluesky", topic="covid-19", country_codes = "FR", start=as.Date("2025-09-20"), end=as.Date("2025-09-30"))
+#'    show(df)
+#' }
+#' @rdname calculate_region_alerts
+#' @export
+#' @importFrom magrittr `%>%`
 calculate_region_alerts <- function(
   sms,
   topic,
@@ -310,55 +339,68 @@ calculate_region_alerts <- function(
       period = list(read_from_date, end),
       network = sms
     )
-  ) %>%
-    dplyr::filter(.data$topic == f_topic)
+  ) 
+  if(nrow(df) > 0) {
+    # Adding original if missing
+    if(!"original" %in% names(df))
+       df["original"] <- sapply(1:nrow(df), function(x) 0)
+    if(!"geo_country_code" %in% names(df))
+       df["geo_country_code"] <- NA
+    if(!"known_quotes" %in% names(df))
+       df["known_quotes"] <- sapply(1:nrow(df), function(x) 0)
+    if(!"known_original" %in% names(df))
+       df["known_original"] <- sapply(1:nrow(df), function(x) 0)
 
-  # Adding reposts on count if requested
 
-  df <- if (with_quotes) {
-    df %>%
-      dplyr::mutate(
-        posts = ifelse(is.na(.data$quotes), 0, .data$quotes) +
-          ifelse(is.na(.data$original), 0, .data$original),
-        known_users = .data$known_quotes + .data$known_original
-      )
-  } else {
-    df %>%
-      dplyr::rename(
-        known_users = .data$known_original
-      ) %>%
-      mutate(posts = .data$original)
-  }
-  if (!is.null(logenv)) {
+    # filtering by topic
+    df <- df %>% dplyr::filter(.data$topic == f_topic)
+
+    # adding requotes if required
+    df <- if (with_quotes) {
+      df %>%
+        dplyr::mutate(
+          posts = ifelse(is.na(.data$quotes), 0, .data$quotes) +
+            ifelse(is.na(.data$original), 0, .data$original),
+          known_users = .data$known_quotes + .data$known_original
+        )
+    } else {
+      df %>%
+        dplyr::rename(
+          known_users = .data$known_original
+        ) %>%
+        mutate(posts = .data$original)
+    }
     # Setting global variable for storing total number of posts concerned including all country_cols
-    total_df <- df %>%
-      dplyr::filter(
-        (length(country_codes) == 0 |
-          (.data$geo_country_code %in% country_codes))
+    if (!is.null(logenv)) {
+      total_df <- df %>%
+        dplyr::filter(
+          (length(country_codes) == 0 |
+            (.data$geo_country_code %in% country_codes))
+        )
+      total_count <- sum(
+        (get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>%
+          dplyr::filter(.data$reporting_date >= start))$count
       )
-    total_count <- sum(
-      (get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>%
-        dplyr::filter(.data$reporting_date >= start))$count
+      logenv$total_count <- if (exists("total_count", logenv))
+        logenv$total_count + total_count else total_count
+    }
+    # filtering by country codes
+    df <- (if (length(country_codes) == 0) df else if (
+      length(country_code_cols) == 1
     )
-    logenv$total_count <- if (exists("total_count", logenv))
-      logenv$total_count + total_count else total_count
+      dplyr::filter(
+        df,
+        .data$topic == f_topic &
+          (!!as.symbol(country_code_cols[[1]])) %in% country_codes
+      ) else if (length(country_code_cols) == 2)
+      dplyr::filter(
+        df,
+        .data$topic == f_topic &
+          (!!as.symbol(country_code_cols[[1]])) %in% country_codes |
+          (!!as.symbol(country_code_cols[[2]])) %in% country_codes
+      ) else
+      stop("get geo count does not support more than two country code columns"))
   }
-  # filtering by country codes
-  df <- (if (length(country_codes) == 0) df else if (
-    length(country_code_cols) == 1
-  )
-    dplyr::filter(
-      df,
-      .data$topic == f_topic &
-        (!!as.symbol(country_code_cols[[1]])) %in% country_codes
-    ) else if (length(country_code_cols) == 2)
-    dplyr::filter(
-      df,
-      .data$topic == f_topic &
-        (!!as.symbol(country_code_cols[[1]])) %in% country_codes |
-        (!!as.symbol(country_code_cols[[2]])) %in% country_codes
-    ) else
-    stop("get geo count does not support more than two country code columns"))
   # Getting univariate time series aggregating by day
   counts <- get_reporting_date_counts(df, topic, read_from_date, end, end)
   if (nrow(counts) > 0) {
@@ -558,22 +600,24 @@ do_next_alerts <- function(tasks = get_tasks()) {
     on.exit(parallel::stopCluster(cl))
     data_dir <- conf$data_dir
     topics <- unique(lapply(conf$topics, function(t) t$topic))
+    alphas = get_topics_alphas()
+    alpha_outliers = get_topics_alpha_outliers()
+    k_decays = get_topics_k_decays()
     parallel::clusterExport(
       cl,
       list(
-        "setup_config",
         "data_dir",
         "topics",
+	"alphas",
+	"alpha_outliers",
+	"k_decays",
         "regions",
         "alert_to",
         "get_country_items",
         "update_alerts_task",
         "cores",
         "tasks",
-        "get_topics_alphas",
-        "get_topics_alpha_outliers",
-        "get_topics_k_decays",
-        "setup_config"
+	"conf"
       ),
       envir = rlang::current_env()
     )
@@ -588,13 +632,13 @@ do_next_alerts <- function(tasks = get_tasks()) {
     # Parallel processing for topics within each social media platform
     alerts <- parallel::parLapply(cl, 1:length(topics), function(i) {
       topic <- topics[[i]]
-      setup_config(data_dir)
+      episomer::setup_config(data_dir)
       m <- paste("Getting alerts for", paste(sms, collapse = ", "), topic, i, alert_to, (Sys.time()))
       message(m)
       if (i %% cores == 0) {
         tasks <- update_alerts_task(tasks, "running", m)
       }
-      calculate_regions_alerts(
+      episomer::calculate_regions_alerts(
         sms = sms,
         topic = tolower(topic),
         regions = 1:length(regions),
@@ -605,10 +649,10 @@ do_next_alerts <- function(tasks = get_tasks()) {
         # date_min = "2025-08-23",
         # date_max = "2025-09-22",
         with_quotes = conf$alert_with_quotes,
-        alpha = as.numeric(get_topics_alphas()[[topic]]),
-        alpha_outlier = as.numeric(get_topics_alpha_outliers()[[topic]]),
-        k_decay = as.numeric(get_topics_k_decays()[[topic]]),
-        no_historic = as.numeric(conf$alert_history),
+        alpha = as.numeric(alphas[[topic]]),
+	alpha_outlier = as.numeric(alpha_outliers[[topic]]),
+	k_decay = as.numeric(k_decays[[topic]]),
+	no_historic = as.numeric(conf$alert_history),
         bonferroni_correction = conf$alert_with_bonferroni_correction,
         same_weekday_baseline = conf$alert_same_weekday_baseline
       ) %>%
@@ -1508,8 +1552,7 @@ get_alert_tables <- function(
             `Bonf. corr.` = .data$`bonferroni_correction`,
             `Same weekday baseline` = .data$`same_weekday_baseline`,
             `Day_rank` = .data$`rank`,
-            `With reposts` = .data$`with_quotes`,
-            `Location` = .data$`location_type`
+            `With reposts` = .data$`with_quotes`
           ) %>%
           xtable::xtable() %>%
           print(

@@ -3,27 +3,27 @@ package org.ecdc.episomer
 import org.ecdc.episomer.fs.{LuceneActor, TopicPosts, AlertClassification, TaggedAlert, AlertRun}
 import org.ecdc.episomer.geo.{GeonamesActor, GeoTrainings }
 import org.ecdc.episomer.alert.{AlertActor}
-import akka.actor.{ActorSystem, Actor, Props}
-import akka.stream.ActorMaterializer
-import akka.pattern.{ask, pipe}
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpEntity, ContentType, ContentTypes, HttpResponse}
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.model.{StatusCodes, StatusCode}
-import akka.http.scaladsl.marshalling.ToResponseMarshallable
-import akka.util.{Timeout}
+import org.apache.pekko.actor.{ActorSystem, Actor, Props}
+import org.apache.pekko.stream.ActorMaterializer
+import org.apache.pekko.pattern.{ask, pipe}
+import org.apache.pekko.http.scaladsl.Http
+import org.apache.pekko.http.scaladsl.model.{HttpEntity, ContentType, ContentTypes, HttpResponse}
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.model.{StatusCodes, StatusCode}
+import org.apache.pekko.http.scaladsl.marshalling.ToResponseMarshallable
+import org.apache.pekko.util.{Timeout}
 import spray.json.{JsValue}
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 import scala.collection.JavaConverters._
-import akka.actor.ActorRef
-import akka.Done
-import akka.actor.ActorRef
-import akka.stream.OverflowStrategy
-import akka.stream.CompletionStrategy
-import akka.stream.scaladsl._
-import akka.http.scaladsl.model.HttpEntity.{Chunked, Strict}
-import akka.util.ByteString
+import org.apache.pekko.actor.ActorRef
+import org.apache.pekko.Done
+import org.apache.pekko.actor.ActorRef
+import org.apache.pekko.stream.OverflowStrategy
+import org.apache.pekko.stream.CompletionStrategy
+import org.apache.pekko.stream.scaladsl._
+import org.apache.pekko.http.scaladsl.model.HttpEntity.{Chunked, Strict}
+import org.apache.pekko.util.ByteString
 import java.time.Instant
 import java.nio.file.{Paths, Files}
 import java.nio.charset.StandardCharsets
@@ -79,7 +79,7 @@ object API {
               val mask = "YYYY-MM-DDT00:00:00.000Z"
               val from = oFromStr.map(fromStr => Instant.parse(s"$fromStr${mask.substring(fromStr.size)}"))
               val to =  oToStr.map(toStr => Instant.parse(s"$toStr${mask.substring(toStr.size)}"))
-              val source: Source[akka.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
+              val source: Source[org.apache.pekko.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
                 ackMessage = ByteString("ok")
                 , completionMatcher = {case Done => CompletionStrategy.immediately}
                 , failureMatcher = PartialFunction.empty
@@ -153,7 +153,7 @@ object API {
               val from = Instant.parse(s"$fromStr${mask.substring(fromStr.size)}")
               val to =  Instant.parse(s"$toStr${mask.substring(toStr.size)}")
               val filters = filtersStr.toSeq.map(fv => Some(fv).map(v => v.split(":")).map{case Array(v1, v2) => (v1, v2) case _ => throw new Exception(s"cannot parse $fv as column:value")}.get)
-              val source: Source[akka.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
+              val source: Source[org.apache.pekko.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
                 ackMessage = ByteString("ok")
                 , completionMatcher = {case Done => CompletionStrategy.immediately}
                 , failureMatcher = PartialFunction.empty
@@ -190,7 +190,7 @@ object API {
               val fut = (luceneRunner ? LuceneActor.PeriodRequest(collection))
                 .map{
                    case LuceneActor.PeriodResponse(min, max, h) => (StatusCodes.OK, LuceneActor.PeriodResponse(min, max, h))
-                   case akka.actor.Status.Failure(f)  => 
+                   case org.apache.pekko.actor.Status.Failure(f)  => 
                      println(s"error found $f")
                      (StatusCodes.InternalServerError, LuceneActor.PeriodResponse(None, None, None))
                  }
@@ -256,7 +256,7 @@ object API {
           get {
             parameters("excludedLangs".as[String].*, "locationSamples".as[Boolean]?true, "jsonnl".as[Boolean]?false) { (excludedLangs, locationSamples, jsonnl) => 
               implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
-              val source: Source[akka.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
+              val source: Source[org.apache.pekko.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
                 ackMessage = ByteString("ok")
                 , completionMatcher = {case Done => CompletionStrategy.immediately}
                 , failureMatcher = PartialFunction.empty
@@ -278,7 +278,7 @@ object API {
                   implicit val timeout: Timeout = conf.fsLongBatchTimeout.seconds //For ask property
                   Try(geoTrainingsFormat.read(json)) match {
                     case Success(GeoTrainings(trainingSet)) =>
-                      val source: Source[akka.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
+                      val source: Source[org.apache.pekko.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
                         ackMessage = ByteString("ok")
                         , completionMatcher = {case Done => CompletionStrategy.immediately}
                         , failureMatcher = PartialFunction.empty
@@ -310,7 +310,7 @@ object API {
                 implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
                 Try(textsToGeoFormat.read(json)) match {
                   case Success(toGeo) =>
-                    val source: Source[akka.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
+                    val source: Source[org.apache.pekko.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
                       ackMessage = ByteString("ok")
                       , completionMatcher = {case Done => CompletionStrategy.immediately}
                       , failureMatcher = PartialFunction.empty
@@ -378,7 +378,7 @@ object API {
   }
   def logThis(log:String) = {
     import java.nio.file.StandardOpenOption
-    Files.write(Paths.get(s"${System.getProperty("user.home")}/akka-epi.json"), log.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE)
+    Files.write(Paths.get(s"${System.getProperty("user.home")}/pekko-epi.json"), log.getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE)
   }
   def completeTry(tryed:Try[ToResponseMarshallable], uri:String) = {
     tryed match {

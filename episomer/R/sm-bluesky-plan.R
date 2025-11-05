@@ -98,9 +98,10 @@ sm_plan_get_progress_bluesky <- function(plan) {
 sm_api_update_plan_after_request_bluesky <- function(plan, results) {
 # @function_def_end (do not delete)
   if (!is.null(results$pagination$min_created_at)) {
-    plan$current_min_date <- lubridate::as_datetime(
-      results$pagination$min_created_at
-    )
+    min_obtained = lubridate::as_datetime(results$pagination$min_created_at)
+    if(is.null(plan$current_min_date) || min_obtained < plan$current_min_date) {
+       plan$current_min_date <- min_obtained
+    }
   }
   return(plan)
 }

@@ -8,6 +8,8 @@ update_languages(tasks = get_tasks(), reuse_downloads = FALSE)
 }
 \arguments{
 \item{tasks}{Tasks object for reporting progress and error messages, default: get_tasks()}
+
+\item{reuse_downloads}{logical indicating if the downloads should be reused if they already exist, default: FALSE}
 }
 \value{
 The list of tasks updated with produced messages

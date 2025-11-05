@@ -843,9 +843,9 @@ create_map <- function(
 
     ggplot2::labs(
       title = paste0(
-        "Geographical distribution of messages mentioning ",
+        "Geographical distribution of messages mentioning \n",
         topic,
-        "\nfrom ",
+        " from ",
         date_min,
         " to ",
         date_max

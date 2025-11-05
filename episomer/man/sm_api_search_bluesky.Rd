@@ -4,14 +4,7 @@
 \alias{sm_api_search_bluesky}
 \title{Search posts for a given query}
 \usage{
-sm_api_search_bluesky(
-  query,
-  token,
-  plan,
-  max_retries = 20,
-  errors_for_retries = c(420, 500, 503),
-  verbose = TRUE
-)
+sm_api_search_bluesky(query, token, plan, max_retries = 10, verbose = TRUE)
 }
 \arguments{
 \item{query}{query to search for}
@@ -21,8 +14,6 @@ sm_api_search_bluesky(
 \item{plan}{Plan object}
 
 \item{max_retries}{Maximum number of retries}
-
-\item{errors_for_retries}{Errors for retries}
 
 \item{verbose}{Whether to print progress messages}
 }

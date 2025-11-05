@@ -83,7 +83,8 @@ spark_job <- function(args) {
     } else {
       Sys.setenv(
         OPENBLAS_NUM_THREADS = 1,
-        HADOOP_HOME = get_winutils_hadoop_home_path()
+        HADOOP_HOME = get_winutils_hadoop_home_path(),
+        PATH = paste(file.path(get_winutils_hadoop_home_path(), "bin"), Sys.getenv("PATH"), sep = ";")
       ) #Default windows environment variables
       ""
     },
@@ -449,10 +450,13 @@ download_winutils <- function(tasks = get_tasks()) {
     "running",
     paste("downloading", tasks$dependencies$winutils_url)
   )
-  download.file(
-    url = tasks$dependencies$winutils_url,
-    destfile = get_winutils_path(),
-    mode = "wb"
-  )
+  # downloading winutils
+  url = tasks$dependencies$winutils_url
+  dest = get_winutils_path()
+  download.file(url = url, destfile = dest, mode = "wb" )
+  url <- sub("winutils.exe", "hadoop.dll", url)
+  dest <- sub("winutils.exe", "hadoop.dll", dest) 
+  # downloading hadoop dll
+  download.file(url = url, destfile = dest, mode = "wb" )
   return(tasks)
 }
