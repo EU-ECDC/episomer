@@ -234,6 +234,9 @@ search_loop_worker <- function(
             req2Commit <- req2Commit + 1
             if (!sandboxed) {
               if (req2Commit > 100) {
+		# setting a timestamp for indicating proper run of search loop
+	        search_touch() 
+		# commiting posts
                 commit_posts()
                 req2Commit <- 0
               }
@@ -266,6 +269,15 @@ search_loop_worker <- function(
       Sys.sleep(1)
     }
   }
+}
+
+#' @noRd
+search_touch <- function() {
+  p <- get_search_touch_path()
+  if(!file.exists(p)) {
+      write("", file = p, append = FALSE)
+  }
+  Sys.setFileTime(p, Sys.time())
 }
 
 #' @noRd

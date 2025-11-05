@@ -262,7 +262,7 @@ check_geolocated_present <- function() {
 
 # check if aggregated files are present (aggregate has successfully run)
 check_series_present <- function(
-  series = c("country_counts", "geolocated", "topwords")
+  series = c("country_counts", "geolocated", "topwords", "tags", "urls")
 ) {
   rds_counts <- sapply(
     series,
@@ -649,7 +649,7 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
         as.numeric(strftime(Sys.time(), "%H")) >= 8
   ) {
     # check 01: if last post collected date is more than 1 hour
-    last_collected <- file.mtime(get_post_togeo_path())
+    last_collected <- file.mtime(get_search_touch_path())
     if (
       is.na(last_collected) ||
         as.numeric(Sys.time() - last_collected, unit = "hours") >= 1

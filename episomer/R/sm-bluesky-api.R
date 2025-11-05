@@ -479,7 +479,7 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
   resp <- httr2::request(login_url) %>%
     httr2::req_body_json(list(identifier = handle, password = password)) %>%
     httr2::req_retry(
-      max_tries = 10,
+      max_tries = 5,
       retry_on_failure = TRUE,
       is_transient = bluesky_rate_limited_check,
       after = bluesky_rerun_after_rate_limit
@@ -514,7 +514,7 @@ bluesky_check_token_validity <- function(
     httr2::req_url_query(q = "covid19", limit = 1, sort = "latest") %>%
     httr2::req_headers(Authorization = paste("Bearer", access_jwt)) %>%
     httr2::req_retry(
-      max_tries = 10,
+      max_tries = 5,
       retry_on_failure = TRUE,
       is_transient = bluesky_rate_limited_check,
       after = bluesky_rerun_after_rate_limit
