@@ -278,7 +278,36 @@ get_reporting_date_counts <- function(
   }
 }
 
-# Calculating alerts for a particular period and a set of period
+#' @title calculate alerts for for a particular region
+#' @description calculate alerts for a region and topic using provided parameters to the episomer signal detection funtction
+#' @param sms A given social media for which aggregations have been calculated
+#' @param topic Limit the alert detection to the given topic 
+#' @param country_codes List with the codes of countries to be aggregated for this alerts
+#' @param start the start date for the period in consideration
+#' @param end the end date for the period in consideration
+#' @param with_quotes wether to consder quotes in the time series to evaluate
+#' @param alpha The alpha is used to compute the upper limit of the prediction interval:
+#' (1-alpha) * 100\%, default: 0.025
+#' @param alpha_outlier Residuals beyond 1-alpha_outlier quantile of the
+#'              the t(n-k-1) distribution are downweighted, default: 0.05
+#' @param k_decay Power k in the expression (r_star/r_threshold)^k determining the weight, default: 4
+#' @param no_historic Number of previous values i.e -1, -2, ..., no_historic
+#' to include when computing baseline parameters, default: 7
+#' @param bonferroni_m Number the value to apply the bonferrony correction it specify the global number of timeseries being observed
+#' @param same_weekday_baseline whether to calculate baseline using same weekdays or any day, default: FALSE
+#' @return A dataframe containing the monitored time point for the given coutnries and topic,
+#'         the upper limit and whether a signal is detected or not.
+#' @details for algorithm details see package vignette.
+#' @examples
+#' if(FALSE){
+#'    library(episomer)
+#'    #Running the alerts for France in topic covid-19
+#'    df <-calculate_region_alerts(sms="bluesky", topic="covid-19", country_codes = "FR", start=as.Date("2025-09-20"), end=as.Date("2025-09-30"))
+#'    show(df)
+#' }
+#' @rdname calculate_region_alerts
+#' @export
+#' @importFrom magrittr `%>%`
 calculate_region_alerts <- function(
   sms,
   topic,
@@ -571,11 +600,17 @@ do_next_alerts <- function(tasks = get_tasks()) {
     on.exit(parallel::stopCluster(cl))
     data_dir <- conf$data_dir
     topics <- unique(lapply(conf$topics, function(t) t$topic))
+    alphas = get_topics_alphas()
+    alpha_outliers = get_topics_alpha_outliers()
+    k_decays = get_topics_k_decays()
     parallel::clusterExport(
       cl,
       list(
         "data_dir",
         "topics",
+	"alphas",
+	"alpha_outliers",
+	"k_decays",
         "regions",
         "alert_to",
         "get_country_items",
@@ -603,7 +638,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
       if (i %% cores == 0) {
         tasks <- update_alerts_task(tasks, "running", m)
       }
-      episomer:::calculate_regions_alerts(
+      episomer::calculate_regions_alerts(
         sms = sms,
         topic = tolower(topic),
         regions = 1:length(regions),
@@ -614,9 +649,9 @@ do_next_alerts <- function(tasks = get_tasks()) {
         # date_min = "2025-08-23",
         # date_max = "2025-09-22",
         with_quotes = conf$alert_with_quotes,
-        alpha = as.numeric(episomer:::get_topics_alphas()[[topic]]),
-	alpha_outlier = as.numeric(episomer:::get_topics_alpha_outliers()[[topic]]),
-	k_decay = as.numeric(episomer:::get_topics_k_decays()[[topic]]),
+        alpha = as.numeric(alphas[[topic]]),
+	alpha_outlier = as.numeric(alpha_outliers[[topic]]),
+	k_decay = as.numeric(k_decays[[topic]]),
 	no_historic = as.numeric(conf$alert_history),
         bonferroni_correction = conf$alert_with_bonferroni_correction,
         same_weekday_baseline = conf$alert_same_weekday_baseline
