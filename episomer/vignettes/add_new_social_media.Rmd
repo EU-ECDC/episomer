@@ -20,10 +20,9 @@ library(episomer)
 ## Introduction
 
 ### Common post format
-In order to support multiple social media, epiSoMeR transforms each response containing posts into a standardised common format. This format simplifies the handling of distinc types of social media.
+In order to support multiple social media, epiSoMeR transforms each response containing posts into a standardised common format. This format simplifies the handling of distinc types of social media. In order to implement this a set of functions needs to be implemented for each social media following a specific namingo convention.
 
 The common post format is defined as follow
-
 
 - Response attributes
   - network: string
@@ -46,6 +45,7 @@ The common post format is defined as follow
 - url in post.urls: string
 - category in post.categories: string
 - pagination: attributes used for paginating requests
+
 ## Pre-requisites
 
 Before trying to add a new social media, you need to ensure that you are in "development mode", i.e:

@@ -646,13 +646,13 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 ###  Folder structure
 
-`episomer` stores and aggregates posts. When launching the application, you have to designate the location for storint the  data and the configuratio in the “data folder” you have to designate when launching the application.
+`episomer` stores and aggregates posts. When launching the application, you have to designate the location for storing the data and the configuratio files as the “data folder”.
 
 Within the **data** folder there are three JSON files:
 
 -   properties.json, generated from the information from the General properties of the Shiny app
 
--   topics.json managed by the search loop: it keeps a track of post collection plans and progress
+-   topics.bluesky.json managed by the search loop: it keeps a track of post collection plans and progress in Bluesky
 
 -   tasks.json managed by the detect loop: it keeps information and status of the different tasks done by this process.
 
@@ -676,6 +676,8 @@ There are also the following subfolders:
 
 -   "collections", which contains the aggregations produced by `episomer`
 
+-   "jobs", containig information of logs produced by the different running processes 
+
 
 #### Fs folder &gt; posts
 In the fs folder, the subfolder “posts” contains Lucene indexes storing the content of the collected posts and the geolocation information.
@@ -684,9 +686,9 @@ The *posts* contains subfolders for each week.
 
 The *geolocated folder* contains compressed JSON files with geolocated information produced by the geolocation algorithm.
 
-#### Fs folder &gt; country_counts, contexts, entities, geolocated, hashtags, topwords, urls
+#### Fs folder &gt; country\_counts, geolocated, tags, topwords, urls
 
-In the folders *country_counts*, *contexts*,  *entities*, *geolocated*, *hashtags*, *topwords*, *urls*, `episomer` stores the aggregated data of the geolocated posts as well as the top elements identified.
+In the folders *country_counts*,  *geolocated*, *tags*, *topwords*, *urls*, `episomer` stores the aggregated data of the geolocated posts as well as the top elements identified.
 
 Each folder is named matching the respective time series and emitted by ISO week of date of publication. Each weekly folder contains a Lucene index.
 
@@ -699,7 +701,15 @@ You can launch the `episomer` interactive user application (Shiny app) from the 
 ```{r, eval=FALSE, echo=TRUE}
 episomer_app("data_dir")
 ```
+You can also reduced version of the `episomer` app dedicadet to the interactive dashboard and the administrative featurs.
 
+```{r, eval=FALSE, echo=TRUE}
+# Opens only the interactive dashboard
+dashboard_app("data_dir")
+
+# Opens only the rest of the features with the administrative 
+admin_app("data_dir")
+```
 
 Alternatively, you can use a launcher: Put the following content in an executable bat or sh file, (replacing “data\_dir” with the expected data directory)
 
@@ -715,6 +725,7 @@ The `episomer` interactive user application has six pages:
 -   The geotag evaluation page, where a user can evaluate the geolocation algorithm and provide annotations for improving its performance
 
 -   The data protection page, where a user can search, anonymise and delete posts from the `episomer` database to support data deletion requests 
+
 -   The configuration page, where a user can change settings and check the status of the underlying processes
 
 -   The troubleshoot page, with with automatic checks and hints for using `episomer` with all its functionalities and tools to backup & share your installation
@@ -729,6 +740,10 @@ In order to interactively explore the data, you can select from several filters,
 Note that whatever options/settings you select on the dashboard, will have no effect on the alert detection. The alert detection settings are all selected in the configuration page of the Shiny app.
 
 #### Filters
+
+**Social Media**
+
+You can select one item from the drop-down list of social media to display in the dashboard. Currently only Bluesky is available.
 
 **Topics**
 
@@ -765,20 +780,6 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 ```
 
 By default, reposts are not included in any of the visualisations. If “include reposts/quotes” is checked, the visualisations display results of posts and reposts/quotes. Otherwise, the visualisations display only posts (without reposts/quotes).
-
-**Location type**
-
-```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/location_type.png")
-```
-
-Posts are geolocated into regions, subregions and countries. “Location type” indicates what should be used for geolocation:
-
--   Post: this comprises geographical information contained within the post text or if not available, geographical information contained within the repost/quoted text, if applicable.
-
--   User: this is geographical information obtained from the user location. In order of priority, this is the user’s location at time of the post, the user’s API location or the “home” in the public profile if none of these is available.
-
--   Both: the geographical information used for a post will be, in order of priority, the location within the post text, but if not available the user location.
 
 **Signal detection false positive rate**
 
@@ -849,7 +850,7 @@ When you hover over the map, you can get information on number of posts and name
 
 When selecting one country, the symbols show the geographical distribution of posts at subnational level. When selecting two or more countries or other geographical entity (e.g. regions or continents), the symbols show the geographical distribution of posts at national level. Note that if a post has a geotag at country level (e.g. France), it will not be displayed when selecting only that country since no subnational geotagging is available.
 
-#### Most frequent words, hashtags, URLs, context and entities found in or extracted from posts
+#### Most frequent words, tags and URLs found in or extracted from posts
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/top_words.png")
@@ -857,9 +858,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 These graphs display the top elements of posts by topic for the study period for the geographical units chosen, and according to the filter on post/repost.
 
-Note that, differently to other visualisation figures, the most frequent words found in posts are always related to “post location” and are not influenced by the filter option for choice of location (user or post location).
-
-One figure displays the most frequent words and hashtags, depending on the selection. A second figure displays the entities and contexts extracted from posts, depending on the selection. A third figure displays the most frequent URLs as a table allowing users to click directly on the links to access these in the browser.
+One figure displays the most frequent words. A second figure displays hashtags. A third figure displays the most frequent URLs as a table allowing users to click directly on the links to access these in the browser.
 
 ### The alerts page
 
@@ -1074,14 +1073,6 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 -   **Region disclaimer:** If you would like to add a disclaimer to the map you are using. This disclaimer is added to the image export of the dashboard map, and also the PDF export of the dashboard.
 
-**Twitter authentication**
-
-You have two options for authentication to collect posts, using a Twitter account (utilising the rpost package) and using a Twitter developer application. You can select which option you will use in the **Twitter authentication** section. User can choose the Twitter apis to use.
-
-The admin email will receive episomer notifications of regular sanity checks of the application indicating, for example, if any of the tasks/pipelines has failed.
-
-See section *“How does it work? General architecture behind episomer > Collection of posts > Twitter authentication”* for more details on how to do the Twitter authentication.
-
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/main/img/twitter_authentication.png")
 ```
@@ -1093,6 +1084,15 @@ In this section, you need to specify the email authentication (SMTP) details for
 If **Unsafe certificates** is checked, then `episomer` will use your SMTP server even if the server sends an invalid certificate.
 
 When changing anything in the “general” section, do not forget to click on the “Update Properties” button.
+
+**Social Medias**
+This section list the supported social media and allows the user to set credentials and use for each social media provider. Actually only Bluesky is supported.
+
+The user can set.
+
+-   Which social media are active. This parameter can limit which social media are used for data collection and therefore available in the dashboad.
+-   Which social media are considered for alerts. This parameter social media being considered for alert detection. Please note that numer of messaged are sum between all social media before calculating alerts.
+-   API credentials for data collection. In the case of Bluesky you have to input a valid username and password.
 
 **Topics**
 
