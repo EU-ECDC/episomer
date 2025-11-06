@@ -351,7 +351,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 #### Topics and post collection queries
 
-After the Twitter authentication, you need to specify a list of topics in `episomer` to indicate which posts to collect. For each topic, you have one or more queries that `episomer` uses to collect the relevant posts (e.g. several queries for a topic using different terminology and/or languages). 
+After authentication, you need to specify a list of topics in `episomer` to indicate which posts to collect. For each topic, you have one or more queries that `episomer` uses to collect the relevant posts (e.g. several queries for a topic using different terminology and/or languages). 
 
 A query consists of keywords and operators that are used to match post attributes. Since episomer is designed to support multiple social media, it has its own structure for writinh queries which is translated to match each provider syntax. The expected format of queries is defined by the follwoing rules.
 -   No parenthesis are supported
@@ -438,7 +438,7 @@ Each “search plan” stores the following information:
 
   requests              Int         Number of requests performed as part of the plan
 
-  progress              Double      Progress of the current plan as a percentage. It is calculated as (current$plan\_max\_date - current\$current\_min\_date)/(current\$plan\_max\_date - current\$plan\_min\_date). If the Twitter API returns no posts the progress is set to 100%. This only applies for non error responses containing an empty list of posts.
+  progress              Double      Progress of the current plan as a percentage. It is calculated as (current$plan\_max\_date - current\$current\_min\_date)/(current\$plan\_max\_date - current\$plan\_min\_date). If the underlying API returns no posts the progress is set to 100%. This only applies for non error responses containing an empty list of posts.
   --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 `episomer` will execute plans according to these rules:
@@ -1045,7 +1045,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/epitweetr/mai
 
 -   The **Launch slots** for the detection pipeline processes will be spaced out according to the "Detect span", with the first one starting at midnight. These values can be used in the subscribers file of the configuration page.
 
--   To avoid storing Twitter credentials in plain files, `episomer` uses a system dependent password store functionality, which is stored in the **Password store**. Depending on your system you can choose the mechanism that suits the environment where `episomer` is running. For details on each implementation see [*https://CRAN.R-project.org/package=keyring*]
+-   To avoid storing credentials in plain files, `episomer` uses a system dependent password store functionality, which is stored in the **Password store**. Depending on your system you can choose the mechanism that suits the environment where `episomer` is running. For details on each implementation see [*https://CRAN.R-project.org/package=keyring*]
 
      -   wincred: (Windows only) uses the windows credential manager.
 
@@ -1096,7 +1096,7 @@ The user can set.
 
 **Topics**
 
-Topics are what determines what posts `episomer` collects. This is done via an Excel spreadsheet that contains the topics and the associated requests that `episomer` uses to query Twitter API with.
+Topics are what determines what posts `episomer` collects. This is done via an Excel spreadsheet that contains the topics and the associated requests that `episomer` uses to query the API with.
 
 A query consists of keywords and operators that are used to match on post attributes. See section *"How does it work? General architecture behind episomer > Collection of posts > Topics of posts to collect and queries"* for more details about queries.
 
@@ -1260,7 +1260,7 @@ In addition, you can also visit the [general post](https://github.com/EU-ECDC/ep
 After running the diagnostics in the troubleshoot page, you can see the checks and status on the following aspects:
 
 -   **scheduler**: R package `taskscheduleR` is installed. Only applicable for Windows machines
--   **twitter_auth**: Twitter token has been created after authenticating either with Twitter account or Twitter developer application
+-   **sm_auth**: Social media token has been created after authenticating either with the provided credentials
 -   **search_running**: search task is running
 -   **database_running**: embedded database is running
 -   **posts**: posts have been collected
@@ -1310,7 +1310,7 @@ If it is the first installation, you should wait until geonames and/or languages
 
 You should also checked that posts are being collected.
 
-### Change the user of the Twitter authentication when using a Twitter account
+### Change the user of the Bluesky authentication
 1. End and disable the 'Data collection & processing' and 'episomer database' pipelines in the task scheduler (Windows), close the R/terminal window with the pipelines or forcing the pipelines in the configuration page (Windows, Linux and Mac)
 
 2. Search for a file called “.rpost_token” in hidden files. It is usually saved in the Documents folder.
