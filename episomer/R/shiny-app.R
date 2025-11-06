@@ -390,7 +390,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny::fileInput(
                 "alertsdb_upload",
                 label = NULL,
-                buttonLabel = "Upload & evaluate annotations"
+                buttonLabel = "Upload & evaluate annotations", accept = ".xlsx"
               )
             ),
             shiny::column(
@@ -900,7 +900,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_topics_upload",
                     label = NULL,
-                    buttonLabel = "Upload"
+                    buttonLabel = "Upload", accept = ".xlsx"
                   )
                 ),
                 shiny::column(
@@ -937,7 +937,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_lang_upload",
                     label = NULL,
-                    buttonLabel = "Upload"
+                    buttonLabel = "Upload", accept = ".xlsx"
                   )
                 ),
               ),
@@ -970,7 +970,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_users_upload",
                     label = NULL,
-                    buttonLabel = "Upload"
+                    buttonLabel = "Upload", accept = ".xlsx"
                   )
                 ),
               ),
@@ -996,7 +996,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_subscribers_upload",
                     label = NULL,
-                    buttonLabel = "Upload"
+                    buttonLabel = "Upload", accept = ".xlsx"
                   )
                 ),
               ),
@@ -1023,7 +1023,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_countries_upload",
                     label = NULL,
-                    buttonLabel = "Upload"
+                    buttonLabel = "Upload", accept = ".xlsx"
                   )
                 ),
               ),
@@ -1063,7 +1063,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny::fileInput(
                 "geotraining_upload",
                 label = NULL,
-                buttonLabel = "Upload & evaluate annotations"
+                buttonLabel = "Upload & evaluate annotations", accept = ".xlsx"
               )
             )
           ),
