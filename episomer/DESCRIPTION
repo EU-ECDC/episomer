@@ -15,7 +15,7 @@ Authors@R: c(
      person(given = "Gianfranco",
             family = "Spiteri",
             role = "ctb", "fnd",
-            email = "gianfranco.spiteri@ecdc.europa.eu",
+            email = "gianfranco.spiteri@ecdc.europa.eu"),
      person(given = "Ariana",
             family = "Wijermans",
             role = "ctb",
