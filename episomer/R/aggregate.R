@@ -3,22 +3,22 @@ cached <- new.env()
 
 
 #' @title Getting already aggregated time series produced by \code{\link{detect_loop}}
-#' @description Read and returns the required aggregated dataset for the selected period and topics defined by the filter.
+#' @description Reads and returns the required aggregated dataset for the selected period and topics defined by the filter.
 #' @param dataset A character(1) vector with the name of the series to request, it must be one of 'country_counts', 'geolocated', 'topwords', 'hashtags', 'entities', 'urls', 'contexts', default: 'country_counts'
 #' @param cache Whether to use the cache for lookup and storing the returned dataframe, default: TRUE
-#' @param filter A named list defining the filter to apply on the requested series, it should be on the shape of a named list e.g. list(post_geo_country_code=list('FR', 'DE')) default: list()
+#' @param filter A named list defining the filter to apply on the requested series, it should be in the form of a named list; e.g., list(post_geo_country_code=list('FR', 'DE')) default: list()
 #' @param top_field Name of the top field used with top_frequency to enable optimisation for getting only most frequent elements. It will only keep top 500 items after first 50k lines on reverse index order
-#' @param top_freq character, Name of the frequency fields used with top_field to enable optimisation for getting only most frequent elements.
+#' @param top_freq character, Name of the frequency fields used with top_field to enable optimisation for retrieving only most frequent elements.
 #' It will only keep top 500 items after first 50k rows on reverse index order
 #' @return A data frame containing the requested series for the requested period
 #' @details This function returns data aggregated by episomer. The data is found on the 'series' folder, which contains Rds files per weekday and type of series.
 #' starting on v 1.0.x it will also look on Lucene indexes situated on fs folder. Names of files and folders are parsed to limit the files to be read.
 #' When using Lucene indexes, filters are directly applied on read. This is an improvement compared 'series' folder where filters are applied
-#' after read. All returned rows are joined in a single dataframe.
-#' If no filter is provided all data series is returned, which can end up with millions of rows depending on the time series.
-#' To limit by period, the filter list must have an element 'period' containing a date vector or list with two dates representing the start and end of the request.
+#' after read. All returned rows are joined into a single dataframe.
+#' If no filter is provided, the entire data series is returned, which can result in millions of rows depending on the time series.
+#' To limit by period, the filter list must include an element 'period' containing a date vector or list with two dates representing the start and end of the request.
 #'
-#' To limit by topic, the filter list must have an element 'topic' containing a non-empty character vector or list with the names of the topics to return.
+#' To limit by topic, the filter list must include an element 'topic' containing a non-empty character vector or list with the names of the topics to return.
 #'
 #' The available time series are:
 #' \itemize{
@@ -80,16 +80,16 @@ get_aggregates <- function(
     exists(last_filter_name, where = cached) && #cache entry exists for that dataset
     (exists("last_aggregate", where = cached[[last_filter_name]]) &&
       cached[[last_filter_name]]$last_aggregate == filter$last_aggregate) && # No new aggregation has been finished
-    (length(setdiff(names(cached[[last_filter_name]]), names(filter))) == 0) && # All filters in cache are alse present in the query
+    (length(setdiff(names(cached[[last_filter_name]]), names(filter))) == 0) && # All filters in the cache are also present in the query
     (!exists("period", cached[[last_filter_name]]) || # all periods are cached or
-      (exists("period", cached[[last_filter_name]]) && # there are some period cached
+      (exists("period", cached[[last_filter_name]]) && # there are some periods cached
         exists("period", filter) && # there is a period on the filter
         cached[[last_filter_name]]$period[[1]] <= filter$period[[1]] && # and filtered period is contained on cached period
         cached[[last_filter_name]]$period[[2]] >= filter$period[[2]])))
   for (field in names(filter)) {
     if (!(field %in% c("last_aggregate", "period"))) {
       reuse_filter <- reuse_filter &&
-        (!exists(field, cached[[last_filter_name]]) || # all values are cached or
+        (!exists(field, cached[[last_filter_name]]) || # all values are cached or,
           (
             exists(field, cached[[last_filter_name]]) && # there are some values cached
               all(filter[[field]] %in% cached[[last_filter_name]][[field]]) # all filtered values are cached
@@ -117,7 +117,7 @@ get_aggregates <- function(
     }
     ret
   } else {
-    # Overriding current filter when no cache hit
+    # Overriding current filter when there is no cache hit
     cached[[last_filter_name]] <- filter
     # getting the aggregated data frame from the storage system
     q_url <- paste0(
@@ -201,7 +201,7 @@ get_aggregates <- function(
       agg_df$created_weeknum <- NULL
       agg_df$created_date <- NULL
     }
-    #add possible missing columns removed by json null management
+    #add any possible missing column that may have been removed by JSON null management
     ret <- add_missing(agg_df, dataset)
 
     cached[[dataset]] <- ret
@@ -210,9 +210,9 @@ get_aggregates <- function(
 }
 
 # This function registers the aggregated series that are computed by episomer.
-# Each series is defined by a name a date column, primary keys columns, variables columns, group by columns and sources expressions
+# Each series is defined by a name, a date column, primary keys columns, variables columns, group by columns and sources expressions
 # Each registered series uses the set_aggregated_posts function
-# This function is periodically called bt the search loop.
+# This function is called periodically by the search loop.
 register_series <- function() {
   `%>%` <- magrittr::`%>%`
   #geolocated"
@@ -358,7 +358,7 @@ register_series <- function() {
     )
   )
 
-  # Aggregation by country level
+  # Aggregation at the country level
   set_aggregated_posts(
     name = "country_counts",
     dateCol = "created_date",
@@ -516,7 +516,7 @@ register_series <- function() {
   )
 }
 
-# getting last aggregation date or NA if first
+# getting last aggregation date or NA if first time
 # date is obtained by sorting and reading first and last file on the series folder and in the fs folder containing Lucene indexes
 
 get_aggregated_period <- function() {
@@ -596,9 +596,9 @@ recalculate_hash <- function() {
   }
 }
 
-# Adds possible missing columns on a dataset produced by an aggregated series
+# Adds any possible missing column to a dataset produced by an aggregated series
 # This is necessary to ensure that all expected columns are present for data produced
-# in old episomer versions
+# in old versions of episomer
 add_missing <- function(df, dataset) {
   return(df)
 }

@@ -330,7 +330,7 @@ setup_config <- function(
     temp = merge_configs(list(temp, merged_topics))
 
     #Getting topics from excel topics files if it has changed since last load this is identified by checking the md5 signature
-    #If user has not overwritten
+    #If user has not overrriden
     topics_changed <- FALSE
     topics <- {
       t <- list()
@@ -450,7 +450,7 @@ setup_config <- function(
   }
 }
 
-# Copying plans from temporary file (non typed) to conf, making sure plans have the right type
+# Copying plans from temporary file (non-typed) to conf, making sure plans have the right type
 copy_plans_from <- function(temp) {
   #Copying plans
   if (length(temp$topics) > 0) {
@@ -500,7 +500,7 @@ save_config <- function(
   properties = TRUE,
   sm_topics = NULL
 ) {
-  # creating data directory if it does not exists
+  # creating the data directory if it does not exists
   if (!file.exists(conf$data_dir)) {
     dir.create(conf$data_dir, showWarnings = FALSE)
   }
@@ -509,7 +509,7 @@ save_config <- function(
   }
 
   if (properties) {
-    # saving properties on properties.json file
+    # saving properties to the properties.json file
     temp <- list()
     temp$collect_span <- conf$collect_span
     temp$schedule_span <- conf$schedule_span
@@ -559,7 +559,7 @@ save_config <- function(
     temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
     temp$sm_activated_bluesky <- conf$sm_activated_bluesky
     temp$topics_md5 <- conf$topics_md5
-    # writing the json file
+    # writing the JSON file
     write_json_atomic(
       temp,
       get_properties_path(),
@@ -569,7 +569,7 @@ save_config <- function(
     )
   }
   if (length(sm_topics) > 0) {
-    # saving topics on topics.json file
+    # saving topics to the topics.json file
     paths = get_plans_paths()
     for (sm in sm_topics) {
       topics_in_sm = conf$topics[sapply(
@@ -578,7 +578,7 @@ save_config <- function(
       )]
       temp <- list()
       temp$topics <- format_topics(topics_in_sm)
-      # writing plan files per social media
+      # writing plan files for each social media
       write_json_atomic(
         temp,
         paths[[sm]],
@@ -597,10 +597,10 @@ format_topics <- function(topics) {
   })
 }
 
-# Merging two or more configuration files as a list, latest takes precedence over firsts
+# Merging two or more configuration files as a list, the latest takes precedence over earlier ones
 merge_configs <- function(configs) {
   if (length(configs) == 0)
-    stop("No configurations provided for merge") else if (length(configs) == 1)
+    stop("No configurations provided for merging") else if (length(configs) == 1)
     configs[[1]] else {
     first <- configs[[1]]
     rest <- merge_configs(configs[-1])
@@ -748,7 +748,7 @@ get_available_languages <- function() {
 
 # Remove language from the used languages on conf
 remove_config_language <- function(code) {
-  # Timestaming action
+  # Timestamping action
   conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
   # Removing the language
   conf$languages <- conf$languages[sapply(
@@ -757,7 +757,7 @@ remove_config_language <- function(code) {
   )]
 }
 
-# Add language on to the used languages on conf
+# Add a language to the used languages in conf
 add_config_language <- function(code, name) {
   # Timestamping action
   conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -766,7 +766,7 @@ add_config_language <- function(code, name) {
     function(l) l$code == code
   )]
   if (length(index) > 0) {
-    # Language code is already on the task list
+    # Language code is already in the task list
     conf$languages[[index]]$code <- code
     conf$languages[[index]]$name <- name
     conf$languages[[index]]$vectors = paste(
@@ -800,7 +800,7 @@ add_config_language <- function(code, name) {
   }
 }
 
-# Get current known users list from the important users files
+# Get the current known users list from the important users files
 get_known_users <- function() {
   gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])
 }
