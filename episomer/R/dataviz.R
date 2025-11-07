@@ -1,5 +1,5 @@
 #' @title Plot the trendline report of episomer dashboard
-#' @description Generates a trendline chart of number of posts by region, for one topic, including alerts using the reweighted version of the EARS algorithm
+#' @description Generates a trendline chart of number of posts by region for a single topic, including alerts detected using the reweighted version of the EARS algorithm
 #' @param sms Social media
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app select, default: c(1)
@@ -17,9 +17,9 @@
 #' @details Produces a multi-region line chart for a particular topic of number of posts collected based on the provided parameters.
 #' Alerts will be calculated using a modified version of the EARS algorithm that applies a Farrington inspired downweighting of previous outliers.
 #'
-#' Days in this function are considered as contiguous blocks of 24 hours starting for the previous hour of the last collected post.
+#' Days in this function are considered as contiguous blocks of 24 hours, starting from the previous hour preceding the last collected post.
 #'
-#' This function requires \code{\link{search_loop}} and \code{\link{detect_loop}} to have already run successfully to show results.
+#' This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already run successfully in order to show results.
 #' @examples
 #' if(FALSE){
 #'    message('Please choose the episomer data directory')
@@ -421,7 +421,7 @@ plot_trendline <- function(
 }
 
 #' @title Plot the map report on the episomer dashboard
-#' @description Generates a bubble map plot of number of posts by countries, for one topic
+#' @description Generates a bubble map plot of number of posts by country for a single topic
 #' @param sms Social media
 #' @param topic Character(1) containing the topic to use for the report
 #' @param countries Character vector containing the name of the countries and regions to plot or their respective indexes on the Shiny app, default: c(1)
@@ -1012,7 +1012,7 @@ create_topchart <- function(
   # getting the series dependant title part
   serie_title <- (if (serie == "topwords") "words" else serie)
 
-  #filtering data by countries
+  #filtering data by country
   df <- (df %>%
     dplyr::filter(
       .data$topic == f_topic &
@@ -1111,7 +1111,7 @@ get_font_family <- function() {
   "Helvetica"
 }
 
-# Returns an empty chart with provided message on title
+# Returns an empty chart with the provided message on title
 get_empty_chart <- function(title) {
   chart <- ggplot2::ggplot() +
     ggplot2::theme_minimal(base_family = get_font_family()) +
