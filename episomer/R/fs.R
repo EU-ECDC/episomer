@@ -47,7 +47,7 @@ get_scala_ping_url <- function() {
 
 get_scala_recalc_hash_url <- function() {
   paste(get_scala_api_endpoint(), "recalculate-hash", sep = "")
-}
+} 
 
 
 #' @title Runs the episomer embedded database loop

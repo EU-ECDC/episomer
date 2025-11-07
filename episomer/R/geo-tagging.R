@@ -1,5 +1,5 @@
 # Get the SQL-like expression to extract post geolocation variables and apply prioritisation
-# This function is used on aggregate posts for translating variables names into SQL valid columns of geotag posts
+# This function is used on aggregate posts for translating variables names into SQL-valid columns of geotagged posts
 get_location_var <- function(varname) {
   paste(
     "coalesce(",
@@ -12,7 +12,7 @@ get_location_var <- function(varname) {
   )
 }
 
-# It gets used columns for post geolocation. This is used for limiting columns to extract from json files
+# It gets columns used for post geolocation. This is used for limiting columns to extract from JSON files
 get_location_columns <- function(table) {
   list(
     "text_loc",
@@ -33,7 +33,7 @@ get_raw_countries <- function() {
 }
 
 
-# Getting a list of regions, sub regions and countries for using as a select
+# Getting a list of regions, sub regions and countries for use as a selection
 get_country_items <- function(order = "level") {
   `%>%` <- magrittr::`%>%`
   #If countries are already on cache we return them otherwise we calculate them
@@ -704,7 +704,7 @@ get_geotraining_df <- function() {
   current
 }
 
-# returns the current geotraining annotation augmented of posts_to_add posts to annotate
+# returns the current geotraining annotation augmented with posts_to_add posts to annotate
 updated_geotraining_df <- function(
   posts_to_add = 100,
   progress = function(a, b) {
@@ -858,7 +858,7 @@ updated_geotraining_df <- function(
   ret %>% arrange(dplyr::desc(.data$Type), .data$`Post part`)
 }
 
-# returns the current geotraining annotation augmented of posts_to_add posts to annotate and write the results to the geotraining spreadsheet
+# returns the current geotraining annotation augmented with posts_to_add posts to annotate and write the results to the geotraining spreadsheet
 update_geotraining_df <- function(
   posts_to_add = 100,
   progress = function(a, b) {
@@ -1017,7 +1017,7 @@ retrain_languages <- function() {
   }
 }
 
-# update the topic keywords json file when several location entities are found, the one closest to a topic is chosen
+# update the topic keywords JSON file. When several location entities are found, the one closest to a topic is chosen
 update_topic_keywords <- function() {
   `%>%` <- magrittr::`%>%`
   keywords <- lapply(
@@ -1051,7 +1051,7 @@ update_topic_keywords <- function() {
   )
 }
 
-# update the forced geo json file listing words that will be associated to particular location names ignoring the geolocation algorithm
+# update the forced geo JSON file, listing words that will be associated with particular location names, ignoring the geolocation algorithm
 update_forced_geo <- function() {
   `%>%` <- magrittr::`%>%`
   df <- get_geotraining_df() %>%
@@ -1085,7 +1085,7 @@ update_forced_geo <- function() {
   }
 }
 
-# update the forced geo codes json file lisiting words that will be associated to particular location codes ignoring the geolocation algorithm
+# update the forced geo codes JSON file lisiting words that will be associated to particular location codes ignoring the geolocation algorithm
 update_forced_geo_codes <- function() {
   `%>%` <- magrittr::`%>%`
   df <- get_geotraining_df() %>%

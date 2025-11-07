@@ -2,19 +2,19 @@
 #' @description Evaluate alerts for the last collected day for all topics and regions and send email alerts to subscribers
 #' @param tasks Current tasks for reporting purposes, default: get_tasks()
 #' @return The list of tasks updated with produced messages
-#' @details This function calculates alerts for the last aggregated day and then send emails to subscribers.
+#' @details This function calculates alerts for the last aggregated day and then sends emails to subscribers.
 #'
 #' The alert calculation is based on the country_counts time series which stores alerts by country, hour and topics.
 #'
-#' For each country and region, the process starts by aggregating the last N days. A day is a block of consecutive 24 hours ending before the hour of the collected last post.
+#' For each country and region, the process starts by aggregating the last N days. A day is defined as a block of consecutive 24 hours ending before the hour of the last collected post.
 #' N is defined by the alert baseline parameter on the configuration tab of the Shiny application (the default is N=7).
 #'
 #' An alert will be produced when the number of posts observed is above the threshold calculated by the modified version of the EARS algorithm (for more details see the package vignette).
-#' The behaviour of the alert detection algorithm is modified by the signal false positive rate (alpha), downweighting of previous alerts and weekly or daily baseline parameters
-#' as defined on the configuration tab of the Shiny application and the topics file.
+#' The behaviour of the alert detection algorithm is modified by the signal false positive rate (alpha), by downweighting previous alerts and by weekly or daily baseline parameters,
+#' as defined in the configuration tab of the Shiny application and the topics file.
 #'
-#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the geotagging and aggregation tasks have already been run.
-#' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
+#' A prerequisite for this function is that the \code{\link{search_loop}} must already have stored posts in the search folder and that the geotagging and aggregation tasks have been completed.
+#' Normally, this function is not called directly by the user, but from the \code{\link{detect_loop}} function.
 #' @examples
 #' if(FALSE){
 #'    library(episomer)
@@ -41,7 +41,7 @@ generate_alerts <- function(tasks = get_tasks()) {
       tasks <- update_alerts_task(tasks, "running", "sending emails")
       # Sending email alerts
       tasks <- send_alert_emails(tasks)
-      # Setting status to succes
+      # Setting status to success
       tasks <- update_alerts_task(tasks, "success", "", end = TRUE)
       tasks
     },
@@ -279,14 +279,14 @@ get_reporting_date_counts <- function(
 }
 
 #' @title calculate alerts for for a particular region
-#' @description calculate alerts for a region and topic using provided parameters to the episomer signal detection funtction
+#' @description calculate alerts for a region and topic using provided parameters to the episomer signal detection function
 #' @param sms A given social media for which aggregations have been calculated
 #' @param topic Limit the alert detection to the given topic 
 #' @param country_codes List with the codes of countries to be aggregated for this alerts
 #' @param country_code_cols the name of the column containing the country codes
 #' @param start the start date for the period in consideration
 #' @param end the end date for the period in consideration
-#' @param with_quotes wether to consder quotes in the time series to evaluate
+#' @param with_quotes wether to consider quotes in the time series to evaluate
 #' @param alpha The alpha is used to compute the upper limit of the prediction interval:
 #' (1-alpha) * 100\%, default: 0.025
 #' @param alpha_outlier Residuals beyond 1-alpha_outlier quantile of the
@@ -294,10 +294,10 @@ get_reporting_date_counts <- function(
 #' @param k_decay Power k in the expression (r_star/r_threshold)^k determining the weight, default: 4
 #' @param no_historic Number of previous values i.e -1, -2, ..., no_historic
 #' to include when computing baseline parameters, default: 7
-#' @param bonferroni_m Number the value to apply the bonferrony correction it specify the global number of timeseries being observed
+#' @param bonferroni_m Number the value to apply the Bonferroni correction; it specifies the global number of timeseries being observed
 #' @param same_weekday_baseline whether to calculate baseline using same weekdays or any day, default: FALSE
 #' @param logenv an environment variable to store the total number of posts concerned including all country_cols
-#' @return A dataframe containing the monitored time point for the given coutnries and topic,
+#' @return A dataframe containing the monitored time point for the given countries and topic,
 #'         the upper limit and whether a signal is detected or not.
 #' @details for algorithm details see package vignette.
 #' @examples
@@ -361,7 +361,7 @@ calculate_region_alerts <- function(
     # filtering by topic
     df <- df %>% dplyr::filter(.data$topic == f_topic)
 
-    # adding requotes if required
+    # adding quotes if required
     df <- if (with_quotes) {
       df %>%
         dplyr::mutate(
@@ -588,7 +588,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
     alert_to_hour <- last_agg$last_hour
     if (is.na(alert_to) || is.na(alert_to_hour)) {
       message(paste(
-        "Cannot determine the last aggregated period for alert detection, tryng again in",
+        "Cannot determine the last aggregated period for alert detection, trying again in",
         wait_for,
         " seconds"
       ))
@@ -1540,7 +1540,7 @@ send_alert_emails <- function(tasks = get_tasks()) {
 }
 
 # Produce html tables for alerts provided. This is used on for email alerts.
-# Tables can be grouped by topic or not.
+# Tables can be grouped by topic or left ungrouped.
 get_alert_tables <- function(
   alerts,
   group_topics = TRUE,
@@ -1703,7 +1703,7 @@ get_alert_balanced_df <- function(
   )
 
   # Iterating over categories to augment
-  # Creating alerts to augment underepresented categories, using same settings than existing alerts but looking for more posts not limiting by country
+  # Creating alerts to augment underrepresented categories, using same settings than existing alerts but looking for more posts not limiting by country
   alerts_for_augment <- list()
   smallest_cat <- Inf
   if (nrow(cat_to_augment) > 0) {
@@ -1715,7 +1715,7 @@ get_alert_balanced_df <- function(
       posts_exhausted <- FALSE
       found_posts <- FALSE
       ialert <- 1
-      # Looping over all alerts with extra posts for this category until no more new posts are found or the expected number of alerts to add is reach
+      # Looping over all alerts with extra posts for this category until no more new posts are found or the expected number of alerts to add is reached
       while (to_add > 0 && !posts_exhausted) {
         # looping over alerts to augment which have
         if (alerts_to_augment$given_category[[ialert]] == cat) {
@@ -2015,7 +2015,7 @@ retrain_alert_classifier <- function(
   alerts = get_alert_training_df()
   ret <- classify_alerts(alerts, retrain = TRUE, progress = progress)
   if (exists("alerts", where = ret)) {
-    progress(value = 0.9, message = "Writing resutls")
+    progress(value = 0.9, message = "Writing results")
     write_alert_training_db(
       alerts = ret$alerts %>% dplyr::filter(!.data$augmented),
       runs = ret$runs
