@@ -269,14 +269,6 @@ download_dependencies <- function(tasks = get_tasks()) {
         )
         Sys.sleep(5)
       }
-      # running migration if necessary
-      tasks <- update_dep_task(
-        tasks,
-        "running",
-        "migrating any old json files to embedded database"
-      )
-      tasks <- json2lucene(tasks)
-
       # Setting status to succes
       tasks <- update_dep_task(tasks, "success", "", end = TRUE)
       tasks

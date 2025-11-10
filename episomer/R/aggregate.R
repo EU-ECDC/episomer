@@ -96,6 +96,9 @@ get_aggregates <- function(
           ))
     }
   }
+  if (reuse_filter && !"created_date" %in% names(cached[[dataset]])) {
+      reuse_filter <- FALSE
+  }
   if (reuse_filter) {
     # On cache hit returning from cache
     ret <- (cached[[dataset]] %>%
