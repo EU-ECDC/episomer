@@ -1,4 +1,5 @@
 #' @noRd
+#' internal function for exporting code of necessary functions for creating templates for a new social media
 keep_roxygen_and_function_declarations <- function(file_content) {
   text_to_keep <- character(0)
   function_body <- FALSE
@@ -27,6 +28,7 @@ keep_roxygen_and_function_declarations <- function(file_content) {
 
 #' @noRd
 #' @importFrom utils browseURL
+#' internal function for producing the code template for a new social media
 create_api_and_plan_files_for_new_social_media <- function(
   new_media,
   ref_media = "bluesky"
@@ -65,7 +67,8 @@ create_api_and_plan_files_for_new_social_media <- function(
   return(invisible(TRUE))
 }
 
-#' Add new social media files
+#' Create new social media template files, so a developer can extend episomer and support a new social media.
+#' this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()
 #' @param social_media Name of the new social media
 #' @param social_media_ref Name of the reference social media 
 #' @export

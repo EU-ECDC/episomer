@@ -462,3 +462,19 @@ last_fs_updates <- function(
   })
   setNames(times, collections)
 }
+
+commit_posts <- function() {
+  post_result <- httr::POST(
+    url = get_scala_commit_url(),
+    httr::content_type_json(),
+    encode = "raw",
+    encoding = "UTF-8"
+  )
+  if (httr::status_code(post_result) != 200) {
+    stop(print(substring(
+      httr::content(post_result, "text", encoding = "UTF-8"),
+      1,
+      100
+    )))
+  }
+}

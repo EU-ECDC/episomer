@@ -176,7 +176,7 @@ get_geonames_parquet_path <- function(relative = FALSE) {
     file.path("geo", "all-geos.parquet")
 }
 
-# Get geonames parquet path
+# Get geonames cities parquet path
 get_cities_parquet_path <- function(relative = FALSE) {
   if (!relative) file.path(conf$data_dir, "geo", "all-cities.parquet") else
     file.path("geo", "all-cities.parquet")
@@ -188,18 +188,14 @@ get_geonames_index_path <- function(relative = FALSE) {
     file.path("geo", "all-geos.parquet.index")
 }
 
-# Get geonames index path
-get_geonames_index_path <- function(relative = FALSE) {
-  if (!relative) file.path(conf$data_dir, "geo", "all-geos.parquet.index") else
-    file.path("geo", "all-geos.parquet.index")
-}
-
+# Get path of the topics-keyword.json file used for ignoring topic in topwords
 get_topic_keywords_path <- function() {
   geo_folder <- file.path(conf$data_dir, "geo")
   if (!file.exists(geo_folder)) dir.create(geo_folder)
   file.path(geo_folder, "topic-keywords.json")
 }
 
+# 
 get_forced_geo_path <- function() {
   file.path(conf$data_dir, "geo", "forced-geo.json")
 }

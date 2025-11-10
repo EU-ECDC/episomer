@@ -2,7 +2,8 @@
 % Please edit documentation in R/add_new_media.R
 \name{add_new_social_media}
 \alias{add_new_social_media}
-\title{Add new social media files}
+\title{Create new social media template files, so a developer can extend episomer and support a new social media.
+this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()}
 \usage{
 add_new_social_media(social_media, social_media_ref = "bluesky")
 }
@@ -12,5 +13,6 @@ add_new_social_media(social_media, social_media_ref = "bluesky")
 \item{social_media_ref}{Name of the reference social media}
 }
 \description{
-Add new social media files
+Create new social media template files, so a developer can extend episomer and support a new social media.
+this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()
 }

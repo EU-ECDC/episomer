@@ -231,7 +231,12 @@ get_reporting_date_counts <- function(
   last_day
 ) {
   `%>%` <- magrittr::`%>%`
-  if (nrow(df) > 0) {
+  empty = !("created_date" %in% names(df)) || !("created_hour" %in% names(df))
+  if(empty  && nrow(df)) {
+    message(sprintf("Found incoherent non empty dataset for alerts in %s, %s, %s... ignoring data. This is the content:", topic, start, end))
+    print(df) 
+  }
+  if (!empty && nrow(df) > 0) {
     # Calculating end day hour which is going to be the last fully collected hour when
     # requesting the last collected dates or 23 hours if it is a fully collected day
     last_full_hour <- (if (!is.na(end) && end < last_day) 23 else
@@ -345,7 +350,8 @@ calculate_region_alerts <- function(
       period = list(read_from_date, end),
       network = sms
     )
-  ) 
+  )
+  
   if(nrow(df) > 0) {
     # Adding original if missing
     if(!"original" %in% names(df))
