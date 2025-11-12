@@ -122,7 +122,7 @@ get_empty_config <- function(data_dir) {
   ret$known_users <- list()
   ret$spark_cores <- {
     all_cores <- floor(
-      parallel::detectCores(all.tests = FALSE, logical = TRUE) * 0.5
+      parallel::detectCores(all.tests = FALSE, logical = TRUE) * 0.3
     )
     if (is.na(all_cores)) 1 else if (all_cores < 1) 1 else all_cores
   }
