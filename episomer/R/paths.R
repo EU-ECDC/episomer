@@ -229,16 +229,21 @@ get_lang_stamp_path <- function(code) {
 get_post_togeo_path <- function() {
   file.path(conf$data_dir, "geo", "togeolocate.json")
 }
+
+# Get path of the geolocating json file
 get_post_geoing_path <- function() {
   file.path(conf$data_dir, "geo", "geolocating.json")
 }
+
+# Get path of posts to aggregate
 get_post_toaggr_path <- function() {
   file.path(conf$data_dir, "geo", "toaggregate.json")
 }
+# Get path of posts being aggregated
 get_post_aggring_path <- function() {
   file.path(conf$data_dir, "geo", "aggregating.json")
 }
-
+# Get path of the session info log file
 get_session_info_path <- function() {
   file.path(conf$data_dir, "session-info.log")
 }

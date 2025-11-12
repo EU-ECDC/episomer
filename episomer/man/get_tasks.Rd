@@ -13,7 +13,7 @@ get_tasks(statuses = list())
 A named list containing all necessary information to run and monitor the detect loop tasks.
 }
 \description{
-Reads the status of the \code{\link{detect_loop}} tasks and updates it with changes requested by the Shiny app
+Reads the status of the \code{\link{detect_loop}} tasks and update it with changes requested by the Shiny app
 }
 \details{
 After reading the tasks.json file and parsing it with jsonlite, this function will update the necessary fields in the

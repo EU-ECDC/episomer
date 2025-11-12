@@ -2,9 +2,9 @@
 #' @description Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @param host The host to run the Shiny app on, default: NULL (will run on 127.0.0.1)
+#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
-#' @param profile The profile to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
+#' @param profile The profileis to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
 #' @return The Shiny server object containing the launched application
 #' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
@@ -3524,7 +3524,18 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
     )
   )
 }
+
+
 #' @rdname episomer_app
+#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
+#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
+#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
+#' @return The Shiny server object containing the launched application
+#' @details The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations, 
+#' allow export them to Markdown or PDF.
+#'
+#' All its functionality is described on the episomer vignette.
 #' @export
 dashboard_app <- function(
   data_dir = NA,
@@ -3540,6 +3551,15 @@ dashboard_app <- function(
 }
 
 #' @rdname episomer_app
+#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
+#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
+#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
+#' @return The Shiny server object containing the launched application
+#' @details The admin app is contain all functionality for an administrator. It help the user to setup the post collection process, manage all settings,
+#' and setup the alert emails.
+#'
+#' All its functionality is described on the episomer vignette.
 #' @export
 admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
   episomer_app(

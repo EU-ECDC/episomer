@@ -197,7 +197,7 @@ spark_df <- function(args, handler = NULL) {
 }
 
 #' @title Updates Java dependencies
-#' @description Download Java dependencies of the application mainly related to Apache SPARK and Lucene,
+#' @description Download Java dependencies of the application mainly related to Apache SPARK, Apache Lucene, and Apache Pekko
 #' @param tasks Task object for reporting progress and error messages, default: get_tasks()
 #' @return The list of tasks updated with produced messages
 #' @details Run a one-shot task consisting of downloading Java and Scala dependencies, this is separated by the following subtasks
@@ -319,7 +319,7 @@ download_dependencies <- function(tasks = get_tasks()) {
   return(tasks)
 }
 
-# Download SBT dependencies from maven (scala, spark, lucene, netlib (BLAS), httpclient) into package folder
+# Download SBT dependencies from maven (scala, spark, lucene, pekko, netlib (BLAS), httpclient) into package folder
 download_sbt_dependencies <- function(tasks = get_tasks()) {
   if (!exists("maven_repo", where = tasks$dependencies))
     stop(
