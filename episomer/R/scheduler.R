@@ -1,4 +1,4 @@
-# registers the post collection task (by writing search.PID file) for the current process or stops if no configuration has been set or if it is already running
+# registers the data collection task (by writing search.PID file) for the current process or stops if no configuration has been set or if it is already running
 register_search_runner <- function(network = NULL) {
   stop_if_no_config(paste(
     "Cannot check running status for search without configuration setup"
@@ -69,10 +69,10 @@ register_runner <- function(name) {
   write(pid, file = pid_path, append = FALSE)
 }
 
-#' @title Registers the post collection task
-#' @description registers the post collection task or stops if no configuration has been set or if it is already running
+#' @title Registers the social media message collection task
+#' @description registers the social media message collection task or stops if no configuration has been set or if it is already running
 #' @return Nothing
-#' @details Registers the post collextion task or stops if no configuration has been set or if it is already running.
+#' @details Registers the message collextion task or stops if no configuration has been set or if it is already running.
 #' Bluesky authentication needs to be previously set on the shiny app or by calling set_auth().
 #' You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'bluesky_auth')
 #' This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
@@ -423,6 +423,7 @@ is_fs_running <- function() {
   )
 }
 
+# stop with an error uf the embedded database service is not running.
 stop_if_no_fs <- function(msg = NULL) {
   if (!is_fs_running()) {
     if (!is.null(msg)) stop(msg) else
@@ -486,7 +487,7 @@ get_running_task_pid <- function(name) {
 
 
 #' @title Get the \code{\link{detect_loop}} task status
-#' @description Reads the status of the \code{\link{detect_loop}} tasks and updates it with changes requested by the Shiny app
+#' @description Reads the status of the \code{\link{detect_loop}} tasks and update it with changes requested by the Shiny app
 #' @param statuses Character vector for limiting the status of the returned tasks, default: list()
 #' @return A named list containing all necessary information to run and monitor the detect loop tasks.
 #' @details After reading the tasks.json file and parsing it with jsonlite, this function will update the necessary fields in the
@@ -629,7 +630,7 @@ get_tasks <- function(statuses = list()) {
   # Activating languages task if requested by the shiny app
   if (in_pending_status(tasks$languages)) tasks$languages$status <- "pending"
 
-  # Getting language information (used to detect id there is an action to perform on languages)
+  # Getting language information (used to detect if there is an action to perform on languages)
   # The tasks files contain the status of languages processed by the detect loop
   # The difference between the settings from the shiny app and the tasks will allow episomer to detect the actions to perform on languages
   langs <- get_available_languages() # All available languages for episomer

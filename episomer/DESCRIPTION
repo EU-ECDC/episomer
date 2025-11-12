@@ -1,6 +1,6 @@
 Package: episomer
 Title: Early Detection of Public Health Threats from Social Media Data
-Version: 3.0.16
+Version: 3.0.17
 Authors@R: c( 
      person(given = "Laura",
             family = "Espinosa",
@@ -66,7 +66,6 @@ BugReports: https://github.com/EU-ECDC/episomer/issues
 Encoding: UTF-8
 Imports:
     dplyr,
-    crul,
     curl,
     DT,
     emayili,
