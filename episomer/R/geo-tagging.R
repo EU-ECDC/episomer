@@ -486,6 +486,7 @@ update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
   old <- options()
   on.exit(options(old))
   options(timeout = 900)
+  tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
   tasks <- tryCatch(
     {
       tasks <- update_languages_task(
@@ -513,10 +514,26 @@ update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
             lang_start = TRUE
           )
           if(!reuse_downloads || !file.exists(tasks$languages$vectors[[i]])) { 
-            temp <- tempfile()
+            temp <- sprintf("%s.tmp", tasks$languages$vectors[[i]])
             # downloading the file
-            download.file(tasks$languages$url[[i]], temp, mode = "wb")
-            file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
+	    message("This is version 3.0.23")
+            message(sprintf("I am going to download the file to %s", temp))
+	    download.file(tasks$languages$url[[i]], temp, mode = "wb")
+            message(sprintf("Going to move to %s",  tasks$languages$vectors[[i]]))
+	    tryCatch2({
+                    file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
+	        },
+	        handler = function(e) {
+		    message(sprintf("Failed while trying to rename %s to %s with error : %s", file.path(temp), tasks$languages$vectors[[i]], e))
+		    message("going try to copy the file")
+                            if(file.copy(from = file.path(temp), to = tasks$languages$vectors[[i]], overwrite=T)) { 
+			        message("Copy of file succeeded, going to delete origin file")
+			        file.remove(temp)
+			    } else {
+		                stop("copy failed silently")
+			    }
+		}
+	    )
             tasks <- update_languages_task(
               tasks,
               "running",
