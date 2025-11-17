@@ -905,7 +905,7 @@ detect_loop <- function(data_dir = NA) {
         if (
           tasks[[i_next]]$status %in%
             c("failed", "running") &&
-            tasks[[i_next]]$failures > 3
+            tasks[[i_next]]$failures > 1
         ) {
           tasks[[i_next]]$status = "aborted"
           tasks[[i_next]]$message = paste(
