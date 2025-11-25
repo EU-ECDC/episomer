@@ -14,6 +14,7 @@ import org.apache.pekko.http.scaladsl.marshalling.ToResponseMarshallable
 import org.apache.pekko.util.{Timeout}
 import spray.json.{JsValue}
 import scala.concurrent.duration._
+import scala.concurrent.Future
 import scala.util.{Try, Success, Failure}
 import scala.collection.JavaConverters._
 import org.apache.pekko.actor.ActorRef
@@ -28,6 +29,8 @@ import java.time.Instant
 import java.nio.file.{Paths, Files}
 import java.nio.charset.StandardCharsets
 import spray.json.JsonParser
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
 
 object EpisomerActor {
   case class Failure(msg:String)
@@ -40,6 +43,8 @@ object API {
   var oConf:Option[Settings] = None
   def run(epiHome:String) {
     import fs.EpiSerialisation._
+    Logger.getLogger("pekko").setLevel(Level.DEBUG)
+    Logger.getLogger("pekko.http").setLevel(Level.DEBUG)
     implicit val actorSystem = ActorSystem("episomer")
     actorSystemPointer = Some(actorSystem)
     implicit val executionContext = actorSystem.dispatcher
@@ -272,17 +277,18 @@ object API {
             }
           } ~ 
           post {
-            parameters("jsonnl".as[Boolean]?false) { (jsonnl) => 
-              withRequestTimeout(conf.fsLongBatchTimeout.seconds) {
+            withRequestTimeout(conf.fsLongBatchTimeout.seconds) {
+              parameters("jsonnl".as[Boolean]?false) { (jsonnl) => 
                 entity(as[JsValue]) { json  =>
                   implicit val timeout: Timeout = conf.fsLongBatchTimeout.seconds //For ask property
+                  
                   Try(geoTrainingsFormat.read(json)) match {
                     case Success(GeoTrainings(trainingSet)) =>
                       val source: Source[org.apache.pekko.util.ByteString, ActorRef] = Source.actorRefWithBackpressure(
                         ackMessage = ByteString("ok")
                         , completionMatcher = {case Done => CompletionStrategy.immediately}
                         , failureMatcher = PartialFunction.empty
-                      )
+                      )//.timeout(timeout)
                       val (actorRef, matSource) = source.preMaterialize()
                       geonamesRunner ! GeonamesActor.TrainLanguagesRequest(trainingSet, jsonnl, actorRef) 
                       complete(Chunked.fromData(ContentTypes.`application/json`, matSource.map{m =>

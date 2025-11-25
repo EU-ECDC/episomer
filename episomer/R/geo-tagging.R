@@ -763,17 +763,17 @@ updated_geotraining_df <- function(
       dplyr::transmute(
         Type = "Location",
         `Text` = .data$word,
-        `Location in text` = NA,
+        `Location in text` = as.character(NA),
         `Location yes/no` = ifelse(.data$isLocation, "yes", "no"),
-        `Associate country code` = NA,
-        `Associate with` = NA,
+        `Associate country code` =  as.character(NA),
+        `Associate with` =  as.character(NA),
         `Source` = "Episomer model",
-        `Post Id` = NA,
+        `Post Id` =  as.character(NA),
         `Lang` = .data$lang,
-        `Post part` = NA,
-        `Episomer match` = NA,
-        `Episomer country match` = NA,
-        `Episomer country code match` = NA
+        `Post part` =  as.character(NA),
+        `Episomer match` =  as.character(NA),
+        `Episomer country match` =  as.character(NA),
+        `Episomer country code match` =  as.character(NA)
       )
     geo_training$Text <- stringr::str_trim(geo_training$Text)
     geo_training <- geo_training %>%
@@ -804,17 +804,17 @@ updated_geotraining_df <- function(
       dplyr::transmute(
         Type = "Text",
         `Text` = .data$text,
-        `Location in text` = NA,
+        `Location in text` = as.character(NA),
         `Location yes/no` = "?",
-        `Associate country code` = NA,
-        `Associate with` = NA,
+        `Associate country code` =  as.character(NA),
+        `Associate with` =  as.character(NA),
         `Source` = "Post",
         `Post Id` = .data$id,
         `Lang` = .data$lang,
         `Post part` = "text",
-        `Episomer match` = NA,
-        `Episomer country match` = NA,
-        `Episomer country code match` = NA
+        `Episomer match` =  as.character(NA),
+        `Episomer country match` =  as.character(NA),
+        `Episomer country code match` =  as.character(NA)
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
