@@ -31,13 +31,13 @@ Nothing
 Nothing
 }
 \description{
-Infinite loop ensuring the permanent collection of posts
+Infinite loop ensuring the permanent collection of social media messages
 }
 \details{
 The detect loop is a pure R function designed for downloading posts from the social media search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
 round-robin philosophy and respecting social media API rate-limits.
 
-The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect posts respecting a 'collect_span' window
+The progress of this task is reported on the 'topics.*.json' files which are created by this function. This function will try to collect posts respecting a 'collect_span' window
 in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 
 To see more details about the collection algorithm please see episomer vignette.

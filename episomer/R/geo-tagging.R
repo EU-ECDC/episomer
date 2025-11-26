@@ -1,5 +1,5 @@
 # Get the SQL-like expression to extract post geolocation variables and apply prioritisation
-# This function is used on aggregate posts for translating variables names into SQL valid columns of geotag posts
+# This function is used on aggregate posts for translating variables names into SQL-valid columns of geotagged posts
 get_location_var <- function(varname) {
   paste(
     "coalesce(",
@@ -12,7 +12,7 @@ get_location_var <- function(varname) {
   )
 }
 
-# It gets used columns for post geolocation. This is used for limiting columns to extract from json files
+# It gets columns used for post geolocation. This is used for limiting columns to extract from JSON files
 get_location_columns <- function(table) {
   list(
     "text_loc",
@@ -33,7 +33,7 @@ get_raw_countries <- function() {
 }
 
 
-# Getting a list of regions, sub regions and countries for using as a select
+# Getting a list of regions, sub regions and countries for use as a selection
 get_country_items <- function(order = "level") {
   `%>%` <- magrittr::`%>%`
   #If countries are already on cache we return them otherwise we calculate them
@@ -486,6 +486,7 @@ update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
   old <- options()
   on.exit(options(old))
   options(timeout = 900)
+  tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
   tasks <- tryCatch(
     {
       tasks <- update_languages_task(
@@ -513,10 +514,26 @@ update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
             lang_start = TRUE
           )
           if(!reuse_downloads || !file.exists(tasks$languages$vectors[[i]])) { 
-            temp <- tempfile()
+            temp <- sprintf("%s.tmp", tasks$languages$vectors[[i]])
             # downloading the file
-            download.file(tasks$languages$url[[i]], temp, mode = "wb")
-            file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
+	    message("This is version 3.0.23")
+            message(sprintf("I am going to download the file to %s", temp))
+	    download.file(tasks$languages$url[[i]], temp, mode = "wb")
+            message(sprintf("Going to move to %s",  tasks$languages$vectors[[i]]))
+	    tryCatch2({
+                    file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
+	        },
+	        handler = function(e) {
+		    message(sprintf("Failed while trying to rename %s to %s with error : %s", file.path(temp), tasks$languages$vectors[[i]], e))
+		    message("going try to copy the file")
+                            if(file.copy(from = file.path(temp), to = tasks$languages$vectors[[i]], overwrite=T)) { 
+			        message("Copy of file succeeded, going to delete origin file")
+			        file.remove(temp)
+			    } else {
+		                stop("copy failed silently")
+			    }
+		}
+	    )
             tasks <- update_languages_task(
               tasks,
               "running",
@@ -704,7 +721,7 @@ get_geotraining_df <- function() {
   current
 }
 
-# returns the current geotraining annotation augmented of posts_to_add posts to annotate
+# returns the current geotraining annotation augmented with posts_to_add posts to annotate
 updated_geotraining_df <- function(
   posts_to_add = 100,
   progress = function(a, b) {
@@ -746,17 +763,17 @@ updated_geotraining_df <- function(
       dplyr::transmute(
         Type = "Location",
         `Text` = .data$word,
-        `Location in text` = NA,
+        `Location in text` = as.character(NA),
         `Location yes/no` = ifelse(.data$isLocation, "yes", "no"),
-        `Associate country code` = NA,
-        `Associate with` = NA,
+        `Associate country code` =  as.character(NA),
+        `Associate with` =  as.character(NA),
         `Source` = "Episomer model",
-        `Post Id` = NA,
+        `Post Id` =  as.character(NA),
         `Lang` = .data$lang,
-        `Post part` = NA,
-        `Episomer match` = NA,
-        `Episomer country match` = NA,
-        `Episomer country code match` = NA
+        `Post part` =  as.character(NA),
+        `Episomer match` =  as.character(NA),
+        `Episomer country match` =  as.character(NA),
+        `Episomer country code match` =  as.character(NA)
       )
     geo_training$Text <- stringr::str_trim(geo_training$Text)
     geo_training <- geo_training %>%
@@ -787,17 +804,17 @@ updated_geotraining_df <- function(
       dplyr::transmute(
         Type = "Text",
         `Text` = .data$text,
-        `Location in text` = NA,
+        `Location in text` = as.character(NA),
         `Location yes/no` = "?",
-        `Associate country code` = NA,
-        `Associate with` = NA,
+        `Associate country code` =  as.character(NA),
+        `Associate with` =  as.character(NA),
         `Source` = "Post",
         `Post Id` = .data$id,
         `Lang` = .data$lang,
         `Post part` = "text",
-        `Episomer match` = NA,
-        `Episomer country match` = NA,
-        `Episomer country code match` = NA
+        `Episomer match` =  as.character(NA),
+        `Episomer country match` =  as.character(NA),
+        `Episomer country code match` =  as.character(NA)
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
@@ -858,7 +875,7 @@ updated_geotraining_df <- function(
   ret %>% arrange(dplyr::desc(.data$Type), .data$`Post part`)
 }
 
-# returns the current geotraining annotation augmented of posts_to_add posts to annotate and write the results to the geotraining spreadsheet
+# returns the current geotraining annotation augmented with posts_to_add posts to annotate and write the results to the geotraining spreadsheet
 update_geotraining_df <- function(
   posts_to_add = 100,
   progress = function(a, b) {
@@ -1017,7 +1034,7 @@ retrain_languages <- function() {
   }
 }
 
-# update the topic keywords json file when several location entities are found, the one closest to a topic is chosen
+# update the topic keywords JSON file. When several location entities are found, the one closest to a topic is chosen
 update_topic_keywords <- function() {
   `%>%` <- magrittr::`%>%`
   keywords <- lapply(
@@ -1051,7 +1068,7 @@ update_topic_keywords <- function() {
   )
 }
 
-# update the forced geo json file listing words that will be associated to particular location names ignoring the geolocation algorithm
+# update the forced geo JSON file, listing words that will be associated with particular location names, ignoring the geolocation algorithm
 update_forced_geo <- function() {
   `%>%` <- magrittr::`%>%`
   df <- get_geotraining_df() %>%
@@ -1085,7 +1102,7 @@ update_forced_geo <- function() {
   }
 }
 
-# update the forced geo codes json file lisiting words that will be associated to particular location codes ignoring the geolocation algorithm
+# update the forced geo codes JSON file lisiting words that will be associated to particular location codes ignoring the geolocation algorithm
 update_forced_geo_codes <- function() {
   `%>%` <- magrittr::`%>%`
   df <- get_geotraining_df() %>%

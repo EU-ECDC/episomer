@@ -47,7 +47,7 @@ get_scala_ping_url <- function() {
 
 get_scala_recalc_hash_url <- function() {
   paste(get_scala_api_endpoint(), "recalculate-hash", sep = "")
-}
+} 
 
 
 #' @title Runs the episomer embedded database loop
@@ -461,4 +461,20 @@ last_fs_updates <- function(
     }
   })
   setNames(times, collections)
+}
+
+commit_posts <- function() {
+  post_result <- httr::POST(
+    url = get_scala_commit_url(),
+    httr::content_type_json(),
+    encode = "raw",
+    encoding = "UTF-8"
+  )
+  if (httr::status_code(post_result) != 200) {
+    stop(print(substring(
+      httr::content(post_result, "text", encoding = "UTF-8"),
+      1,
+      100
+    )))
+  }
 }

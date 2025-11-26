@@ -1,15 +1,15 @@
 #' @title Runs the search loop
-#' @description Infinite loop ensuring the permanent collection of posts
+#' @description Infinite loop ensuring the permanent collection of social media messages
 #' @param data_dir optional path to the 'data directory' containing application settings, models and collected posts. If not provided it will reuse the last set on the current session.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, Default: NA
-#' @param sandboxed logical indicating if the search loop should be run in sandboxed mode. If TRUE, the search loop will not commit posts to the database. Default: FALSE
+#' @param sandboxed logical indicating if the search loop should be run in sandboxed mode. If TRUE, the search loop will not send or commit posts to the database. Default: FALSE
 #' @param log_to_file logical indicating if the search loop should log to a file. Default: TRUE
 #' @param max_requests integer indicating the maximum number of requests to perform. If 0, the search loop will run indefinitely. Default: 0
 #' @return Nothing
 #' @details The detect loop is a pure R function designed for downloading posts from the social media search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
 #' round-robin philosophy and respecting social media API rate-limits.
 #'
-#' The progress of this task is reported on the 'topics.json' file which is read or created by this function. This function will try to collect posts respecting a 'collect_span' window
+#' The progress of this task is reported on the 'topics.*.json' files which are created by this function. This function will try to collect posts respecting a 'collect_span' window
 #' in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 #'
 #' To see more details about the collection algorithm please see episomer vignette.
@@ -271,7 +271,7 @@ search_loop_worker <- function(
   }
 }
 
-#' @noRd
+#' updates the modificatin date of a flag file indicating that messages have been sent to the embedded database.
 search_touch <- function() {
   p <- get_search_touch_path()
   if(!file.exists(p)) {
@@ -280,7 +280,11 @@ search_touch <- function() {
   Sys.setFileTime(p, Sys.time())
 }
 
-#' @noRd
+#' performs a search following the given plan, query and topic.
+#' @param plan list, the plan that defines the timespan to search for
+#' @param query char, the query to use when searching for the topic
+#' @param topic char, the topic associated to this search
+#' @param sandboxed logical, whether to un in sandboxed mode which prevent sending data to the embedded database.
 search_topic <- function(
   plan,
   query,

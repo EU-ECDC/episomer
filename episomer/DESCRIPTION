@@ -1,6 +1,6 @@
 Package: episomer
 Title: Early Detection of Public Health Threats from Social Media Data
-Version: 3.0.12
+Version: 3.0.24
 Authors@R: c( 
      person(given = "Laura",
             family = "Espinosa",
@@ -12,20 +12,32 @@ Authors@R: c(
             role = c("aut", "ctr"),
             email = "f.orchard@epiconcept.fr",
             comment = c(structure("0000-0001-5793-3301", .Names = "ORCID"), "Author of the package and original code")),
+     person(given = "Gianfranco",
+            family = "Spiteri",
+            role = "ctb", "fnd",
+            email = "gianfranco.spiteri@ecdc.europa.eu"),
      person(given = "Ariana",
             family = "Wijermans",
             role = "ctb",
             email = "ariana.wijermans@ecdc.europa.eu",
-            comment = "Contributor to the design and concept of the package"),
+            comment = "Contributor to the design and concept of the original version of the package"),
      person(given = "Thomas",
             family = "Mollet",
-            role = c("ctb", "fnd"),
+            role = c("ctb"),
             email = "thomas.mollet@ecdc.europa.eu",
-            comment = "Business owner of the project, and contributor to the design and concept of the package"),
+            comment = "Contributor to the design and concept of the original version of the package"),
      person(given = "Adrian",
             family = "Prodan",
             role = "ctb",
             email = "adrian.prodan@ecdc.europa.eu"),
+     person(given = "Martin",
+            family = "Norling",
+            role = "ctb",
+            email = "martin.norling@ecdc.europa.eu"),
+     person(given = "Enrique",
+            family = "Delgado",
+            role = "ctb",
+            email = "enrique.delgado@ecdc.europa.eu"),
      person(given = "Thomas",
             family = "Czernichow",
             role = "ctb",
@@ -47,14 +59,13 @@ Authors@R: c(
             role = "ctb",
             email = "y.mansiaux@epiconcept.fr")
      )
-Description: It allows you to automatically monitor trends of social media messages by time, place and topic aiming at detecting public health threats early through the detection of signals (e.g. an unusual increase in the number of tweets). It was designed to focus on infectious diseases, and it can be extended to all hazards or other fields of study by modifying the topics and keywords. More information is available in the our peer-review publication (doi:10.2807/1560-7917.ES.2022.27.39.2200177).
+Description: It allows you to automatically monitor trends of social media messages by time, place and topic aiming at detecting public health threats early through the detection of signals (i.e., an unusual increase in the number of messages per time, topic and location). It was designed to focus on infectious diseases, and it can be extended to all hazards or other fields of study by modifying the topics and keywords. More information on the original package epitweetr is available in the peer-review publication (doi:10.2807/1560-7917.ES.2022.27.39.2200177).
 License: EUPL
 URL: https://github.com/EU-ECDC/episomer
 BugReports: https://github.com/EU-ECDC/episomer/issues 
 Encoding: UTF-8
 Imports:
     dplyr,
-    crul,
     curl,
     DT,
     emayili,

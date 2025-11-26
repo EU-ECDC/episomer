@@ -1,6 +1,7 @@
 # @function_def_start (do not delete)
 
-#' @noRd
+#' parse custom attributes for a plan in this specific social media and returns them as a named list with attributes in the proper type
+#' @param ... list, triple dot arguments to be passed as a parameter tu underlying functions 
 sm_plan_parse_attributes_bluesky <- function(...) {
 # @function_def_end (do not delete)
   p <- list(...)
@@ -23,7 +24,9 @@ sm_plan_parse_attributes_bluesky <- function(...) {
 
 # @function_def_start (do not delete)
 
-#' @noRd
+
+#' prepare a plan for serialisation by transforming attributes with non standard serialisation types e.g. dates to string on the format expected by the parse functions
+#' @param plan list, the plan with the attributes go format
 sm_plan_format_bluesky <- function(plan) {
 # @function_def_end (do not delete)
   if (!is.null(plan$plan_max_date))
@@ -49,7 +52,8 @@ sm_plan_format_bluesky <- function(plan) {
 
 # @function_def_start (do not delete)
 
-#' @noRd
+
+#' returns a list with the custom social media plan attributes with the default values for a first plan in a topic.
 sm_plan_first_attributes_bluesky <- function() {
 # @function_def_end (do not delete)
   list(
@@ -61,7 +65,8 @@ sm_plan_first_attributes_bluesky <- function() {
 
 # @function_def_start (do not delete)
 
-#' @noRd
+#' returns a list with the custom social media plan attributes with the values for the plan to be run after the plans provided as parameter
+#' @param plans list, the list with current plans of the given topic to calculate next plan attributes
 sm_plan_next_attributes_bluesky <- function(plans) {
 # @function_def_end (do not delete)
   list(
@@ -77,7 +82,8 @@ sm_plan_next_attributes_bluesky <- function(plans) {
 
 # @function_def_start (do not delete)
 
-#' @noRd
+#' calculates and returns the estimated progress of a plan using custom attributes
+#' @param plan list, the plan to calculate the progress from
 sm_plan_get_progress_bluesky <- function(plan) {
 # @function_def_end (do not delete)
   if (
@@ -94,29 +100,8 @@ sm_plan_get_progress_bluesky <- function(plan) {
 
 # @function_def_start (do not delete)
 
-#' @noRd
-sm_api_update_plan_after_request_bluesky <- function(plan, results) {
-# @function_def_end (do not delete)
-  if (!is.null(results$pagination$min_created_at)) {
-    min_obtained = lubridate::as_datetime(results$pagination$min_created_at)
-    if(is.null(plan$current_min_date) || min_obtained < plan$current_min_date) {
-       plan$current_min_date <- min_obtained
-    }
-  }
-  return(plan)
-}
-
-# @function_def_start (do not delete)
-
-#' @noRd
-sm_api_got_rows_bluesky <- function(results) {
-# @function_def_end (do not delete)
-  (exists("posts", results) & length(results$posts) > 0)
-}
-
-# @function_def_start (do not delete)
-
-#' @noRd
+#' Return a message to log what the next query is going to be for the current plan
+#' @param plan list, the plan to print the information about
 sm_plan_search_info_bluesky <- function(plan) {
 # @function_def_end (do not delete)
   info = ""

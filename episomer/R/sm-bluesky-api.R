@@ -1,10 +1,10 @@
 # @function_def_start (do not delete)
 
-#' Get token
-#'
+#' Get social media token
+#' @details this function implements the authethication on the respective social media and stores it securely. 
+#' It is called by the search loop before starting message collection
 #' @return Token
 #' @export
-#' @rdname session
 sm_api_get_token_bluesky <- function() {
 # @function_def_end (do not delete)
   if (is_secret_set("bluesky_session")) {
@@ -21,6 +21,15 @@ sm_api_get_token_bluesky <- function() {
 
 
 # @function_def_start (do not delete)
+
+#' Translate a parsed query to the social media query format
+#' @details This function receive as a parameter a parsed query from the a topic in the list of topics. 
+#' It can return one or many queries that matches the expected results using the underlying social media API
+#' @param parsed list. Named list containing two attributes 'ors' and 'neg'. 
+#' 'ors' is a list containing subqueries that should be contatenated with an OR logic 
+#'   - each subquery in 'ors' is a list containing terms that should be concatecated with an AND logic
+#'       - each term in 'ors subqueries' is a list of synonyms for a particular literal
+#' 'neg' is a list of terms that should be removed from any result of the query 
 sm_api_translate_query_bluesky <- function(parsed) {
 # @function_def_end (do not delete)
   ret = list()
@@ -39,16 +48,43 @@ sm_api_translate_query_bluesky <- function(parsed) {
 
 # @function_def_start (do not delete)
 
-#' Search posts for a given query
+#' Search posts for a given query and produce standardised results
 #'
 #' @param query query to search for
 #' @param token Access token
 #' @param plan Plan object
 #' @param max_retries Maximum number of retries
 #' @param verbose Whether to print progress messages
-#' @details You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/app-bsky-feed-search-posts}
+#' @details This function impleents the search of messages for a given query and plan.
+#' The query has been already transformed by sm_api_translate_query_xxx so it is expected to be already in the native social media format
+#' The token has been produced by the function sm_api_get_token_xxx and shoulb be used to autenticate the request
+#' The plan should be used to extract the precise time-span to request messages
+#'
+#' - Response attributes
+#'   - network: string
+#'   - posts: [...]
+#'   - count: number, 
+#'   - pagination:{...}
+#' - post in posts
+#'     - id: string
+#'     - uri: string
+#'     - created_at: datetime
+#'     - user_name: string
+#'     - text: string
+#'     - lang: string
+#'     - quoted_text: string
+#'     - quoted_lang: string
+#'     - tags: [...]
+#'     - urls: [...]
+#'     - categories: [...]
+#' - tag in post.tags: string
+#' - url in post.urls: string
+#' - category in post.categories: string
+#' - pagination: attributes used for paginating requests
+#'
+#' This is the implementation of the bluesky search. You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/app-bsky-feed-search-posts}
 #' Additionnaly more information about the "post" object is available here: \url{https://atproto.blue/en/latest/atproto/atproto_client.models.app.bsky.feed.defs.html#atproto_client.models.app.bsky.feed.defs.PostView}
-#' @return List with posts and next cursor for resumption
+#' @return List with posts int the standard post format defined in episomer
 #' @export
 #' @importFrom httr2 request req_url_query req_headers req_perform resp_body_json is_online resp_status last_response req_retry
 #' @importFrom magrittr %>%
@@ -117,7 +153,6 @@ sm_api_search_bluesky <- function(
 #' }
 #' @seealso
 #' \code{\link{save_config}}
-#' @rdname set_auth
 #' @export
 sm_api_set_auth_bluesky <- function(shiny_input_list) {
 # @function_def_end (do not delete)
@@ -131,7 +166,41 @@ sm_api_set_auth_bluesky <- function(shiny_input_list) {
   set_secret("bluesky_password", shiny_input_list$bluesky_password)
 }
 
-#' @noRd
+# @function_def_start (do not delete)
+
+#' Takes a plan after a request has been performed and the standardised results provided as returned by the function sm_api_search_xxx
+#' it should return a plan with necessary information updated so next request will continue paginating as expected to obtain
+#' targeted messages
+#' @param plan list, the plan to update
+#' @param results list, the obtained results of the plan
+sm_api_update_plan_after_request_bluesky <- function(plan, results) {
+# @function_def_end (do not delete)
+  if (!is.null(results$pagination$min_created_at)) {
+    min_obtained = lubridate::as_datetime(results$pagination$min_created_at)
+    if(is.null(plan$current_min_date) || min_obtained < plan$current_min_date) {
+       plan$current_min_date <- min_obtained
+    }
+  }
+  return(plan)
+}
+
+# @function_def_start (do not delete)
+
+#' Receive the results provided by a request and return a logical value indicating whether the request returned results.
+#' @details This function needs to be implemented for each social media since it is interpreted as 'No more messages are available for this plan'
+#' When FALSE is returned the underlying plan will be ended
+#' @param results list, results of the request in the standardised episomer format
+sm_api_got_rows_bluesky <- function(results) {
+# @function_def_end (do not delete)
+  (exists("posts", results) & length(results$posts) > 0)
+}
+
+
+## The rest of the functions in this script are used by sm_api_***_bluesky functiona and are internal 
+## They can be used for inspiration for other social media
+
+#' function to check if there has been a rate limit error returned by the bluesky API
+#' @param resp, the httr2 response object
 bluesky_rate_limited_check <- function(resp) {
   if (httr2::resp_status(resp) == 429) {
     identical(httr2::resp_header(resp, "RateLimit-Remaining"), "0")
@@ -143,7 +212,8 @@ bluesky_rate_limited_check <- function(resp) {
   }
 }
 
-#' @noRd
+#' function to extract the number of seconds to wait after a rate limit has been reached
+#' @param resp, the httr2 response object
 bluesky_rerun_after_rate_limit <- function(resp) {
   if (httr2::resp_status(resp) == 429) {
     message("Rate limit exceeded. Waiting for reset.")
@@ -156,18 +226,23 @@ bluesky_rerun_after_rate_limit <- function(resp) {
   }
 }
 
-#' @noRd
+#' formats a date in the expected bluesky format
+#' @param datetime, the datetime to format
 bluesky_format_date <- function(datetime) {
   timezone = "UTC"
   # Full ISO 8601 format with time
   format(datetime, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")
 }
 
-#' @noRd
+#' parse a date as provided by bluesky into a date_time object
+#' @param date_input char, the text of a date
 bluesky_parse_date <- function(date_input) {
   lubridate::as_datetime(unlist(date_input))
 }
-#' @noRd
+
+#' parses the response of bluesky API into the standardised episomer format. For more details see the vignette.
+#' @param response list, the standardised response
+#' @param current_min_date datetime, the current min date obtained on the plan to detect if there are messages after this limit and discard them 
 bluesky_parse_response <- function(response, current_min_date) {
   first <- function(x) unlist(x[min(1, length(x))])
   res = list(
@@ -232,6 +307,8 @@ bluesky_parse_response <- function(response, current_min_date) {
   res
 }
 
+#' extracts the quotes information from a post in one of the many possible locations found in bluesky format
+#' @param post list, the post to to extract data from in bluesky format
 bluesky_parse_quoted <- function(post) {
   # utilitary functions
   first <- function(x) {
@@ -401,6 +478,8 @@ bluesky_parse_quoted <- function(post) {
   }
 }
 
+#' extracts features from the post structure returned by the bluesky api 
+#' @param post list, the post to extract features from in bluesky format
 bluesky_parse_features <- function(post) {
   # extracting features data from post
   ret <- list(tags = list(), urls = list(), categories = list())
@@ -428,7 +507,7 @@ bluesky_parse_features <- function(post) {
               post,
               sprintf("%s/badpost.json", conf$data_dir)
             )
-            stop(sprintf(
+            warning(sprintf(
               ":-) Unexpected feature type %s in %s",
               ftype,
               jsonlite::toJSON(post, auto_unbox = TRUE)
@@ -450,7 +529,6 @@ bluesky_parse_features <- function(post) {
 #' @export
 #' @importFrom httr2 request req_body_json req_perform resp_check_status resp_body_json is_online req_headers
 #' @details You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/com-atproto-server-create-session}
-#' @rdname session
 #' @examples
 #' \dontrun{
 #' bluesky_create_session()
@@ -502,8 +580,9 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
 }
 
 
-#' @noRd
-#' @rdname session
+#' check the current bluesky token validity
+#' @param access_jwt char, the jwt token provided by the bluesky api
+#' @param search_url char, the url to test if the current token is still valid
 #' @importFrom httr2 request req_url_query req_headers req_error req_perform resp_status
 bluesky_check_token_validity <- function(
   access_jwt,

@@ -52,7 +52,7 @@ calculate_regions_alerts(
 
 \item{end}{the end date for the period in consideration}
 
-\item{with_quotes}{wether to consder quotes in the time series to evaluate}
+\item{with_quotes}{wether to consider quotes in the time series to evaluate}
 
 \item{alpha}{The alpha is used to compute the upper limit of the prediction interval:
 (1-alpha) * 100\%, default: 0.025}
@@ -65,7 +65,7 @@ the t(n-k-1) distribution are downweighted, default: 0.05}
 \item{no_historic}{Number of previous values i.e -1, -2, ..., no_historic
 to include when computing baseline parameters, default: 7}
 
-\item{bonferroni_m}{Number the value to apply the bonferrony correction it specify the global number of timeseries being observed}
+\item{bonferroni_m}{Number the value to apply the Bonferroni correction; it specifies the global number of timeseries being observed}
 
 \item{same_weekday_baseline}{whether to calculate baseline using same weekdays or any day, default: FALSE}
 
@@ -82,14 +82,14 @@ to include when computing baseline parameters, default: 7}
 \item{bonferroni_correction}{whether to apply the bonferroni correction to the alerts, default: FALSE}
 }
 \value{
-A dataframe containing the monitored time point for the given coutnries and topic,
+A dataframe containing the monitored time point for the given countries and topic,
         the upper limit and whether a signal is detected or not.
 
 A dataframe containing the monitored time point for the given regions and topic,
         the upper limit and whether a signal is detected or not.
 }
 \description{
-calculate alerts for a region and topic using provided parameters to the episomer signal detection funtction
+calculate alerts for a region and topic using provided parameters to the episomer signal detection function
 }
 \details{
 for algorithm details see package vignette.
