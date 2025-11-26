@@ -40,7 +40,7 @@ If null and all countries are selected +proj=robin is used (Robinson projection)
 A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the dataframe that was used to build the map.
 }
 \description{
-Generates a bubble map plot of number of posts by countries, for one topic
+Generates a bubble map plot of number of posts by country for a single topic
 }
 \details{
 Produces a bubble chart map for a particular topic on number of posts collected based on the provided parameters.

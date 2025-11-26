@@ -13,7 +13,7 @@ download_dependencies(tasks = get_tasks())
 The list of tasks updated with produced messages
 }
 \description{
-Download Java dependencies of the application mainly related to Apache SPARK and Lucene,
+Download Java dependencies of the application mainly related to Apache SPARK, Apache Lucene, and Apache Pekko
 }
 \details{
 Run a one-shot task consisting of downloading Java and Scala dependencies, this is separated by the following subtasks

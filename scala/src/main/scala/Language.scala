@@ -1,6 +1,6 @@
 package org.ecdc.episomer 
 
-import org.ecdc.episomer.geo.{Geonames}
+import org.ecdc.episomer.geo.{Geonames, GeoTraining}
 import demy.storage.{Storage, WriteMode, FSNode}
 import demy.mllib.index.implicits._
 import demy.mllib.linalg.implicits._
@@ -85,15 +85,15 @@ object Language {
     }
   }
   def array2Seq(array:Array[Language]) = array.toSeq
-  def updateLanguageIndexes(langs:Seq[Language], geonames:Geonames, indexPath:String) 
+  def updateLanguageIndexes(langs:Seq[Language], geonames:Geonames, indexPath:String, force:Boolean) 
     (implicit spark:SparkSession, storage:Storage) =  {
       import spark.implicits._
-      val reuseExistingIndex = langs.map(l => !l.areVectorsNew()).reduce(_ && _)
+      val reuseExistingIndex = langs.map(l => !l.areVectorsNew()).reduce(_ && _) && (!force)
       //Getting multilingual vectors
       if(reuseExistingIndex)
         l.msg("Reusing existing index for vectors")
       else
-        l.msg("Change in vectors detected, recreating the index")
+        l.msg("Change in vectors detected, or missing models => recreating the index")
       val vectors = Language.multiLangVectors(langs)
       //Building vector index index if it is not  built 
       Seq(("Viva Chile constituyente","es"), ("We did a very good job", "en")).toDF("text", "lang")

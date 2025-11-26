@@ -1,4 +1,6 @@
-#' @noRd
+
+#' internal function for exporting code of necessary functions for creating templates for a new social media
+#' @param file_content char, lines of the script to extract content from
 keep_roxygen_and_function_declarations <- function(file_content) {
   text_to_keep <- character(0)
   function_body <- FALSE
@@ -25,7 +27,9 @@ keep_roxygen_and_function_declarations <- function(file_content) {
   return(text_to_keep)
 }
 
-#' @noRd
+#' internal function for producing the code template for a new social media
+#' @param new_media char, name of the social media to add
+#' @param ref_media char, name of the social media to use as a reference to produce template
 #' @importFrom utils browseURL
 create_api_and_plan_files_for_new_social_media <- function(
   new_media,
@@ -65,7 +69,8 @@ create_api_and_plan_files_for_new_social_media <- function(
   return(invisible(TRUE))
 }
 
-#' Add new social media files
+#' Create new social media template files, so a developer can extend episomer and support a new social media.
+#' this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()
 #' @param social_media Name of the new social media
 #' @param social_media_ref Name of the reference social media 
 #' @export
@@ -79,7 +84,7 @@ add_new_social_media <- function(
   return(invisible(TRUE))
 }
 
-#' @noRd
+#' check whether the R folder is present in the current directory
 is_r_folder_present <- function() {
   R_files <- list.files("R")
   if (length(R_files) == 0) {

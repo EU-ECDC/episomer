@@ -93,7 +93,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         implicit val st = conf.getSparkStorage
         import s.implicits._
         val readyLangs = GeoTraining.trainedLanguages()
-        if(conf.languages.get.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.get.size} are ready")
+        if(conf.languages.get.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.get.size} are ready. Geolocation on other languages is ignored")
         val df0 = 
           toGeo.toDS
             .withColumn("lang", udf((lang:String) =>  if(lang == null || lang == "all") null else lang).apply(col("lang")))
@@ -134,13 +134,13 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
       }.onComplete { case  _ =>
       }
     case GeonamesActor.TrainLanguagesRequest(trainingSet, jsonnl, caller) => 
-      implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
+      implicit val timeout: Timeout = conf.fsLongBatchTimeout.seconds //For ask property
       implicit val s = conf.getSparkSession
       implicit val st = conf.getSparkStorage
       import s.implicits._
       //Ensuring languages models are up to date
-      Language.updateLanguageIndexes(conf.languages.get, conf.geonames, indexPath=conf.langIndexPath)
-
+      val readyLangs = GeoTraining.trainedLanguages() 
+      Language.updateLanguageIndexes(conf.languages.get, conf.geonames, indexPath=conf.langIndexPath, force = conf.languages.get.size != readyLangs.size)
 
       var sep = ""
       Future {
@@ -150,9 +150,6 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         implicit val s = conf.getSparkSession
         implicit val st = conf.getSparkStorage
         import s.implicits._
-        val readyLangs = GeoTraining.trainedLanguages()
-        if(conf.languages.get.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.get.size} are ready")
-        
         val r = new Random(197912)
         val annotated = r.shuffle(trainingSet.filter(t => !t.isLocation.isEmpty))
         val posts = annotated.filter(t => !t.postId.isEmpty)
@@ -164,6 +161,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         val rescaled = posts ++ demonyms ++ people ++ locations ++ noLocations
         println(s"posts ${posts.size} ++ dem ${demonyms.size} ++ peop ${people.size} ++ loc ${locations.size} ++ noloc ${noLocations.size}")
         
+
         val results = GeoTraining.splitTrainEvaluate(annotations = rescaled, trainingRatio = 0.7).cache
         import s.implicits._
         //ret.groupByKey(_._1).reduceGroups((a, b) => (a._1, a._2, a._3, a._4, a._5.sum(b._5))).map(p => (p._2._1, p._2._5)).toDF("test", "metric").select(col("test"), col("metric.*")).show

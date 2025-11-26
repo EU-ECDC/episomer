@@ -2,8 +2,8 @@
 check_java_present <- function() {
   if (is_java_present()) TRUE else {
     warning(paste(
-      "episomer could not detect Java. Please install it and make sure java binary is on path or that JAVA_HOME is set",
-      "episomer needs 64bits Java between ",
+      "episomer could not detect Java. Please install it and make sure the Java binary is on the path or that JAVA_HOME is set",
+      "episomer requires 64-bit Java between ",
       java_min_version(),
       " and ",
       java_max_version()
@@ -14,11 +14,11 @@ check_java_present <- function() {
 # check if Java is installed
 is_java_present <- function() {
   programs <- "java"
-  # If Java home is not set checking if the system can found Java on the path
+  # If JAVA_HOME is not set, checks if the system can found Java on the path
   if (Sys.getenv("JAVA_HOME") == "" || is.null(Sys.getenv("JAVA_HOME"))) {
     length(grep(programs, Sys.which(programs))) == length(programs)
   } else {
-    #checking if Java binary can be found from java_home
+    #checking if the Java binary can be found from JAVA_HOME
     if (.Platform$OS.type == "windows")
       file.exists(file.path(Sys.getenv("JAVA_HOME"), "bin", "java.exe")) else
       file.exists(file.path(Sys.getenv("JAVA_HOME"), "bin", "java"))
@@ -47,7 +47,7 @@ get_java_version_vector <- function() {
 check_java_64 <- function() {
   if (any(grepl("64-Bit", get_java_version_vector()))) TRUE else {
     warning(paste(
-      "Your current Java version does not seem to be 64 bits. episomer needs Java 64 bits between ",
+      "Your current Java version does not appear to be 64-bit. episomer requires 64-bit Java between ",
       java_min_version(),
       " and ",
       java_max_version()
@@ -92,7 +92,7 @@ check_java_version <- function() {
       java_min_version(),
       " and ",
       java_max_version(),
-      ". Some users have reported that your version also works, but it is recommended to use previous compatible Java versions"
+      ". Some users have reported that your version also works, but it is recommended to use a previously compatible Java version"
     ))
     FALSE
   } else {
@@ -123,7 +123,7 @@ check_64 <- function() {
   if (is_64bit()) {
     TRUE
   } else {
-    warning("Your R seems to be 32bits, episomer needs a 64bits R")
+    warning("Your R seems to be 32-bit, episomer needs 64-bit R")
     FALSE
   }
 }
@@ -159,7 +159,7 @@ check_winutils <- function() {
   if (.Platform$OS.type == "windows") {
     if (file.exists(get_winutils_path())) TRUE else {
       warning(
-        "To run SPARK on Windows you need winutils which is a HADOOP binary. You can download it by running the update dependencies task"
+        "To run SPARK on Windows, you need winutils which is a HADOOP binary. You can download it by running the update dependencies task"
       )
       FALSE
     }
@@ -172,7 +172,7 @@ check_winutils <- function() {
 check_java_deps <- function() {
   if (!dir.exists(get_jars_dest_path())) {
     warning(
-      "episomer needs the dependencies task to run and download all Java dependencies"
+      "episomer requires the dependencies task to run and download all Java dependencies"
     )
     FALSE
   } else {
@@ -182,7 +182,7 @@ check_java_deps <- function() {
     downloaded <- list.files(get_jars_dest_path())
     if (length(deps) != length(downloaded)) {
       warning(
-        "episomer needs the dependencies task to run and download all Java dependencies"
+        "episomer requires the dependencies task to run and download all Java dependencies"
       )
       FALSE
     } else {
@@ -195,7 +195,7 @@ check_java_deps <- function() {
 check_geonames <- function() {
   if (!file.exists(get_geonames_txt_path())) {
     warning(
-      "episomer needs GeoNames to be downloaded and unzipped for geolocating posts. Please run the GeoNames task of the requirements and alert pipeline"
+      "episomer needs GeoNames to be downloaded and unzipped for geolocating posts. Please run the GeoNames task in the requirements and alert pipeline"
     )
     FALSE
   } else {
@@ -207,7 +207,7 @@ check_geonames <- function() {
         length(list.files(ind_dir, "_.*\\.cfs")) > 0
     })
     if (ret) TRUE else {
-      warning("geonames has not been indexed. Please execute the geonames task")
+      warning("GeoNames has not been indexed. Please execute the geonames task")
       FALSE
     }
   }
@@ -222,7 +222,7 @@ check_languages <- function() {
       !all(sapply(lang_files, function(f) file.exists(f)))
   ) {
     warning(
-      "episomer needs languages models to be downloaded for geolocating posts. Please activate at least one language and launch the languages task"
+      "episomer requires languages models to be downloaded for geolocating posts. Please activate at least one language and launch the languages task"
     )
     FALSE
   } else {
@@ -235,7 +235,7 @@ check_languages <- function() {
     })
     if (ret) TRUE else {
       warning(
-        "Language vector index has not been built. Please activate at least one language and launch the languages task"
+        "The language vector index has not been built. Please activate at least one language and launch the languages task"
       )
       FALSE
     }
@@ -333,7 +333,7 @@ check_scheduler <- function() {
       TRUE
     } else {
       warning(
-        "To activate tasks, you need to install taskscheduleR package manually. Please run install.packages('taskscheduleR') on an R session and restart episomer"
+        "To activate tasks, you need to install the taskscheduleR package manually. Please run install.packages('taskscheduleR') on an R session and restart episomer"
       )
       FALSE
     }
@@ -346,7 +346,7 @@ check_scheduler <- function() {
 check_pandoc <- function() {
   if (unname(Sys.which("pandoc")) == "") {
     warning(
-      "For exporting the PDF report from the dashboard, Pandoc has to be installed."
+      "To export the PDF report from the dashboard, Pandoc must be installed."
     )
     FALSE
   } else TRUE
@@ -357,7 +357,7 @@ check_tex <- function() {
   if (unname(Sys.which("pdflatex")) == "") {
     warning(paste(
       "For exporting the PDF report from the dashboard, a tex distribution has to be installed.",
-      "We suggest to install tinytex with the following commands on an r session:",
+      "We suggest installing tinytex with the following commands on an R session:",
       "install.packages('tinytex'); tinytex::install_tinytex()"
     ))
     FALSE
@@ -549,8 +549,8 @@ check_tar_gz <- function() {
   )
   if (ok) TRUE else {
     warning(paste(
-      "Cannot built tar.gz. Please ensure Tar and Gzip are available in the system path and make sure you can execute 'tar -czf test.tar.gz somefile' on a terminal.",
-      "Latest Windows 10 versions may include these tools, otherwise, you would need to install them to create snapshots."
+      "Cannot build tar.gz. Please ensure that Tar and Gzip are available in the system path and make sure you can execute 'tar -czf test.tar.gz somefile' on a terminal.",
+      "The latest versions of Windows 10 may include these tools; otherwise, you would need to install them to create snapshots."
     ))
     FALSE
   }

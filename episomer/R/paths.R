@@ -176,7 +176,7 @@ get_geonames_parquet_path <- function(relative = FALSE) {
     file.path("geo", "all-geos.parquet")
 }
 
-# Get geonames parquet path
+# Get geonames cities parquet path
 get_cities_parquet_path <- function(relative = FALSE) {
   if (!relative) file.path(conf$data_dir, "geo", "all-cities.parquet") else
     file.path("geo", "all-cities.parquet")
@@ -188,18 +188,14 @@ get_geonames_index_path <- function(relative = FALSE) {
     file.path("geo", "all-geos.parquet.index")
 }
 
-# Get geonames index path
-get_geonames_index_path <- function(relative = FALSE) {
-  if (!relative) file.path(conf$data_dir, "geo", "all-geos.parquet.index") else
-    file.path("geo", "all-geos.parquet.index")
-}
-
+# Get path of the topics-keyword.json file used for ignoring topic in topwords
 get_topic_keywords_path <- function() {
   geo_folder <- file.path(conf$data_dir, "geo")
   if (!file.exists(geo_folder)) dir.create(geo_folder)
   file.path(geo_folder, "topic-keywords.json")
 }
 
+# 
 get_forced_geo_path <- function() {
   file.path(conf$data_dir, "geo", "forced-geo.json")
 }
@@ -233,16 +229,21 @@ get_lang_stamp_path <- function(code) {
 get_post_togeo_path <- function() {
   file.path(conf$data_dir, "geo", "togeolocate.json")
 }
+
+# Get path of the geolocating json file
 get_post_geoing_path <- function() {
   file.path(conf$data_dir, "geo", "geolocating.json")
 }
+
+# Get path of posts to aggregate
 get_post_toaggr_path <- function() {
   file.path(conf$data_dir, "geo", "toaggregate.json")
 }
+# Get path of posts being aggregated
 get_post_aggring_path <- function() {
   file.path(conf$data_dir, "geo", "aggregating.json")
 }
-
+# Get path of the session info log file
 get_session_info_path <- function() {
   file.path(conf$data_dir, "session-info.log")
 }

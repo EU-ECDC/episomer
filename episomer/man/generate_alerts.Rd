@@ -16,19 +16,19 @@ The list of tasks updated with produced messages
 Evaluate alerts for the last collected day for all topics and regions and send email alerts to subscribers
 }
 \details{
-This function calculates alerts for the last aggregated day and then send emails to subscribers.
+This function calculates alerts for the last aggregated day and then sends emails to subscribers.
 
 The alert calculation is based on the country_counts time series which stores alerts by country, hour and topics.
 
-For each country and region, the process starts by aggregating the last N days. A day is a block of consecutive 24 hours ending before the hour of the collected last post.
+For each country and region, the process starts by aggregating the last N days. A day is defined as a block of consecutive 24 hours ending before the hour of the last collected post.
 N is defined by the alert baseline parameter on the configuration tab of the Shiny application (the default is N=7).
 
 An alert will be produced when the number of posts observed is above the threshold calculated by the modified version of the EARS algorithm (for more details see the package vignette).
-The behaviour of the alert detection algorithm is modified by the signal false positive rate (alpha), downweighting of previous alerts and weekly or daily baseline parameters
-as defined on the configuration tab of the Shiny application and the topics file.
+The behaviour of the alert detection algorithm is modified by the signal false positive rate (alpha), by downweighting previous alerts and by weekly or daily baseline parameters,
+as defined in the configuration tab of the Shiny application and the topics file.
 
-A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the geotagging and aggregation tasks have already been run.
-Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
+A prerequisite for this function is that the \code{\link{search_loop}} must already have stored posts in the search folder and that the geotagging and aggregation tasks have been completed.
+Normally, this function is not called directly by the user, but from the \code{\link{detect_loop}} function.
 }
 \examples{
 if(FALSE){
