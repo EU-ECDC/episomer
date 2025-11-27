@@ -350,7 +350,7 @@ Other attributes of the `searchPost` endpoint includes:
 In order to collect data from Bluesky you need to provide user credentials to `episomer`. This is done by entering your loggin and password as used on the login page of Bluesky. These settings are provided in the congiguration page.
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
-knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/twitter_authentication.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/bluesky_authentication.png")
 ```
 
 #### Topics and post collection queries
@@ -780,7 +780,7 @@ You can display the timeline for the number of posts with weeks or days as units
 **Include Reposts/quotes**
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/include_reposts.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/include_quotes.png")
 ```
 
 By default, reposts are not included in any of the visualisations. If “include reposts/quotes” is checked, the visualisations display results of posts and reposts/quotes. Otherwise, the visualisations display only posts (without reposts/quotes).
@@ -1078,7 +1078,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 -   **Region disclaimer:** If you would like to add a disclaimer to the map you are using. This disclaimer is added to the image export of the dashboard map, and also the PDF export of the dashboard.
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}
-knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/twitter_authentication.png")
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/region_disclaimer.png")
 ```
 
 **Email authentication (SMTP)**
