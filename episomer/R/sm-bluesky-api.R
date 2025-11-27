@@ -64,7 +64,7 @@ sm_api_translate_query_bluesky <- function(parsed) {
 #'   - network: string
 #'   - posts: [...]
 #'   - count: number, 
-#'   - pagination:{...}
+#'   - pagination:\{...\}
 #' - post in posts
 #'     - id: string
 #'     - uri: string
