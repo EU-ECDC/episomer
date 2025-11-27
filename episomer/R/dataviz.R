@@ -429,7 +429,7 @@ plot_trendline <- function(
 #' @param date_max Date indicating end of the reporting period, default: "2100-01-01"
 #' @param with_quotes Logical value indicating whether to include reposts in the time series, default: FALSE
 #' @param caption Character(1) vector indicating a caption to print at the bottom of the chart, default: ""
-#' @param proj Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format \code{\link[sp]{CRS-class}}?
+#' @param proj Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format, default NULL
 #' If null and all countries are selected +proj=robin is used (Robinson projection) otherwise the Lambert azimuthal equal-area projection will be chosen, default: NULL
 #' @param forplotly Logical(1) parameter indicating whether some hacks are activated to improve plotly rendering, default: FALSE
 #' @return A named list containing two elements: 'chart' with the ggplot2 figure and 'data' containing the dataframe that was used to build the map.

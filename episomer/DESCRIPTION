@@ -1,6 +1,6 @@
 Package: episomer
 Title: Early Detection of Public Health Threats from Social Media Data
-Version: 3.0.25
+Version: 3.0.26
 Authors@R: c( 
      person(given = "Laura",
             family = "Espinosa",
@@ -14,7 +14,7 @@ Authors@R: c(
             comment = c(structure("0000-0001-5793-3301", .Names = "ORCID"), "Author of the package and original code")),
      person(given = "Gianfranco",
             family = "Spiteri",
-            role = "ctb", "fnd",
+            role = c("ctb", "fnd"),
             email = "gianfranco.spiteri@ecdc.europa.eu"),
      person(given = "Ariana",
             family = "Wijermans",
