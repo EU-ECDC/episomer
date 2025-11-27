@@ -69,4 +69,5 @@ vignettes/*.pdf
 .Rprofile
 
 #Roxygen managed files
-episomer/bluesky_session.rds
+NAMESPACE
+/.vs
