@@ -516,10 +516,7 @@ update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
           if(!reuse_downloads || !file.exists(tasks$languages$vectors[[i]])) { 
             temp <- sprintf("%s.tmp", tasks$languages$vectors[[i]])
             # downloading the file
-	    message("This is version 3.0.23")
-            message(sprintf("I am going to download the file to %s", temp))
 	    download.file(tasks$languages$url[[i]], temp, mode = "wb")
-            message(sprintf("Going to move to %s",  tasks$languages$vectors[[i]]))
 	    tryCatch2({
                     file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
 	        },
