@@ -153,7 +153,7 @@ plot_trendline <- function(
     country = df$country[which(df$alert == 1)],
     y = vapply(
       which(df$alert == 1),
-      function(i) df$rank[[i]] * (max(df$limit)) / 30,
+      function(i) df$rank[[i]] * (max(df$limit, na.rm=TRUE)) / 30,
       double(1)
     ),
     # adding hover text for alerts
