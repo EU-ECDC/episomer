@@ -33,7 +33,7 @@ The plan should be used to extract the precise time-span to request messages
   - network: string
   - posts: [...]
   - count: number, 
-  - pagination:{...}
+  - pagination:\{...\}
 - post in posts
     - id: string
     - uri: string

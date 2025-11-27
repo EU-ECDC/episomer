@@ -179,7 +179,7 @@ Before using `episomer`, the following items need to be installed:
 
 -   If you are running it on Windows, you will also need Microsoft Visual C++ which in most cases is likely to be pre-installed:
 
-    -   Microsoft Visual C++ 2010 Redistributable Package (x64) [*https://www.microsoft.com/en-us/download/confirmation.aspx?id=26999*]
+    -   Microsoft Visual C++ 2010 Redistributable Package (x64) [*https://www.microsoft.com/en-us/download/details.aspx?id=26999*]
 
 #### Mandatory for some of the functionalities in episomer
 
@@ -196,7 +196,7 @@ Before using `episomer`, the following items need to be installed:
 
     -   Open Blas (BLAS optimizer), which will speed up some of the geolocation processes: [*https://www.openblas.net/*] Installation instructions: [*https://github.com/fommil/netlib-Java*]
 
-    -   **or** Intel MKL ([*https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/onemkl.html*])
+    -   **or** Intel MKL ([*https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html*])
 
 -   A scheduler
 
@@ -210,9 +210,9 @@ Before using `episomer`, the following items need to be installed:
 
 If you would like to develop `episomer` further, then the following development tools are needed:
 
--   Git (source code control) [*https://git-scm.com/downloads*]
+-   Git (source code control) [*https://git-scm.com/downloads/*]
 
--   Sbt (compiling scala code) [*https://www.scala-sbt.org/download.html*]
+-   Sbt (compiling scala code) [*https://www.scala-sbt.org/download.html/*]
 
 -   If you are using Windows, then you will additionally need Rtools: [*https://cran.r-project.org/bin/windows/Rtools/*]
 
@@ -907,7 +907,7 @@ The alert annotation spreadsheet has two sheets that will be used as explained b
 -   Runs sheet: A registry of algorithms and parameters to test including performance metrics on the last evaluation.
 
     -    Ranking: The ranking of the algorithm in terms of F1 score
-    -    Models: The name of the model, referenced by the Apache Spark class. It has no inherit from the classifier class [*https://spark.apache.org/docs/3.0.1/api/scala/org/apache/spark/ml/classification/Classifier.html*]
+    -    Models: The name of the model, referenced by the Apache Spark class. It has no inherit from the classifier class [*://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/classification/Classifier.html*]
     -    Alerts: The number of alerts used for the training.
     -    Runs: The number of runs to perform to evaluate the algorithm. Each run will make a different random split (if balance classes is set this will be limited to one).
     -    F1Score: The F1 score of all classes as provided by Apache Spark [*MulticlassClassificationEvaluator*](https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/evaluation/MulticlassClassificationEvaluator.html)
@@ -1387,15 +1387,15 @@ If you do not receive email alerts and you see an error in `episomer` referring 
 
 <div id="refs"></div>
   [*https://www.java.com/download/*]: https://www.java.com/download/
-  [*https://www.microsoft.com/en-us/download/details.aspx?id=14632*]: https://www.microsoft.com/en-us/download/details.aspx?id=14632
+  [*https://www.microsoft.com/en-us/download/details.aspx?id=26999*]: https://www.microsoft.com/en-us/download/details.aspx?id=26999
   [*https://pandoc.org/installing.html*]: https://pandoc.org/installing.html
   [*https://yihui.org/tinytex/*]: https://yihui.org/tinytex/
   [*https://miktex.org/download*]: https://miktex.org/download
   [*https://www.openblas.net/*]: https://www.openblas.net/
   [*https://github.com/fommil/netlib-Java*]: https://github.com/fommil/netlib-Java
-  [*https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/onemkl.html*]: https://software.intel.com/content/www/us/en/develop/tools/oneapi/components/onemkl.html
-  [*https://git-scm.com/downloads*]: https://git-scm.com/downloads
-  [*https://www.scala-sbt.org/download.html*]: https://www.scala-sbt.org/download.html
+  [*https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html*]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html
+  [*https://git-scm.com/downloads/*]: https://git-scm.com/downloads/
+  [*https://www.scala-sbt.org/download.html/*]: https://www.scala-sbt.org/download.html/
   [*https://cran.r-project.org/bin/windows/Rtools/*]: https://cran.r-project.org/bin/windows/Rtools/
   [*https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe*]: https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe
   [*https://developer.twitter.com/en/apply-for-access*]: https://developer.twitter.com/en/apply-for-access
