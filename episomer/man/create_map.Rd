@@ -31,7 +31,7 @@ create_map(
 
 \item{caption}{Character(1) vector indicating a caption to print at the bottom of the chart, default: ""}
 
-\item{proj}{Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format \code{\link[sp]{CRS-class}}?
+\item{proj}{Parameter indicating the CRS (Coordinate Reference System) to use on PROJ4 format, default NULL
 If null and all countries are selected +proj=robin is used (Robinson projection) otherwise the Lambert azimuthal equal-area projection will be chosen, default: NULL}
 
 \item{forplotly}{Logical(1) parameter indicating whether some hacks are activated to improve plotly rendering, default: FALSE}
