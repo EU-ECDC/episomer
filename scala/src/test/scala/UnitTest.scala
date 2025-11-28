@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr.test
+package org.ecdc.episomer.test
 
 import org.scalatest._
 

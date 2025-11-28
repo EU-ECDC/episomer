@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr
+package org.ecdc.episomer
 
 import sun.management.VMManagement;
 import java.lang.management.ManagementFactory;
@@ -13,13 +13,7 @@ object ProcessID {
 
 	def PID = {
 		val runtime = ManagementFactory.getRuntimeMXBean();
-		val jvm = runtime.getClass().getDeclaredField("jvm");
-		jvm.setAccessible(true);
-
-		val management =  jvm.get(runtime).asInstanceOf[(VMManagement)];
-		val method = management.getClass().getDeclaredMethod("getProcessId");
-		method.setAccessible(true);
-		method.invoke(management)
+                runtime.getPid()
 	}
 
   def writePID(path:String) = {

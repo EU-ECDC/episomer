@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr.geo 
+package org.ecdc.episomer.geo 
 
 import demy.storage.{Storage, WriteMode, FSNode}
 import demy.util.{log => l, util}
@@ -6,7 +6,7 @@ import demy.mllib.index.implicits._
 import org.apache.spark.sql.{SparkSession, Column, Dataset, DataFrame}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-import org.ecdc.twitter.Language
+import org.ecdc.episomer.Language
 import Language.LangTools
 import Geonames.Geolocate
 
@@ -102,7 +102,7 @@ case class Geonames(source:String, destination:String, simplify:Boolean = false)
               nBefore = nBefore,
               nAfter = nAfter,
               forcedEntities = forcedGeo,
-              forcedFilters = forcedGeoCodes.map{_.mapValues(v => ("geo_code", v))},
+              forcedFilters = forcedGeoCodes.map{_.mapValues(v => ("geo_code", v)).toMap},
               closestTo = closestTo
             )
             withEnt.toDF(withEnt.schema.map(f => renameCols.get(f.name).getOrElse(f.name)):_* )
@@ -154,7 +154,7 @@ case class Geonames(source:String, destination:String, simplify:Boolean = false)
       val allCities = util.checkpoint(
         df = spark.read.option("sep", "\t").csv(source) //'http://download.geonames.org/export/dump/'
            .toDF(newNames: _*)
-           .withColumn("population",expr("cast(population as int)"))
+           .withColumn("population",expr("cast(population as bigint)"))
            .withColumn("id", col("id").cast(IntegerType))
            .withColumn("longitude", col("longitude").cast(DoubleType))
            .withColumn("latitude", col("latitude").cast(DoubleType))

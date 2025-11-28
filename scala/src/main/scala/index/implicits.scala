@@ -9,7 +9,8 @@ import org.apache.spark.sql.functions._
 import org.apache.hadoop.conf.Configuration
 import demy.storage.Storage
 import demy.util.{log => l}
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ArraySeq}
+import scala.collection.parallel.CollectionConverters._
 
 object implicits {
   implicit class DatasetUtil(val ds: Dataset[_]) {
@@ -84,8 +85,8 @@ object implicits {
       val rightApplied = right.select(
         Array(text.as("_text_")) 
         ++ (popularity match {case Some(c) => Array(c.as("_pop_")) case _ => Array[Column]()}) 
-        ++ (if(queries.size == 1) rightSelect
-            else queries.map(q => struct(rightSelect:_*).as(s"${q.toString().split("`").last}_res"))
+        ++ (if(queries.size == 1) rightSelect.toSeq
+            else queries.map(q => struct(rightSelect:_*).as(s"${getColumnName(q)}_res"))
         ) :_*)
 
       val sparkStorage = Storage.getSparkStorage
@@ -283,9 +284,9 @@ object implicits {
         } else {
             StructType(fields = queries.map{q => 
               if(!isArrayJoin) 
-                StructField(name = s"${q.toString().split("`").last}_res", dataType = StructType(rightOutFields))
+                StructField(name = s"${getColumnName(q)}_res", dataType = StructType(rightOutFields))
               else 
-                StructField(name = s"${q.toString().split("`").last}_res", dataType = ArrayType(elementType= StructType(rightOutFields) , containsNull = true))
+                StructField(name = s"${getColumnName(q)}_res", dataType = ArrayType(elementType= StructType(rightOutFields) , containsNull = true))
               }
             )
         }
@@ -319,7 +320,7 @@ object implicits {
               rowsIter.foreach { iRow =>
                  val leftRow = rowsChunk(iRow)._1
                  val rightResults = rowsChunk(iRow)._2
-                 val qValues = if(isArrayJoin) leftRow.getSeq[Seq[String]](0) else leftRow.getSeq[String](0).map(q => Seq(q))
+                 val qValues = if(isArrayJoin) leftRow.getSeq[ArraySeq[String]](0).map(_.toSeq) else leftRow.getSeq[String](0).map(q => Seq(q))
                  val termWeightsArray:Seq[Seq[Option[Seq[Double]]]] = 
                    isArrayJoinWeights.zipWithIndex.map{
                      case (None, i) => qValues(i).map(_ => None) 
@@ -331,6 +332,7 @@ object implicits {
                          Seq(Some(vects))
                      case (Some(true), i) => throw new Exception("@epi not yet supported") 
                  }
+                 
                  for(i <- Iterator.range(0, queriesCount)) {
                    if(rightResults(i).size == 0) rightResults(i) ++= qValues(i).map(_=> None)
                  }
@@ -425,5 +427,16 @@ object implicits {
       }
       .get
     }
+    def getColumnName(c:Column) = {
+      val n = c.toString()
+      if(n.contains("`"))
+        n.split("`").last
+      else if(n.contains(" AS "))
+        n.split(" AS ").last
+      else 
+        n
+
+    }    
+
   }
 }

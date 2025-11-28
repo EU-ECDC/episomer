@@ -7,6 +7,6 @@ export PATH=$PATH:$JAVA_HOME/bin
 cd "$cdir/scala"
 sbt dumpLicenseReport
 
-cp "$cdir/epitweetr/target/license-reports/"* "$cdir/licenses/scala-licenses/"
+cp "$cdir/episomer/target/license-reports/"* "$cdir/licenses/scala-licenses/"
 
 cd "$cdir"

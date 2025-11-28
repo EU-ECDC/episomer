@@ -1,24 +1,24 @@
-package org.ecdc.epitweetr.alert
+package org.ecdc.episomer.alert
 
-import org.ecdc.epitweetr.fs.{AlertClassification}
+import org.ecdc.episomer.fs.{AlertClassification}
 import org.apache.spark.ml.classification.{Classifier, ClassificationModel, OneVsRest, OneVsRestModel}
 import org.apache.spark.ml.feature.{IndexToString, StringIndexer, VectorIndexer, StringIndexerModel, VectorAssembler}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import demy.util.{log => l, util}
 import demy.mllib.linalg.implicits._
-import org.ecdc.epitweetr.{Settings, EpitweetrActor}
-import org.ecdc.twitter.{Language}
-import org.ecdc.twitter.Language.LangTools
-import org.ecdc.epitweetr.fs.{TextToGeo, TaggedAlert, AlertRun}
-import akka.pattern.{ask, pipe}
+import org.ecdc.episomer.{Settings, EpisomerActor}
+import org.ecdc.episomer.{Language}
+import org.ecdc.episomer.Language.LangTools
+import org.ecdc.episomer.fs.{TextToGeo, TaggedAlert, AlertRun}
+import org.apache.pekko.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
 import scala.util.Try
-import akka.actor.{ActorSystem, Actor, ActorLogging, Props}
-import akka.pattern.ask
-import akka.actor.ActorRef
-import akka.Done
-import akka.util.{ByteString, Timeout}
+import org.apache.pekko.actor.{ActorSystem, Actor, ActorLogging, Props}
+import org.apache.pekko.pattern.ask
+import org.apache.pekko.actor.ActorRef
+import org.apache.pekko.Done
+import org.apache.pekko.util.{ByteString, Timeout}
 import scala.collection.JavaConverters._
 import org.apache.spark.sql.{SparkSession, Column, Dataset, Row, DataFrame}
 import org.apache.spark.sql.functions.{col, lit, array_join, udf, concat}
@@ -89,10 +89,10 @@ class AlertActor(conf:Settings) extends Actor with ActorLogging {
 	      AlertClassification(retAlerts, retRuns)
       }.recover {
         case e: Exception =>
-          EpitweetrActor.Failure(s"[Job-error]: ${e.getCause} ${e.getMessage}: ${e.getStackTrace.mkString("\n")}")
+          EpisomerActor.Failure(s"[Job-error]: ${e.getCause} ${e.getMessage}: ${e.getStackTrace.mkString("\n")}")
       }.pipeTo(sender())
     case b => 
-      Future(EpitweetrActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
+      Future(EpisomerActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
   }
 }
 
@@ -210,11 +210,11 @@ object AlertActor {
     val labelIndexer = AlertActor.getLabelIndexer()
     val labelConverter = new IndexToString()
       .setInputCol("predicted_vector")
-      .setOutputCol("epitweetr_category")
+      .setOutputCol("episomer_category")
       .setLabels(labelIndexer.labelsArray(0))
 
     labelConverter.transform(predicted)
-      .select("id", "date", "topic", "country", "number_of_tweets", "topwords", "toptweets", "given_category", "epitweetr_category", "test", "augmented", "deleted")
+      .select("id", "date", "topic", "country", "number_of_posts", "topwords", "topposts", "given_category", "episomer_category", "test", "augmented", "deleted")
       .as[TaggedAlert]
   }
   def trainTest(alertsdf:DataFrame, run:AlertRun, trainRatio:Double)(implicit conf:Settings) = {
@@ -294,8 +294,8 @@ object AlertActor {
        //Finding top words language
        .map{ case(alerts) => (alerts, 
          alerts.map{ta => 
-           ta.toptweets
-             .map{case (lang, tweets) => (lang, tweets.size)}
+           ta.topposts
+             .map{case (lang, posts) => (lang, posts.size)}
              .reduceOption((p1, p2) => (p1, p2) match {case ((lang1, count1), (lang2, count2)) => if(count1 > count2) p1 else p2})
              .map{case(lang, count) => lang}
              .getOrElse("en")
@@ -304,19 +304,19 @@ object AlertActor {
        //Transforming into data frame
        .map{case (alerts, topwordlangs) => 
           alerts.zip(topwordlangs).map{
-            case (TaggedAlert(id, date, topic, country, number_of_tweets, topwords, toptweets, given_category, _ ,test, augmented, deleted), twlang)
-               => (id, date, topic, country, number_of_tweets, topwords, twlang, toptweets, given_category.orElse(Some("?")), test, augmented, deleted)
-          }.toDF("id", "date", "topic", "country", "number_of_tweets", "topwords", "twlang", "toptweets", "given_category", "test", "augmented", "deleted")
+            case (TaggedAlert(id, date, topic, country, number_of_posts, topwords, topposts, given_category, _ ,test, augmented, deleted), twlang)
+               => (id, date, topic, country, number_of_posts, topwords, twlang, topposts, given_category.orElse(Some("?")), test, augmented, deleted)
+          }.toDF("id", "date", "topic", "country", "number_of_posts", "topwords", "twlang", "topposts", "given_category", "test", "augmented", "deleted")
        }
        //Text vectorisation
        .map{df => 
          val langs = conf.languages.get.map(_.code)
-         val baseCols = Seq("id", "date", "topic", "country", "number_of_tweets", "topwords", "twlang", "given_category", "toptweets", "test", "augmented", "deleted")
-         //Splitting tweets in different columns by language
+         val baseCols = Seq("id", "date", "topic", "country", "number_of_posts", "topwords", "twlang", "given_category", "topposts", "test", "augmented", "deleted")
+         //Splitting posts in different columns by language
          df.select((
            baseCols.map(c => col(c)) ++  
            Seq(lit("en").as("topic_lang"), lit("en").as("country_lang")) ++
-           langs.map(lang => array_join(col("toptweets").getItem(lang), "\n").as(s"top_$lang")) ++ 
+           langs.map(lang => array_join(col("topposts").getItem(lang), "\n").as(s"top_$lang")) ++ 
            langs.map(lang => lit(lang).as(s"toplang_$lang"))) 
            :_*
          )
@@ -332,8 +332,8 @@ object AlertActor {
          .select((
            baseCols.map(c => col(c)) ++
            Seq(
-	             udf((row:Seq[Row]) => {
-                 row.map(vectors => vectors.getAs[MLVector](0)).reduceOption(_.sum(_)).getOrElse(null)
+	       udf((row:Any) => {
+                 row.asInstanceOf[Seq[Row]].map(vectors => vectors.getAs[MLVector](0)).reduceOption(_.sum(_)).getOrElse(null)
                })
                .apply(
        	         concat(
@@ -343,8 +343,8 @@ object AlertActor {
        	           :_*
        	         )
                ).as("word_vec"),
-             udf((count:Int)=> 1 - Math.pow(Math.E, -1.0*count/1000.0)).apply(col("number_of_tweets")).as("adjusted_count")
-	         )):_*
+               udf((count:Int)=> 1 - Math.pow(Math.E, -1.0*count/1000.0)).apply(col("number_of_posts")).as("adjusted_count")
+	   )):_*
          )
 	       //Removing potentially empty alerts
          //.where(col("word_vec").isNotNull)
@@ -352,7 +352,7 @@ object AlertActor {
        //Indexing text categories as multiclass vector
        .map{df => 
          indexer.transform(df)}
-       //Joining vectors with the numver of tweets
+       //Joining vectors with the numver of posts
        .map{df => 
            (new VectorAssembler())
              .setInputCols(Array("word_vec", "adjusted_count"))
@@ -360,7 +360,7 @@ object AlertActor {
              .transform(df)
         }
 	.get
-	.select("id", "date", "topic", "country", "number_of_tweets", "topwords", "toptweets", "given_category", "features", "category_vector", "test", "augmented", "deleted")
+	.select("id", "date", "topic", "country", "number_of_posts", "topwords", "topposts", "given_category", "features", "category_vector", "test", "augmented", "deleted")
 	.as[(String, String, String, String, Int, String, Map[String, Seq[String]], String, MLVector, Double, Boolean, Boolean, Boolean)]
 	.toDF
   }

@@ -1,1 +1,1 @@
-devtools::build_manual("epitweetr")
+devtools::build_manual("episomer")

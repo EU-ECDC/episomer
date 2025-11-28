@@ -1,5 +1,5 @@
-packageName <- "epitweetr" 
+packageName <- "episomer" 
 devtools::create(packageName)
-devtools::use_vignette('epitweetr-vignette')
+devtools::use_vignette('episomer-vignette')
 
 

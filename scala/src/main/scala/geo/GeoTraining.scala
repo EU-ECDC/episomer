@@ -1,10 +1,10 @@
-package org.ecdc.epitweetr.geo
+package org.ecdc.episomer.geo
 
 import demy.storage.{Storage}
 import demy.util.{log => l, util}
 import demy.mllib.index.EncodedQuery
-import org.ecdc.epitweetr.Settings
-import org.ecdc.twitter.Language
+import org.ecdc.episomer.Settings
+import org.ecdc.episomer.Language
 import org.apache.spark.sql.{Dataset, SparkSession, DataFrame, Row}
 import org.apache.spark.sql.types.{StructType, StructField, ArrayType, StringType}
 import org.apache.spark.sql.functions.{col, lit, udf, concat, array_join, struct, sum}
@@ -12,8 +12,10 @@ import org.apache.spark.ml.linalg.{Vectors, DenseVector, Vector=>MLVector}
 import demy.mllib.linalg.implicits._
 import org.apache.spark.ml.classification.{LinearSVC, LinearSVCModel}
 import scala.util.Random
-import org.ecdc.twitter.Language.LangTools
+import org.ecdc.episomer.Language.LangTools
 import java.util.regex.Pattern
+import scala.collection.immutable.{ArraySeq}
+import scala.collection.mutable.{ArraySeq => MutArraySeq}
 import org.apache.spark.sql.Encoders
 
 case class TaggedChunk(tokens:Seq[String], isEntity:Boolean) {
@@ -266,14 +268,14 @@ case class GeoTrainings(items:Seq[GeoTraining])
 case class GeoTrainingSource(value:String)
 object GeoTrainingSource {
   def apply(value:String):GeoTrainingSource = value.toLowerCase.replace(" ", "-") match {
-    case "tweet" => GeoTrainingSource.tweet
-    case "epitweetr-model" => GeoTrainingSource.epitweetrModel
-    case "epitweetr-database" => GeoTrainingSource.epitweetrDatabase
+    case "post" => GeoTrainingSource.post
+    case "episomer-model" => GeoTrainingSource.episomerModel
+    case "episomer-database" => GeoTrainingSource.episomerDatabase
     case _ => GeoTrainingSource.manual
   }
-  val tweet = new GeoTrainingSource("tweet") 
-  val epitweetrModel = new GeoTrainingSource("epitweetr-model") 
-  val epitweetrDatabase = new GeoTrainingSource("epitweetr-database") 
+  val post = new GeoTrainingSource("post") 
+  val episomerModel = new GeoTrainingSource("episomer-model") 
+  val episomerDatabase = new GeoTrainingSource("episomer-database") 
   val manual = new GeoTrainingSource("manual")
 
 }
@@ -298,9 +300,9 @@ case class GeoTraining(
   forcedLocationCode:Option[String], 
   forcedLocationName:Option[String], 
   source:GeoTrainingSource,
-  tweetId:Option[String],
+  postId:Option[String],
   lang:Option[String],
-  tweetPart:Option[GeoTrainingPart], 
+  postPart:Option[GeoTrainingPart], 
   foundLocation:Option[String], 
   foundLocationCode:Option[String], 
   foundCountryCode:Option[String]
@@ -324,7 +326,7 @@ case class GeoTraining(
   def uid() = {
     val md = java.security.MessageDigest.getInstance("SHA-1");
     val enc = java.util.Base64.getEncoder()
-    new String(enc.encode(md.digest(s"$category.$text.$tweetId.$tweetPart".getBytes)))
+    new String(enc.encode(md.digest(s"$category.$text.$postId.$postPart".getBytes)))
   }  
 }
 object GeoTraining {
@@ -343,21 +345,21 @@ object GeoTraining {
     val l = 10000
     Seq(
       (
-        "Tweet texts", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.tweet && gt.tweetPart == Some(GeoTrainingPart.text) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.tweet || gt.tweetPart != Some(GeoTrainingPart.text) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
-      ),(
-        "Tweet location", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.tweet  && gt.tweetPart == Some(GeoTrainingPart.userLocation) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.tweet  || gt.tweetPart != Some(GeoTrainingPart.userLocation) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
-      ),(
-        "Tweet user description", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.tweet && gt.tweetPart == Some(GeoTrainingPart.userDescription) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.tweet || gt.tweetPart != Some(GeoTrainingPart.userDescription) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
+        "Post texts", 
+        annotated.filter(gt => gt.source == GeoTrainingSource.post && gt.postPart == Some(GeoTrainingPart.text) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.post || gt.postPart != Some(GeoTrainingPart.text) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
       )/*,(
+        "Post location", 
+        annotated.filter(gt => gt.source == GeoTrainingSource.post  && gt.postPart == Some(GeoTrainingPart.userLocation) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.post  || gt.postPart != Some(GeoTrainingPart.userLocation) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
+      ),(
+        "Post user description", 
+        annotated.filter(gt => gt.source == GeoTrainingSource.post && gt.postPart == Some(GeoTrainingPart.userDescription) && Math.abs(gt.uid().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.post || gt.postPart != Some(GeoTrainingPart.userDescription) || Math.abs(gt.uid().hashCode) % l >= trainingRatio * l)
+      ),(
         "Model Location", 
-        annotated.filter(gt => gt.source == GeoTrainingSource.epitweetrModel && gt.category.toLowerCase == "location" && Math.abs(gt.id().hashCode) % l < trainingRatio * l),
-        annotated.filter(gt => gt.source != GeoTrainingSource.epitweetrModel || gt.category.toLowerCase != "location" || Math.abs(gt.id().hashCode) % l >= trainingRatio * l)
+        annotated.filter(gt => gt.source == GeoTrainingSource.episomerModel && gt.category.toLowerCase == "location" && Math.abs(gt.id().hashCode) % l < trainingRatio * l),
+        annotated.filter(gt => gt.source != GeoTrainingSource.episomerModel || gt.category.toLowerCase != "location" || Math.abs(gt.id().hashCode) % l >= trainingRatio * l)
       )*/
     ).map{case(t, test, train) => 
       (
@@ -372,55 +374,57 @@ object GeoTraining {
   }
   def BIO2TrainData(bio:Seq[BIOAnnotation], languages:Seq[Language], splitter:String, langIndexPath:String, nBefore:Int, nAfter:Int)(implicit storage:Storage, spark:SparkSession):DataFrame = {
     import spark.implicits._
-    bio.toDS
-    .select(
-      col("tag"), 
-      col("token"), 
-      array_join(col("before"), " ").as("before"),
-      array_join(col("after"), " ").as("after"),
-      col("lang")
-    )
-    .vectorize(
-      languages = languages, 
-      reuseIndex = true, 
-      indexPath = langIndexPath, 
-      textLangCols = Map("token"->Some("lang"), "before" -> Some("lang"), "after" -> Some("lang")), 
-      tokenizerRegex = splitter
-    )
-    .select("tag", "token", "before", "after", "lang", "token_vec", "before_vec", "after_vec")
-    .where(udf((rvector:Seq[Row], rbefore:Seq[Row], rafter:Seq[Row], token:String, tBefore:String, tAfter:String) => {
-      //excluding some weird situations where token has no vector TODO:Find why 
-      if(rvector.size == 0) {
-        l.msg(s"ignoring -->token<-- within in ${tBefore} -->${token}<-- ${tAfter}... if you do not see this message for too many rows you are safe to go")
-        false
-      } else if(//excluding when there are no vectors found for the current language
-          (rvector.map(r => r.getAs[DenseVector]("vector"))
-            ++ rbefore.map(r => r.getAs[DenseVector]("vector"))
-            ++ rafter.map(r => r.getAs[DenseVector]("vector"))
-          ).forall(v => v.values.forall(_ == 1.0))
-        ) {
-        false
-      }
-      else
-        true
-      }).apply(col("token_vec"), col("before_vec"), col("after_vec"), col("token"), col("before"), col("after"))
-    )
-    .select(col("token"), col("tag"),col("lang"), 
-      udf((tag:String) => if(tag == "I") 1.0 else 0.0).apply(col("tag")).as("ILabel"),
-      udf((tag:String) => if(tag == "O") 1.0 else 0.0).apply(col("tag")).as("OLabel"),
-      udf((rvector:Seq[Row], rbefore:Seq[Row], rafter:Seq[Row], nBefore:Int, nAfter:Int) => {
-        val vector = rvector(0).getAs[DenseVector]("vector")
-        val before = rbefore.map(r => r.getAs[DenseVector]("vector"))
-        val after = rafter.map(r => r.getAs[DenseVector]("vector"))
-        GeoTraining.getContextVector(vector, before.iterator, after.iterator, nBefore, nAfter)
-      }).apply(col("token_vec"), col("before_vec"), col("after_vec"), lit(nBefore), lit(nAfter)).as("vector")
-    ) 
+    val x = bio.toDS
+      .select(
+        col("tag"), 
+        col("token"), 
+        array_join(col("before"), " ").as("before"),
+        array_join(col("after"), " ").as("after"),
+        col("lang")
+      )
+      .vectorize(
+        languages = languages, 
+        reuseIndex = true, 
+        indexPath = langIndexPath, 
+        textLangCols = Map("token"->Some("lang"), "before" -> Some("lang"), "after" -> Some("lang")), 
+        tokenizerRegex = splitter
+      )
+      .select("tag", "token", "before", "after", "lang", "token_vec", "before_vec", "after_vec")
+      .where(udf((rvector:Any, rbefore:Any, rafter:Any, token:String, before:String, after:String) => {
+          (rvector, rbefore, rafter) match {
+            case (rv:ArraySeq[Row], rb:ArraySeq[Row], ra:ArraySeq[Row]) => 
+              rv.size > 0 &&
+               !(rv.map(r => r.getAs[DenseVector]("vector"))
+                 ++ rb.map(r => r.getAs[DenseVector]("vector"))
+                 ++ ra.map(r => r.getAs[DenseVector]("vector"))
+               ).forall(v => v.values.forall(_ == 1.0))
+            case _ => 
+              print(f"ignoring $before {$token} $after as no vector was found.")
+              false  
+          }
+        }).apply(col("token_vec"), col("before_vec"), col("after_vec"), col("token"), col("before"), col("after"))
+      )
+      .select(col("token"), col("tag"),col("lang"), 
+        udf((tag:String) => if(tag == "I") 1.0 else 0.0).apply(col("tag")).as("ILabel"),
+        udf((tag:String) => if(tag == "O") 1.0 else 0.0).apply(col("tag")).as("OLabel"),
+        udf((rvector:Any, rbefore:Any, rafter:Any, nBefore:Int, nAfter:Int) => {
+            (rvector, rbefore, rafter) match {
+              case (rv:ArraySeq[Row], rb:ArraySeq[Row], ra:ArraySeq[Row]) => 
+                 val vector = rv(0).getAs[DenseVector]("vector")
+                 val before = rb.map(r => r.getAs[DenseVector]("vector"))
+                 val after = ra.map(r => r.getAs[DenseVector]("vector"))
+                 GeoTraining.getContextVector(vector, before.iterator, after.iterator, nBefore, nAfter)
+              case _ => throw new Exception("@epi, entering here is unexpected")
+            }
+        }).apply(col("token_vec"), col("before_vec"), col("after_vec"), lit(nBefore), lit(nAfter)).as("vector")
+      )
+      x
   }
 
   def trainedLanguages()(implicit conf:Settings, storage:Storage) = {
     conf.languages.get.filter{lang => 
        Seq("I")
-         .forall(t => /*!l.areVectorsNew() &&*/ storage.getNode(s"${lang.modelPath}.${t}").exists)
+         .forall(t => !lang.areVectorsNew() && storage.getNode(s"${lang.modelPath}.${t}").exists)
     }
   }
   def getModels(testId:Option[String]=None, languages:Seq[Language])(implicit storage:Storage) = { 
@@ -607,7 +611,7 @@ object GeoTraining {
            Some(
              vectorsCols.zip(langCols)
                .map{case (vectorsCol, langCodeCol) =>
-                 Some((row.getAs[String](langCodeCol), row.getAs[Seq[Row]](vectorsCol).map(r => r.getAs[DenseVector]("vector"))))
+                 Some((row.getAs[String](langCodeCol), row.getAs[MutArraySeq[Row]](vectorsCol).toSeq.map(r => r.getAs[DenseVector]("vector"))))
                    .map{case(langCode, vectors) =>
                      if(!rawPredict.contains(s"I.$langCode")) {
                        vectors.zipWithIndex.map{case(_, i) => if(i==0) "I" else "I"}
@@ -741,7 +745,7 @@ object GeoTraining {
         iter.map{row =>
           val entValues = textCols.zip(bioCols.zip(entCols)).map{case (textCol, (bioCol, entCol)) =>
             val text = row.getAs[String](textCol)
-            val bioTags = row.getAs[Seq[String]](bioCol)
+            val bioTags = row.getAs[MutArraySeq[String]](bioCol)
             if(text == null) 
               null
             else {
@@ -798,7 +802,7 @@ object GeoTraining {
               //println(targets)
               //println(forcedEnt)
               //println(forcedFilt)
-              Some(TaggedText(id = "", taggedChunks = TaggedChunk.fromBIO(tokens, bioTags).toSeq, lang = null))
+              Some(TaggedText(id = "", taggedChunks = TaggedChunk.fromBIO(tokens, bioTags.toSeq).toSeq, lang = null))
                 .map(tt => tt.forceEntities(replacements = forcedFilt ++ forcedEnt))
                 .flatMap{tt => /*println(s"forced: $tt");val z =*/ tt.findClosestEntity(targets = targets)/*;println(s"closest:$z");z*/}
                 .map(ent => ent.tokens.mkString(" "))

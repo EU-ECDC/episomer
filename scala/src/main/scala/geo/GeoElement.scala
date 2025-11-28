@@ -1,4 +1,4 @@
-package org.ecdc.epitweetr.geo 
+package org.ecdc.episomer.geo 
 
 case class GeoElement(
   id:Long
@@ -17,7 +17,7 @@ case class GeoElement(
   , adm2_code:String
   , adm1_code:String
   , country_code:String
-  , population:Int
+  , population:Long
   , geo_type:String
   , time_zone:String
   , longitude:Double

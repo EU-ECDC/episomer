@@ -4,7 +4,7 @@ import demy.util.log
 import org.apache.spark.sql.SparkSession
 import org.apache.hadoop.fs.{FileSystem, Path => HPath}
 import org.apache.hadoop.conf.Configuration
-import org.apache.commons.lang.RandomStringUtils
+import org.apache.commons.lang3.RandomStringUtils
 import org.apache.commons.io.IOUtils
 
 import java.io.{InputStream, ByteArrayInputStream, OutputStream, OutputStreamWriter}
@@ -66,7 +66,7 @@ case class LocalNode(path:String, storage:LocalStorage, sparkCanRead:Boolean, at
   def setPath(path:String) = LocalNode(path=path, storage=this.storage, sparkCanRead = this.sparkCanRead, attrs = attrs)
 
 } 
-case class EpiFileNode(path:String, storage:EpiFileStorage, attrs:Map[String, String]= Map[String, String]()) extends FSNode{
+/*case class EpiFileNode(path:String, storage:EpiFileStorage, attrs:Map[String, String]= Map[String, String]()) extends FSNode{
   type Self = EpiFileNode 
   val isLocal = false
   val sparkCanRead = false
@@ -74,7 +74,7 @@ case class EpiFileNode(path:String, storage:EpiFileStorage, attrs:Map[String, St
   def setAttr(name:String, value:String) = EpiFileNode(path=this.path, storage=this.storage, attrs = attrs + (name -> value))
   def setPath(path:String) =  EpiFileNode(path=path, storage=this.storage, attrs=this.attrs)
 }
-
+*/
 case class HDFSNode(path:String, storage:HDFSStorage, attrs:Map[String, String]= Map[String, String]()) extends FSNode {
   type Self = HDFSNode 
   val isLocal = false
@@ -91,7 +91,7 @@ trait Storage {
   val sparkCanRead:Boolean 
   val isLocal:Boolean 
   val tmpPrefix:String="demy_" 
-  lazy val sandBoxDir =  (systemTmpDir + "/" + tmpPrefix+ RandomStringUtils.randomAlphanumeric(10))
+  lazy val sandBoxDir =  (systemTmpDir + "/" + tmpPrefix+ RandomStringUtils.insecure.nextAlphanumeric(10))
   
   val localStorage:LocalStorage
   def exists(node:FSNode):Boolean
@@ -123,7 +123,7 @@ trait Storage {
       line
     }.takeWhile(line => line != null)
   }
-  def getContentAsJson(node:FSNode) = scala.util.parsing.json.JSON.parseFull(getContentAsString(node))
+  def getContentAsJson(node:FSNode) = Some(spray.json.JsonParser(getContentAsString(node)))
   
   def setContent(node:FSNode, data:InputStream, writeMode:WriteMode):Unit
   def setContent(node:FSNode, data:InputStream):Unit = this.setContent(node, data,  WriteMode.failIfExists)
@@ -390,7 +390,7 @@ case class LocalStorage(override val sparkCanRead:Boolean=false, override val tm
   }
 }
 
-case class EpiFileStorage(vooUrl:String, user:String, pwd:String) extends Storage {
+/*case class EpiFileStorage(vooUrl:String, user:String, pwd:String) extends Storage {
   override val protocol:String="epi" 
   override val isLocal:Boolean = false 
   val localStorage:LocalStorage=LocalStorage()
@@ -449,7 +449,7 @@ case class EpiFileStorage(vooUrl:String, user:String, pwd:String) extends Storag
   def getFileModificationTime(path:Option[String], attrPattern:Map[String, String]) = last(path = path, attrPattern = attrPattern) match {case Some(n) => Some(n.attrs("date").toLong) case _ => None }
   def getFileSize(node:FSNode) = throw new Exception("Not implemented") 
   def getWriter(node:FSNode, writeMode:WriteMode) = throw new Exception("Not implemented")
-}
+}*/
 case class HDFSStorage(hadoopConf:Configuration, override val tmpPrefix:String="demy_") extends Storage {
   override val protocol:String="hdfs"
   override val isLocal:Boolean = false 
