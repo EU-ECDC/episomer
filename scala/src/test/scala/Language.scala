@@ -1,10 +1,10 @@
-package org.ecdc.epitweetr.test
+package org.ecdc.episomer.test
 
 import org.apache.spark.ml.linalg.{Vectors, DenseVector, Vector=>MLVector}
 import org.apache.spark.sql.{Row}
 import demy.storage.{Storage}
-import org.ecdc.twitter._
-import org.ecdc.epitweetr.Settings
+import org.ecdc.episomer._
+import org.ecdc.episomer.Settings
 import demy.mllib.linalg.implicits._
 
 trait LanguageTest extends UnitTest {

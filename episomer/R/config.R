@@ -1,0 +1,840 @@
+# Environment for storing configuration
+conf <- new.env()
+
+# Get package name
+get_package_name <- function() environmentName(environment(setup_config))
+
+# Get the keyring for the provided backend or a platform dependent default if backend is null
+# this function is used to save the social media and smtp credentials on a secure store when saving properties
+# this function uses the keyring R package which provides a common interface for accessing system dependent keyring
+# backend: backend name to use it will be guessed based on user OS if not defined.
+get_key_ring <- function(backend = NULL) {
+  if (!is.null(backend)) {
+    Sys.setenv(kr_backend = backend)
+  }
+  Sys.setenv(kr_name = "ecdc_wtitter_tool_kr_name")
+  Sys.setenv(kr_service = "kr_service")
+  keyring = Sys.getenv("kr_backend")
+  if (keyring == "secret_service") {
+    kb <- keyring::backend_secret_service$new()
+  } else if (keyring == "wincred") {
+    kb <- keyring::backend_wincred$new()
+  } else if (keyring == "macos") {
+    kb <- keyring::backend_macos$new()
+  } else if (keyring == "file") {
+    kb <- keyring::backend_file$new()
+  } else {
+    kb <- keyring::backend_env$new()
+  }
+  kr_name <- NULL
+  # creating the file keyring if requested and not existent
+  if (keyring == "file") {
+    kr_name <- Sys.getenv("kr_name")
+    krs <- kb$keyring_list()
+    if (nrow(krs[krs$keyring == kr_name, ]) == 0) {
+      kb$keyring_create(kr_name)
+    }
+    kb$keyring_set_default(kr_name)
+  }
+
+  # unlocking keyring if unlocked using environment variable to get the password
+  if (
+    kb$keyring_is_locked(keyring = kr_name) &&
+      Sys.getenv("ecdc_wtitter_tool_kr_password") != ""
+  ) {
+    kb$keyring_unlock(
+      keyring = kr_name,
+      password = Sys.getenv("ecdc_wtitter_tool_kr_password")
+    )
+    # unlocking keyring if unlocked using password prompt
+  } else if (kb$keyring_is_locked(keyring = kr_name)) {
+    kb$keyring_unlock(keyring = kr_name)
+  }
+  return(kb)
+}
+
+# Set a secret from the chosen secret management backend
+set_secret <- function(secret, value) {
+  get_key_ring()$set_with_value(
+    service = Sys.getenv("kr_service"),
+    username = secret,
+    password = value
+  )
+}
+
+# Checks whether a secret is set on the secret management backend
+is_secret_set <- function(secret) {
+  secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
+  return(nrow(secrets[secrets$username == secret, ]) > 0)
+}
+
+# Get a secret from the chosen secret management backend
+get_secret <- function(secret) {
+  get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
+}
+
+# get empty config for initialization, this represents default values for all configuration properties
+get_empty_config <- function(data_dir) {
+  ret <- list()
+  ret$keyring <-
+    if (.Platform$OS.type == "windows") "wincred" else if (
+      Sys.info()[['sysname']] == "Darwin"
+    )
+      "macos" else "file"
+  ret$data_dir <- data_dir
+  ret$collect_span <- 60
+  ret$schedule_span <- 90
+  ret$schedule_start_hour <- 8
+  ret$languages <- list(
+    list(
+      code = "en",
+      name = "English",
+      vectors = paste(ret$data_dir, "languages/en.txt.gz", sep = "/"),
+      modified_on = strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    ),
+    list(
+      code = "fr",
+      name = "French",
+      vectors = paste(ret$data_dir, "languages/fr.txt.gz", sep = "/"),
+      modified_on = strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    ),
+    list(
+      code = "es",
+      name = "Spanish",
+      vectors = paste(ret$data_dir, "languages/es.txt.gz", sep = "/"),
+      modified_on = strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    ),
+    list(
+      code = "pt",
+      name = "Portuguese",
+      vectors = paste(ret$data_dir, "languages/pt.txt.gz", sep = "/"),
+      modified_on = strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+    )
+  )
+  ret$lang_updated_on <- NA
+  ret$geonames_updated_on <- NA
+  ret$dep_updated_on <- NA
+  ret$geotag_requested_on <- NA
+  ret$aggregate_requested_on <- NA
+  ret$alerts_requested_on <- NA
+  ret$geonames_url <- "http://download.geonames.org/export/dump/allCountries.zip"
+  ret$geolocation_threshold <- 5
+  ret$known_users <- list()
+  ret$spark_cores <- {
+    all_cores <- floor(
+      parallel::detectCores(all.tests = FALSE, logical = TRUE) * 0.3
+    )
+    if (is.na(all_cores)) 1 else if (all_cores < 1) 1 else all_cores
+  }
+  ret$spark_memory <- "4g"
+  ret$onthefly_api <- .Platform$OS.type != "windows"
+  ret$topics <- list()
+  ret$topics_md5 <- ""
+  ret$alert_alpha <- 0.025
+  ret$alert_alpha_outlier <- 0.05
+  ret$alert_k_decay <- 4
+  ret$alert_history <- 7
+  ret$alert_same_weekday_baseline <- FALSE
+  ret$alert_with_quotes <- FALSE
+  ret$alert_with_bonferroni_correction <- TRUE
+  ret$use_mkl <- FALSE
+  ret$geonames_simplify <- TRUE
+  ret$regions_disclaimer <- ""
+  ret$smtp_host <- ""
+  ret$smtp_port <- 25
+  ret$smtp_from <- ""
+  ret$smtp_login <- ""
+  ret$smtp_password <- ""
+  ret$smtp_insecure <- FALSE
+  ret$force_date_format <- ""
+  ret$maven_repo <- "https://repo1.maven.org/maven2"
+  ret$winutils_url <- "https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe"
+  ret$fs_port <- 8080
+  ret$fs_batch_timeout <- 60 * 60
+  ret$fs_query_timeout <- 60
+  ret$admin_email <- ""
+  ret$sm_alerts_bluesky <- TRUE
+  ret$sm_activated_bluesky <- TRUE
+  ret$dismiss_past_request <- "1971-01-01 00:00:00"
+  ret$dismiss_past_done <- "2000-01-01 00:00:00"
+  ret$collect_history_days <-30
+  return(ret)
+}
+
+#' @title Load episomer application settings
+#' @description Load episomer application settings from the designated data directory
+#' @param data_dir Path to the directory containing the application settings (it must exist).
+#' If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
+#' default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
+#'    "") Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer")
+#' @param ignore_keyring Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE
+#' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
+#' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
+#' @param save_properties_first Whether to save current settings before loading new ones from disk, default: FALSE
+#' @param save_topics_first List of topics to save before loading new ones from disk, default: list()
+#' @return Nothing
+#' @details episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting posts or detecting alerts the user has to designate this folder.
+#' When a user wants to use episomer from the R console they will need to call this function for initialisation.
+#' The 'data_folder' can also be given as a parameter for program launch functions \code{\link{episomer_app}}, \code{\link{search_loop}} or \code{\link{detect_loop}}, which will internally call this function.
+#'
+#' This call will fill (or refresh) a package scoped environment 'conf' that will store the settings. Settings stored in conf are:
+#' \itemize{
+#'   \item{General properties of the Shiny app (stored in properties.json)}
+#'   \item{Download plans from the social media collection process (stored in topics.json merged with data from the topics.xlsx file}
+#'   \item{Credentials for social media APIs and SMTP stored in the defined keyring}
+#' }
+#'
+#' When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
+#' This behaviour can be changed by setting the environment variable 'ecdc_social_tool_kr_password' with the password.
+#'
+#' Changes made to conf can be stored permanently (except for 'data_dir') using:
+#' \itemize{
+#'   \item{\code{\link{save_config}}, or}
+#'    \item{\code{\link{sm_api_set_auth_bluesky}}}
+#' }
+#' @examples
+#' if(FALSE){
+#'    library(episomer)
+#'    #loading system settings
+#'    message('Please choose the episomer data directory')
+#'    setup_config(file.choose())
+#' }
+#' @seealso
+#' \code{\link{save_config}}
+#' \code{\link{sm_api_set_auth_bluesky}}
+#' \code{\link{episomer_app}}
+#' \code{\link{search_loop}}
+#' \code{\link{detect_loop}}
+#' @rdname setup_config
+#' @export
+#' @importFrom jsonlite read_json
+#' @importFrom tools md5sum
+#' @importFrom readxl read_excel
+setup_config <- function(
+  data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if (
+    Sys.getenv("EPI_HOME") != ""
+  )
+    Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer"),
+  ignore_keyring = FALSE,
+  ignore_properties = FALSE,
+  ignore_topics = FALSE,
+  save_properties_first = FALSE,
+  save_topics_first = list()
+) {
+  #setting the data_dir which is a read only property
+  conf$data_dir <- data_dir
+
+  # paths contains two files storing configuration data:
+  # props which contains properties set on the Shiny App is stored on data_dir/properties.json
+  # and data_dir/topics.json which stores search progress and is updated by the search loop
+  props_path = get_properties_path()
+
+  #topics_path is the path to the excel file containing the topics provided by the user or episomer default ones
+  user_topics_path <- get_user_topics_path(data_dir)
+
+  # save_first may be used by a function which is responsible for a part of the configuration to save changes on its perimeter before refreshing
+  if (save_properties_first || length(save_topics_first) > 0) {
+    save_config(
+      data_dir = data_dir,
+      properties = save_properties_first,
+      sm_topics = save_topics_first
+    )
+  }
+  #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing
+  temp <- get_empty_config(data_dir)
+
+  if (!ignore_properties) {
+    # refreshing properties (if requested)
+    if (file.exists(props_path)) {
+      #merging default values with those stored in the properties.json file
+      temp = merge_configs(list(
+        temp,
+        jsonlite::read_json(
+          props_path,
+          simplifyVector = FALSE,
+          auto_unbox = TRUE
+        )
+      ))
+    }
+    #Setting config  variables filled only from json file
+    conf$keyring <- temp$keyring
+    conf$collect_span <- temp$collect_span
+    conf$schedule_span <- temp$schedule_span
+    conf$schedule_start_hour <- temp$schedule_start_hour
+    conf$languages <- temp$languages
+    for (i in 1:length(conf$languages)) {
+      conf$languages[[i]]$vectors <- file.path(
+        conf$data_dir,
+        "languages",
+        paste(conf$languages[[i]]$code, "txt", "gz", sep = ".")
+      )
+    }
+    conf$lang_updated_on <- temp$lang_updated_on
+    conf$geonames_updated_on <- temp$geonames_updated_on
+    conf$dep_updated_on <- temp$dep_updated_on
+    conf$geotag_requested_on <- temp$geotag_requested_on
+    conf$aggregate_requested_on <- temp$aggregate_requested_on
+    conf$alerts_requested_on <- temp$alerts_requested_on
+    conf$geonames_url <- temp$geonames_url
+    conf$known_users <- temp$known_users
+    conf$spark_cores <- temp$spark_cores
+    conf$spark_memory <- temp$spark_memory
+    conf$onthefly_api <- temp$onthefly_api
+    conf$geolocation_threshold <- temp$geolocation_threshold
+    conf$alert_alpha <- temp$alert_alpha
+    conf$alert_alpha_outlier <- temp$alert_alpha_outlier
+    conf$alert_k_decay <- temp$alert_k_decay
+    conf$alert_history <- temp$alert_history
+    conf$alert_same_weekday_baseline <- temp$alert_same_weekday_baseline
+    conf$alert_with_quotes <- temp$alert_with_quotes
+    conf$alert_with_bonferroni_correction <- temp$alert_with_bonferroni_correction
+    conf$use_mkl <- temp$use_mkl
+    conf$geonames_simplify <- temp$geonames_simplify
+    conf$regions_disclaimer <- temp$regions_disclaimer
+    conf$smtp_host <- temp$smtp_host
+    conf$smtp_port <- temp$smtp_port
+    conf$smtp_from <- temp$smtp_from
+    conf$smtp_login <- temp$smtp_login
+    conf$smtp_insecure <- temp$smtp_insecure
+    conf$force_date_format <- temp$force_date_format
+    conf$maven_repo <- temp$maven_repo
+    conf$winutils_url <- temp$winutils_url
+    conf$fs_port <- temp$fs_port
+    conf$fs_batch_timeout <- temp$fs_batch_timeout
+    conf$fs_query_timeout <- temp$fs_query_timeout
+    conf$admin_email <- temp$admin_email
+    conf$dismiss_past_request <- temp$dismiss_past_request
+    conf$collect_history_days <- temp$collect_history_days 
+    conf$sm_alerts_bluesky <- temp$sm_alerts_bluesky
+    conf$sm_activated_bluesky <- temp$sm_activated_bluesky
+  }
+  if (!ignore_topics) {
+    plans_path = get_plans_paths()
+    # updating plans and topics if requested
+    plans_exists <- FALSE
+    topics_plans <- lapply(plans_path, function(p) {
+      if (file.exists(p)) {
+        plans_exists <- TRUE
+        tops <- jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE)
+	for(i in seq(1, length(tops$topics), along.with=tops$topics)) {
+	  tops$topics[[i]]$topic = tolower(tops$topics[[i]]$topic)
+	}
+	tops
+      }
+      else
+        list()
+    })
+    # merging topics from different SM
+    merged_topics <- merge_config_lists(topics_plans, "topics")
+    # merging initial + properties.json data with plans
+    temp = merge_configs(list(temp, merged_topics))
+
+    #Getting topics from excel topics files if it has changed since last load this is identified by checking the md5 signature
+    #If user has not overrriden
+    topics_changed <- FALSE
+    topics <- {
+      t <- list()
+      t$md5 <- as.vector(tools::md5sum(user_topics_path))
+      if (t$md5 != temp$topics_md5 || !plans_exists) {
+        t$df <- readxl::read_excel(user_topics_path)
+        topics_changed <- TRUE
+      }
+      t
+    }
+
+    #Merging topics from config json and topic excel topics if this last one has changed
+    #Each time a topic is found on file, all its occurrences will be processed at the same time, to ensure consistent multi query topics updates based on position
+    if (
+      topics_changed &&
+        exists("df", where = topics) &&
+        length(active_social_media()) > 0
+    ) {
+      # changing topics to lowercase
+      topics$df$Topic <- tolower(topics$df$Topic)
+      distinct_topics <- as.list(unique(topics$df$Topic))
+      adjusted_topics <- list()
+      i_adjusted <- 1
+      #For each distinct topic on Excel file
+      for (i_topic in 1:length(distinct_topics)) {
+        topic <- distinct_topics[[i_topic]]
+        if (!grepl("^[A-Za-z_0-9][A-Za-z_0-9 \\-]*$", topic)) {
+          stop(paste(
+            "topic name",
+            topic,
+            "is invalid, it must contains only by alphanumeric letters, digits spaces '-' and '_' and not start with spaces, '-' or '_'",
+            sep = " "
+          ))
+        }
+        queries <- topics$df[topics$df$Topic == topic, ]
+        active_sm <- active_social_media()
+        # For each active social media
+        for (sm in active_sm) {
+          i_tmp <- 1
+          #For each distinct query on Excel file on current topic
+          for (i_query in 1:nrow(queries)) {
+            for (translated_query in translate_query(
+              sm,
+              queries$Query[[i_query]]
+            )) {
+              #Looking for the next matching entry in json file
+	      while (
+                i_tmp <= length(temp$topics) &&
+                  ((temp$topics[[i_tmp]]$topic != topic &&
+                    temp$topics[[i_tmp]]$network == sm) ||
+                    temp$topics[[i_tmp]]$network != sm)
+              ) {
+                i_tmp <- i_tmp + 1
+              }
+              if (i_tmp <= length(temp$topics)) {
+                #reusing an existing query
+                adjusted_topics[[i_adjusted]] <- temp$topics[[i_tmp]]
+                adjusted_topics[[i_adjusted]]$network <- sm
+                adjusted_topics[[i_adjusted]]$query <- translated_query
+                adjusted_topics[[i_adjusted]]$label <- queries$Label[[i_query]]
+                adjusted_topics[[i_adjusted]]$alpha <- if (
+                  !is.null(queries$Alpha[[i_query]]) &&
+                    !is.na(queries$Alpha[[i_query]])
+                )
+                  queries$Alpha[[i_query]] else conf$alert_alpha
+                adjusted_topics[[i_adjusted]]$alpha_outlier <- (if (
+                  !is.null(queries$`Outliers Alpha`[[i_query]]) &&
+                    !is.na(queries$`Outliers Alpha`[[i_query]])
+                )
+                  queries$`Outliers Alpha`[[i_query]] else
+                  conf$alert_alpha_outlier)
+              } else {
+                #creating a new query
+                adjusted_topics[[i_adjusted]] <- list()
+                adjusted_topics[[i_adjusted]]$network <- sm
+                adjusted_topics[[i_adjusted]]$query <- translated_query
+                adjusted_topics[[i_adjusted]]$topic <- queries$Topic[[i_query]]
+                adjusted_topics[[i_adjusted]]$label <- queries$Label[[i_query]]
+                adjusted_topics[[i_adjusted]]$alpha <- if (
+                  !is.null(queries$Alpha[[i_query]]) &&
+                    !is.na(queries$Alpha[[i_query]])
+                )
+                  queries$Alpha[[i_query]] else conf$alert_alpha
+                adjusted_topics[[i_adjusted]]$alpha_outlier <- (if (
+                  !is.null(queries$`Outliers Alpha`[[i_query]]) &&
+                    !is.na(queries$`Outliers Alpha`[[i_query]])
+                )
+                  queries$`Outliers Alpha`[[i_query]] else
+                  conf$alert_alpha_outlier)
+              }
+              i_tmp <- i_tmp + 1
+              i_adjusted <- i_adjusted + 1
+            }
+          }
+        }
+      }
+      temp$topics <- adjusted_topics
+      temp$topics_md5 <- topics$md5
+    }
+
+    #Loading topic related information on config file
+    conf$topics_md5 <- temp$topics_md5
+    conf$topics <- temp$topics
+    conf$dismiss_past_done <- temp$dismiss_past_done
+    copy_plans_from(temp)
+    # updating topic keywords, necessary for ignoring keywords in top words charts
+    if (topics_changed) update_topic_keywords()
+  }
+  #Getting variables stored on keyring
+  #Setting up keyring
+  if (!ignore_keyring) {
+    kr <- get_key_ring(conf$keyring)
+    # Fetching and updating variables from keyring
+    if (is_secret_set("smtp_password")) {
+      conf$smtp_password <- get_secret("smtp_password")
+    }
+  }
+}
+
+# Copying plans from temporary file (non-typed) to conf, making sure plans have the right type
+copy_plans_from <- function(temp) {
+  #Copying plans
+  if (length(temp$topics) > 0) {
+    for (i in 1:length(temp$topics)) {
+      if (
+        !exists("plan", where = temp$topics[[i]]) ||
+          length(temp$topics[[i]]$plan) == 0
+      ) {
+        conf$topics[[i]]$plan <- list()
+      } else {
+        conf$topics[[i]]$plan <- (lapply(
+          1:length(temp$topics[[i]]$plan),
+          function(j)
+            do.call(parse_plan_attributes, args = temp$topics[[i]]$plan[[j]])
+        ))
+      }
+    }
+  }
+}
+
+#' @title Save the configuration changes
+#' @description Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
+#' @param data_dir Path to a directory to save configuration settings, Default: conf$data_dir
+#' @param properties Whether to save the general properties to the properties.json file, default: TRUE
+#' @param sm_topics Whether to save topic download plans to the topics.json file, default: TRUE
+#' @return Nothing
+#' @details Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
+#' to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
+#' @examples
+#' if(FALSE){
+#'    library(episomer)
+#'    #load configuration
+#'    message('Please choose the episomer data directory')
+#'    setup_config(file.choose())
+#'    #make some changes
+#'    #conf$collect_span = 90
+#'    #saving changes
+#'    save_config()
+#' }
+#' @rdname save_config
+#' @seealso
+#' \code{\link{setup_config}}
+#' \code{\link{sm_api_set_auth_bluesky}}
+#' @export
+save_config <- function(
+  data_dir = conf$data_dir,
+  properties = TRUE,
+  sm_topics = NULL
+) {
+  # creating the data directory if it does not exists
+  if (!file.exists(conf$data_dir)) {
+    dir.create(conf$data_dir, showWarnings = FALSE)
+  }
+  if (is.null(sm_topics)) {
+    sm_topics <- active_social_media()
+  }
+
+  if (properties) {
+    # saving properties to the properties.json file
+    temp <- list()
+    temp$collect_span <- conf$collect_span
+    temp$schedule_span <- conf$schedule_span
+    temp$schedule_start_hour <- conf$schedule_start_hour
+    temp$languages <- conf$languages
+    temp$dep_updated_on <- conf$dep_updated_on
+    temp$lang_updated_on <- conf$lang_updated_on
+    temp$geonames_updated_on <- conf$geonames_updated_on
+    temp$geotag_requested_on <- conf$geotag_requested_on
+    temp$aggregate_requested_on <- conf$aggregate_requested_on
+    temp$alerts_requested_on <- conf$alerts_requested_on
+    temp$geonames_url <- conf$geonames_url
+    temp$keyring <- conf$keyring
+    temp$known_users <- conf$known_users
+    temp$spark_cores <- conf$spark_cores
+    temp$spark_memory <- conf$spark_memory
+    temp$onthefly_api <- conf$onthefly_api
+    temp$geolocation_threshold <- conf$geolocation_threshold
+    temp$geolocation_threshold <- conf$geolocation_threshold
+    temp$alert_alpha <- conf$alert_alpha
+    temp$alert_alpha_outlier <- conf$alert_alpha_outlier
+    temp$alert_k_decay <- conf$alert_k_decay
+    temp$alert_history <- conf$alert_history
+    temp$alert_same_weekday_baseline <- conf$alert_same_weekday_baseline
+    temp$alert_with_quotes <- conf$alert_with_quotes
+    temp$alert_with_bonferroni_correction <- conf$alert_with_bonferroni_correction
+    temp$use_mkl <- conf$use_mkl
+    temp$geonames_simplify <- conf$geonames_simplify
+    temp$regions_disclaimer <- conf$regions_disclaimer
+    temp$smtp_host <- conf$smtp_host
+    temp$smtp_port <- conf$smtp_port
+    temp$smtp_from <- conf$smtp_from
+    temp$smtp_login <- conf$smtp_login
+    if (!is.null(conf$smtp_password) && conf$smtp_password != "")
+      set_secret("smtp_password", conf$smtp_password)
+    temp$smtp_insecure <- conf$smtp_insecure
+    temp$force_date_format <- conf$force_date_format
+    temp$maven_repo <- conf$maven_repo
+    temp$winutils_url <- conf$winutils_url
+    temp$fs_port <- conf$fs_port
+    temp$fs_batch_timeout <- conf$fs_batch_timeout
+    temp$fs_query_timeout <- conf$fs_query_timeout
+    temp$admin_email <- conf$admin_email
+    temp$dismiss_past_request <- conf$dismiss_past_request
+    temp$dismiss_past_done <- conf$dismiss_past_done
+    temp$collect_history_days <- conf$collect_history_days 
+    temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
+    temp$sm_activated_bluesky <- conf$sm_activated_bluesky
+    temp$topics_md5 <- conf$topics_md5
+    # writing the JSON file
+    write_json_atomic(
+      temp,
+      get_properties_path(),
+      pretty = TRUE,
+      force = TRUE,
+      auto_unbox = TRUE
+    )
+  }
+  if (length(sm_topics) > 0) {
+    # saving topics to the topics.json file
+    paths = get_plans_paths()
+    for (sm in sm_topics) {
+      topics_in_sm = conf$topics[sapply(
+        1:length(conf$topics),
+        function(j) conf$topics[[j]]$network == sm
+      )]
+      temp <- list()
+      temp$topics <- format_topics(topics_in_sm)
+      # writing plan files for each social media
+      write_json_atomic(
+        temp,
+        paths[[sm]],
+        pretty = TRUE,
+        force = TRUE,
+        auto_unbox = TRUE
+      )
+    }
+  }
+}
+
+format_topics <- function(topics) {
+  lapply(topics, function(t) {
+    t$plan <- lapply(t$plan, format_plan)
+    t
+  })
+}
+
+# Merging two or more configuration files as a list, the latest takes precedence over earlier ones
+merge_configs <- function(configs) {
+  if (length(configs) == 0)
+    stop("No configurations provided for merging") else if (length(configs) == 1)
+    configs[[1]] else {
+    first <- configs[[1]]
+    rest <- merge_configs(configs[-1])
+    keys <- unique(c(names(first), names(rest)))
+    as.list(setNames(
+      mapply(function(x, y) if (is.null(y)) x else y, first[keys], rest[keys]),
+      keys
+    ))
+  }
+}
+
+merge_config_lists <- function(configs, property) {
+  nested <- lapply(configs, function(cc) {
+    if (exists(property, where = cc)) cc[[property]] else list()
+  })
+  ret <- list()
+  ret[[property]] <- as.list(Reduce(c, nested))
+  ret
+}
+
+# parse topic query and translate it to particular social media quert language
+translate_query <- function(sm, q) {
+  r = list(neg=list(), ors=list())
+  q = gsub(" or ", "|", q) 
+  q = gsub(" OR ", "|", q) 
+  q = gsub(" AND ", "&", q) 
+  q = gsub(" and ", "&", q) 
+  q = gsub("^-| -|&-|\\|-", "+~", q) 
+  ors <- trimws(strsplit(q, "\\|")[[1]])
+  ors <- ors[ors != ""]
+  for(i in 1:length(ors)) {
+    r$ors[[i]] <- list()
+    ands <- trimws(strsplit(ors[[i]], "&")[[1]])
+    ands <- ands[ands != ""]
+    for(j in 1:length(ands)) {
+       parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
+       parts <- parts[parts != ""]
+       for(k in 1:length(parts)) {
+          part <- trimws(parts[[k]])
+          if(startsWith(part, "~") && nchar(part)>1) {
+             neg <- substr(part, 2, 1000)
+             r$neg <- c(r$neg,  neg)
+	  } else if(nchar(part)>0) {
+             pos <- as.list(trimws(strsplit(part, "/")[[1]]))
+             r$ors[[i]] <- c(r$ors[[i]], list(pos))
+          }
+       }
+    }
+  }
+  sm_api_translate_query(network = sm, r)
+}
+
+
+# Get topics data frame as displayed on the Shiny configuration tab
+get_topics_df <- function() {
+  df <- data.frame(
+    Topics = sapply(conf$topics, function(t) t$topic),
+    Label = sapply(conf$topics, function(t) t$label),
+    Query = sapply(conf$topics, function(t) t$query),
+    QueryLength = sapply(conf$topics, function(t) nchar(t$query)),
+    ActivePlans = sapply(conf$topics, function(t) length(t$plan)),
+    Progress = sapply(conf$topics, function(t) {
+      if (length(t$plan) > 0)
+        mean(unlist(lapply(t$plan, function(p) as.numeric(p$progress)))) else 0
+    }),
+    Requests = sapply(conf$topics, function(t) {
+      if (length(t$plan) > 0)
+        sum(unlist(lapply(t$plan, function(p) as.numeric(p$requests)))) else 0
+    }),
+    Alpha = sapply(conf$topics, function(t) t$alpha),
+    OutliersAlpha = sapply(conf$topics, function(t) t$alpha_outlier),
+    stringsAsFactors = FALSE
+  )
+  if (length(df) == 0)
+    stop("The list of topics is empty. Please check your configuration")
+  df
+}
+
+#Get topic labels as named array that can be used for translation
+get_topics_labels <- function() {
+  `%>%` <- magrittr::`%>%`
+  t <- (get_topics_df() %>%
+    dplyr::group_by(.data$Topics) %>%
+    dplyr::summarise(label = .data$Label[which(!is.na(.data$Label))[1]]) %>%
+    dplyr::ungroup())
+  setNames(t$label, t$Topics)
+}
+
+#Get topic alphas as named array that can be used for translation
+get_topics_alphas <- function() {
+  `%>%` <- magrittr::`%>%`
+  t <- (get_topics_df() %>%
+    dplyr::group_by(.data$Topics) %>%
+    dplyr::summarise(alpha = .data$Alpha[which(!is.na(.data$Alpha))[1]]) %>%
+    dplyr::ungroup())
+  setNames(t$alpha, t$Topics)
+}
+
+#Get topic outliers alphas as named array that can be used for translation
+get_topics_alpha_outliers <- function() {
+  `%>%` <- magrittr::`%>%`
+  t <- (get_topics_df() %>%
+    dplyr::group_by(.data$Topics) %>%
+    dplyr::summarise(
+      alpha_outlier = .data$OutliersAlpha[which(!is.na(.data$OutliersAlpha))[1]]
+    ) %>%
+    dplyr::ungroup())
+  setNames(t$alpha_outlier, t$Topics)
+}
+
+#Get topic k_decay as named array that can be used for translation
+get_topics_k_decays <- function() {
+  `%>%` <- magrittr::`%>%`
+  t <- (get_topics_df() %>%
+    dplyr::group_by(.data$Topics) %>%
+    dplyr::summarise(k_decay = conf$alert_k_decay) %>%
+    dplyr::ungroup())
+  setNames(t$k_decay, t$Topics)
+}
+
+# Check config setup before continue
+stop_if_no_config <- function(
+  error_message = "Cannot continue without setting up a configuration."
+) {
+  if (!exists("data_dir", where = conf)) {
+    stop(paste(
+      error_message,
+      "Please call setup_config('your data directory here')",
+      sep = "\n"
+    ))
+  }
+}
+
+# Call config if necessary
+setup_config_if_not_already <- function() {
+  if (!exists("data_dir", where = conf)) {
+    setup_config()
+  }
+}
+
+# Get current available languages from the available language Excel file
+get_available_languages <- function() {
+  readxl::read_excel(get_available_languages_path())
+}
+
+# Remove language from the used languages on conf
+remove_config_language <- function(code) {
+  # Timestamping action
+  conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  # Removing the language
+  conf$languages <- conf$languages[sapply(
+    conf$languages,
+    function(l) l$code != code
+  )]
+}
+
+# Add a language to the used languages in conf
+add_config_language <- function(code, name) {
+  # Timestamping action
+  conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  index <- (1:length(conf$languages))[sapply(
+    conf$languages,
+    function(l) l$code == code
+  )]
+  if (length(index) > 0) {
+    # Language code is already in the task list
+    conf$languages[[index]]$code <- code
+    conf$languages[[index]]$name <- name
+    conf$languages[[index]]$vectors = paste(
+      conf$data_dir,
+      "/languages/",
+      code,
+      ".txt.gz",
+      sep = ""
+    )
+    conf$languages[[index]]$modified_on <- strftime(
+      Sys.time(),
+      "%Y-%m-%d %H:%M:%S"
+    )
+  } else {
+    # Language code is not on the list
+    conf$languages <- c(
+      conf$languages,
+      list(list(
+        code = code,
+        name = name,
+        vectors = paste(
+          conf$data_dir,
+          "/languages/",
+          code,
+          ".txt.gz",
+          sep = ""
+        ),
+        modified_on = strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+      ))
+    )
+  }
+}
+
+# Get the current known users list from the important users files
+get_known_users <- function() {
+  gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])
+}
+
+active_social_media <- function() {
+  props <- names(conf)
+  sm_props <- props[grepl("^sm_activated", props)]
+  active_sm_props <- sm_props[sapply(
+    sm_props,
+    function(sm_prop) conf[[sm_prop]]
+  )]
+  active_sm <- gsub("sm_activated_", "", active_sm_props)
+  active_sm
+}
+
+alerts_social_media <- function() {
+  props <- names(conf)
+  sm_props <- props[grepl("^sm_alerts", props)]
+  alerts_sm_props <- sm_props[sapply(
+    sm_props,
+    function(sm_prop) conf[[sm_prop]]
+  )]
+  alerts_sm <- gsub("sm_alerts_", "", alerts_sm_props)
+  alerts_sm
+}
+
+# Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
+write_json_atomic <- function(x, path, ...) {
+  file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)
+  dir_name <- substring(path, 1, nchar(path) - nchar(file_name) - 1)
+  swap_file <- tempfile(
+    pattern = paste("~", file_name, sep = ""),
+    tmpdir = dir_name
+  )
+  jsonlite::write_json(x = x, path = swap_file, ...)
+  file.rename(swap_file, path)
+}

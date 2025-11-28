@@ -1,4 +1,4 @@
-package org.ecdc.twitter 
+package org.ecdc.episomer 
 
 import org.apache.spark.sql.{SparkSession, Dataset}
 import org.apache.spark.sql.types._
@@ -20,7 +20,6 @@ object JavaBridge {
   def getSparkSession(cores:Int = 0) = {
     Logger.getLogger("org.apache.spark").setLevel(Level.ERROR)
     Logger.getLogger("org.apache.hadoop").setLevel(Level.ERROR)
-    Logger.getLogger("akka").setLevel(Level.ERROR)
 
     val spark = 
       SparkSession.builder()
@@ -28,7 +27,7 @@ object JavaBridge {
         .config("spark.sql.files.ignoreCorruptFiles", true)
         .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
         .config("spark.default.parallelism", if(cores == 0) 8 else cores)
-        .appName("epitweetr")
+        .appName("episomer")
         .getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
     spark

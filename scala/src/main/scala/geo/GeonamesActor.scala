@@ -1,19 +1,19 @@
-package org.ecdc.epitweetr.geo
+package org.ecdc.episomer.geo
 
-import org.ecdc.twitter.{Language}
+import org.ecdc.episomer.{Language}
 import Geonames.Geolocate
 import demy.util.{log => l, util}
-import org.ecdc.epitweetr.{Settings, EpitweetrActor}
-import org.ecdc.epitweetr.fs.{TextToGeo}
-import akka.pattern.{ask, pipe}
+import org.ecdc.episomer.{Settings, EpisomerActor}
+import org.ecdc.episomer.fs.{TextToGeo}
+import org.apache.pekko.pattern.{ask, pipe}
 import scala.concurrent.{Future, Await}
 import scala.concurrent.duration._
-import akka.actor.{ActorSystem, Actor, ActorLogging, Props}
-import akka.pattern.ask
-import akka.actor.ActorRef
-import akka.Done
-import akka.util.ByteString
-import akka.util.{Timeout}
+import org.apache.pekko.actor.{ActorSystem, Actor, ActorLogging, Props}
+import org.apache.pekko.pattern.ask
+import org.apache.pekko.actor.ActorRef
+import org.apache.pekko.Done
+import org.apache.pekko.util.ByteString
+import org.apache.pekko.util.{Timeout}
 import scala.collection.JavaConverters._
 import org.apache.spark.sql.{SparkSession, Column, Dataset, Row, DataFrame}
 import org.apache.spark.sql.functions.{col, lit, array_join, udf}
@@ -93,7 +93,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         implicit val st = conf.getSparkStorage
         import s.implicits._
         val readyLangs = GeoTraining.trainedLanguages()
-        if(conf.languages.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.size} are ready")
+        if(conf.languages.get.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.get.size} are ready. Geolocation on other languages is ignored")
         val df0 = 
           toGeo.toDS
             .withColumn("lang", udf((lang:String) =>  if(lang == null || lang == "all") null else lang).apply(col("lang")))
@@ -134,13 +134,13 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
       }.onComplete { case  _ =>
       }
     case GeonamesActor.TrainLanguagesRequest(trainingSet, jsonnl, caller) => 
-      implicit val timeout: Timeout = conf.fsQueryTimeout.seconds //For ask property
+      implicit val timeout: Timeout = conf.fsLongBatchTimeout.seconds //For ask property
       implicit val s = conf.getSparkSession
       implicit val st = conf.getSparkStorage
       import s.implicits._
       //Ensuring languages models are up to date
-      Language.updateLanguageIndexes(conf.languages.get, conf.geonames, indexPath=conf.langIndexPath)
-
+      val readyLangs = GeoTraining.trainedLanguages() 
+      Language.updateLanguageIndexes(conf.languages.get, conf.geonames, indexPath=conf.langIndexPath, force = conf.languages.get.size != readyLangs.size)
 
       var sep = ""
       Future {
@@ -150,20 +150,18 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         implicit val s = conf.getSparkSession
         implicit val st = conf.getSparkStorage
         import s.implicits._
-        val readyLangs = GeoTraining.trainedLanguages()
-        if(conf.languages.size > readyLangs.size) println(s"only ${readyLangs.size} of ${conf.languages.size} are ready")
-        
         val r = new Random(197912)
         val annotated = r.shuffle(trainingSet.filter(t => !t.isLocation.isEmpty))
-        val tweets = annotated.filter(t => !t.tweetId.isEmpty)
-        val refSize = if(tweets.size < 500) 200 else tweets.size
+        val posts = annotated.filter(t => !t.postId.isEmpty)
+        val refSize = if(posts.size < 500) 200 else posts.size
         val demonyms = annotated.filter(t => t.category == "Demonym").take(refSize / 4)
         val people   = annotated.filter(t => t.category == "Person").take(refSize / 4)
-        val locations = annotated.filter(t => t.source == GeoTrainingSource.epitweetrModel && t.isLocation == Some(true)).take(refSize)
-        val noLocations = annotated.filter(t => t.source == GeoTrainingSource.epitweetrModel && t.isLocation == Some(false)).take(refSize) 
-        val rescaled = tweets ++ demonyms ++ people ++ locations ++ noLocations
-        println(s"tweets ${tweets.size} ++ dem ${demonyms.size} ++ peop ${people.size} ++ loc ${locations.size} ++ noloc ${noLocations.size}")
+        val locations = annotated.filter(t => t.source == GeoTrainingSource.episomerModel && t.isLocation == Some(true)).take(refSize)
+        val noLocations = annotated.filter(t => t.source == GeoTrainingSource.episomerModel && t.isLocation == Some(false)).take(refSize) 
+        val rescaled = posts ++ demonyms ++ people ++ locations ++ noLocations
+        println(s"posts ${posts.size} ++ dem ${demonyms.size} ++ peop ${people.size} ++ loc ${locations.size} ++ noloc ${noLocations.size}")
         
+
         val results = GeoTraining.splitTrainEvaluate(annotations = rescaled, trainingRatio = 0.7).cache
         import s.implicits._
         //ret.groupByKey(_._1).reduceGroups((a, b) => (a._1, a._2, a._3, a._4, a._5.sum(b._5))).map(p => (p._2._1, p._2._5)).toDF("test", "metric").select(col("test"), col("metric.*")).show
@@ -199,7 +197,7 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
       }.onComplete { case  _ =>
       }
     case b => 
-      Future(EpitweetrActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
+      Future(EpisomerActor.Failure(s"Cannot understund $b of type ${b.getClass.getName} as message")).pipeTo(sender())
   }
 }
 

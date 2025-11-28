@@ -27,7 +27,7 @@ case class Encoding(symbols:String, radix:BigInt,symbolIndex:Map[Char, Int]) {
       val buf = new StringBuilder
       var v = value
       while(v.signum != 0) {
-        buf.append(this.symbols.charAt(v.mod(this.radix).intValue()))
+        buf.append(this.symbols.charAt(v.mod(this.radix).intValue))
         v = v / this.radix
       }
       buf.reverse.toString()

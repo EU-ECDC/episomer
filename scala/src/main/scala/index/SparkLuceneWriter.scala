@@ -10,14 +10,14 @@ import org.apache.lucene.analysis.custom.CustomAnalyzer
 import org.apache.lucene.analysis.standard.StandardTokenizerFactory 
 import org.apache.lucene.analysis.core.StopFilterFactory 
 import org.apache.lucene.analysis.TokenStream
-import org.apache.commons.lang.RandomStringUtils
+import org.apache.commons.lang3.RandomStringUtils
 import demy.storage.Storage
 
 case class SparkLuceneWriter(indexDestination:String, reuseSnapShot:Boolean=false, boostAcronyms:Boolean = false) {
   lazy val sparkStorage = Storage.getSparkStorage
   lazy val indexNode = {
     if(this.sparkStorage.isLocal)
-      sparkStorage.getNode(indexDestination+"/lucIndex_" + RandomStringUtils.randomAlphanumeric(10))
+      sparkStorage.getNode(indexDestination+"/lucIndex_" + RandomStringUtils.insecure.nextAlphanumeric(10))
 
     else 
       sparkStorage.localStorage.getTmpNode(prefix = Some("lucIndex"), markForDeletion = !reuseSnapShot ,sandBoxed = !reuseSnapShot)

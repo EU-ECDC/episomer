@@ -13,6 +13,6 @@ export TMPDIR=$EPI_HOME/tmp
 expect -c '
 spawn R
 expect ">"
-send "reload <- function() {devtools::load_all(\"'$SCRIPT_PATH'/../epitweetr\");setup_config(\"'$EPI_HOME'\")}\r" 
+send "reload <- function() {devtools::load_all(\"'$SCRIPT_PATH'/../episomer\");setup_config(\"'$EPI_HOME'\")}\r" 
 send "reload()\r" 
 interact'

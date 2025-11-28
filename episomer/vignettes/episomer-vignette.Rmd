@@ -1,0 +1,1404 @@
+---
+title: "episomer: user documentation"
+author: "European Centre for Disease Prevention and Control (ECDC)"
+output: 
+  - rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{episomer: user documentation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+bibliography: "episomer_refs.bib"
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+library(episomer)
+package_name <- "episomer"
+package_desc <- packageDescription(package_name)
+pkg_version <- package_desc$Version
+pkg_date <- package_desc$Date
+authors_str <- gsub("^ *|(?<= ) |\n| *$", "", package_desc$Authors, perl = TRUE)
+author_list <- eval(parse(text = authors_str))
+pkg_authors <- paste(
+  format(
+    author_list,
+    include = c("given", "family", "email", "comment"),
+    braces = list(
+      email = c("<", ">,<br />"),
+      comment = c("", "")
+    )
+  ),
+  collapse = "<br /><br />"
+)
+pkg_maintainer <- package_desc$Maintainer
+pkg_license <- package_desc$License
+pkg_url <- package_desc$URL
+```
+
+
+## Description
+
+`Episomer` has been created by building on `epitweetr` objectives and functionalities. The `episomer` package allows you to automatically monitor trends of posts by time, place and topic in social media platforms. This automated monitoring aims at the early detection of public health threats through the detection of signals (e.g. an unusual increase in the number of posts for a specific time, place and topic). This release of `episomer` collects posts from Bluesky using its API (https://docs.bsky.app/), and can be extended to support other social media platforms. The `episomer` package was designed to focus on infectious diseases, and it can be extended to cover all hazards or other fields of study by modifying the topics and keywords.
+
+The general principle behind `episomer` is that it collects posts and related metadata according to specified topics. Posts are stored on your computer in a database that can be used to calculate statistics or as a search engine. `episomer` geolocalises the posts and collects information on keywords, URLs and hashtags within a post. Posts are aggregated according to topic and geographical location. Next, a signal detection algorithm identifies when the number of posts (by topic and geographical location) exceeds what is expected for a given day. If the number of posts exceeds what is expected, `episomer` sends out email alerts to notify those who need to further investigate these signals following the epidemic intelligence processes (filtering, validation, analysis and preliminary assessment).
+
+The package includes an interactive web application (Shiny app) with six pages: (i) dashboard, where a user can visualise and explore posts (Fig 1), (ii) alerts page, where you can view the current alerts and train machine learning models for alert classification on user-defined categories (Fig 2), (iii) geotag page, where you can evaluate the geolocation algorithm and provide annotations for improving its performance (Fig 3), (iv) data protection page, where you can search, anonymise and delete posts from the episomer database to support data deletion requests (Fig 4), (v) configuration page, where you can change settings and check the status of the underlying processes (Fig 5), and (vi) troubleshoot page, which provides automatic checks and hints for using `episomer` and all its functionalities (Fig 6). 
+
+On the dashboard, users can view the aggregated number of posts over time, the location of these posts on a map and different most frequent elements found in or extracted from these posts (words, hashtags and URLs). These visualisations can be filtered by the topic, location and time period you are interested in. Other filters are available and include the possibility to adjust the time unit of the timeline, whether quotes should be included, the sensitivity of the prediction interval for the signal detection, and the number of days used to calculate the threshold for signals. This information is also downloadable directly from this interface in the form of data, pictures, and/or reports.
+
+More information on the methodology used is available in the [episomer peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
+
+**Shiny app dashboard:**
+
+<center>Fig 1: Shiny app dashboard figure</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/dashboard.png")
+```
+
+
+**Shiny app alerts page:**
+
+<center>Fig 2: Shiny app alerts page</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/alerts.png")
+```
+
+
+**Shiny app geotag evaluation page:**
+
+<center>Fig 3: Shiny app geotag evaluation page</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/geotag_evaluation.png")
+```
+
+**Shiny app data protection page:**
+
+<center>Fig 4: Shiny app data protection page</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/data_protection.png")
+```
+
+**Shiny app configuration page:**
+
+<center>Fig 5: Shiny app configuration page</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/config.png")
+```
+
+
+**Shiny app troubleshoot page:**
+
+<center>Fig 6: Shiny app troubleshoot page</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/troubleshoot.png")
+```
+
+## Background
+### Epidemic Intelligence at ECDC
+    
+Article 3 of the European Centre for Disease Prevention and Control (ECDC) funding regulation and the Regulation (EU) 2022/2371 on serious cross-border threats to health have established the detection of public health threats as a core activity of ECDC.
+
+ECDC performs Epidemic Intelligence (El) activities aiming at rapidly detecting and assessing public health threats, focusing on infectious diseases, to ensure EU's health security. Social media is one of the sources that ECDC uses for the early detection of signals of public health threats. Until 2020 when epitweetr was published, the monitoring of social media was mainly performed through the screening and analysis of posts from pre-selected experts or organisations, mainly in Twitter and Facebook.
+
+More information and an online tutorial are available:
+
+[EI sources](https://www.ecdc.europa.eu/en/training-and-tools/surveillance-and-outbreak-tools/information-sources-epidemic-intelligence-and)
+
+[EI tutorial](https://learning.ecdc.europa.eu/enrol/index.php?id=519%3Fmtm_campaign%3Devaredirection) 
+
+
+### Monitoring social media trends
+
+Some signals are not detected at all or are not detected early enough by the methods explained above. The automated monitoring of social media (e.g. analysis of social media trends) allows the detection of signals that may not be detected by the monitoring of pre-selected accounts in social media, and it improves the timeliness of signal detection.
+
+The analysis of trends from social media by topic, time and place generates relevant signals for early detection.
+
+In 2019, ECDC developed a prototype of a manual R-based tool for the early detection of public health threats from X (formerly known as Twitter) data. In October 2020, ECDC published `epitweetr`, an R package for collecting data from X, achieving a wider geolocation of posts, increased performance and greater automation. `epitweetr` was discontinued because of changes in the X API terms and conditions and archived on CRAN. `episomer` is an extension of `epitweetr`, designed to support multiple social media platforms and consequently achieving higher reliability.
+
+### Objectives of episomer
+
+The primary objective of `episomer` is to use Social Media APIs in order to detect early signals of potential threats by topic and by geographical unit.
+
+Its secondary objective is to enable users, through an interactive web interface, to explore the trend of posts by time, geographical location and topic, including information on top words and numbers of posts from trusted users, using charts and tables.
+
+### Repository of episomer material and training
+More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/episomer/discussions). This [post](https://github.com/EU-ECDC/episomer/discussions/7) contains a summary of relevant links and materials to new users.
+
+## Hardware requirements
+
+The minimum and suggested hardware requirements for the computer are in the table below:
+
+  Hardware requirements                 Minimum        Suggested
+  ------------------------------------- -------------- ------------------
+  RAM Needed                            8GB            16GB recommended
+  CPU Needed                            4 cores        12 cores
+  Space needed for 3 years of storage   3TB            5TB
+
+The CPU and RAM usage can be configured in the Shiny app configuration page (see section *The interactive user application (Shiny app)>The configuration page*). The RAM, CPU and space required may depend on the number and popularity of the topics included in the collection process.
+
+## Installation
+
+`episomer` is designed to be platform-independent, working on Windows, Linux and Mac. We recommend that you use `episomer` on a computer that can be run continuously. You can switch the computer off, but you may miss some posts if the downtime is significant. This significant downtime will impact the alert detection. 
+
+**If you need to upgrade or reinstall episomer after activating its tasks, you must stop the tasks from the Shiny app or restart the machine running episomer first.**
+
+### Installation steps
+
+You can find below a summary of the steps required to install `episomer`. Further detailed information is available in the corresponding sections.
+
+1. Ensure all pre-requisites are installed
+2. Install episomer (CRAN version or different version using tar.gz file)
+3. Select the folder (or create a new folder) for `episomer`
+4. Launch the `episomer` Shiny app (ensure to indicate the full path to your data directory)
+5. Check the troubleshoot page
+6. Modify the parameters in the configuration page as needed. You must provide the following information to enable all functionalities: Bluesky credentials, SMTP for the email sending alert emails and status emails and list of subscribers. The remaining parameters have default values that you can modify if needed. Settings are auto-saved after changing them.
+7. Activate 'Requirements & alerts' pipeline in the configuration page
+5. When requested in the dependencies task, activate 'episomer database'
+6. After the task languages is completed, activate 'Data collection & processing'
+7. Alerts task may show an error if posts have not been aggregated yet. Wait few minutes and click on 'Run alerts'
+
+### Prerequisites 
+
+#### Mandatory for running episomer
+
+Before using `episomer`, the following items need to be installed:
+
+-   R version 3.6.3 or higher
+
+-   Java 17-21 64-bit, e.g. [*https://learn.microsoft.com/en-us/java/openjdk/download*](https://learn.microsoft.com/en-us/java/openjdk/download) refers to the Microsoft releases of java for multiple platforms including Windows and Mac.
+
+-   If you are running it on Windows, you will also need Microsoft Visual C++ which in most cases is likely to be pre-installed:
+
+    -   Microsoft Visual C++ 2010 Redistributable Package (x64) [*https://www.microsoft.com/en-us/download/details.aspx?id=26999*]
+
+#### Mandatory for some of the functionalities in episomer
+
+-   Pandoc, for exporting PDFs and Markdown
+
+    -   [*https://pandoc.org/installing.html*]
+-   Tex installation (TinyTeX or MiKTeX) (or other TeX installation) for exporting PDFs
+
+    -   Easiest: [*https://yihui.org/tinytex/*] install from R, logoff/logon required after installation
+
+    -   [*https://miktex.org/download*] full installation required, logoff/logon required after installation
+
+-   Machine learning optimisation (only for advanced users)
+
+    -   Open Blas (BLAS optimizer), which will speed up some of the geolocation processes: [*https://www.openblas.net/*] Installation instructions: [*https://github.com/fommil/netlib-Java*]
+
+    -   **or** Intel MKL ([*https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html*])
+
+-   A scheduler
+
+    -   If using Windows, you need to install the R package: taskscheduleR
+
+    -   If using Linux, you need to plan the tasks manually
+    
+    -   If using a Mac, you need to plan the tasls manually
+
+#### Only for R developers
+
+If you would like to develop `episomer` further, then the following development tools are needed:
+
+-   Git (source code control) [*https://git-scm.com/downloads/*]
+
+-   Sbt (compiling scala code) [*https://www.scala-sbt.org/download.html/*]
+
+-   If you are using Windows, then you will additionally need Rtools: [*https://cran.r-project.org/bin/windows/Rtools/*]
+
+### External dependencies
+
+`episomer` will need to download some dependencies in order to work. The tool will perform this automatically the first time the alert detection process is launched. The Shiny app configuration page will allow you to change the target URLs of these dependencies, which are the following:
+
+- *CRAN JARs*: Transitive dependencies for running Spark, Lucene, Pekko and embedded scala code. *[https://repo1.maven.org/maven2]*
+
+- *Winutils.exe* (Windows only) This is a Hadoop binary necessary for running SPARK locally on Windows *[https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe]*. 
+
+Please note that during the dependencies download, you will be prompted: first, to stop the embedded database and then, to enable it again. If you are on a Windows machine and you have activated the tasks using the 'activate' buttons on the configuration page, you can perform this tasks by disabling and enabling the tasks in the 'Windows Task Scheduler'. For more information, see the section 'Setting up post collection and the alert detection loop'.
+
+### Installing episomer from CRAN
+
+After installing all required dependencies listed in the section “Prerequisites for running episomer”, you can install `episomer`:
+
+```{r, eval=FALSE, echo=TRUE}
+install.packages(episomer)
+```
+
+#### Environment variables
+
+Additionally, if you want to use a Java version different than your system's default, the Java installation home should be accessible to the R environment. To check this, type in the R console:
+
+```{r, eval=FALSE, echo=TRUE}
+system("java -version")
+```
+
+This command should return the version of the java version available to R. In case this command returns something different than a version between 17 and 21, you have yo provide the location of the right version of java by setting the JAVA\_HOME environment variable. Please follow your specific operating system (OS) instructions for doing so. You should be able to detect the current value of JAVA\_HOME by running this instruction:
+
+```{r, eval=FALSE, echo=TRUE}
+Sys.getenv("JAVA_HOME")
+```
+The Java binary (executable) should be located in the subfolder "bin" os JAVA\_HOME.
+
+The first time you run `episomer`, if it cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted Bluesky credentials. You will be asked for this password each time you run `episomer`. You can avoid this by setting a system environment variable named ecdc\_twitter\_tool\_kr\_password containing the chosen password.
+
+#### Launching the episomer Shiny app
+
+You can launch the `episomer` Shiny app from the R session by typing in the R console. Replace “data\_dir” with the designated data directory (full path) which is a local folder you choose to store posts, time series configuration files and logs in:
+
+```{r, eval=FALSE, echo=TRUE}
+library(episomer)
+episomer_app("data_dir")
+```
+
+Please note that the data directory entered in R should have '/' instead of '\\' (an example of a correct path would be 'C:/user/name/episomer'). This applies especially in Windows if you copy the path from the File Explorer.
+
+Alternatively, you can use a launcher: In an executable .bat or shell file type the following (replacing “data\_dir” with the designated data directory):
+
+R --vanilla -e episomer::episomer\_app("data\_dir")
+
+You can check that all requirements are properly installed in the troubleshoot page. More information is available in section *The interactive user application (Shiny app)>Dashboard:The interactive user interface for visualisation>The troubleshoot page*
+
+### Setting up data collection and alert detection loop
+
+In order to use `episomer`, you will need to collect and process posts from social media, run the 'episomer database' and 'Requirements & alerts' pipelines. Further details are also available in subsequent sections of this user documentation. The main steps needed are as follows:
+
+-   Launch the Shiny app (from the R console) replacing 'data\_dir' with the full path of your data folder e.g. 'C:/Users/name/episomer'
+```{r, eval=FALSE, echo=TRUE}
+library(episomer)
+episomer_app("data_dir")
+```
+
+-   In the configuration page of the Shiny app, in the manual tasks of the "Requirements & alerts pipeline", click on "Run dependencies", "Run GeoNames" and "Run languages" (their status will change to “pending”). This allows the 'Requirements & alerts' pipeline to download the elements needed. As long as no languages are added and no updates are available in geonames.org, these tasks have to be run only the first time you install `episomer`.
+
+```{r echo=FALSE, fig.cap="", out.width = '50%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/run_tasks.png")
+```
+
+-   Set up the episomer authentication using your Bluesky username and password.
+
+-   Activate the embedded database 
+
+    -   Windows: Click on the “Episomer database” activate button
+
+    -   Other operating systems: In a new R session, run the following command
+    
+```{r, eval=FALSE, echo=TRUE}
+library(episomer)
+fs_loop("data_dir")
+```
+   -   You can confirm that the embeded database is running if the 'episomer database' status is "Running" in the Shiny app configuration page and "true" in the Shiny app troubleshoot page.
+
+-   Activate the post collection and data processing
+
+    -   Windows: Click on the “Data collection & processing” activate button
+
+    -   Other operating systems: In a new R session, run the following command
+    
+```{r, eval=FALSE, echo=TRUE}
+library(episomer)
+search_loop("data_dir")
+```
+
+   -   You can confirm that the post collection is running, if the 'Data collection & processing' status is "Running" in the Shiny app configuration page (green text in screenshot above) and "true" in the Shiny app troubleshoot page.
+   
+-   Activate the 'Requirements & alerts' pipeline:
+
+    -   Windows: Click on the “Requirements & alerts pipeline” activation button
+    -   Other operating systems: In a new R session run the following command
+```{r, eval=FALSE, echo=TRUE}
+library(episomer)
+detect_loop("data_dir")
+```
+
+   -   You can confirm that the 'Requirements & alerts' pipeline is running, if the 'Requirements & alerts' pipeline status is "Running" in the Shiny app configuration page and "true" in the Shiny app troubleshoot page.
+
+-   You will be able to visualise posts after 'Data collection & processing' and 'episomer database' are activated and the languages task has finished successfully.
+
+-   You can start working with the generated signals. **Happy signal detection!**
+
+For more details, you can go through the section *How does it work? General architecture behind `episomer`*, which describes the underlying processes behind the post collection and the signal detection. Also, the section *"The interactive Shiny application (Shiny app)>The configuration page"* describes the different settings available in the configuration page.
+
+
+## How does it work? General architecture behind episomer
+
+The following sections describe in detail the above general principles. The settings of many of these elements can be configured in the Shiny app configuration page, which is explained in the section *The interactive Shiny application (Shiny app)>The configuration page*.
+
+###  Collection of posts
+
+#### Use of the Bluesky search API version
+
+`episomer` uses the Bluesky search API 'searchPost' endpoint [*https://bsky.social/xrpc/app.bsky.feed.searchPosts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustivieness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the app. There is no limit on the number period of messaged that can be obtained but by default, episomer will limit to last 30 days (this parameter can be changed in the configuration page). There is no limitation on the period for the search, but `episomer` limits by default the data collection on the last 30 days (this parameter can be change in the configuration page).
+
+Other attributes of the `searchPost` endpoint includes:
+
+-   A maximum of 3000 requests every 5 minutes are supported by the Bluesky API
+
+-   Each request returns a maximum of 100 posts and/or reposts
+
+#### Blueskly authentication
+
+In order to collect data from Bluesky you need to provide user credentials to `episomer`. This is done by entering your loggin and password as used on the login page of Bluesky. These settings are provided in the congiguration page.
+
+```{r echo=FALSE, fig.cap="", out.width = '50%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/bluesky_authentication.png")
+```
+
+#### Topics and post collection queries
+
+After authentication, you need to specify a list of topics in `episomer` to indicate which posts to collect. For each topic, you have one or more queries that `episomer` uses to collect the relevant posts (e.g. several queries for a topic using different terminology and/or languages). 
+
+A query consists of keywords and operators that are used to match post attributes. Since episomer is designed to support multiple social media, it has its own structure for writinh queries which is translated to match each provider syntax. The expected format of queries is defined by the follwoing rules.
+-   No parenthesis are supported
+-   Sub queries be sepparated by the OR keyword e.g. *measles OR sarampion*
+-   If a subquery contain multiple terms they have to be concatenated with the AND keyword e.g. *measles AND feaver OR sarampion AND fiebre*
+-   Excluded terms can be included at the end of a subquery or as a separate subquery using a minus sign. They are always applied to all subqueriese.g.  *measles AND feaver OR sarampion AND fiebre -vaccination - vacunas* 
+-   You can provide synonyms on terms of a subquery using the "/" operator e.g. the previous example can be rewritten as  *measles/sarampion AND feaver/fiebre -vaccination - vacunas*. Use synonyms with caution. When the OR syntax is not supported natively the number of underlying queries grows as an geometric progression.
+-   Other special characters are passed to the query provider without modification e.g. exact match using double quotes.
+-  To avoid issues in social media providers a best practice is to limit your query to 10 keywords and operators and limit complexity of the query. If a query surpasses this limit, it is recommended to split the topic in several queries. 
+
+`episomer` comes with a default list of topics as used by the ECDC Epidemic Intelligence team. You can view details of the list of topics in the Shiny app configuration page (see screenshot below). In addition, the colour coding in the downloadable file allows users to see if the query for a topic is too long (red colour) and the topic should be split in several queries.
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics.png")
+```
+
+In the configuration page, you can also download the list of topics, modify and upload it to `episomer`. The new list of topics will then be used for data collection and visible in the Shiny app. The list of topics is an Excel file (\*.xlsx) as it handles user-specific regional settings (e.g. delimiters) and special characters well. You can create your own list of topics and upload it too, noting that the structure should include at least:
+
+-   The name of the topic, with the header “Topic” in the Excel spreadsheet. The name of the topic is not visible in reports and it is the identifier of the topic. Modifying this field its equivalent to remove and create a new topic. This name should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter and it is case insensitive.
+
+-   The label of the topic, with the header “Label” in the Excel spreadsheet. The label of the topic is shown on reports and can be changed wihout impact in data collection. This label should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter.
+
+-   The query, with the header “Query” in the Excel spreadsheet. This is the query `episomer` uses in its requests to obtain posts from the social media API's. See above for syntax and constraints of queries.
+
+The topics.xlsx file additionally includes the following fields:
+
+-   An ID, with the header “\#” in the Excel spreadsheet, this number is just a reference for you and has no impact in the application.
+
+-   An alpha parameter, with the header “Signal alpha (FPR)” in the Excel spreadsheet. FPR stands for "false positive rate". Increasing the alpha will decrease the threshold for signal detection, resulting in an increased sensitivity and possibly obtaining more signals. Setting this alpha can be done empirically and according to the importance and nature of the topic.
+
+-   "Length\_charact" is an automatically generated field that calculates the length of all characters used in the query. This field is helpful as a request should not exceed 500 characters.
+
+-   "Length\_word" indicates the number of words used in a request, including operators. Best practice is to limit your number of keywords to 10.
+
+-   An alpha parameter, with the header “Outlier alpha (FPR)” in the Excel spreadsheet. FPR stands for “false positive rate”. This alpha sets the false positive rate for determining what an outlier is when downweighting previous outliers/signals. The lower the value, the fewer previous outliers will potentially be included. A higher value will potentially include more previous outliers.
+
+-   "Rank" is the number of queries per topic
+
+```{r echo=FALSE, fig.cap="", out.width = '80%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/Example_topics_list.png")
+```
+
+When uploading your own file, please modify the topic and query fields, but do not modify the column titles.
+
+
+#### Scheduled plans to collect posts
+
+As a reminder, `episomer` is scheduled to respect the rate limits of underlying data providers and performs multiple requests to obtain published messages. Each request return 100 posts. The requests return posts and quotes. These are returned in JSON format, which is a light-weighted data format.
+
+In order to collect the maximum number of posts, given the API limitations, and in order for popular topics not to prevent other topics from being adequately collected, `episomer` uses “search plans” for each query.
+
+The first “search plan” for a query will collect posts from the current date-time backwards until 30 days (this parameter can be changed in the configuration but depends also on API limitations) before the current “search plan” was implemented. The first “search plan” is the biggest, as no posts have been collected so far.
+
+All subsequent “search plans” are done in scheduled intervals that are set up in the configuration page of the `episomer` Shiny app (see section *The interactive Shiny app > the configuration page > General*). For illustration purposes, let us consider the search plans are scheduled at four-hour intervals. The plans collect posts for a specific query from the current date-time back until four hours before the date-time when the current “search plan” is implemented (see image below). `episomer` will make as many requests (each returning up to 100 posts) during the four-hour interval as needed to obtain all posts created within that four-hour interval.
+
+For example, if the “search plan” begins at 4 am on the 10^th^ of November 2021, `episomer` will launch requests for posts corresponding to its queries for the four-hour period from 4 am to midnight on the 10^th^ of November 2021. `episomer` starts by collecting the most recent posts (the ones from 4 am) and continues backwards. If during the four-hour time period between 4 am and midnight the API does not return any more results, the “search plan” for this query is considered completed.
+
+```{r echo=FALSE, fig.cap="", out.width = '80%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/Schedule_plan_image.png")
+```
+
+However, if topics are very popular (e.g. COVID-19 in 2020 and 2021), then the “search plan” for a query in a given four-hour window may not be completed. If this happens, `episomer` will move on to the “search plans” for the subsequent four-hour window, and put any previous incomplete “search plan” in a queue to execute when “search plans” for this new four-hour window are completed.
+
+Each “search plan” stores the following information:
+
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Field                 Type        Description
+  --------------------- ----------- ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  Network               Text        The name of the social media associated to this plan
+
+  expected\_end         Timestamp   End DateTime of the current search window
+
+  scheduled\_for        Timestamp   The scheduled DateTime for the next request. On plan creation this will be the current DateTime and after each request this value will be set to a future DateTime. To establish the future DateTime, the application will estimate the number of requests necessary to finish. If it estimates that N requests are necessary, the next schedule will be in 1/N of the remaining time.
+
+  start\_on             Timestamp   The DateTime when the first request of the plan was finished
+
+  end\_on               Timestamp   The DateTime when the last request of the plan was finished if that request reached a 100% plan progress.
+
+  plan\_max\_date       Timestamp   The latest date for which this plan will collect messages, it will be defined after the first request.
+
+  plan\_min\_date       Timestamp   The oldest date for which this plan will collect messages it will defined after the first request. The next plan will start collecting posts before this value.
+
+  current\_min\_date    Timestamp   The oldest date for which this plan has actually collected messages. This value is updated after each requests and allow next request to keep going backwards until the plan\_min\_date
+
+  requests              Int         Number of requests performed as part of the plan
+
+  progress              Double      Progress of the current plan as a percentage. It is calculated as (current$plan\_max\_date - current\$current\_min\_date)/(current\$plan\_max\_date - current\$plan\_min\_date). If the underlying API returns no posts the progress is set to 100%. This only applies for non error responses containing an empty list of posts.
+  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+`episomer` will execute plans according to these rules:
+
+-   `episomer` will detect the newest unfinished plan for each search query with the scheduled\_for variable located in the past.
+
+-   `episomer` will execute the plans with the minimum number of requests already performed. This ensures that all scheduled plans perform the same number of requests.
+
+-   As a result of the two previous rules, requests for topics with less messages will end first and will produce higher progress than topics with higher volume of tweets. Particularly when a topic has more messaged than those allowed to be downloaded by the API rate limits, these plans will be paused as newer plans are scheduled for future completion. The rationale behind this is that topics with such a large number of posts that the 4-hour search window is not sufficient to collect them, are likely to already be a known topic of interest. Therefore, priority should be given to smaller topics and possibly less well-known topics.
+
+An example was the COVID-19 pandemic in 2020. In early 2020, there was limited information available regarding COVID-19, which allowed detecting signals with meaningful information or updates (e.g. new countries reporting cases or confirming that it was caused by a coronavirus). However, throughout the pandemic, this topic became more popular and the broad topic of COVID-19 was not effective for signal detection and was taking up a lot of time and requests for `epitweetr`. In such a case it is more relevant to prioritise the collection of smaller topics such as sub-topics related to COVID-19 (e.g. vaccine AND COVID-19), or to make sure you do not miss other events with less social media attention.
+
+If search plans cannot be finished, several search plans per query may be in a queue:
+
+```{r echo=FALSE, fig.cap="", out.width = '80%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/Search_plan_queues.png")
+```
+
+This design can have the draw back of slowing down big topics collection since `episomer` is trying to rebuilt last 30 days of history. If you are not interested in rebuilding history on a particular point of time, you can click on the "Dismiss past posts" button which will discard all previous/historical plans and will start collecting new data.
+
+### Geolocating locations referenced in message content
+
+In a parallel process to the collection of posts, `episomer` attempts to geolocate all collected posts using a supervised machine learning process. This process runs automatically after posts are collected. `episomer` stores location if mentioned in the text of a post (or a reposted or quoted post). 
+
+The post location is extracted and stored by `episomer` based on the geolocation information found within a post text. In case a quoted post, it will extract the geolocation information from the original content and the text accompagning the quote. If neither are available, no post location is stored based on post text.
+
+`episomer` identifies if a post text contains reference to a particular location by breaking down the post text into sets of words and evaluating those which are more likely to be a location by using a machine learning model. If several parts of the text are likely to be a location, `episomer` will chose the one closest to a topici based on keywoeds provided. After the location candidate has been identified `episomer` matches these words against a reference database, which is geonames.org. This is a geographical database available and accessible through various web services, under a Creative Commons attribution licence. The GeoNames.org database contains over 25,000,000 geographical names. `episomer` uses by default those with a known population (so just over 500,000 names). You can change this default parameter in the Shiny app configuration page, by unchecking "Simplified geonames". The database also contains longitude and latitude attributes of localities and variant spellings (cross-references), which are useful for finding purposes, as well as non-Roman script spellings of many of these names.
+
+The matches can be performed at any level of administrative geography. The matching is powered by Apache Lucene, which is an open-source high-performance full-featured text search engine library.
+
+To validate the candidate against geonames, a score is associated with the probability that a match is correct. A score is:
+
+-   Higher if unusual parts of the name are matched
+
+-   Higher if several administrative levels are matched
+
+-   Higher if location population is bigger
+
+-   Higher for countries and cities vs administrative levels
+
+-   Higher for capital letter acronyms like NY
+
+-   Lower for words that are more likely to be other kinds of words (non-geographical). For example, “Fair Play” town in Colorado. This is achieved by using language models provided by fasttext.cc.
+
+You can select which languages you would like to check for other kinds of words by selecting the active language desired within the configuration page of the Shiny app and clicking on the "+" icon:
+
+```{r echo=FALSE, fig.cap="", out.width = '80%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/config_languages.png")
+```
+
+In addition, you can unselect languages by selecting the language within the configuration page of the Shiny app and clicking on the "-"  icon. 
+
+**At least one language must be downloaded before adding new languages or deleting any of the default languages.**
+
+
+A minimum score (i.e., "geolocation threshold") can be globally set in the general settings on the configuration page to reduce the number of false positives (see image). All geolocations with a smaller score than the geolocation threshold will be discarded by the algorithm as post location. If there is more than one match over the minimum score, then the match with the highest score will be chosen.
+
+The threshold is empirically chosen and can be evaluated against a human read of posts and post locations, in the geotag evaluation page.
+
+#### Improving and evaluating geolocation performance
+
+In the Geotag page, `episomer` will allow you to download the data that was used to build the classifiers for location identificaion. The predefined annotations are based on location vs non-location words. Locations are extracted from geonames.org database. Non-location words are obtained from common words in the downloaded models that are not present in GeoNames. You will be able to add posts to the annotation database and to manually annotate them until you reach the expected level of performance.
+
+To help you on the evaluation process, `episomer` will calculate standard machine learning metrics for evaluating its capacity to identify the right location of geolocation words..
+
+
+#### Stored geolocated post information
+
+The geolocation of the match is stored as a country code (using the ISO 3166 standard) and as a longitude and latitude associated with the exact geolocation in the aggregated data.
+
+### Most frequent elements found in and extracted from posts
+
+`Episomer` counts trhree types of elements in posts
+
+  - Words: Words present in posts. Words are then aggregated in the topwords time series
+
+  - Hashtags: hashtags present in posts. Hashtags are then aggregated in the tags time series
+
+  - URLs: URLs present in posts. URLs are then aggregated in the URLs time series
+
+#### Aggregation of data
+
+The aggregation process produces data on five subfolders in "fs" folder: geolocated, country\_counts, topwords, urls, tags, entities and contexts. These folders are splitted on week subfolders and each contains a Lucene index with the aggregated information. This data can be extracted as a dataframe through the public package function 'get\_aggregates'
+
+In the geolocated time series, the number of posts or reposts are stored by topic, date, post text, post geolocation, post longitude and post latitude. Each of these entries also has the country associated with the post text geolocation. Note that posts without geolocation information are also included.
+
+The country\_counts serie is used to create the trend line in the Shiny app. This is a smaller time serie, without the longitude and latitude information, and includes the number of posts by hour within a day, by country (according to post location or user location), topic (see screenshot), and whether a post was a quote or not. The known\_reposts and known\_original fields give the number of posts or reposts from a list of “important users”. In this file, posts without geolocation are also included. Including posts without geolocation information enables you to view all posts when selecting “world” as a region, regardless of whether geolocation was successful or not.
+
+The aggregation by top element is stored in the topwords, URLs and tags subfolders in the fs folder which contain the number of posts and/or reposts by topic, top element, date, country of post location and whether a post was a repost or not (see screenshot).
+
+### Signal detection
+
+The main objective of `episomer` is to detect signals in the observed data streams, i.e. counts in the aggregated time series that exceed what is expected. For detecting signals, `episomer` uses an extended version of the EARS (Early Aberration Reporting System) algorithm [@fricker_comparing_2008], which in what follows is denoted by `eears` (extended EARS). This algorithm is part of the R package `surveillance` [@salmon_monitoring_2016].
+
+As a default it uses a moving window of the past seven days to calculate a threshold. If the count for the current day exceeds this threshold, then a signal is generated.
+
+#### Details of the algorithm underlying signal detection
+
+The `eears` algorithm is applied on the counts from the past seven 24-hour blocks prior to the current 24 hour block of the signal detection. The running mean and the running standard deviation are calculated:
+
+$$
+\overline{y}_{0} = \frac{1}{7}\sum_{t=-7}^{-1} y_{t} \quad\text{and}\quad  s_{0}^{2} = \frac{1}{7 - 1}\sum_{t=-7}^{-1}{(y_{t} - \overline{y}_{0})}^{2},
+$$
+
+where $y_{t}, t=\ldots, -2, -1, 0$ denotes the observed count data time series with time index $0$ denoting the current block. Furthermore, the time index $-7,\ldots, -1$ denote the seven blocks prior to the current block.
+
+Under the null hypothesis of no spikes, it is assumed that the $y_t$ are identically and independently $N(\mu, \sigma^2)$ distributed with unknown mean $\mu$ and unknown variance $\sigma^2$. Hence, the upper limit of a simple one-sided $(1-\alpha)\times$ 100% plug-in prediction interval for $y_0$ based on $y_{-7},\ldots,y_{-1}$ is given as 
+$$
+U_{0} = {\overline{y}}_{0} + z_{1 - a} \times s_{0},
+$$
+where $z_{1 - a}$ is the (1 − α)- quantile of the standard normal distribution. An alert is raised if $y_{0} > U_{0}$ . If one uses α=0.025, then this corresponds to investigating, if $y_{0}$ exceeds the estimate for the mean plus 1.96 times the standard deviation. However, as pointed out by @allevius_prospective_2017, the correct approach would be to compare the observation to the upper limit of a two-sided 95% prediction interval for $y_{0}$, because this respects both the sampling variation of a new observation *and* the uncertainty originating from the parameter estimation of the mean and variance. Hence, the statistical appropriate form is to compute the upper limit by
+$$
+U_{0} = \overline{\ y_{0}} + t_{1 - a}(7 - 1)\times s_{0} \times   \sqrt{1 + \frac{1}{7}}.
+$$
+
+where $t_{1 - a}(k - 1)$ denotes the 1 − α quantile of the t-distribution with k − 1 degrees of freedom.
+
+#### Downweighting previous signals
+
+If previous signals are included without modification in the historic values when calculating the running mean and standard deviation for the signal detection, then the estimated mean and standard deviation might become too large. This may mean that important current signals will not be detected. To address this issue, `episomer` downweights previous signals, such that the mean and standard deviation estimation is adjusted for such outliers using an approach similar to that used in the @farrington_statistical_1996. Historic values that are not identified as previous signals are given a weight of "1". Similarly, historic values identified as signals are given a weight lower than one and a new fit is performed using these weights (scaled s.t. they again sum to 7 observations). Details on the downweighting procedure can be found in [Annex I](#annexI) of this user documentation.
+
+
+#### Timing of signal detection
+
+Signal detection is carried out based on “days”, which are moving windows of 24 hours, moving according to the detect span (see also section *The interactive user application (Shiny app) > The configuration page > General*). The baseline is calculated on these “days” from -1 to -8 (if the current "day" is zero).
+
+Signals are generated according to the detect span (see section *The interactive user application (Shiny app) > The configuration page > General*), with
+
+-   general email alerts sent following this detect span (e.g. if the detect span was four hours, the email alerts will be sent every four hours)
+
+-   email alerts sent in real-time. 
+
+The different types of email alerts for each user can be specified in the configuration page (see section *The interactive user application (Shiny app) > The configuration page > General*).
+
+#### The alpha parameter: the false positive rate of the signal detection
+
+A key attribute of signal detection is the ability of an algorithm to detect true positives (true threats or events) without overloading the episomer analysts with too many false positives. In this way, the alpha parameter determines the threshold of the detection interval. If the alpha is high, then more potential signals are generated and if the alpha is low, fewer potential signals are generated (but potential threats or events could be missed). The setting of the alpha is often done empirically, and depends also on the resources of those investigating the signals and the importance of missing a potential threat or event.
+
+There is a global alpha, that can be set/changed in the `episomer` configuration page under "Signal false positive rate" (see section *The interactive user application (Shiny app) > The configuration page > General*). Additionally, the default alpha can be overridden in the topics list. Here, if you like, you can associate each topic with a specific alpha, depending on the estimated public health importance of the topic or potential associated event or threat.
+
+#### Bonferroni correction
+
+To account for multiple testing, for country-specific signal detection, as a default, the alpha is divided by the number of countries. For continent-specific signal detection, the alpha is divided by the number continents. This is a Bonferroni correction for multiple testing.
+
+To override this, you can uncheck "Bonferroni correction" in the "Signal detection" part of the configuration page in the Shiny app.
+
+
+#### Using same weekdays as baseline
+
+It is possible that there is a "day of the week effect", where more posts may be posted on a given day of the week (e.g. Monday) than on other days. To avoid this, you can also choose to calculate the baseline not on consecutive days, but on the past N days that correspond to the same 24 hour window N days back. This way if N = 7, the baseline is calculated using the “days” from -7, -14, -21, -28, -35, -42, -49 and -56 (if the current "day" is zero).
+
+This option is on the configuration page of the Shiny app "Default same weekday baseline".
+
+#### Sending email alerts
+
+Emails containing a list of signals detected are sent automatically by `episomer` according to the detect span and the subscribers list. Due to the time necessary to collect, geolocate and aggregate the posts, email alerts will miss the most recent posts that have not yet gone to these processes. The lag between posts and alerts is expected to be less than (2 * ( collect\_span ) + detect\_span) which should be 3h30 using default values.
+
+The email alerts will include the following information on the signals for each topic:
+
+-   The date and hour the signal was detected
+
+-   The geographical location(s) where the signal was detected
+
+-   The most frequent elements (top words, URLs, hashtags, contexts and entities) in the posts
+
+-   The number of posts and the threshold
+
+-   The percentage of posts from important users
+
+-   Information on the settings, such as: was the Bonferroni correction used, was the same weekday baseline used, were reposts included, etc.
+
+-   The alert category estimated by `episomer` based on user's annotations
+
+This information is also available in the alerts page of the Shiny app. 
+
+The subscribers can receive real-time alerts (i.e. as soon as the detection loop is finalised) or scheduled alerts (e.g. once or twice a day). The subscribers list can be changed in the configuration page by downloading the Excel spreadsheet. This file has the following variables:
+
+  - “User”: name of the subscriber (e.g. Jane Doe).
+
+  - “Email”: email of the subscriber (e.g. jane.doe@email.com).
+
+  - “Topics”: list of topics for which the subscriber will receive scheduled alerts. The names used must match the column “Topic” in the list of topics.
+
+  - “Excluded”: topic for which the subscribers will not receive scheduled alerts.
+
+  - “Real time Topics”: list of topics for which the subscriber will receive real-time alerts.
+
+  - “Regions”: list of regions for which the subscriber will receive scheduled alerts.
+
+  - “Real time Regions”: list of regions for which the subscriber will receive real-time alerts.
+
+  - “Alert Slots”: these are the detection loop slots after which the subscriber will receive the scheduled alert. Available slots can be taken from “Launch slots” in the “General” section of the configuration page. If no value is included, the subscriber will receive real-time alerts for all topics and regions, even if there are real-time topics or regions specified in the Excel spreadsheet.
+
+  - “One post alerts” (yes/no): Whether you want to receive alerts containing just one post.
+  
+  - “Topics ignoring one post alerts”: Topics that will be ignored for one-post alerts.
+  
+  - “Regions ignoring one post alerts”: Regions that will eb ignored for one-post alerts.
+  
+When including more than one topic and/or region in the subscribers list, these should be separated by semi-colon (;) with no spaces (e.g. Ebola;infectious diseases;dengue). The names must match the column “Topics” in the list of topics and the column “Name” in the country/region list from the configuration page.
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/subscribers.png")
+```
+
+###  Folder structure
+
+`episomer` stores and aggregates posts. When launching the application, you have to designate the location for storing the data and the configuratio files as the “data folder”.
+
+Within the **data** folder there are three JSON files:
+
+-   properties.json, generated from the information from the General properties of the Shiny app
+
+-   topics.bluesky.json managed by the search loop: it keeps a track of post collection plans and progress in Bluesky
+
+-   tasks.json managed by the detect loop: it keeps information and status of the different tasks done by this process.
+
+There are also the following subfolders:
+
+-   "fs", which contains the Lucene indexes for storing posts and aggregated time series
+
+-   "geo", which contains the GeoNames data as text, index files, posts waiting to be geolocated and settings about the geolocation algorithm.
+
+-   "alert-ml", which contains the machine learning models used for alert classification
+
+-   "hadoop", which contains Spark dependencies for Windows operating systems
+
+-   "jars", which contains collections of Java dependencies needed in the geolocation and aggregate processes
+
+-   "languages", which contains fasttext files indexes and models used to perform geolocation in the post text
+
+-   "stats", which contains JSON files with statistics used to optimise the aggregate process by linking post files and posted dates of posts
+
+-   "alerts", which contains JSON files of alerts detected by the requirements & alerts pipeline
+
+-   "collections", which contains the aggregations produced by `episomer`
+
+-   "jobs", containig information of logs produced by the different running processes 
+
+
+#### Fs folder &gt; posts
+In the fs folder, the subfolder “posts” contains Lucene indexes storing the content of the collected posts and the geolocation information.
+
+The *posts* contains subfolders for each week.
+
+The *geolocated folder* contains compressed JSON files with geolocated information produced by the geolocation algorithm.
+
+#### Fs folder &gt; country\_counts, geolocated, tags, topwords, urls
+
+In the folders *country_counts*,  *geolocated*, *tags*, *topwords*, *urls*, `episomer` stores the aggregated data of the geolocated posts as well as the top elements identified.
+
+Each folder is named matching the respective time series and emitted by ISO week of date of publication. Each weekly folder contains a Lucene index.
+
+This is the aggregate information as described in the section “How does it work? General architecture of episomer > Aggregation”.
+
+## The interactive user application (Shiny app)
+
+You can launch the `episomer` interactive user application (Shiny app) from the R session by typing in the R console (replace “data\_dir” with the desired data directory):
+
+```{r, eval=FALSE, echo=TRUE}
+episomer_app("data_dir")
+```
+You can also reduced version of the `episomer` app dedicadet to the interactive dashboard and the administrative featurs.
+
+```{r, eval=FALSE, echo=TRUE}
+# Opens only the interactive dashboard
+dashboard_app("data_dir")
+
+# Opens only the rest of the features with the administrative 
+admin_app("data_dir")
+```
+
+Alternatively, you can use a launcher: Put the following content in an executable bat or sh file, (replacing “data\_dir” with the expected data directory)
+
+R --vanilla -e episomer::episomer\_app('data\_dir')
+
+
+The `episomer` interactive user application has six pages:
+
+-   The dashboard, where a user can visualise and explore posts
+
+-   The alerts page, where a user can view the current alerts and train machine learning algorithms for alert classification on user's defined categories
+
+-   The geotag evaluation page, where a user can evaluate the geolocation algorithm and provide annotations for improving its performance
+
+-   The data protection page, where a user can search, anonymise and delete posts from the `episomer` database to support data deletion requests 
+
+-   The configuration page, where a user can change settings and check the status of the underlying processes
+
+-   The troubleshoot page, with with automatic checks and hints for using `episomer` with all its functionalities and tools to backup & share your installation
+
+
+### Dashboard: The interactive user interface for visualisation
+
+The dashboard is where you can interactively explore visualisations of posts. It includes a line graph (trend line) with alerts, a map and top words, URLs, hashtags, entities and contexts of posts for a given topic. After selecting the parameters, you have to click on the 'Run' button in order to see or refresh the report.
+
+In order to interactively explore the data, you can select from several filters, such as topics, countries and regions, time period, time unit, signal confidence and days in baseline. After selecting the filters, you must click on 'Run' to see the outputs in the dashboard.
+
+Note that whatever options/settings you select on the dashboard, will have no effect on the alert detection. The alert detection settings are all selected in the configuration page of the Shiny app.
+
+#### Filters
+
+**Social Media**
+
+You can select one item from the drop-down list of social media to display in the dashboard. Currently only Bluesky is available.
+
+**Topics**
+
+You can select one item from the drop-down list of topics, which is populated by what is specified in the topics on the configuration page. You can also start typing in the text field and select the topics from the filtered drop-down list.
+
+**Countries & regions**
+
+```{r echo=FALSE, fig.cap="", out.width = '40%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics_countries.png")
+```
+
+If you select **World (all)**, all posts are displayed regardless of their geolocation. You can select an individual country, you can select regions and subregions, and you can select several items at the same time. You can also start typing in the text field and select the geographical item from the drop-down list.
+
+**Period**
+
+```{r echo=FALSE, fig.cap="", out.width = '40%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/period.png")
+```
+
+You can select from the past 7 (the default), 30, 60 or 180 days. You can also select "custom" and a calendar option to select study period will appear. These periods will be the time period for inclusion in the visualisations. When selecting custom period, please ensure that the first date is at least one day before the second date.
+
+**Time unit**
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/time_unit.png")
+```
+
+You can display the timeline for the number of posts with weeks or days as units of time. The default is days.
+
+**Include Reposts/quotes**
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/include_quotes.png")
+```
+
+By default, reposts are not included in any of the visualisations. If “include reposts/quotes” is checked, the visualisations display results of posts and reposts/quotes. Otherwise, the visualisations display only posts (without reposts/quotes).
+
+**Signal detection false positive rate**
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/signal_detection_fpr.png")
+```
+
+Using the slider, you can explore the differences in the signals generated when changing the alpha parameter for the false positive rate. Note that this will not change the signal false positive rate for the alert emails. This is just a tool for you to explore this parameter. The default is 0.025. A higher false positive rate will increase the sensitivity and possibly the number of signals detected, and vice versa.
+
+**Outlier false positive rate and outlier downweight strength**
+
+```{r echo=FALSE, fig.cap="", out.width = '40%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/outlier_dashboard.png")
+```
+
+The outlier false positive rate relates to the false positive rate for determining what an outlier is when downweighting previous outliers/signals. The lower the value, the fewer previous outliers will potentially be included. A higher value will potentially include more previous outliers.
+
+The outlier downweight strength determines how much an outlier will be downweighted by. The higher the value the greater the downweighting. For more information please see [Annex I](#annexI).
+
+**Bonferroni correction**
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/Bonferroni_correction.png")
+```
+
+The Bonferroni correction is selected by default. It accounts for false positive signal detection through multiple testing. For country-specific signal detection, the alpha is divided by the number of countries. For continent-specific signal detection, the alpha is divided by the number continents.
+
+If you do not wish to use this correction, you can uncheck it.
+
+**Days in baseline**
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/days_in_baseline.png")
+```
+
+The default days in baseline is 7. You can explore the effect of having different days in the baseline. This is only for the visualisation, any changes made for the email alerts have to be made in the configuration page.
+
+**Same weekday baseline**
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/same_weekday_baseline.png")
+```
+
+It is possible that there is a "day of the week effect", where more posts may be posted on a given day of the week (e.g. Monday) than on other days. You can also select to calculate the baseline not on consecutive days, but on the past N days that correspond to the same 24 hour window N days back. This way if N = 7, the baseline is calculated using the “days” from -7, -14, -21, -28, -35, -42, -49 and -56 (if the current "day" is zero).
+
+
+#### The timeline
+
+The timeline graph is a time series, where you can see the number of posts for a given topic, geographical unit and study period. Signals are indicated as triangles on the graph, with the alpha and baseline days as specified in the filters. The area under the threshold is indicated in the shaded green colour. Note that the signals are related to the choice of alpha and days in baseline in the filters on the dashboard, rather than what is used for the alert emails. This way you can explore the effect of changing these parameters and adapt the settings for the alert emails if needed.
+
+If you hover over the graph, you obtain extra information on country, date, number of posts and the number of posts from the list of known users, the ratio of known users to unknown users, whether the number of posts was associated with a signal and what the threshold and the alpha was.
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/hover_trendline.png")
+```
+
+
+#### Map
+The map shows a proportional symbol map of the posts by country and by topic for the study period. The larger the circle, the greater the number of posts.
+
+The geographical information for the map is based on the choice in the filters: the country/region/subregion and the location type (post, user or both).
+
+```{r echo=FALSE, fig.cap="", out.width = '60%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/hover_map.png")
+```
+
+When you hover over the map, you can get information on number of posts and names of the geographical units underlying the circles on the map.
+
+When selecting one country, the symbols show the geographical distribution of posts at subnational level. When selecting two or more countries or other geographical entity (e.g. regions or continents), the symbols show the geographical distribution of posts at national level. Note that if a post has a geotag at country level (e.g. France), it will not be displayed when selecting only that country since no subnational geotagging is available.
+
+#### Most frequent words, tags and URLs found in or extracted from posts
+
+```{r echo=FALSE, fig.cap="", out.width = '50%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/top_words.png")
+```
+
+These graphs display the top elements of posts by topic for the study period for the geographical units chosen, and according to the filter on post/repost.
+
+One figure displays the most frequent words. A second figure displays hashtags. A third figure displays the most frequent URLs as a table allowing users to click directly on the links to access these in the browser.
+
+### The alerts page
+
+The alerts page summarises the signals detected within the specified study period and provides functionality for adding annotations for training machine learning algorithms to classify alerts on user's defined topics. This page is splitted on two sections
+
+#### Find alerts
+
+Shows alerts generated by episomer. If you have provided a training set for alert classification, the category evaluated at the time of generation will be displated. If the alert is part of the training setthe vategory displayed would be the one specified by you.
+
+The lisf of alerts can be filtered based on the following elements: date, topics, countries/regions. These three filters will define the scope of alerts to search. Also two modifiers are available for searching:
+
+-   Display: Choose the columns to display on the search results
+
+    -    Posts: Focused on showing relevant information of the alert. Including posts that are more similar to top words of the alert on the associated period and countries. The following columns are displayed for alerts: Date, Hour, Topic, Region, Category, Tops, Posts, Top posts.
+    -    Parameters: Focused on showing the parameters of the alerts that were produced. The following columns are displayed for alerts: Date, Hour, Topic Region, Category, Tops, Posts, % from important user, Threshold Baseline, Bonf. corr., Same weekday baseline Day, rank,  With reposts Location,  Alert FPR (alpha), Outlier FPR (alpha). 
+
+-   Limit: Maximum number of alerts to be displayed.
+
+-   Hide Alerts, Search Alerts: Buttons to hide or display the alerts associated with the filters selected by you.
+
+-   Add alerts to annotation: The alerts returned by the search are added to the annotations database so you can annotate and classify them.
+
+#### Alerts annotations
+
+`episomer` classify alerts using top words and top posts using annotations provided by end users through the alert annotation spreadsheet. You can define different algorithms and its parameters using the `runs` spreadsheet on the training database. `episomer` will find the best algorithm to perform the classification. `episomer` will randomly split the annotations database assigning 75% of the alerts for training and 25% of alerts for evaluation. All the algorithms you have provided and/or the three `episomer` predefined algorithms will be tested and the best in terms of F1 score will be selected to classify new alerts. From that moment, the category of new alerts will be predicted using the best algorithm. The algorithm is not used to predict the category retrospectively (historical alerts), only prospectively (new alerts).
+
+You can show, hide, download and upload the alert annotation spreadsheet using the buttons available.
+
+The alert annotation spreadsheet has two sheets that will be used as explained below:
+
+-   Alerts sheet:
+
+    -    Date: Date when the alert was identified
+    -    Topic: Topics associated with the alert
+    -    Region: Region where the alert was detected
+    -    Top words: Top words identified for the alert
+    -    Posts: Number of posts onserved on the last 24 hours on the alert
+    -    Top Posts: The posts that contains the most of the topwords associated to the alerts on the alert period and geographical location
+    -    Given Category: The category you have provided. *This is the only column that you need to update to classify alerts*
+    -    Episomer Category: The category associated by episomer using the last version of the alert classification algorithms. Please note that this is only a reference value that include overfitting since the final algoritms is trained with all annotated alerts.
+
+-   Runs sheet: A registry of algorithms and parameters to test including performance metrics on the last evaluation.
+
+    -    Ranking: The ranking of the algorithm in terms of F1 score
+    -    Models: The name of the model, referenced by the Apache Spark class. It has no inherit from the classifier class [*://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/classification/Classifier.html*]
+    -    Alerts: The number of alerts used for the training.
+    -    Runs: The number of runs to perform to evaluate the algorithm. Each run will make a different random split (if balance classes is set this will be limited to one).
+    -    F1Score: The F1 score of all classes as provided by Apache Spark [*MulticlassClassificationEvaluator*](https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/evaluation/MulticlassClassificationEvaluator.html)
+    -    Accuracy: The Accuracy of all classes as provided by Apache Spark [*MulticlassClassificationEvaluator*](https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/evaluation/MulticlassClassificationEvaluator.html)
+    -    Precision by Class: The Precision by each category as provided by Apache Spark [*MulticlassClassificationEvaluator*](https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/evaluation/MulticlassClassificationEvaluator.html)
+    -    Sensitivity by Class: The Sensitivity by each category as provided by Apache Spark [*MulticlassClassificationEvaluator*](https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/evaluation/MulticlassClassificationEvaluator.html)
+    -    FScore by Class: The FScore by each category as provided by Apache Spark [*MulticlassClassificationEvaluator*](https://spark.apache.org/docs/latest/api/scala/org/apache/spark/ml/evaluation/MulticlassClassificationEvaluator.html)
+    -    Last run: The last time and date where this run was evaluated
+    -    Balance classses: If set to active (1) then episomer will apply augmentation to the alert training set by adding new sinthetic alerts using other top words with less ranking within the selected period. augmentation will be applied until the less representative class will reach the same amount on elements than the bigger category. If not possible, the categories with more elements will be sampled until all categories are nearly equal. 
+    -    Force to use: If set to active (1) episomer will use the selected algorithm configuration to evaluate alerts independently of f1score ranking.
+    -    Active: Whether the run is active (1) or not (0). Only active runs will be tryed to choose the best algorithm and parameters.
+    -    Documentation: A link to the algorithm documentation
+    -    Custom Parameters: A json object providing values for parameters for the given algorithm. The possibility to perform grid search strategies can be achieved by adding the same algoritm on several lines with different parameters.
+
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/alerts.png")
+```
+
+### The geotag page
+This page supports the improvement of the geolocation algorithm. Episomer will allow you to download the data that was used to build the classifiers for location identification. The predefined annotations are based on location vs non location words. Locations are extracted from geonames.org data base. Non location words are obtained from common words on the downloaded models that are not present on GoNames. You will be able to add posts to the annotation datanbase and to manually annotate them until you reach the expected level of performance.
+
+To help you on the evaluation process `episomer` will calculate standard machine learning metrics for evaluating its capacity to identify the right location in texts. These metrics are separately calculated by different type of texts: Post location, Post text, Post user description and total.
+
+The following controls are available:
+
+-   Posts to add: Choose the number of posts to add to the geolocation spreadsheet
+-   Geolocate annotations: Pressing this button will add the selected number of annotations to the `episomer` geolocation spreadsheet and evaluate the geolocation algorithm on the current annotations
+-   Download annotations: Download the current version of annotations
+-   Upload & evaluate annotations: Upload a new version of the geolocation annotations to improve annotations performance. The algorithms for location identification will be trained using the provided data. Also performance metrics will be calculated using 75% of the data for training and 25% for test. The final model is trained using all data.
+
+The geolocation spreadsheet has the following columns:
+
+-   Type: This column is a reference for you to understand the kind of annotation. It can be any of the following.
+    -   Text: A text that can contains locations inside it can be a post or a user description.
+    -   Location: A text containing a location.
+    -   Person: A known person e.g. presidents that can be used by `episomer` to detect countries. This data is not used for training, just for over-writing the algorithm behaviour.
+    -   Demonym: A known word to associate to a country e.g. Chilean. This data is not used for training, just for over-writing the algorithm behaviour.
+-   Text: The text associated to this annotation.
+-   Location in text: The subpart of the text that contains a location. If many locations are present, the same line can be duplicated with different values on this column. If this column is empty `episomer` assumes that the annotation is associated with all the text.
+-   Location yes/no: whether the current text contains a location (demonym and people are not considered as location).
+-   Associate country code: Whether `episomer` should memorize the annotated text and bypass the machine learning algorithm to always associate the given text to the country (or geonames city) indicated by the provided code.
+-   Associate with: Whether `episomer` should memorize the annotated text and bypass the machine learning algorithm to always associate the given text to the country (or geonames city) indicated by the provided name.
+-   Source: The source of the annotation, it can be any of: Episomer database (provided by `episomer` team), Episomer model (obtained automatically by `episomer`) or Post (obtained from a post).
+-   Post Id: The post id if the text is associated to a post.
+-   Lang: The language associated to the annotation.
+-   Post part: The post part if associated to a post. It can be any of: "text", "user description" or "user location".
+-   Episomer match: The location found by `episomer`
+-   Episomer country match: The country of the location found by `episomer`.
+-   Episomer country code match: The country code of the location found by `episomer`.
+
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/geotag_evaluation.png")
+```
+
+### The data protection page
+In the data protection page, you can search, anonymise and delete posts from the `episomer` database to support data deletion requests.
+
+The following search filters are available: Topic, period, country & regions, mentioning (for selecting only mentions of the provided users), from users (for selecting only posts from the provided users) and both (for getting posts either mentioning or from the provided user)
+
+The following controls are available:
+-   Limit: Limit the perimeter of the search to the first "limit" posts
+-   Search: Perform the search and show the results on the screen.
+-   Anonymised search: Perform the search and show anonymised results on the screen. User mentions and authors are replaced by a mention USER.
+-   Anonymise: Permanently replace all matching posts user mentions and authors  by USER.
+-   Delete: Permanently delete all the matching posts.
+
+### The configuration page
+
+In the configuration page, you can change settings of the tool, you can check the status of the various processes/pipelines of the tool and you can add, delete and modify topics and their associated requests, languages for geolocation and the list of the “important users” and email alert subscribers. When changing anything in the “Signal detection” or “General” sections, do not forget to click on the “Update Properties” button at the end of the “General” section. The following sections describe the configuration page in more detail.
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/config.png")
+```
+
+**Status**
+
+The status section enables you to quickly assess the latest time point and/or status of the processes for post collection (Post Search), and geolocation, aggregation and signal detection (Detection pipeline).
+
+```{r echo=FALSE, fig.cap="", out.width = '50%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/status.png")
+```
+
+In the status section, you can tell if the embedded database, the search pipeline and the detect pipeline processes are running. You can click on “activate” or “stop” the episomer tasks. On Windows the tasks wim be permanently registered as scheduled tasks so they will run automatically or can be manually run from the Windows task scheduler.
+
+
+**Requirements & alerts pipeline**
+
+You need to run manually the tasks of dependencies, geonames and languages by clicking in the buttons “Run dependencies”, “Run geonames” and “Run languages” the first time you use `episomer`, and then only if you are downloading new versions. 
+
+Geonames and languages relate to the geolocation and language models used by episomer. If you would like to update them (this is not something that needs to be done regularly, more on a yearly basis or so), then you can click on “Run”. When running the 'download dependencies' task, `episomer` will request you to stop the 'episomer database' in order to perform the update. 
+
+The “Run alerts” button can be used to force the start of this task in case there is any error or issue. You can check their status in the “Requirements & alerts pipeline” table.
+
+The 'Requirements & alerts pipeline' table gives more information about the status of the processes of `episomer`. This is useful for troubleshooting any issues arising and for monitoring the progress. It contains the five tasks that are running in the background. GeoNames and languages are tasks that will download and update the local copies of these. This will only be triggered if we add a language or update GeoNames. The start and end dates will generally be much older than those of geotag, aggregate and alerts.
+
+Alerts dates should be more recent if the 'data collection & processing' and 'requirements & alerts' pipelines are active and running. These are scheduled according to the detect span. The status can include running, scheduled, pending, failed or aborted (if it has failed more than three times).
+
+```{r echo=FALSE, fig.cap="", out.width = '70%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/detection_pipeline.png")
+```
+
+
+**Signal detection**
+
+In the signal detection section in the configuration page, you can set the signal false positive rate alpha parameter, which increases (if larger) the the detection interval (more signals are detected), or decreases (if smaller) the detection interval (fewer signals are detected).
+
+```{r echo=FALSE, fig.cap="", out.width = '50%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/signal_detection_config.png")
+```
+
+The outlier false positive rate relates to the false positive rate for determining what an outlier is when downweighting previous outliers/signals. The lower the value, the fewer previous outliers will potentially be included. A higher value will potentially include more previous outliers.
+
+The outlier downweight strength determines how much an outlier will be downweighted by. The higher the value the greater the downweighting. For more information please see [Annex I](#annexI).
+
+`episomer` calculates a threshold to determine if the current number of posts for a given 24-hour window exceeds what is expected (see section *"How does it work? General architecture behind episomer > Signal detection"*). This threshold is based on a default of the previous 7 days. In the “default days in baseline” field, you can change the number of days.
+
+You can also change the default of using the previous 7 days for calculating a baseline to the previous 7 same days of the week, in order to avoid a "day of the week effect" (it may be that there are always more posts about this topic on a Monday, for example, which could affect the signal detection).
+
+You can also specify if the signal detection is carried out just with post text, or includes reposts/quotes (check the box "Default with reposts/quotes").
+
+The last checkbox "Default with Bonferroni correction", take multiple testing into account, which can result in false positives. If this box is checked then the signal detection alpha parameter is divided by the number of geographical locations in which signal detection is carried out. For example, at country level, the alpha parameter is divided by the total number of countries. At continent level, the alpha parameter is divided by the total number of continents.
+
+When changing anything in the “Signal detection” section, do not forget to click on the “Update Properties” button at the end of the “General” section.
+
+
+**General**
+
+```{r echo=FALSE, fig.cap="", out.width = '40%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/general.png")
+```
+
+-   In **Data directory** you can view the directory that `episomer` uses to store the post and associated data collected. This is also the directory that the dashboard uses to obtain the datasets for displaying the visualisations. You need to set this folder when you launch `episomer` or set the environment variable 'EPI\_HOME'.
+
+-   The **Search span** relates to how long a search plan is carried out. The default is 60 minutes. This value controls the size of the search window of posts. If you reduce this value you will get posts sooner, but you may 'waste' requests on topics with very few posts. If you increase its value you will take more time to get the posts but you will get more requests for popular posts increasing the chances of being exhaustive. You can see when you are not able to collect the posts on the Shiny configuration page if you have more than one active plan for some topics.
+
+-   The **Detect span** relates to how frequently the processes of the detection pipeline (geotagging, aggregation and alert detection) are carried out. The default is 90 minutes. Email alerts are sent at the end of the detect loop. This value is treated as a lower bound, the detect loop could take more time to finish depending on the volume of tweeets and your system specifications. 
+
+-   The **Launch slots** for the detection pipeline processes will be spaced out according to the "Detect span", with the first one starting at midnight. These values can be used in the subscribers file of the configuration page.
+
+-   To avoid storing credentials in plain files, `episomer` uses a system dependent password store functionality, which is stored in the **Password store**. Depending on your system you can choose the mechanism that suits the environment where `episomer` is running. For details on each implementation see [*https://CRAN.R-project.org/package=keyring*]
+
+     -   wincred: (Windows only) uses the windows credential manager.
+
+     -   macos: (MAC only) uses the Mac OS keychain services
+
+     -   file: Uses password protected encrypted files
+
+     -   secret service: (Linux only) uses Linux secret service
+
+     -   environment: Uses environment variables (extra setup needed, see [*https://CRAN.R-project.org/package=keyring*])
+
+-   **Spark cores and spark memory:** The memory allocation for `episomer` in terms of CPU (Spark cores) and RAM (Spark Memory) is also defined in the “general” section. The default is 6 cores and 6 GB of RAM. This will depend on the CPU and RAM capacity of your machine and it has to be equal or less than that.
+
+-   **Geolocation threshold:** During the geolocation process, sets of words are processed and potential matches to existing locations are determined and given a score. The higher the score, the greater the probability that the geolocation is correct. A threshold is set in `episomer`, under which any matches are not considered good enough for geolocation. The scale goes from 1 to 10, and the default is set at 5.
+
+-   **Geonames URL:** The URL used to download the GeoNames database (used for generating locations) is in the general section. Should this URL ever change, you can make the amendment here.
+
+-   **Simplified geonames:** As GeoNames is a very large file, a simplified version of it is used by default, including only existing geographical locations where the population is known. You can uncheck this option if you wish to use the whole GeoNames database.
+
+-   **Stream database results:** Whether to store files on disk instead of performing streaming evaluation of aggregated data frames coming from the episomer database. If loading the dashboard takes too long, try selecting/unselecting this.
+
+-   **Maven repository:** This is the URL of the maven repository that will be used to download the JAR dependencies for the detect loop, mainly Spark and Lucene.
+
+-   **Winutils URL:** This is the URL that will be used to download winutils.exe. This is a Windows binary necessary for running Spark locally on Windows. If you do not want to use this version you can produce it yourself by downloading Hadoop 2.8.4 or higher and compiling it on a Windows machine.
+
+-   **Region disclaimer:** If you would like to add a disclaimer to the map you are using. This disclaimer is added to the image export of the dashboard map, and also the PDF export of the dashboard.
+
+```{r echo=FALSE, fig.cap="", out.width = '30%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/region_disclaimer.png")
+```
+
+**Email authentication (SMTP)**
+
+In this section, you need to specify the email authentication (SMTP) details for the email that will send the alerts.
+
+If **Unsafe certificates** is checked, then `episomer` will use your SMTP server even if the server sends an invalid certificate.
+
+When changing anything in the “general” section, do not forget to click on the “Update Properties” button.
+
+**Social Medias**
+This section list the supported social media and allows you to set credentials and use for each social media provider. Actually only Bluesky is supported.
+
+You can set:
+
+-   Which social media are active. This parameter can limit which social media are used for data collection and therefore available in the dashboad.
+-   Which social media are considered for alerts. This parameter social media being considered for alert detection. Please note that numer of messaged are sum between all social media before calculating alerts.
+-   API credentials for data collection. In the case of Bluesky you have to input a valid username and password.
+
+**Topics**
+
+Topics are what determines what posts `episomer` collects. This is done via an Excel spreadsheet that contains the topics and the associated requests that `episomer` uses to query the API with.
+
+A query consists of keywords and operators that are used to match on post attributes. See section *"How does it work? General architecture behind episomer > Collection of posts > Topics of posts to collect and queries"* for more details about queries.
+
+`episomer` comes with a default list of topics as used by the ECDC Epidemic Intelligence team at the date of package generation (*1^st^ of September, 2020*). You can download this list of topics and upload your own in the “Available Topics” section in the configuration page. See section *"How does it work? General architecture behind episomer > Collection of posts > Topics of posts to collect and queries"* for more details on how to structure the topics list.
+
+In the topics section on the configuration page, you can view the topic, the associated query, the query length and how many active search plans are associated with the query. If more than one search plan is active, this means that `episomer` did not manage to collect all possible posts in the last session. Additionally, you can see the progress and the number of requests from the last search plan.
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics.png")
+```
+
+**Languages**
+
+In the languages section, you can determine which language models are used to identify text during the geolocation process. The default languages are French, English, Portuguese and Spanish. You can download and upload the language models in the “Available Languages” section and add and delete languages used by `episomer` in the “Active Languages” section. Please consider the computational cost of adding too many languages, depending on the capacity of your machine.
+
+**All default languages (English, French, Spanish and Portuguese) must be downloaded before adding new languages or deleting any of the default languages.**
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/languages.png")
+```
+
+### The troubleshoot page
+The troubleshoot page has two functionalities "Create a snapshot file" and "Diagnostics"
+
+## Create a snapshot file
+Back-ups your `episomer` installation with all its settings and data on a single file. You can choose which kind of data you want to include on your snapshot between: Settings, dependencies, machine learning, aggregation (time series & alerts) posts & logs. This feature has been designed with two purposes:
+- Troubleshoot: If you have an issue running `episomer` you can easily create a snapshots to share with your support team.
+- Compliance: Sometimes you may need to delete old data from `episomer`. With this feature you can choose the create a snapshot file for last N months of posts and last M months of aggregated data. You can then backup your existing data folder and restore your snapshot file instead. Everything should work as before but only the period you selected should be available. After testing that everything is as you expect you can delete the old data folder.
+
+## Diagnostic
+Provides a list of automatic checks and hints for using `episomer` with all its functionalities. Click on "Run diagnostics" to see the list of checks, whether it passed the check ("true") or not ("false"), and hints in case it did not pass the check. More detailed information can be found in [Annex II](#annexII) of this user documentation.
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/troubleshoot.png")
+```
+
+### Downloading outputs from the interactive user interface (Shiny app)
+
+Each visualisation on the Shiny app dashboard can be downloaded as an image, using the "image button". A png is a portable network graphic file and is a versatile file format for images that do not need to be of a very high resolution (e.g. professional print graphics).
+
+Note that the png format is not supported in the Internet Explorer browser (but you can download a svg file instead).
+
+You can also download the data of each visualisation by clicking on the data button. This will give you a csv file containing the underlying data that you can use for further analysis or to create your own graphs.
+
+Alternatively, you can use the PDF or the Md button at the bottom of the filters to download a PDF or an HTML file of the dashboard Note that for this you will need to have MiKTeX or TinyTeX installed.
+
+## Annex I: Downweighting the previous signals {#annexI}
+
+## Introduction
+
+In this annex we propose a downweighting approach built as part of the `eears` algorithm used in the `episomer` package and which was described above.
+
+Let the $\mathbf{y}$ denote the vector of historic values which is of length $n$. Part of the computation of the prediction interval at time 0 is the computation of the mean and standard deviation of these historic values, i.e.
+$$
+\overline{y}_0 = \frac{1}{n}\sum_{t=-n}^{-1} y_{t} \quad\text{and}\quad s_0^2 = \frac{1}{n-1} \sum_{t=-n}^{-1} (y_{t} - \overline{y}_0  )^2
+$$
+The upper limit of the one-sided $(1-\alpha)\times 100\%$ prediction interval for the observation $y_0$ under an $y_t \stackrel{\text{iid}}{\sim} N(\mu, \sigma^2), t=-n, \ldots, 0$ model is then computed as 
+$$
+U_0 = \overline{y}_0 + t_{1-\alpha}(n-1) \times s_0 \times \sqrt{1+\frac{1}{n}},
+$$
+where $t_{1−\alpha}(n − 1)$ denotes the $1 − \alpha$ quantile of the t-distribution with $n − 1$ degrees of freedom. This computation of the threshold corresponds to a statistical sound computation of the threshold [@allevius_prospective_2017].
+
+A desired extension of the above algorithm is the handling of previous signals in the historic values. This problem was already addressed in the quasi-Poisson framework of @farrington_statistical_1996 by first performing a GLM fit and then re-fit the GLM with weights  based on the Anscombe residuals. We follow the same general idea, but adapt it to the Gaussian response used in the EARS algorithm and corresponding residuals from the linear model.
+
+### EARS as a Linear Model
+
+We first observe that the above estimation of $\mu$ and $\sigma^2$ through $\overline{y}_0$ and $s_0^2$ at time 0 can be embedded within a linear regression model, i.e. for $i=1, \ldots, n$ we model
+$$
+y_i = \mu + \epsilon_i, \quad\text{where}\quad \epsilon_t \stackrel{\text{iid}}{\sim} N(0, \sigma^2).
+$$
+Note that we, for compatibility with the standard exposition in linear model theory, have indexed the $y$ values s.t. $y_{-n}$ corresponds to $y_1$ and $y_{-1}$ corresponds to $y_n$. In matrix terms let $\mathbf{y} = (y_{1},\ldots,y_n)'$ and for the intercept-only model the design matrix is $\mathbf{X} = (1,\ldots,1)'$, which has rank $k=1$. Thus from standard OLS theory:
+$$
+\begin{align*}
+\hat{\mu} &=  (\mathbf{X}'\mathbf{X})^{-1} \mathbf{X}' \mathbf{y} = \frac{1}{n}\sum_{i=1}^n y_i,
+\end{align*}
+$$
+which corresponds to $\overline{y}_0$. Furthermore, let the raw residuals be defined as $e_i = y_i - \hat{\mu}$ for $i=1,\ldots, n$ and denote by $\mathbf{e}=(e_1,\ldots,e_n)'$ the corresponding vector of residuals. Then
+$$
+\mathbf{e} = \mathbf{y} - \hat{\mathbf{y}} = \mathbf{y} - \mathbf{P} \mathbf{y} = (\mathbf{I}-\mathbf{P}) \mathbf{y}
+$$
+where $\mathbf{P} = \mathbf{X} (\mathbf{X}'\mathbf{X})^{-1}\mathbf{X}'$ is the so called hat-matrix known from linear modelling. With this notation we can write up the estimate for $\sigma^2$ as in @chatterjee_sensitivity_1988:
+
+$$
+\hat{\sigma}^2 = \frac{\mathbf{e}' \mathbf{e}}{n-k} = \frac{\mathbf{y}'(\mathbf{I}-\mathbf{P})\mathbf{y}}{n-k} = \frac{1}{n-1} \sum_{t=-7}^1 (y_t - \hat{\mu})^2,
+$$
+which corresponds to the above used expression for $s_0^2$.
+
+### Downweighting
+
+We now compute the so called **externally Studentized residuals** [@chatterjee_sensitivity_1988]
+$$
+r_i^* = \frac{e_i}{\hat{\sigma}_{(i)}\sqrt{1-p_{ii}}}, \quad i=1, \ldots, n,
+$$
+where $p_{ii}$ is i'th diagonal element of the hat-matrix $\mathbf{P}$ from the corresponding linear model used above. Furthermore,
+$$
+\hat{\sigma}_{(i)}^2 = \frac{\mathbf{y}_{(i)}' (\mathbf{I}-\mathbf{P}_{(i)}) \mathbf{y}_{(i)}}{n-k-1}
+$$
+is the variance estimate obtained from a linear regression, where the i'th observation is removed. Linear modelling theory [@chatterjee_sensitivity_1988] now states that 
+$$
+r_i^* \stackrel{\text{identical}}{\sim} t(n-k-1).
+$$
+Note that the residuals are only identically distributed, because they are not independent (see Section 4.2.1. of @chatterjee_sensitivity_1988 for details). However, the above distributional form allows us to assess for each historic value, if it can be considered as an outlier. 
+For this purpose define $r_{\text{threshold}}$ as the $1-\alpha_{\text{outlier}}$ quantile of the t-distribution with $n-k-1$ degrees of freedom.
+A historic value is an outlier (for which one possible explanation is that it originates from a true increase in posts, e.g. an outbreak situation), if
+$r_i^* > r_{\text{threshold}}$. We shall use this to formulate a weighting schemes for the historic values:
+
+Downweight-Outliers:
+$$
+\begin{align}
+w^{(\text{dw})}_i &= \left\{
+\begin{array}{ll}
+1 & \text{if } r_i^* < r_{\text{threshold}}\\
+\left(\frac{r_{\text{threshold}}}{(r_i^*)}\right)^k & \text{otherwise}
+\end{array}
+\right. \\
+&= \min\left\{1,\left(\frac{r_{\text{threshold}}}{r_i^*}\right)^k\right\},
+\end{align}
+$$
+where the decay parameter $k>0$ is a known quantity. In the original @farrington_statistical_1996 algorithm, $k=2$ was used. Furthermore, a threshold value of 1 was used. In the later @noufaily_improved_2013 paper, however, a threshold value of 2.58 was recommended. Note: both values are for the standardized Anscombe residuals, which follow a standard normal distribution. If we take corresponding quantiles for the t-distribution with 6 degrees of freedom the values would be `r sprintf("%.2f",qt(pnorm(1), df=6))` and `r sprintf("%.2f",qt(pnorm(2.58), df=6))`.
+Note also that the term $(r_{\text{threshold}}/r_i^*)^k$ is a slight adaptation of @farrington_statistical_1996, which instead uses $1/(r_i^*)^2$. The advantage of our proposal is that it ensures a smooth handling of values around the threshold if the threshold is not 1. It might be worth considering a higher power than 2 to ensure an even larger down-weighting for gross outliers. The current default value for the decay parameter in `episomer` is 4.
+
+Finally, as in @farrington_statistical_1996, we normalise the weights such that they yield a sum of $n$ by
+$$
+w_i^* = n \times \frac{w_i}{\sum_{i=1}^n w_i}
+$$
+and then re-fit the linear model with these weights. For this purpose define the weight matrix as $\mathbf{W} = \operatorname{diag}(w_1^*,\ldots,w_n^*)$. We can use a subsequent weighted least squares approach to find
+$$
+\begin{align*}
+\hat{\mu}_W &=  (\mathbf{X}' \mathbf{W} \mathbf{X})^{-1} \mathbf{X}' \mathbf{W} \mathbf{y} = \frac{1}{n}\sum_{i=1}^n w_i^* y_i,
+\end{align*}
+$$
+where the 2nd equal sign is because $(\mathbf{X}' \mathbf{W} \mathbf{X})=\sum_{i=1}^n w_i=n$
+and $\mathbf{X}' \mathbf{W} \mathbf{y} = \sum_{i=1}^n w_i^* y_i$.
+Furthermore,
+$$
+s_W^2 = 
+\frac{\mathbf{y}'(\mathbf{I}-\mathbf{P}_W)\mathbf{y}}{n-k} =
+\frac{\sum_{i=1}^n w_i^*(y_i - \mu_W)^2}{n-1},
+$$
+where $P_W = \mathbf{X} (\mathbf{X}'\mathbf{W} \mathbf{X})^{-1}\mathbf{X}\mathbf{W}$ is the hat-matrix of the weighted least squares.
+
+The downweighted procedure thus operates with $\mu_{W}$ and $s_W^2$ instead of $\overline{y}_0$ and $s_0^2$, respectively, when computing the upper limit $U_0$ using the above mentioned formula.
+
+### Example of the downweighting approach using Ebola data
+
+Figure 5 below shows the upper limit of the signal detection threshold for `episomer` Ebola data, both the original (in red) with no downweighting and the downweighted upper threshold (in blue) after taking previous signals in the historic values into account. Note that the downweighted upper threshold detects three additional signals, compared to the original threshold. 
+
+<center>Fig 5: Upper limit with and without downweighting for the episomer Ebola data</center>
+
+```{r echo=FALSE, fig.cap="", out.width = '100%'}
+knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/ebola.png")
+```
+
+## Annex II: Troubleshooting and tips {#annexII}
+
+This annex contains some tips and common solutions to errors or issues that `episomer` users may encounter, including an explanation on the checks included in the troubleshoot page.
+
+In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
+
+### The troubleshoot page
+After running the diagnostics in the troubleshoot page, you can see the checks and status on the following aspects:
+
+-   **scheduler**: R package `taskscheduleR` is installed. Only applicable for Windows machines
+-   **sm_auth**: Social media token has been created after authenticating either with the provided credentials
+-   **search_running**: search task is running
+-   **database_running**: embedded database is running
+-   **posts**: posts have been collected
+-   **os64**: R is 64bits
+-   **java**: Java is installed and accessible to episomer
+-   **java64**: Java 64bits is installed and accessible to episomer
+-   **java_version**: the Java version installed is compatible with `episomer`
+-   **winmsvc**: Microsoft Visual C++ 2010 SP1 Redistributable Package is installed. Only applicable for Windows machines
+-   **detect_activation**: detect loop has been activated
+-   **detection_running**: detection task is running
+-   **winutils**: winutils is installed. If false, it can be downloaded by running the update dependencies task. Only applicable for Windows machines
+-   **java_deps**: java dependencies are installed 
+-   **move_from_temp**: `episomer` can atomically move files from temporary folder to data directory
+-   **tar_gz**: checks if tar.gz can be built, which is necessary for creating a compressed snapshot.
+-   **geonames**: Geonames.org database is downloaded and indexed
+-   **languages**: languages vectors are downloaded and indexed
+-   **aggregate**: aggregate task has successfully run
+-   **alerts**: alerts have been created
+-   **pandoc**: Pandoc is installed and accessible to `episomer`. Necessary for PDF creation.
+-   **tex**: a tex distribution is installed and accessible to `episomer`. Necessary for PDF creation.
+
+### Management of episomer pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') in Windows 
+After activating the three pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') from the configuration page of `episomer` (Windows), three tasks will be created in the task scheduler and three terminal windows will be prompted. Please note that if the computer is logged/turned off or the terminal windows are closed, the pipelines will stop.
+
+If you activate these tasks from the configuration page of `episomer` again, the system will overwrite the tasks created in the task scheduler. Instead, after the first successful activation of these tasks from `episomer`, you can easily manage these from the task scheduler. You can stop these tasks by ending and disabling the tasks in the task scheduler, and you can restart these tasks by enabling and running these in the task scheduler.
+
+You can also force stopping these tasks in the configuration page of `episomer` by clicking on 'stop'.
+
+In the task scheduler, you can establish that the tasks “run whether the user is logged on or not” to avoid that these tasks stop when you log off or restart the computer. In this case, you may not see the prompted terminal windows when the tasks are running. 
+
+### Management of episomer pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') in Linux and Mac
+Since the three pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') in Linux or Mac have to be run manually, if the computer is logged/turned off or the terminal windows are closed, the pipelines will stop. Please remember to follow the steps in the section *Setting up post collection and the alert detection loop* to run these tasks again.
+
+The pipelines can be also stopped in the configuration page of `episomer` by clicking on 'stop'.
+
+### Running 'episomer database', 'Data collection and processing' and 'Requirements and alerts' pipelines
+
+#### "Cannot execute task \#####: the task is already running"
+Each pipeline creates a file containing their process IDs located in the `episomer` data folder: fs.PID, search.PID and detect.PID. This error arises if `episomer` finds another R process currently running with the same ID. In order to fix this error, you should first verify if the pipelines are already running in another R session. If this is the case, you should not try to start the pipeline since `episomer` only supports one instance of the same pipeline running in the same machine. If the running process is not associated with the task, then you can manually delete the PID file and try to start it again.
+
+#### "Failed while processing alerts"
+The error "failed while processing alerts Error in do_next_alerts(tasks): Cannot determine the last aggregated period for alert detection. Please check that series have been aggregated" appears when there are no aggregated series to calculate the alerts. This can happen in the following cases:
+* No posts have been collected in the past days so there were no posts available to produce the aggregated series
+* Geonames and/or languages are not downloaded so the geolocation cannot be extracted from the posts and, consequently, posts cannot be aggregated.
+
+If it is the first installation, you should wait until geonames and/or languages tasks are completed and collected posts are geotagged and aggregated. Depending on the machine, these steps may take some hours.
+
+You should also checked that posts are being collected.
+
+### Change the user of the Bluesky authentication
+1. End and disable the 'Data collection & processing' and 'episomer database' pipelines in the task scheduler (Windows), close the R/terminal window with the pipelines or forcing the pipelines in the configuration page (Windows, Linux and Mac)
+
+2. Search for a file called “.rpost_token” in hidden files. It is usually saved in the Documents folder.
+
+3. Delete that file.
+
+4. Click on “Update properties” in the configuration page of `episomer`.
+
+5. Enable and run the pipelines in the task scheduler or active them in the configuration page (Windows), or run the command in a new R/terminal window with the pipelines (Windows, Linux and Mac). More details are available in the section *“Setting up post collection and the alert detection loop”*
+
+### Downloading GeoNames and/or languages
+
+#### Languages to be added or deleted 
+At least one language must be downloaded before adding new languages or deleting any of the default languages.
+
+#### "The specified size exceeds the maximum representable size. Error: Could not create the Java Virtual Machine"
+
+If this error appears when running GeoNames, it means that the machine has Java 32bits. You need to install Java 64bits. And make it accessible to epitwitter either by setting "JAVA\_HOME" environment variable or by setting the right java binary on the system PATH. 
+
+### The "Launch slots" in the configuration page show NAs instead of the time slots
+
+If it is the first time that you install and launch `episomer`, the geotag task of the detection pipeline has to be run at least once in order to see time slots in the “Launch slots” in the configuration page.
+
+### Downloading PDF of the dashboard
+
+#### "Error in: LaTeX failed to compile C:&#92;Users&#92;name~1&#92;...&#92;file######.tex."
+
+This error appears in Windows when clicking on “PDF” in the dashboard and no PDF is saved. The reason is that the path to TEMP and TMP environment variables of the user are too long, Windows shortens the path and `episomer` cannot find this new path. Please follow the next steps to fix this:
+
+1. Open the “environment variable for your account”
+
+2. Change the path for TEMP and TMP to a shorter path (e.g. “C:&#92;Temp”). The same path should be used for both environment variables.
+
+3. Log off and log on
+
+4. You can now download and save the PDF from the dashboard
+
+#### "Error: pandoc document conversion failed with error 6"
+
+1. Downloading this script (https://raw.githubusercontent.com/jgm/pandoc/master/macos/uninstall-pandoc.pl)
+
+2. Uninstall pandoc (https://pandoc.org/installing.html) by running perl uninstall-pandoc.pl
+
+### Different totals in dashboard outputs
+When counting the total posts in the dashboard of the Shiny app or in the downloadable data, you might get differences in the total numbers of posts between the three outputs. This might be due to the following reasons:
+
+1. World (all) versus World (geolocated)
+
+    - The default option for the regions in World (all), this means that also non-geolocated posts are included in the trendline, but only geolocated posts can be visualized in the maps and the most frequent words figure, therefore the overall total of posts can differ between these outputs wen selecting World (all) or the empty default.
+
+2. Country specific analysis
+
+    - If you select only one country in the filters, the trendline will show all posts for this country, but the map will show the posts on a subnational level in the map. It could be that some posts might have been geolocated to a certain country, but without further subnational data. These posts will then be visible in the trendline total, but not in the subnational bubbles in the map.
+
+3. Most frequent words/hashtags
+
+    - In contrast to the other outputs in the dashboard, the most frequent words figure is always based on post location regardless of the filter (due to memory capacity). Therefore, if user location or both locations are selected in the location filter, this figure might have a different total then the other two outputs.
+    
+### Receiving only real-time alerts
+This relates to users who have selected topics and/or regions for receiving related alerts in real-time or have selected topics and/or regions for receiving related alerts on a scheduled time span. If, in these cases, you only receive real-time alerts with all topics and regions, it may be that no time slots have been included in the subscribers file from the configuration page. These time slots are used for the scheduled alerts and if no slots are included in the file, alerts from all topics and regions are sent as real-time alerts.
+
+### Not receiving email alerts
+If you do not receive email alerts and you see an error in `episomer` referring to denied login, it means that `episomer` could not login to the email account provided in the configuration page. Some of the reasons for that are:
+
+-   The server or port included in the configuration page are incorrect
+-   The attempt of `episomer` to login to the email account is being blocked by the server. This can happen with some organisational email accounts. In that case, please contact the IT department of your organisation
+-   If using Gmail account, you need to allow less secure apps in the settings of your account
+
+## References
+
+<div id="refs"></div>
+  [*https://www.java.com/download/*]: https://www.java.com/download/
+  [*https://www.microsoft.com/en-us/download/details.aspx?id=26999*]: https://www.microsoft.com/en-us/download/details.aspx?id=26999
+  [*https://pandoc.org/installing.html*]: https://pandoc.org/installing.html
+  [*https://yihui.org/tinytex/*]: https://yihui.org/tinytex/
+  [*https://miktex.org/download*]: https://miktex.org/download
+  [*https://www.openblas.net/*]: https://www.openblas.net/
+  [*https://github.com/fommil/netlib-Java*]: https://github.com/fommil/netlib-Java
+  [*https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html*]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html
+  [*https://git-scm.com/downloads/*]: https://git-scm.com/downloads/
+  [*https://www.scala-sbt.org/download.html/*]: https://www.scala-sbt.org/download.html/
+  [*https://cran.r-project.org/bin/windows/Rtools/*]: https://cran.r-project.org/bin/windows/Rtools/
+  [*https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe*]: https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe
+  [*https://developer.twitter.com/en/apply-for-access*]: https://developer.twitter.com/en/apply-for-access
+  [*https://CRAN.R-project.org/package=keyring*]: https://CRAN.R-project.org/package=keyring
+  [*Monitoring Count Time Series in R: Aberration Detection in Public Health Surveillance*]: https://www.jstatsoft.org/article/view/v070i10
+

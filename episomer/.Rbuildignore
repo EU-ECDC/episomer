@@ -1,0 +1,12 @@
+^renv$
+^renv\.lock$
+^doc$
+^Meta$
+^blueskyR\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^.github$
+session.rds
