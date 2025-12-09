@@ -345,7 +345,7 @@ Other attributes of the `searchPost` endpoint includes:
 
 -   Each request returns a maximum of 100 posts and/or reposts
 
-#### Blueskly authentication
+#### Bluesky authentication
 
 In order to collect data from Bluesky you need to provide user credentials to `episomer`. This is done by entering your loggin and password as used on the login page of Bluesky. These settings are provided in the congiguration page.
 
