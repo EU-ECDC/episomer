@@ -826,7 +826,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               ################################################
               ######### SOCIAL MEDIA PANDEL###################
               ################################################
-              shiny::h2("Social medias"),
+              shiny::h2("Social media"),
               shiny::fluidRow(
                 shiny::column(4, "Social Media"),
                 shiny::column(8, "Configuration"),
