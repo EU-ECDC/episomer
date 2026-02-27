@@ -337,7 +337,7 @@ The following sections describe in detail the above general principles. The sett
 
 #### Use of the Bluesky search API version
 
-`episomer` uses the Bluesky search API 'searchPost' endpoint [*https://bsky.social/xrpc/app.bsky.feed.searchPosts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustivieness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the app. There is no limit on the number period of messaged that can be obtained but by default, episomer will limit to last 30 days (this parameter can be changed in the configuration page). There is no limitation on the period for the search, but `episomer` limits by default the data collection on the last 30 days (this parameter can be change in the configuration page).
+`episomer` uses the Bluesky search API 'searchPost' endpoint [*https://docs.bsky.app/docs/api/app-bsky-feed-search-posts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustivieness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the app. There is no limit on the number period of messaged that can be obtained but by default, episomer will limit to last 30 days (this parameter can be changed in the configuration page). There is no limitation on the period for the search, but `episomer` limits by default the data collection on the last 30 days (this parameter can be change in the configuration page).
 
 Other attributes of the `searchPost` endpoint includes:
 
@@ -1395,7 +1395,7 @@ If you do not receive email alerts and you see an error in `episomer` referring 
   [*https://github.com/fommil/netlib-Java*]: https://github.com/fommil/netlib-Java
   [*https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html*]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html
   [*https://git-scm.com/downloads/*]: https://git-scm.com/downloads/
-  [*https://www.scala-sbt.org/download.html/*]: https://www.scala-sbt.org/download.html/
+  [*http://www.scala-sbt.org/download.html/*]: https://www.scala-sbt.org/download.html/
   [*https://cran.r-project.org/bin/windows/Rtools/*]: https://cran.r-project.org/bin/windows/Rtools/
   [*https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe*]: https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe
   [*https://developer.twitter.com/en/apply-for-access*]: https://developer.twitter.com/en/apply-for-access
