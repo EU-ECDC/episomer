@@ -212,7 +212,7 @@ If you would like to develop `episomer` further, then the following development 
 
 -   Git (source code control) [*https://git-scm.com/downloads/*]
 
--   Sbt (compiling scala code) [*https://www.scala-sbt.org/download.html/*]
+-   Sbt (compiling scala code) [*https://www.scala-sbt.org/download/*]
 
 -   If you are using Windows, then you will additionally need Rtools: [*https://cran.r-project.org/bin/windows/Rtools/*]
 
@@ -1395,7 +1395,7 @@ If you do not receive email alerts and you see an error in `episomer` referring 
   [*https://github.com/fommil/netlib-Java*]: https://github.com/fommil/netlib-Java
   [*https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html*]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html
   [*https://git-scm.com/downloads/*]: https://git-scm.com/downloads/
-  [*http://www.scala-sbt.org/download.html/*]: https://www.scala-sbt.org/download.html/
+  [*https://www.scala-sbt.org/download/*]: https://www.scala-sbt.org/download/
   [*https://cran.r-project.org/bin/windows/Rtools/*]: https://cran.r-project.org/bin/windows/Rtools/
   [*https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe*]: https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe
   [*https://developer.twitter.com/en/apply-for-access*]: https://developer.twitter.com/en/apply-for-access
