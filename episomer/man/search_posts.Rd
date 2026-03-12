@@ -57,7 +57,7 @@ AND, OR and -(for excluding terms) are supported on q parameter.
 Order by week is always applied before relevance so even if you provide by_relevance = TRUE all of the matching posts of the first week will be returned first
 }
 \examples{
-if(FALSE){
+\dontrun{
    #Running the detect loop
    library(episomer)
    message('Please choose the episomer data directory')

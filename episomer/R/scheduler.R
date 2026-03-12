@@ -33,7 +33,7 @@ register_detect_runner <- function() {
 #' @details Registers the fs_monitor (by writing fs.monitor.PID file) for the current process or stops if no configuration has been set or if it is already running
 #' This function has been exported so it can be properly called from the future package on the database runner, but it is not intended to be directly called by end users.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -77,7 +77,7 @@ register_runner <- function(name) {
 #' You can test if authentication is working on the shiny app troubleshot page or by calling (with dplyr): episomer::check_all() %>% filter(check == 'bluesky_auth')
 #' This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -96,7 +96,7 @@ register_search_runner_task <- function() {
 #' @details Stops the post collection task if it is already running
 #' This function will try also deactivate the respective scheduled task on Windows.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -117,7 +117,7 @@ stop_search_runner_task <- function() {
 #' To generate alerts, this task needs the post collection to had successfully run since the last time it ran.
 #' This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -136,7 +136,7 @@ register_detect_runner_task <- function() {
 #' @details Stops the alert detection task if it is already running
 #' This function will try also deactivate the respective scheduled task on Windows.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -156,7 +156,7 @@ stop_detect_runner_task <- function() {
 #' This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
 #' This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -176,7 +176,7 @@ register_fs_runner_task <- function() {
 #' @details Stops the episomer database task if it is already running
 #' This function will try also deactivate the respective scheduled task on Windows.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -358,7 +358,7 @@ kill_task <- function(pidfile, type = "R") {
 #' @return char list of social media with no search job running
 #' @details returns a char vector with the name of missing social media
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
@@ -383,7 +383,7 @@ missing_search_jobs <- function() {
 #' @return logical Whether the post collection is running
 #' @details returns a logical value being TRUE if the post collection is running
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
@@ -403,7 +403,7 @@ is_search_running <- function() {
 #' @return logical Whether the database is running
 #' @details returns a logical value being TRUE if the database runner is actually running
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
@@ -439,7 +439,7 @@ stop_if_no_fs <- function(msg = NULL) {
 #' @return logical Whether the alert detection task is running
 #' @details returns a logical value being TRUE if the alert detection task is actually running
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
@@ -493,7 +493,7 @@ get_running_task_pid <- function(name) {
 #' @details After reading the tasks.json file and parsing it with jsonlite, this function will update the necessary fields in the
 #' tasks for executing and monitoring them.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #getting tasks statuses
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -833,7 +833,7 @@ save_tasks <- function(tasks) {
 #'
 #' If any of these tasks fails it will be retried three times before going to abort status. Aborted tasks can be relaunched from the Shiny app.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #Running the detect loop
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')

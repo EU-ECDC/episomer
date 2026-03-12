@@ -29,7 +29,7 @@ The URLs to download the JAR dependencies (maven package manager) and Winutils a
 Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    # setting up the data folder
    message('Please choose the episomer data directory')

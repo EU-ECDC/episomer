@@ -16,7 +16,7 @@ gets the post collection execution status
 returns a logical value being TRUE if the post collection is running
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    message('Please choose the episomer data directory')
    setup_config(file.choose())

@@ -54,7 +54,7 @@ When an aggregated zone is requested, all countries in that zone are included.
 This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #Getting bubble chart for dengue for South America for last 30 days
    message('Please choose the episomer data directory')
    setup_config(file.choose())

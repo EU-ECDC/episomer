@@ -51,7 +51,7 @@ The available time series are:
 The returned dataset can be cached for further calls if requested. Only one dataset per series is cached.
 }
 \examples{
-if(FALSE){
+\dontrun{
    message('Please choose the episomer data directory')
    setup_config(file.choose())
    # Getting all country posts between 2020-jan-10 and 2020-jan-31 for all topics

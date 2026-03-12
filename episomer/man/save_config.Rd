@@ -24,7 +24,7 @@ Permanently saves configuration changes to the data folder (excluding social med
 to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    #load configuration
    message('Please choose the episomer data directory')
