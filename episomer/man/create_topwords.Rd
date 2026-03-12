@@ -43,7 +43,7 @@ This report may be empty for combinations of countries and topics with very few 
 This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 }
 \examples{
-if(FALSE){
+\dontrun{
    message('Please choose the episomer data directory')
    setup_config(file.choose())
    #Getting topword chart for dengue for France, Chile, Australia for last 30 days

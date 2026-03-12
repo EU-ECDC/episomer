@@ -62,7 +62,7 @@ Days in this function are considered as contiguous blocks of 24 hours, starting 
 This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already run successfully in order to show results.
 }
 \examples{
-if(FALSE){
+\dontrun{
    message('Please choose the episomer data directory')
    setup_config(file.choose())
    #Getting trendline for dengue for South America for the last 30 days

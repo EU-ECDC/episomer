@@ -166,7 +166,7 @@ get_empty_config <- function(data_dir) {
 #' @param data_dir Path to the directory containing the application settings (it must exist).
 #' If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
 #' default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-#'    "") Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer")
+#'    "") Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer")
 #' @param ignore_keyring Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE
 #' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
@@ -193,7 +193,7 @@ get_empty_config <- function(data_dir) {
 #'    \item{\code{\link{sm_api_set_auth_bluesky}}}
 #' }
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    #loading system settings
 #'    message('Please choose the episomer data directory')
@@ -214,7 +214,7 @@ setup_config <- function(
   data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if (
     Sys.getenv("EPI_HOME") != ""
   )
-    Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer"),
+    Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer"),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
@@ -480,7 +480,7 @@ copy_plans_from <- function(temp) {
 #' @details Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
 #' to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    #load configuration
 #'    message('Please choose the episomer data directory')

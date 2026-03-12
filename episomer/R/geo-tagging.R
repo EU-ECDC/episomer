@@ -322,7 +322,7 @@ get_country_index_map <- function() {
 #'
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the episomer data directory')
@@ -460,7 +460,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #'
 #' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the episomer data directory')
@@ -632,7 +632,7 @@ update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
 #'
 #' This function is called from the Shiny app on geolocation evaluation tab but can also be used for manually evaluating the episomer geolocation algorithm.
 #' @examples
-#' if(FALSE) {
+#' \dontrun{
 #'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the episomer data directory')

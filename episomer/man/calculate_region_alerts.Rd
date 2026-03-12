@@ -95,7 +95,7 @@ calculate alerts for a region and topic using provided parameters to the episome
 for algorithm details see package vignette.
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    #Running the alerts for France in topic covid-19
    df <-calculate_region_alerts(sms="bluesky",
@@ -105,7 +105,7 @@ if(FALSE){
                                 end=as.Date("2025-09-30"))
    show(df)
 }
-if(FALSE){
+\dontrun{
    library(episomer)
    #Running the alerts for World in topic covid-19
    df <-calculate_regions_alerts(

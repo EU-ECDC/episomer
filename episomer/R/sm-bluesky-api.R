@@ -145,7 +145,7 @@ sm_api_search_bluesky <- function(
 #' @param shiny_input_list List of shiny input values containing the bluesky specific credentials
 #' @details Update authentication tokens in configuration object
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'  #Setting the configuration values
 #'    sm_api_set_auth_bluesky(
 #'      shiny_input_list = list(bluesky_user = "your user here", bluesky_password = "your password"),
@@ -153,6 +153,7 @@ sm_api_search_bluesky <- function(
 #' }
 #' @seealso
 #' \code{\link{save_config}}
+#' @return Nothing. Called for side effects (saving credentials)
 #' @export
 sm_api_set_auth_bluesky <- function(shiny_input_list) {
 # @function_def_end (do not delete)

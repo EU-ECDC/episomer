@@ -44,7 +44,7 @@ Returns a data frame of signals produced by the \code{\link{detect_loop}}, which
 For more details see the package vignette.
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    # setting up the data folder
    message('Please choose the episomer data directory')

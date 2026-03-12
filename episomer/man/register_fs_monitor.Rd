@@ -17,7 +17,7 @@ Registers the fs_monitor (by writing fs.monitor.PID file) for the current proces
 This function has been exported so it can be properly called from the future package on the database runner, but it is not intended to be directly called by end users.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #getting tasks statuses
    library(episomer)
    message('Please choose the episomer data directory')

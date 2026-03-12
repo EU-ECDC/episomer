@@ -16,7 +16,7 @@ gets the alert detection runner execution status
 returns a logical value being TRUE if the alert detection task is actually running
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    message('Please choose the episomer data directory')
    setup_config(file.choose())

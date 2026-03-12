@@ -40,7 +40,7 @@ A prerequisite to this function is that the tasks \code{\link{download_dependenc
 This function is called from the Shiny app on geolocation evaluation tab but can also be used for manually evaluating the episomer geolocation algorithm.
 }
 \examples{
-if(FALSE) {
+\dontrun{
    library(episomer)
    # setting up the data folder
    message('Please choose the episomer data directory')

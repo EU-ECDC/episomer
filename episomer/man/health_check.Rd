@@ -21,7 +21,7 @@ It validates if episomer is not collecting posts, aggregating posts or not calcu
 This function sends an email to the defined administrator if episomer is not collecting posts, aggregating posts or not calculating alerts
 }
 \examples{
-if(FALSE){
+\donttest{
    #importing episomer
    library(episomer)
    message('Please choose the episomer data directory')

@@ -17,7 +17,7 @@
 #' In order to work, this task needs Bluesky credentials, which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}}
 #'
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #Running the search loop
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')

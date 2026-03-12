@@ -47,7 +47,7 @@ algorithm is extended as follows:
 for algorithm details see package vignette.
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    #Running the modifies version of the ears algorithm for a particular data series
     ts <- c(150, 130, 122, 160, 155, 128, 144, 125, 300, 319, 289, 277, 500)
