@@ -38,6 +38,12 @@ search-sandboxed:
 R:
 	devscripts/r-interpreter.sh
 
+check:
+	Rscript devscripts/check-cran.R
+
+check-remote:
+	Rscript devscripts/check-cran-remote.R
+
 R-test:
 	$(call check_epi_home)
 	$(call set_kr_pass)
