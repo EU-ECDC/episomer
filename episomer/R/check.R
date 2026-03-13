@@ -562,7 +562,7 @@ check_tar_gz <- function() {
 #' @return Data frame containing the statuses of all realized checks
 #' @details This function executes a series of sanity checks, concerning, Java, bitness, task status, dependencies and social media authentication.
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -628,7 +628,7 @@ checks <- new.env()
 #' @return A list of health check errors found
 #' @details This function sends an email to the defined administrator if episomer is not collecting posts, aggregating posts or not calculating alerts
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')

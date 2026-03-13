@@ -11,7 +11,7 @@
 #'
 #' All its functionality is described on the episomer vignette.
 #' @examples
-#' \donttest{
+#' \dontrun{
 #'    #Running the episomer app
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
