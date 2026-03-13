@@ -73,6 +73,7 @@ create_api_and_plan_files_for_new_social_media <- function(
 #' this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()
 #' @param social_media Name of the new social media
 #' @param social_media_ref Name of the reference social media 
+#' @return TRUE, called for side effects (creation of new social media files).
 #' @export
 add_new_social_media <- function(
   social_media,

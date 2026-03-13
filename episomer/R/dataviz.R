@@ -21,7 +21,7 @@
 #'
 #' This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already run successfully in order to show results.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #Getting trendline for dengue for South America for the last 30 days
@@ -443,7 +443,7 @@ plot_trendline <- function(
 #'
 #' This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #Getting bubble chart for dengue for South America for last 30 days
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
@@ -875,7 +875,7 @@ create_map <- function(
 #'
 #' This function requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #Getting topword chart for dengue for France, Chile, Australia for last 30 days
@@ -933,7 +933,7 @@ create_topwords <- function(
 #'
 #' This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    #Getting topword chart for dengue for France, Chile, Australia for last 30 days

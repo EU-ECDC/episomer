@@ -44,7 +44,7 @@ Produces a bar chart showing the occurrences of the most popular words in the co
 This functions requires that \code{\link{search_loop}} and \code{\link{detect_loop}} have already been run successfully to show results.
 }
 \examples{
-if(FALSE){
+\dontrun{
    message('Please choose the episomer data directory')
    setup_config(file.choose())
    #Getting topword chart for dengue for France, Chile, Australia for last 30 days

@@ -17,7 +17,7 @@ Stops the episomer database task if it is already running
 This function will try also deactivate the respective scheduled task on Windows.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #getting tasks statuses
    library(episomer)
    message('Please choose the episomer data directory')

@@ -19,7 +19,7 @@ You can test if authentication is working on the shiny app troubleshot page or b
 This function will use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #getting tasks statuses
    library(episomer)
    message('Please choose the episomer data directory')

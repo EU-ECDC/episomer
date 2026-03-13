@@ -16,7 +16,7 @@ It runs a set of automated sanity checks for helping the user to troubleshot iss
 This function executes a series of sanity checks, concerning, Java, bitness, task status, dependencies and social media authentication.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #importing episomer
    library(episomer)
    message('Please choose the episomer data directory')

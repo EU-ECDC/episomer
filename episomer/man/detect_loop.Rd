@@ -27,7 +27,7 @@ The recurrent tasks are scheduled to be executed each 'detect span' minutes, whi
 If any of these tasks fails it will be retried three times before going to abort status. Aborted tasks can be relaunched from the Shiny app.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #Running the detect loop
    library(episomer)
    message('Please choose the episomer data directory')

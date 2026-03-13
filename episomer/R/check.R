@@ -562,7 +562,7 @@ check_tar_gz <- function() {
 #' @return Data frame containing the statuses of all realized checks
 #' @details This function executes a series of sanity checks, concerning, Java, bitness, task status, dependencies and social media authentication.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -628,7 +628,7 @@ checks <- new.env()
 #' @return A list of health check errors found
 #' @details This function sends an email to the defined administrator if episomer is not collecting posts, aggregating posts or not calculating alerts
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -817,13 +817,15 @@ update_session_info <- function() {
 #' - 'posts': Posts collected by episomer
 #' - 'logs': Log files produced automatically on windows task scheduler tasks.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #importing episomer
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
+#'    message('Please choose a destination directory')
+#'    dest <- file.choose()
 #'    #creating a compressed snapshot for settings and logs
-#'    create_snapshot(getwd(), c("settings","dependencies"), compress = TRUE)
+#'    create_snapshot(dest, c("settings","dependencies"), compress = TRUE)
 #' }
 #' @rdname create_snapshot
 #' @export

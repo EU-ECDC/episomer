@@ -18,7 +18,7 @@ This task need the dependencies, geonames and languages steps to have been succe
 This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #getting tasks statuses
    library(episomer)
    message('Please choose the episomer data directory')

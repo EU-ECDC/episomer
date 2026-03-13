@@ -16,7 +16,7 @@ check if search jobs for each activated social media are running and return the 
 returns a char vector with the name of missing social media
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    message('Please choose the episomer data directory')
    setup_config(file.choose())

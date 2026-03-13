@@ -15,7 +15,7 @@
 # a plan will perform several requests to the underlysing API and each time a request is performed the number of requests will be increased.
 # The field scheduled_for indicates the time when the next request is expected to be executed.
 # @examples
-# if(FALSE){
+# \dontrun{
 #  #creating the default plan
 #  parse_plan_attributes()
 # }
@@ -110,7 +110,7 @@ merge_plans <- function(p1, p2) {
 # Any finished plans after the first will be discharged. Note that a maximum of 100 plans are kept)
 # @returns the updated list of plans
 # @examples
-# if(FALSE){
+# \dontrun{
 #  #Getting default plan
 #  update_plans(plans = list(), schedule_span = 120)
 #  #Updating topics for first topic

@@ -20,7 +20,7 @@ After reading the tasks.json file and parsing it with jsonlite, this function wi
 tasks for executing and monitoring them.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #getting tasks statuses
    library(episomer)
    message('Please choose the episomer data directory')

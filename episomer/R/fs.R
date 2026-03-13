@@ -60,7 +60,7 @@ get_scala_recalc_hash_url <- function() {
 #' The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
 #' \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #Running the detect loop
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
@@ -162,7 +162,7 @@ fs_loop <- function(data_dir = NA) {
 #' AND, OR and -(for excluding terms) are supported on q parameter.
 #' Order by week is always applied before relevance so even if you provide by_relevance = TRUE all of the matching posts of the first week will be returned first
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    #Running the detect loop
 #'    library(episomer)
 #'    message('Please choose the episomer data directory')
