@@ -48,7 +48,7 @@ The search loop worker is a function that runs the search loop for a given socia
 It is used to run the search loop in a separate process.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #Running the search loop
    library(episomer)
    message('Please choose the episomer data directory')

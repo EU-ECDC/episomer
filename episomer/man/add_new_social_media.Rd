@@ -12,6 +12,9 @@ add_new_social_media(social_media, social_media_ref = "bluesky")
 
 \item{social_media_ref}{Name of the reference social media}
 }
+\value{
+TRUE, called for side effects (creation of new social media files).
+}
 \description{
 Create new social media template files, so a developer can extend episomer and support a new social media.
 this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()

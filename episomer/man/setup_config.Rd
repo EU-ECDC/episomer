@@ -6,7 +6,7 @@
 \usage{
 setup_config(
   data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if
-    (Sys.getenv("EPI_HOME") != "") Sys.getenv("EPI_HOME") else file.path(getwd(),
+    (Sys.getenv("EPI_HOME") != "") Sys.getenv("EPI_HOME") else file.path(tempdir(),
     "episomer"),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
@@ -19,7 +19,7 @@ setup_config(
 \item{data_dir}{Path to the directory containing the application settings (it must exist).
 If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
 default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-   "") Sys.getenv("EPI_HOME") else file.path(getwd(), "episomer")}
+   "") Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer")}
 
 \item{ignore_keyring}{Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE}
 
@@ -59,7 +59,7 @@ Changes made to conf can be stored permanently (except for 'data_dir') using:
 }
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    #loading system settings
    message('Please choose the episomer data directory')

@@ -16,7 +16,7 @@
 #' A prerequisite for this function is that the \code{\link{search_loop}} must already have stored posts in the search folder and that the geotagging and aggregation tasks have been completed.
 #' Normally, this function is not called directly by the user, but from the \code{\link{detect_loop}} function.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the episomer data directory')
@@ -100,7 +100,7 @@ generate_alerts <- function(tasks = get_tasks()) {
 #'         the upper limit and whether a signal is detected or not.
 #' @details for algorithm details see package vignette.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    #Running the modifies version of the ears algorithm for a particular data series
 #'     ts <- c(150, 130, 122, 160, 155, 128, 144, 125, 300, 319, 289, 277, 500)
@@ -306,7 +306,7 @@ get_reporting_date_counts <- function(
 #'         the upper limit and whether a signal is detected or not.
 #' @details for algorithm details see package vignette.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    #Running the alerts for France in topic covid-19
 #'    df <-calculate_region_alerts(sms="bluesky",
@@ -459,7 +459,7 @@ calculate_region_alerts <- function(
 #' @return A dataframe containing the monitored time point for the given regions and topic,
 #'         the upper limit and whether a signal is detected or not.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    #Running the alerts for World in topic covid-19
 #'    df <-calculate_regions_alerts(
@@ -816,7 +816,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
 #' @return a data frame containing the calculated alerts for the period. If no alerts are found then NULL is returned
 #' @details For more details see the package vignette.
 #' @examples
-#' if(FALSE){
+#' \dontrun{
 #'    library(episomer)
 #'    # setting up the data folder
 #'    message('Please choose the episomer data directory')
@@ -941,7 +941,6 @@ get_alerts <- function(
     })
     if (!is.null(df)) {
       if (limit > 0 && limit < nrow(df)) {
-        set.seed(26062012)
         df <- df[sample(nrow(df), limit), ]
       }
       # Adding top posts if required
@@ -1667,7 +1666,6 @@ get_alert_balanced_df <- function(
     dplyr::count()
   # we choose 25 percent of rows to be used as test set. These rows will not be augmented
   split <- jsonlite::rbind_pages(lapply(1:nrow(allcat_df), function(i) {
-    set.seed(20131205)
     x = 1:allcat_df$n[[i]]
     alert_training_df %>%
       dplyr::filter(.data$given_category == allcat_df$given_category[[i]]) %>%
@@ -1816,7 +1814,6 @@ get_alert_balanced_df <- function(
       augmented_in_cat <- augmented_alerts %>%
         dplyr::filter(.data$given_category == cat_df$given_category[[i]])
       frac <- smallest_cat / nrow(augmented_in_cat)
-      set.seed(20131205)
       x = 1:nrow(augmented_in_cat)
       augmented_in_cat %>%
         dplyr::mutate(

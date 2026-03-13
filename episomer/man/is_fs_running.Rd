@@ -16,7 +16,7 @@ gets the database runner execution status
 returns a logical value being TRUE if the database runner is actually running
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    message('Please choose the episomer data directory')
    setup_config(file.choose())

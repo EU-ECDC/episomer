@@ -23,7 +23,7 @@ The database is implemented using Apache Lucene indexes allowing episomer to acc
 \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
 }
 \examples{
-if(FALSE){
+\dontrun{
    #Running the detect loop
    library(episomer)
    message('Please choose the episomer data directory')

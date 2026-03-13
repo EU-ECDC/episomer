@@ -31,7 +31,7 @@ A prerequisite for this function is that the \code{\link{search_loop}} must alre
 Normally, this function is not called directly by the user, but from the \code{\link{detect_loop}} function.
 }
 \examples{
-if(FALSE){
+\dontrun{
    library(episomer)
    # setting up the data folder
    message('Please choose the episomer data directory')

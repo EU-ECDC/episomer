@@ -9,6 +9,9 @@ sm_api_set_auth_bluesky(shiny_input_list)
 \arguments{
 \item{shiny_input_list}{List of shiny input values containing the bluesky specific credentials}
 }
+\value{
+Nothing. Called for side effects (saving credentials)
+}
 \description{
 Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
 }
@@ -16,7 +19,7 @@ Update configuration object and underlying storage with given bluesky username a
 Update authentication tokens in configuration object
 }
 \examples{
-if(FALSE){
+\dontrun{
  #Setting the configuration values
    sm_api_set_auth_bluesky(
      shiny_input_list = list(bluesky_user = "your user here", bluesky_password = "your password"),
