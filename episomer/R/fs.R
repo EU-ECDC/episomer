@@ -55,7 +55,7 @@ get_scala_recalc_hash_url <- function() {
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @return nothing
-#' @details Launches the episomer embedded database which is accessed via a REST API located on \url{http://localhost:8080}. You can test that the database is running by accessing \url{http://localhost:8080/ping}
+#' @details Launches the episomer embedded database which is accessed via a REST API located on localhost at port 8080. You can test that the database is running by accesssing the local URL and adding "/ping". 
 #' the REST API provide episomer a way to send and retrieve data related with posts and time series and to trigger geolocation or aggregation
 #' The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
 #' \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
