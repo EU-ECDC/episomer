@@ -185,7 +185,7 @@ finish_plans <- function(plans = list()) {
   } else {
     # creating a new plan if expected end has passed
     lapply(plans, function(p) {
-      attr <- list(
+      attrs <- list(
         network = p$network,
         expected_end = strftime(
           if (is.null(p$end_on)) {
@@ -216,7 +216,7 @@ finish_plans <- function(plans = list()) {
         progress = 1.0
       )
 
-      updated <- do.call(parse_plan, attrs)
+      updated <- do.call(parse_plan_attributes, attrs)
       merge_plans(p, updated)
     })
   }
