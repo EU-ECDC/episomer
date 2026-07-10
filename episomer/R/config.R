@@ -171,7 +171,7 @@ get_empty_config <- function(data_dir) {
 #' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
 #' @param save_properties_first Whether to save current settings before loading new ones from disk, default: FALSE
-#' @param save_topics_first List of topics to save before loading new ones from disk, default: list()
+#' @param save_topics_first List of social media to save its topics to disk before loading new ones from disk, default: list()
 #' @return Nothing
 #' @details episomer relies on settings and data stored in a system folder, so before loading the dashboard, collecting posts or detecting alerts the user has to designate this folder.
 #' When a user wants to use episomer from the R console they will need to call this function for initialisation.
