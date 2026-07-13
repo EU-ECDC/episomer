@@ -36,7 +36,7 @@ object Episomer {
          import spark.implicits._
          val geonames = Geonames(params.get("geonamesSource").get, params.get("geonamesDestination").get,  params.get("geonamesSimplify").get.toBoolean)
          val epiHome = params.get("geonamesSource").get.split("/geo/allCountries.txt")(0)
-         ProcessID.writePID(s"$epiHome/detect.java.PID")
+         ProcessID.writePID(s"$epiHome/detect.java.PID\n")
          if(params.get("assemble").map(s => s.toBoolean).getOrElse(false))
            geonames.getDataset(reuseExisting = false)
          if(params.get("index").map(s => s.toBoolean).getOrElse(false)) {

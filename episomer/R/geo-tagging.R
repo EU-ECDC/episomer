@@ -308,7 +308,9 @@ get_country_index_map <- function() {
 
 #' @title Updates the local copy of the GeoNames database
 #' @description Downloading and indexing a fresh version of the GeoNames database from the provided URL
-#' @param tasks Tasks object for reporting progress and error messages, default: get_tasks()
+#' @param download Logical, whether to download geonames database default: TRUE
+#' @param assemble Logical, whether to calculate the geographical hierarchy to index: TRUE
+#' @param index Logical, whether to write geographical location in full text index default: TRUE
 #' @return The list of tasks updated with produced messages
 #' @details Run a one shot task to download and index a local copy of the  \href{http://www.geonames.org/}{GeoNames database}.
 #' The GeoNames geographical database covers all countries and contains over eleven million place names that are available; Creative Commons Attribution 4.0 License.
@@ -341,40 +343,34 @@ get_country_index_map <- function() {
 #'
 #' @export
 #' @importFrom utils download.file unzip
-update_geonames <- function(tasks = get_tasks()) {
+update_geonames <- function(download=TRUE, assemble = TRUE, index = TRUE) {
   stop_if_no_config()
   old <- options()
   on.exit(options(old))
   options(timeout = 900)
-  tasks <- tryCatch(
-    {
-      tasks <- update_geonames_task(
-        tasks,
-        "running",
-        "downloading",
-        start = TRUE
-      )
-      # Create geo folder if it does not exist
+  if(download) {
+      message("Downloading geonames")
       if (!file.exists(file.path(conf$data_dir, "geo"))) {
         dir.create(file.path(conf$data_dir, "geo"))
       }
       # Downloading GeoNames
       temp <- tempfile()
       temp_dir <- tempdir()
-      download.file(tasks$geonames$url, temp, mode = "wb")
-
+      download.file(conf$geonames_url, temp, mode = "wb")
+      
+      message("Decompressing geonames")
       # Decompressing file
-      tasks <- update_geonames_task(tasks, "running", "decompressing")
       unzip(zipfile = temp, files = "allCountries.txt", exdir = temp_dir)
       file.remove(temp)
       file.rename(
         from = file.path(temp_dir, "allCountries.txt"),
         to = get_geonames_txt_path()
       )
-
+  }
+  if(assemble) {
       # Assembling GeoNames datasets
       # using Spark job with entry point updateGeonames part 'ASSEMBLE'
-      tasks <- update_geonames_task(tasks, "running", "assembling")
+      message("Assembling geonames")
       spark_job(
         paste(
           "updateGeonames",
@@ -387,10 +383,10 @@ update_geonames <- function(tasks = get_tasks()) {
           conf$spark_cores
         )
       )
-
+  }
+  if(index) {
       # Indexing GeoNames datasets
-      tasks <- update_geonames_task(tasks, "running", "indexing")
-      # using spark job with entry point updateGeonames part 'INDEX'
+      message("Indexing geonames")
       spark_job(
         paste(
           "updateGeonames",
@@ -404,40 +400,7 @@ update_geonames <- function(tasks = get_tasks()) {
         )
       )
 
-      # Setting status to success
-      tasks <- update_geonames_task(tasks, "success", "", end = TRUE)
-      tasks
-    },
-    warning = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_geonames_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$geonames$message,
-          " geonames",
-          error_condition
-        )
-      )
-      tasks
-    },
-    error = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_geonames_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$geonames$message,
-          " geonames",
-          error_condition
-        )
-      )
-      tasks
-    }
-  )
-  return(tasks)
+  }
 }
 
 

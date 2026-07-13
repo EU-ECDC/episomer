@@ -198,7 +198,8 @@ spark_df <- function(args, handler = NULL) {
 
 #' @title Updates Java dependencies
 #' @description Download Java dependencies of the application mainly related to Apache SPARK, Apache Lucene, and Apache Pekko
-#' @param tasks Task object for reporting progress and error messages, default: get_tasks()
+#' @param jars, whether to download maven jars default: TRUE
+#' @param winutils, whether to download winutils binary default: TRUE
 #' @return The list of tasks updated with produced messages
 #' @details Run a one-shot task consisting of downloading Java and Scala dependencies, this is separated by the following subtasks
 #' \itemize{
@@ -229,102 +230,17 @@ spark_df <- function(args, handler = NULL) {
 #'
 #' @export
 #' @importFrom utils download.file
-download_dependencies <- function(tasks = get_tasks()) {
-  tasks <- tryCatch(
-    {
-      tasks <- update_dep_task(
-        tasks,
-        "running",
-        "getting sbt dependencies",
-        start = TRUE
-      )
-      # downloading SPARK, lucene and other scala dependencies from the provided maven repository
-      while (is_fs_running()) {
-        tasks <- update_dep_task(
-          tasks,
-          "running",
-          paste(
-            "To start the dependencies task, please turn it OFF the episomer database. You can do this by clicking on the 'stop' button next to the database status or manually kill the process."
-          )
-        )
-        Sys.sleep(5)
-      }
-      tasks <- download_sbt_dependencies(tasks)
-      if (.Platform$OS.type == "windows") {
-        tasks <- update_dep_task(tasks, "running", "getting winutils")
-        # on windows, downloading winutils from the URL set from the shiny app which is a prerequisite of SPARK
-        tasks <- download_winutils()
-      }
-      # ensuring that storage system is running
-      while (!is_fs_running()) {
-        tasks <- update_dep_task(
-          tasks,
-          "running",
-          paste(
-            "To continue you need to ACTIVATE the embedded database. You can activate it by clicking on the 'activate' database service button on the config page ",
-            "You can also manually run the fs service by executing the following command on a separate R session. episomer::fs_loop('",
-            conf$data_dir,
-            "')"
-          )
-        )
-        Sys.sleep(5)
-      }
-      # Setting status to succes
-      tasks <- update_dep_task(tasks, "success", "", end = TRUE)
-      tasks
-    },
-    error = function(error_condition) {
-      # Setting status to failed
-      message("Failed...")
-      message(paste(
-        "failed while",
-        tasks$dependencies$message,
-        " :",
-        error_condition
-      ))
-      tasks <- update_dep_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$dependencies$message,
-          " getting dependencies ",
-          error_condition
-        )
-      )
-      tasks
-    },
-    warning = function(error_condition) {
-      # Setting status to failed
-      message("Failed...")
-      message(paste(
-        "failed while",
-        tasks$dependencies$message,
-        " ",
-        error_condition
-      ))
-      tasks <- update_dep_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$dependencies$message,
-          " getting dependencies ",
-          error_condition
-        )
-      )
-      tasks
+download_dependencies <- function(jars = TRUE, winutils = TRUE) {
+    if(jars)
+        download_sbt_dependencies()
+    
+    if (.Platform$OS.type == "windows" && winutils) {
+        download_winutils()
     }
-  )
-  return(tasks)
 }
 
 # Download SBT dependencies from maven (scala, spark, lucene, pekko, netlib (BLAS), httpclient) into package folder
-download_sbt_dependencies <- function(tasks = get_tasks()) {
-  if (!exists("maven_repo", where = tasks$dependencies))
-    stop(
-      "Before running detect loop you have to manually update 'Java/Scala dependencies' to set the used repository"
-    )
+download_sbt_dependencies <- function() {
   # reading the dependencies to download from embedded list
   con <- file(get_sbt_file_dep_path())
   deps <- readLines(con)
@@ -339,7 +255,7 @@ download_sbt_dependencies <- function(tasks = get_tasks()) {
   versions <-  gsub("\\.([^\\.]*)$", "", versions)
   versions2 <- gsub("-(.*)$", "", versions)
   urls <- paste(
-    tasks$dependencies$maven_repo,
+    conf$maven_repo,
     gsub("\\.", "/", sapply(parts, `[[`, 3)),
     sapply(parts, `[[`, 4),
     versions,
@@ -347,7 +263,7 @@ download_sbt_dependencies <- function(tasks = get_tasks()) {
     sep = "/"
   )
   urls2 <- paste(
-    tasks$dependencies$maven_repo,
+    conf$maven_repo,
     gsub("\\.", "/", sapply(parts, `[[`, 3)),
     sapply(parts, `[[`, 4),
     versions2,
@@ -396,59 +312,37 @@ download_sbt_dependencies <- function(tasks = get_tasks()) {
   for (i in 1:length(urls)) {
     tryCatch(
       {
-        tasks <- update_dep_task(
-          tasks,
-          "running",
-          paste("downloading", urls[[i]])
-        )
         # downloading files on first format
+        message(paste("downloading", urls[[i]]))
         download.file(url = urls[[i]], destfile = dest_file[[i]], mode = "wb")
       },
       warning = function(c) {
-        tasks <- update_dep_task(
-          tasks,
-          "running",
-          paste("downloading", urls2[[i]])
-        )
         # downloading files on secong format
+        message(paste("downloading", urls2[[i]]))
         download.file(url = urls2[[i]], destfile = dest_file[[i]], mode = "wb")
       },
       error = function(c) {
-        tasks <- update_dep_task(
-          tasks,
-          "running",
-          paste("downloading", urls2[[i]])
-        )
+        # downloading files on secong format
+        message(paste("downloading", urls2[[i]]))
         download.file(url = urls2[[i]], destfile = dest_file[[i]], mode = "wb")
       }
     )
   }
-  return(tasks)
 }
 
 # Download winutils (necessary for spark on Windows,
 # for more details on winutils please see https://issues.apache.org/jira/browse/HADOOP-13223 and https://issues.apache.org/jira/browse/HADOOP-16816
-download_winutils <- function(tasks = get_tasks()) {
+download_winutils <- function() {
   if (!dir.exists(get_winutils_hadoop_home_path()))
     dir.create(get_winutils_hadoop_home_path())
   if (!dir.exists(file.path(get_winutils_hadoop_home_path(), "bin")))
     dir.create(file.path(get_winutils_hadoop_home_path(), "bin"))
-  if (!exists("winutils_url", where = tasks$dependencies))
-    stop(
-      "Before running detect loop you have to manually activate 'Java/Scala dependencies' to set the winutils to use"
-    )
-  tasks <- update_dep_task(
-    tasks,
-    "running",
-    paste("downloading", tasks$dependencies$winutils_url)
-  )
   # downloading winutils
-  url = tasks$dependencies$winutils_url
+  url = conf$winutils_url
   dest = get_winutils_path()
   download.file(url = url, destfile = dest, mode = "wb" )
   url <- sub("winutils.exe", "hadoop.dll", url)
   dest <- sub("winutils.exe", "hadoop.dll", dest) 
   # downloading hadoop dll
   download.file(url = url, destfile = dest, mode = "wb" )
-  return(tasks)
 }
