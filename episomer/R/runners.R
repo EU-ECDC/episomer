@@ -250,6 +250,19 @@ start_all_runner_tasks <- function() {
 #' @export
 stop_fs_runner_task <- function() {
   stop_runner_task("fs")
+  if(is_fs_running()) {
+      message("Waiting until the fs runner stops")
+      answered <- FALSE
+      while(!answered) {
+         if(!is_fs_running()) {
+             message("fs has stopped")
+             answered <- TRUE
+         } else {
+             cat(".")
+             Sys.sleep(2)
+         }
+     }
+  }
 }
 
 # This task is currently Windows only
@@ -286,6 +299,7 @@ register_runner_task <- function(task_name) {
       # Note that the date format is being guess using %DATE% shell variable
       # This value can be overridden by conf$fore_date_format setting
       message(sprintf("Registering and running %s as a Windows scheduler task", task_name))
+      message(sprintf("Logs written to %s", gsub(".R", ".log", rscript)))
       taskscheduleR::taskscheduler_create(
         taskname,
         rscript = script,
@@ -317,6 +331,7 @@ register_runner_task <- function(task_name) {
       script_log <- paste(task_name, "log", sep = ".")
       log <- file.path(script_folder, script_log)
       message(sprintf("Rscript '%s' '%s' > %s", script, conf$data_dir, log))
+      message(sprintf("Logs written to %s", log))
       system2(
         "Rscript",
         args = c(script, conf$data_dir),

@@ -335,6 +335,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         do_training <- (train_lang_ans %in% list(1))
         if(do_training) {
             pause(silent)
+            save_config()
             message("Going to launch model retraining, starting the episomer database")
             register_fs_runner_task(wait=TRUE)
             message("Episomer database is running, proceeding with training")
@@ -542,7 +543,10 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         }
     }
     message("Thanks for using episomer!\nHappy signal detection!")
-    app
+    if(!is.null(app))
+        app
+    else
+       invisible(NULL)
 }
 
 pause <- function(silent=FALSE) { if(!silent) Sys.sleep(0.5) else Sys.sleep(0.3)}
