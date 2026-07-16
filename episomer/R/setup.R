@@ -494,7 +494,8 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                     register_search_runner_task()
                 }
                 if(targets[[s_ans]] %in% c("detect", "all")) {
-                    register_detect_runner_task()
+                     save_tasks(get_tasks())
+                     register_detect_runner_task()
                 }
                 pause(silent)
                 message("Service started")

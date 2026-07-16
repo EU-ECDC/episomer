@@ -82,7 +82,6 @@ refresh_config_data <- function(
   # Updating language related fields
   if ("langs" %in% limit) {
     langs <- get_available_languages()
-    lang_tasks <- get_tasks()$language
     if (!exists("langs_refresh_flag", where = e)) {
       e$langs_refresh_flag <- shiny::reactiveVal(0)
     } else if (
@@ -99,10 +98,8 @@ refresh_config_data <- function(
     e$lang_items <- setNames(langs$Code, langs$`Full Label`)
     e$lang_names <- setNames(langs$Label, langs$Code)
     e$langs <- data.frame(
-      Language = unlist(lang_tasks$names),
-      Code = unlist(lang_tasks$codes),
-      Status = unlist(lang_tasks$statuses),
-      URL = unlist(lang_tasks$urls)
+      Language = sapply(conf$languages, `[[`, 'name'),
+      Code = sapply(conf$languages, `[[`, 'code')
     )
   }
   # Updating topics related fields

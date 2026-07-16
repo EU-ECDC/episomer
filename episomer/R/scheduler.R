@@ -65,164 +65,22 @@ get_tasks <- function(statuses = list()) {
     # If no tasks file is setup a default is built based on configuration
     list()
   }
-  # Setting default dependencies task status if not set
-  if (!exists("dependencies", where = tasks)) {
-    #get Java & Scala dependencies
-    tasks$dependencies <- list(
-      task = "dependencies",
-      order = 0,
-      started_on = NA,
-      end_on = NA,
-      status = NA,
-      scheduled_for = NA
-    )
-  }
-  # Setting default GeoNames task status if not set
-  if (!exists("geonames", where = tasks)) {
-    #get geonames
-    tasks$geonames <- list(
-      task = "geonames",
+  # Setting default alerts task status if not set
+  if (!exists("alerts", where = tasks)) {
+    #alerts
+    tasks$alerts <- list(
+      task = "alerts",
       order = 1,
       started_on = NA,
       end_on = NA,
       status = NA,
       scheduled_for = NA
     )
-  }
-  # Setting default languages task status if not set
-  if (!exists("languages", where = tasks)) {
-    #get geonames
-    tasks$languages <- list(
-      task = "languages",
-      order = 2,
-      started_on = NA,
-      end_on = NA,
-      status = NA,
-      scheduled_for = NA
-    )
-  }
-  # Setting default languages task status if not set
-  if (exists("geotag", where = tasks)) {
-    tasks$geotag <- NULL
-  }
-  # Setting default aggregate task status if not set
-  if (exists("aggregate", where = tasks)) {
-    tasks$aggregate <- NULL
-  }
-
-  # Setting default alerts task status if not set
-  if (!exists("alerts", where = tasks)) {
-    #alerts
-    tasks$alerts <- list(
-      task = "alerts",
-      order = 3,
-      started_on = NA,
-      end_on = NA,
-      status = NA,
-      scheduled_for = NA
-    )
-  } else if (exists("alerts", where = tasks) && tasks$alerts$order != 3) {
+  } else if (exists("alerts", where = tasks) && tasks$alerts$order != 1) {
     #dealing with bad order case after migration
-    tasks$alerts$order = 3
+    tasks$alerts$order = 1
   }
-  # The rest of the function code is to detect changes that has been requested by the shiny app
-  # changes are detected by looking at xxx_updated_on or xxx_requested_on settings on the configuration saved from the shiny_app
-
-  # Activating dependencies task if requested by the shiny app
-  if (in_pending_status(tasks$dependencies)) {
-    tasks$dependencies$maven_repo = conf$maven_repo
-    tasks$dependencies$winutils_url = conf$winutils_url
-    tasks$dependencies$status <- "pending"
-  }
-
-  # Activating geonames task if requested by the shiny app
-  if (in_pending_status(tasks$geonames)) {
-    tasks$geonames$url = conf$geonames_url
-    tasks$geonames$status <- "pending"
-  }
-
-  # Activating languages task if requested by the shiny app
-  if (in_pending_status(tasks$languages)) tasks$languages$status <- "pending"
-
-  # Getting language information (used to detect if there is an action to perform on languages)
-  # The tasks files contain the status of languages processed by the detect loop
-  # The difference between the settings from the shiny app and the tasks will allow episomer to detect the actions to perform on languages
-  langs <- get_available_languages() # All available languages for episomer
-  lcodes <- langs$Code # available language codes
-  lurls <- setNames(langs$Url, langs$Code) # available language URLs (to download models)
-  lnames <- setNames(langs$Label, langs$Code) # available language names
-  conf_codes <- sapply(conf$languages, function(l) l$code) # target languages to use in episomer as requested by setting (shiny app)
-  task_codes <- tasks$languages$codes # code of languages already processed by the detect loop
-  update_times <- setNames(
-    sapply(conf$languages, function(l) l$modified_on),
-    sapply(conf$languages, function(l) l$code)
-  ) # time where the change on languages was required by the shiny app
-
-  # Calculating languages to add, update and remove by comparing configuration setting  with language information processed by the detect loop
-  # remove: languages that are not anymore ion the settings
-  to_remove <- lcodes[sapply(
-    lcodes,
-    function(c) c %in% task_codes && !(c %in% conf_codes)
-  )]
-  # add: languages added on the settings
-  to_add <- lcodes[sapply(
-    lcodes,
-    function(c) !(c %in% task_codes) && (c %in% conf_codes)
-  )]
-  # update: languages with an update after the last time the language was update was started by the detect loop
-  to_update <- lcodes[sapply(
-    lcodes,
-    function(c)
-      (c %in% task_codes) &&
-        (c %in% conf_codes) &&
-        (is.na(tasks$languages$started_on) ||
-          is.na(tasks$languages$end_on) ||
-          (!is.null(update_times[[c]]) &&
-            strptime(update_times[[c]], "%Y-%m-%d %H:%M:%S") >
-              tasks$languages$started_on) ||
-          tasks$languages$started_on > tasks$languages$end_on)
-  )]
-  # languages with no changes
-  done <- lcodes[sapply(
-    lcodes,
-    function(c)
-      (c %in% task_codes) &&
-        (c %in% conf_codes) &&
-        (!is.na(tasks$languages$started_on) &&
-          !is.na(tasks$languages$end_on) &&
-          (is.null(update_times[[c]]) ||
-            strptime(update_times[c], "%Y-%m-%d %H:%M:%S") <=
-              tasks$languages$started_on) &&
-          tasks$languages$started_on <= tasks$languages$end_on)
-  )]
-
-  # merging four possible language cases to produce an updated version of what the detect loop should do
-  tasks$languages$codes = as.list(c(to_remove, to_add, to_update, done))
-  tasks$languages$statuses = as.list(c(
-    sapply(to_remove, function(l) "to remove"),
-    sapply(to_add, function(l) "to add"),
-    sapply(to_update, function(l) "to update"),
-    sapply(done, function(l) "done")
-  ))
-  tasks$languages$urls = lapply(tasks$languages$codes, function(c) lurls[c])
-  tasks$languages$names = lapply(tasks$languages$codes, function(c) lnames[c])
-  tasks$languages$vectors = lapply(tasks$languages$codes, function(c) {
-    conf$tasks$languages = sapply(
-      conf$languages[sapply(conf$languages, function(l) l$code == c)],
-      function(l) l$vectors
-    )
-  })
-
-  # updating the language status and showing it as pending if we detected work to do
-  tasks$languages$status <- (if (
-    (!is.na(tasks$languages$status) && tasks$languages$status == "success") &&
-      length(to_remove) + length(to_add) + length(to_update) > 0
-  )
-    "pending" else tasks$languages$status)
-
-  #filtering tasks by status if required and return
-  if (length(statuses) == 0) tasks else
-    tasks[sapply(tasks, function(t) t$status %in% statuses)]
+  tasks
 }
 
 # Getting the scheduler task lists and plan execution by setting the scheduled_for times
@@ -237,14 +95,7 @@ plan_tasks <- function(statuses = list()) {
   change <- FALSE
   for (i in sorted_tasks) {
     # Scheduling pending tasks one shot tasks (not recurrent) they will simply be executed in order when pending
-    if (tasks[[i]]$task %in% c("dependencies", "geonames", "languages")) {
-      if (is.na(tasks[[i]]$status) || tasks[[i]]$status == "pending") {
-        tasks[[i]]$status <- "scheduled"
-        tasks[[i]]$scheduled_for <- now + (i - 1) / 1000 # The (i-1)/1000 is not needed anymore
-        change <- TRUE
-        break #Just the first pending task is set to scheduled status
-      }
-    } else if (tasks[[i]]$task %in% c("alerts")) {
+    if (tasks[[i]]$task %in% c("alerts")) {
       # dealing with recurrent tasks first if take in consideration the case when a manual request for execution has been performed
       if (in_requested_status(tasks[[i]])) {
         tasks[[i]]$status <- "scheduled"
@@ -252,31 +103,7 @@ plan_tasks <- function(statuses = list()) {
         tasks[[i]]$failures <- 0
         change <- TRUE
         break # Just the first requested task is executed
-      } else if (
-        is.na(tasks[[i]]$status) ||
-          (# dealing with normal recurrent scheduling. This is the case when status is not set (first time)
-          tasks[[i]]$status %in%
-            c("pending", "success", "scheduled") && #or if status is pending success or scheduled (ready for next execution)
-            {
-              # this is the task ORDER after the last ended task base
-              last_ended <-
-                Reduce(
-                  x = list(tasks$alerts),
-                  f = function(a, b) {
-                    if (is.na(a$end_on) && is.na(b$end_on)) {
-                      if (a$order > b$order) a else b
-                    } else if (is.na(a$end_on)) b else if (is.na(b$end_on))
-                      a else if (a$end_on > b$end_on) a else b
-                  }
-                )
-              one_shot_task_count <- 3 #NUMBER OF ONE SHOT TASKS UPDATE IT ON CHANGE
-              next_order <- if (
-                last_ended$order + 1 <= max(sapply(tasks, `[[`, "order"))
-              )
-                last_ended$order + 1 else one_shot_task_count
-              tasks[[i]]$order == next_order
-            })
-      ) {
+      } else {
         # In this case this is the next task to be executed on normal scheduling
         tasks[[i]]$status <- "scheduled"
         if (is.na(tasks[[i]]$end_on)) {
@@ -338,8 +165,7 @@ save_tasks <- function(tasks) {
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
 #' @return nothing
-#' @details The detect loop is composed of three 'one shot tasks' \code{\link{download_dependencies}}, \code{\link{update_geonames}}, \code{\link{update_languages}} ensuring the system has
-#' all necessary components and data to run the three recurrent tasks \code{\link{generate_alerts}}
+#' @details The detect loop run the recurrent tasks \code{\link{generate_alerts}}
 #'
 #' The loop report progress on the 'tasks.json' file which is read or created by this function.
 #'
@@ -356,12 +182,6 @@ save_tasks <- function(tasks) {
 #' }
 #' @rdname detect_loop
 #' @seealso
-#'  \code{\link{download_dependencies}}
-#'
-#'  \code{\link{update_geonames}}
-#'
-#'  \code{\link{update_languages}}
-#'
 #'  \code{\link{detect_loop}}
 #'
 #'  \code{\link{generate_alerts}}
@@ -432,13 +252,7 @@ detect_loop <- function(data_dir = NA) {
         } else {
           # if task is not aborted proceeding with execution
           message(paste(Sys.time(), ": Executing task", tasks[[i_next]]$task))
-          if (tasks[[i_next]]$task == "dependencies") {
-            tasks <- download_dependencies(tasks)
-          } else if (tasks[[i_next]]$task == "geonames") {
-            tasks <- update_geonames(tasks)
-          } else if (tasks[[i_next]]$task == "languages") {
-            tasks <- update_languages(tasks)
-          } else if (tasks[[i_next]]$task == "alerts") {
+          if (tasks[[i_next]]$task == "alerts") {
             tasks <- generate_alerts(tasks)
           }
           # resetting failures to zero if successfully executed
@@ -530,60 +344,6 @@ in_requested_status <- function(task) {
 }
 
 
-# Updating geonames task for reporting progress on geonames refresh
-update_geonames_task <- function(
-  tasks,
-  status,
-  message,
-  start = FALSE,
-  end = FALSE
-) {
-  if (start) tasks$geonames$started_on = Sys.time()
-  if (end) tasks$geonames$end_on = Sys.time()
-  tasks$geonames$status = status
-  tasks$geonames$message = message
-  save_tasks(tasks)
-  return(tasks)
-}
-
-# Updating task for reporting progress on languages refresh
-update_languages_task <- function(
-  tasks,
-  status,
-  message,
-  start = FALSE,
-  end = FALSE,
-  lang_code = character(0),
-  lang_start = FALSE,
-  lang_done = FALSE,
-  lang_removed = FALSE
-) {
-  if (start) tasks$languages$started_on = Sys.time()
-  if (end) tasks$languages$end_on = Sys.time()
-  i <- 1
-  while (i <= length(tasks$languages$code)) {
-    if (tasks$languages$codes[[i]] == lang_code && lang_start)
-      tasks$languages$statuses[[i]] = "running"
-    if (tasks$languages$codes[[i]] == lang_code && lang_done)
-      tasks$languages$statuses[[i]] = "done"
-    if (tasks$languages$codes[[i]] == lang_code && lang_removed) {
-      tasks$languages$codes <- tasks$languages$codes[-i]
-      tasks$languages$statuses <- tasks$languages$statuses[-i]
-      tasks$languages$urls <- tasks$languages$urls[-i]
-      tasks$languages$names <- tasks$languages$names[-i]
-      tasks$languages$vectors <- tasks$languages$vectors[-i]
-      i <- i - 1
-    }
-    i <- i + 1
-  }
-
-  tasks$languages$status = status
-  tasks$languages$message = message
-  save_tasks(tasks)
-  return(tasks)
-}
-
-
 # Updating alert task for reporting progress on alert detection
 update_alerts_task <- function(
   tasks,
@@ -601,48 +361,3 @@ update_alerts_task <- function(
 }
 
 
-# Updating dependencies task for reporting progress on downloading Java & Scala dependencies
-update_dep_task <- function(
-  tasks,
-  status,
-  message,
-  start = FALSE,
-  end = FALSE
-) {
-  if (start) tasks$dependencies$started_on = Sys.time()
-  if (end) tasks$dependencies$end_on = Sys.time()
-  tasks$dependencies$status = status
-  tasks$dependencies$message = message
-  save_tasks(tasks)
-  return(tasks)
-}
-
-loop_run_issues <- function(loop_name) {
-  t <- get_tasks()
-  if (loop_name == "fs") {
-    if (
-      !is.na(t$dependencies$status) &&
-        t$dependencies$status %in% c("success", "running")
-    ) {
-      ""
-    } else if (!is_detect_running()) {
-      "Please activate 'Requirement & alerts' task. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
-    } else {
-      "Please manually run the 'Run dependencies' step. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
-    }
-  } else if (loop_name == "search") {
-    auth_ok <- check_sm_auth()
-    if(!auth_ok) {
-      "episomer could not create an authentication token, please make sure you have entered valid credentials in the configuration page and click on 'Save settings'"
-    } else if (is.na(t$dependencies$status) || t$dependencies$status != "success") {
-      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Dependencies'"
-    } else if (is.na(t$geonames$status) || t$geonames$status != "success") {
-      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Geonames'"
-    } else if (is.na(t$languages$status) || t$languages$status != "success") {
-      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Languages'"
-    }
-      else ""
-  } else if (loop_name == "detect") {
-    ""
-  } else stop(paste("Unlnown loop", loop_name))
-}

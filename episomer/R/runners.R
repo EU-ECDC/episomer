@@ -560,3 +560,33 @@ get_running_task_pid <- function(name) {
     if (pid_running) last_pid else -1
   } else -1
 }
+
+loop_run_issues <- function(loop_name) {
+  t <- get_tasks()
+  if (loop_name == "fs") {
+    if (
+      !is.na(t$dependencies$status) &&
+        t$dependencies$status %in% c("success", "running")
+    ) {
+      ""
+    } else if (!is_detect_running()) {
+      "Please activate 'Requirement & alerts' task. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
+    } else {
+      "Please manually run the 'Run dependencies' step. To run the embedded database, the dependencies task needs to be running or have been completed successfully"
+    }
+  } else if (loop_name == "search") {
+    auth_ok <- check_sm_auth()
+    if(!auth_ok) {
+      "episomer could not create an authentication token, please make sure you have entered valid credentials in the configuration page and click on 'Save settings'"
+    } else if (is.na(t$dependencies$status) || t$dependencies$status != "success") {
+      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Dependencies'"
+    } else if (is.na(t$geonames$status) || t$geonames$status != "success") {
+      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Geonames'"
+    } else if (is.na(t$languages$status) || t$languages$status != "success") {
+      "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Languages'"
+    }
+      else ""
+  } else if (loop_name == "detect") {
+    ""
+  } else stop(paste("Unlnown loop", loop_name))
+}

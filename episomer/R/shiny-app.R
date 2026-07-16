@@ -453,7 +453,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 shiny::column(2, shiny::actionButton("stop_search", "stop"))
               ),
               shiny::fluidRow(
-                shiny::column(3, "Requirements & alerts"),
+                shiny::column(3, "Alerts"),
                 shiny::column(5, shiny::htmlOutput("detect_running")),
                 shiny::column(
                   2,
@@ -568,7 +568,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 )
               ),
               shiny::fluidRow(
-                shiny::column(3, "Requirements & alerts span (min)"),
+                shiny::column(3, "Alerts span (min)"),
                 shiny::column(
                   9,
                   shiny::numericInput(
@@ -800,26 +800,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             shiny::column(
               8,
               ################################################
-              ######### Requirements & alerts PANEL ######################
+              ######### Alerts PANEL ######################
               ################################################
-              shiny::h3("Requirements & alerts pipeline"),
-              shiny::h5("Manual tasks"),
+              shiny::h3("Alerts pipeline"),
               shiny::fluidRow(
                 shiny::column(
-                  3,
-                  shiny::actionButton("update_dependencies", "Run dependencies")
-                ),
-                shiny::column(
-                  3,
-                  shiny::actionButton("update_geonames", "Run GeoNames")
-                ),
-                shiny::column(
-                  3,
-                  shiny::actionButton("update_languages", "Run languages")
-                ),
-                shiny::column(
-                  3,
-                  shiny::actionButton("request_alerts", "Run alerts")                  
+                  12,
+                  shiny::actionButton("request_alerts", "Run alerts now")                  
                 )
               ),
               DT::dataTableOutput("tasks_df"),
@@ -943,9 +930,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               ),
               shiny::fluidRow(
                 shiny::column(4, shiny::h5("Active languages")),
-                shiny::column(6, shiny::uiOutput("lang_items_0")),
-                shiny::column(1, shiny::actionButton("conf_lang_add", "+")),
-                shiny::column(1, shiny::actionButton("conf_lang_remove", "-")),
+                shiny::column(8, shiny::uiOutput("lang_items_0")),
               ),
               DT::dataTableOutput("config_langs"),
               ################################################
@@ -2511,28 +2496,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             multiple = FALSE,
             choices = cd$lang_items
           )
-        })
-
-        # adding the current language
-        shiny::observeEvent(input$conf_lang_add, {
-          add_config_language(input$lang_items, cd$lang_names[input$lang_items])
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          refresh_config_data(e = cd, limit = list("langs"))
-        })
-
-        #removing a language
-        shiny::observeEvent(input$conf_lang_remove, {
-          remove_config_language(input$lang_items)
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          refresh_config_data(e = cd, limit = list("langs"))
         })
 
         ######### TASKS LOGIC ##################
