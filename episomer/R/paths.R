@@ -220,10 +220,6 @@ get_lang_model_path <- function(code) {
   file.path(conf$data_dir, "languages", paste(code, ".txt.gz.model", sep = ""))
 }
 
-# Get language model stamp
-get_lang_stamp_path <- function(code) {
-  file.path(conf$data_dir, "languages", paste(code, ".txt.gz.stamp", sep = ""))
-}
 
 # Get post collection path
 get_post_togeo_path <- function() {

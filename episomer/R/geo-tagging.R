@@ -404,12 +404,10 @@ update_geonames <- function(download=TRUE, assemble = TRUE, index = TRUE) {
 }
 
 
-#' @title Updates local copies of languages
-#' @description Downloading and indexing a fresh version of language models tagged for update on the Shiny app configuration tab
-#' @param tasks Tasks object for reporting progress and error messages, default: get_tasks()
-#' @param reuse_downloads logical indicating if the downloads should be reused if they already exist, default: FALSE
-#' @return The list of tasks updated with produced messages
-#' @details Run a one shot task to download and index a local fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models}.
+#' @title Updates language index and retrain models
+#' @description Indexing downloaded languages models and proceed to retrain based on manual or automatic annotations
+#' @return Nothing
+#' @details Index locally downloaded fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models} and train entity detection models. 
 #' A fasttext model is a collection of vectors for a language automatically produced scrolling a big corpus of text that can be used to capture the semantic of a word.
 #'
 #' The URL to download the vectors from are set on the configuration tab of the Shiny app.
@@ -418,10 +416,7 @@ update_geonames <- function(download=TRUE, assemble = TRUE, index = TRUE) {
 #'
 #' The indexing is developed in SPARK and Lucene.
 #'
-#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the tasks \code{\link{download_dependencies}}
-#' and \code{\link{update_geonames}} has been run successfully.
-#'
-#' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
+#' Normally this function is not called directly by the user but from the \code{\link{setup}} function.
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -443,131 +438,65 @@ update_geonames <- function(download=TRUE, assemble = TRUE, index = TRUE) {
 #'  \code{\link{get_tasks}}
 #'
 #' @export
-#' @importFrom utils download.file
-update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
+update_languages <- function() {
   stop_if_no_config()
   old <- options()
   on.exit(options(old))
   options(timeout = 900)
-  tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
-  tasks <- tryCatch(
-    {
-      tasks <- update_languages_task(
-        tasks,
-        "running",
-        "downloading",
-        start = TRUE
-      )
+  
+  message("Getting annotations")
+  update_geotraining_df()
+  
+  message("Indexing and retraining languages") 
+  retrain_languages()
 
-      # Create languages folder if it does not exist
-      if (!file.exists(file.path(conf$data_dir, "languages"))) {
-        dir.create(file.path(conf$data_dir, "languages"))
-      }
+  message("updating annotations")
+  update_geotraining_df()
+  
+  # touching the geotraining_evaluation_path after the update of the geotraining dataset to allow proper change detection of training set in setup
+  if(file.exists(get_geotraining_evaluation_path()))
+      Sys.setFileTime(get_geotraining_evaluation_path(), Sys.time())
+  
+}
 
-      # Executing actions per language
-      i <- 1
-      while (i <= length(tasks$languages$statuses)) {
-        # downloading when necessary
-        if (tasks$languages$statuses[[i]] %in% c("to add", "to update")) {
-          tasks <- update_languages_task(
-            tasks,
-            "running",
-            paste("downloading", tasks$languages$name[[i]]),
-            lang_code = tasks$languages$codes[[i]],
-            lang_start = TRUE
-          )
-          if(!reuse_downloads || !file.exists(tasks$languages$vectors[[i]])) { 
-            temp <- sprintf("%s.tmp", tasks$languages$vectors[[i]])
-            # downloading the file
-	    download.file(tasks$languages$url[[i]], temp, mode = "wb")
-	    tryCatch2({
-                    file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
-	        },
-	        handler = function(e) {
-		    message(sprintf("Failed while trying to rename %s to %s with error : %s", file.path(temp), tasks$languages$vectors[[i]], e))
-		    message("going try to copy the file")
-                            if(file.copy(from = file.path(temp), to = tasks$languages$vectors[[i]], overwrite=T)) { 
-			        message("Copy of file succeeded, going to delete origin file")
-			        file.remove(temp)
-			    } else {
-		                stop("copy failed silently")
-			    }
-		}
-	    )
-            tasks <- update_languages_task(
-              tasks,
-              "running",
-              paste("downloaded", tasks$languages$name[[i]]),
-              lang_code = tasks$languages$codes[[i]],
-              lang_done = TRUE
-            )
-	  }
-        } else if (tasks$languages$statuses[[i]] %in% c("to remove")) {
-          # requesting to delete language data
-          # deleting language files
-          code <- tasks$languages$codes[[i]]
-          if (file.exists(get_lang_vectors_path(code)))
-            file.remove(get_lang_vectors_path(code))
-          if (dir.exists(get_lang_model_path(code)))
-            unlink(get_lang_model_path(code))
-          if (file.exists(get_lang_stamp_path(code)))
-            file.remove(get_lang_stamp_path(code))
-          tasks <- update_languages_task(
-            tasks,
-            "running",
-            paste("deleted", tasks$languages$name[[i]]),
-            lang_code = code,
-            lang_removed = TRUE
-          )
-          i <- i - 1
+download_big_file <- function(url, dest) {
+    old <- options()
+    on.exit(options(old))
+    options(timeout = 900)
+    temp <- sprintf("%s.tmp", dest)
+    # downloading the file
+    tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
+    tryCatch2(download.file(url, temp, mode = "wb"), handler = function(e) stop(e))
+    tryCatch2({
+            file.rename(from = file.path(temp), to = file.path(dest))
+        },
+        handler = function(e) {
+            message(sprintf("Failed while trying to rename %s to %s with error : %s", file.path(temp), file.path(dest), e))
+            message("going try to copy the file")
+                    if(file.copy(from = file.path(temp), to = file.path(dest), overwrite=T)) { 
+        	        message("Copy of file succeeded, going to delete origin file")
+        	        file.remove(temp)
+        	    } else {
+                        stop("copy failed silently")
+        	    }
         }
-        i <- i + 1
-      }
-      # Indexing languages after changes
-      # using the Spark job with entry point updateLanguages
-      tasks <- update_languages_task(
-        tasks,
-        "running",
-        "updating training set & indexing"
-      )
-      update_geotraining_df()
-      retrain_languages()
-      update_geotraining_df()
+    )
+}
 
-      # Setting status to success
-      tasks <- update_languages_task(tasks, "success", "", end = TRUE)
-      tasks
-    },
-    warning = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_languages_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$languages$message,
-          " languages",
-          error_condition
-        )
-      )
-      tasks
-    },
-    error = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_languages_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$languages$message,
-          " languages",
-          error_condition
-        )
-      )
-      tasks
-    }
-  )
-  return(tasks)
+#' @importFrom utils download.file
+remove_language_files <- function(code) {
+    base <- get_lang_vectors_path(code)
+    to_remove <- list(
+        base,
+        sprintf("%s.txt", base),
+        sprintf("%s.model.I.post-texts", base),
+        sprintf("%s.model.I.txt", base),
+        sprintf("%s.model.I", base),
+        sprintf("%s.model.I.post-texts.txt", base)
+    )
+    for(f in to_remove)
+        if(file.exists(f))
+            unlink(f, recursive = TRUE)
 }
 
 
@@ -1095,4 +1024,26 @@ update_forced_geo_codes <- function() {
     if (file.exists(get_forced_geo_codes_path()))
       file.remove(get_forced_geo_codes_path())
   }
+}
+
+# check whether languages need retrain
+get_lang_traing_need <- function() {
+    conf_langs <- unlist(lapply(conf$languages, `[[`, "code"))
+    existing_vectors <- conf_langs[file.exists(unlist(lapply(conf$languages, `[[`, "vectors")))]
+    # If there are some vectors not downloaded then retraining is needed
+    if(length(existing_vectors) < length(conf_langs) )
+        return(TRUE)
+    # If the training set is not yet produced then training is needed
+    if(!file.exists(get_geotraining_path()))
+        return(TRUE)
+    # If the evaluation of models has not been performed then training is needed
+    if(!file.exists(get_geotraining_evaluation_path()))
+        return(TRUE)
+    # If date of update of vectors or training set is later than the evaluation of models then training is needed
+    last_vectors_update <- max(file.mtime(sapply(existing_vectors, function(code) get_lang_vectors_path(code))))
+    last_evaluation <- file.mtime(get_geotraining_evaluation_path())
+    last_training_update <-file.mtime(get_geotraining_path())
+    if(max(last_vectors_update, last_training_update) > max(last_evaluation))
+        return(TRUE)
+    return(FALSE)
 }

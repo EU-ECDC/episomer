@@ -426,8 +426,7 @@ check_sm_auth <- function() {
       ok <- FALSE
       for(sm in active_social_media()) {
 	lastsm = sm
-        token <- sm_api_get_token(sm)
-        ok <- is.character(token) && length(token)  > 0
+        ok <- is_sm_authenticated(sm)
         if(!ok)
 	  break
       }
@@ -554,6 +553,28 @@ check_tar_gz <- function() {
     ))
     FALSE
   }
+}
+
+#' @title Episomer can run
+#' @description check whether conditions are met for episomer to run
+#' @return logical, whether episomer can run or not
+#' @details Perform configuration checks concerning, Java, bitness, task status, dependencies and social media authentication to determine whether episomer can run.
+#' @examples
+#' \dontrun{
+#'    #importing episomer
+#'    library(episomer)
+#'    message('Please choose the episomer data directory')
+#'    setup_config(file.choose())
+#'    #check if episomer can run
+#'    can_run()
+#' }
+#' @rdname can_run
+#' @export
+can_run <- function() {
+    return(tryCatch(
+        check_64() && check_java_64() && check_java_deps() && check_java_present() && check_sm_auth() && check_winmsvcr100() && check_winutils() && check_languages() && check_geonames()
+        ,warning = function(m) {message(m);FALSE}
+    ))
 }
 
 

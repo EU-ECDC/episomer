@@ -805,6 +805,12 @@ get_known_users <- function() {
   gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])
 }
 
+supported_social_media <- function() {
+  props <- names(conf)
+  sm_props <- props[grepl("^sm_activated", props)]
+  sm <- gsub("sm_activated_", "", sm_props)
+  sm
+}
 active_social_media <- function() {
   props <- names(conf)
   sm_props <- props[grepl("^sm_activated", props)]
@@ -826,6 +832,45 @@ alerts_social_media <- function() {
   alerts_sm <- gsub("sm_alerts_", "", alerts_sm_props)
   alerts_sm
 }
+
+is_sm_authenticated <- function(sm) {
+    if(sm %in% supported_social_media()) {
+      token <- sm_api_get_token(sm)
+      return(is.character(token) && length(token)  > 0)
+    }
+    return(FALSE)
+}
+
+is_sm_activated <- function(sm) {
+    prop = sprintf("sm_activated_%s", sm)
+    exists(prop, where=conf) && conf[[prop]]
+}
+is_sm_with_alerts <- function(sm) {
+    prop = sprintf("sm_alerts_%s", sm)
+    exists(prop, where=conf) && conf[[prop]]
+}
+sm_activate <- function(sm) {
+    prop = sprintf("sm_activated_%s", sm)
+    if(exists(prop, where=conf))
+        conf[[prop]] = TRUE
+}
+sm_deactivate <- function(sm) {
+    prop = sprintf("sm_activated_%s", sm)
+    if(exists(prop, where=conf))
+        conf[[prop]] = FALSE
+}
+
+sm_set_with_alerts <- function(sm) {
+    prop = sprintf("sm_alerts_%s", sm)
+    if(exists(prop, where=conf))
+        conf[[prop]] = TRUE
+}
+sm_set_without_alerts <- function(sm) {
+    prop = sprintf("sm_alerts_%s", sm)
+    if(exists(prop, where=conf))
+        conf[[prop]] = FALSE
+}
+
 
 # Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
 write_json_atomic <- function(x, path, ...) {

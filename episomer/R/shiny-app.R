@@ -3497,17 +3497,9 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
   }
 
   app_error <- function(e, env = cd) {
-    message("000000000000000000000000000")
-    message(class(e))
-    message(paste(e))
-    message("--------------------------------")
-
     message(e)
-    message("11111111111111111111111111")
     progress_close(env = env)
-    message("2222222222222222222222222222")
     shiny::showNotification(paste(e), type = "error")
-    message("33333333333333333333333333333")
   }
 
   # Printing PID

@@ -142,7 +142,7 @@ sm_api_search_bluesky <- function(
 
 #' @title Save bluesky credentials (login and password) and store them securely
 #' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
-#' @param shiny_input_list List of shiny input values containing the bluesky specific credentials
+#' @param shiny_input_list List of shiny input values containing the bluesky specific credentials if not provided the input will be requested interactively
 #' @details Update authentication tokens in configuration object
 #' @examples
 #' \dontrun{
@@ -155,16 +155,31 @@ sm_api_search_bluesky <- function(
 #' \code{\link{save_config}}
 #' @return Nothing. Called for side effects (saving credentials)
 #' @export
-sm_api_set_auth_bluesky <- function(shiny_input_list) {
+sm_api_set_auth_bluesky <- function(shiny_input_list=NULL) {
 # @function_def_end (do not delete)
-  if(!"bluesky_user" %in% names(shiny_input_list)) {
-    stop("bluesky_user is not in the shiny_input_list")
+  if(!is.null(shiny_input_list)) {
+    if(!"bluesky_user" %in% names(shiny_input_list)) {
+        stop("bluesky_user is not in the shiny_input_list")
+    }
+    if(!"bluesky_password" %in% names(shiny_input_list)) {
+        stop("bluesky_password is not in the shiny_input_list")
+    }
+    bluesky_user <- shiny_input_list$bluesky_user
+    bluesky_password <- shiny_input_list$bluesky_password
+  } else {
+    bluesky_user <- ""
+    bluesky_password <- NULL
+    bluesky_password2 <- NULL
+    while(is.null(bluesky_password) || bluesky_password != bluesky_password2) {
+        if(!is.null(bluesky_password))
+            message("Password did not match, please try again")
+        bluesky_user <- readline("Bluesky user:")
+        bluesky_password <- askpass::askpass("Bluesky password:")
+        bluesky_password2 <- askpass::askpass("Please repeat password:")
+    }
   }
-  if(!"bluesky_password" %in% names(shiny_input_list)) {
-    stop("bluesky_password is not in the shiny_input_list")
-  }
-  set_secret("bluesky_user", shiny_input_list$bluesky_user)
-  set_secret("bluesky_password", shiny_input_list$bluesky_password)
+  set_secret("bluesky_user", bluesky_user)
+  set_secret("bluesky_password", bluesky_password)
 }
 
 # @function_def_start (do not delete)

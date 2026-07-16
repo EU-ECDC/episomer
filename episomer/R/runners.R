@@ -40,7 +40,7 @@ register_detect_runner <- function() {
 #'    setup_config(file.choose())
 #'    register_fs_monitor()
 #' }
-#' @rdname register_fs_monitor
+#' @rdname runners
 #' @export
 register_fs_monitor <- function() {
   stop_if_no_config(paste(
@@ -84,7 +84,7 @@ register_runner <- function(name) {
 #'    setup_config(file.choose())
 #'    register_search_runner_task()
 #' }
-#' @rdname register_search_runner_task
+#' @rdname runners
 #' @export
 register_search_runner_task <- function() {
   register_runner_task("search")
@@ -103,7 +103,7 @@ register_search_runner_task <- function() {
 #'    setup_config(file.choose())
 #'    stop_search_runner_task()
 #' }
-#' @rdname stop_search_runner_task
+#' @rdname runners
 #' @export
 stop_search_runner_task <- function() {
   stop_runner_task("search")
@@ -124,7 +124,7 @@ stop_search_runner_task <- function() {
 #'    setup_config(file.choose())
 #'    register_detect_runner_task()
 #' }
-#' @rdname register_detect_runner_task
+#' @rdname runners
 #' @export
 register_detect_runner_task <- function() {
   register_runner_task("detect")
@@ -143,7 +143,7 @@ register_detect_runner_task <- function() {
 #'    setup_config(file.choose())
 #'    stop_detect_runner_task()
 #' }
-#' @rdname stop_detect_runner_task
+#' @rdname runners
 #' @export
 stop_detect_runner_task <- function() {
   stop_runner_task("detect")
@@ -151,6 +151,7 @@ stop_detect_runner_task <- function() {
 
 #' @title Registers the episomer database task
 #' @description registers the episomer database task or stops if no configuration has been set or if it is already running
+#' @param wait_until_response Logical, whether to wait until the fs runner answers, default FALSE
 #' @return Nothing
 #' @details Registers the episomer database task or stops if no configuration has been set or if it is already running.
 #' This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
@@ -163,12 +164,74 @@ stop_detect_runner_task <- function() {
 #'    setup_config(file.choose())
 #'    register_fs_runner_task()
 #' }
-#' @rdname register_fs_runner_task
+#' @rdname runners
 #' @export
-register_fs_runner_task <- function() {
+register_fs_runner_task <- function(wait_until_response=FALSE) {
   register_runner_task("fs")
+  message("Waiting until the fs runner answers")
+  answered <- FALSE
+  while(!answered) {
+     if(is_fs_running()) {
+         message("fs is running")
+         answered <- TRUE
+     } else {
+         cat(".")
+         Sys.sleep(2)
+     }
+  }
 }
 
+#' @title Stops all episomer runner tasks
+#' @description stops all episomer runner tasks
+#' @return Nothing
+#' @details Stops the detect loop, the search loop and the fs loop
+#' This function will try also deactivate the respective scheduled task on Windows.
+#' @examples
+#' \dontrun{
+#'    #getting tasks statuses
+#'    library(episomer)
+#'    message('Please choose the episomer data directory')
+#'    setup_config(file.choose())
+#'    stop_all_runner_tasks()
+#' }
+#' @rdname runners
+#' @export
+stop_all_runner_tasks <- function() {
+  if(is_detect_running()) {
+    message("Detect loop is running, stopping it")
+    stop_detect_runner_task()
+  }
+  if(is_search_running()) {
+    message("Search loop is running, stopping it")
+    stop_search_runner_task()
+  }
+  if(is_fs_running()) {
+    message("Fs loop is running, stopping it")
+    stop_fs_runner_task()
+  }
+}
+
+#' @title Starts all episomer runner tasks
+#' @description starts all episomer runner tasks
+#' @return Nothing
+#' @details Starts the detect loop, the search loop and the fs loop
+#' This function will try also register the respective scheduled task on Windows.
+#' @examples
+#' \dontrun{
+#'    #getting tasks statuses
+#'    library(episomer)
+#'    message('Please choose the episomer data directory')
+#'    setup_config(file.choose())
+#'    start_all_runner_tasks()
+#' }
+#' @rdname runners
+#' @export
+start_all_runner_tasks <- function() {
+  stop_all_runner_tasks()
+  register_fs_runner_task(wait = TRUE)
+  register_search_runner_task()
+  register_detect_runner_task()
+}
 
 #' @title Stops the episomer database task
 #' @description stops the episomer database task
@@ -183,7 +246,7 @@ register_fs_runner_task <- function() {
 #'    setup_config(file.choose())
 #'    stop_fs_runner_task()
 #' }
-#' @rdname stop_fs_runner_task
+#' @rdname runners
 #' @export
 stop_fs_runner_task <- function() {
   stop_runner_task("fs")
@@ -198,16 +261,14 @@ register_runner_task <- function(task_name) {
 
   # Getting the embedded script name to be called in order to make the script run
   script_name <- paste(task_name, "R", sep = ".")
-
   run_attached <- FALSE
-  # Filtering by OS, currently only Windows is supported
   # Getting source script
   script_base <- system.file(
     "extdata",
     script_name,
     package = get_package_name()
   )
-  # Getting destination folder which is going to be on user c:/Users/user/episomer or ~/episomer
+  # Getting destination folder which is going
   script_folder <- file.path(conf$data_dir, "jobs")
   if (!file.exists(script_folder)) {
     dir.create(script_folder, showWarnings = FALSE)
@@ -224,6 +285,7 @@ register_runner_task <- function(task_name) {
       # Registering the task as a schedule task using taskscheduleR
       # Note that the date format is being guess using %DATE% shell variable
       # This value can be overridden by conf$fore_date_format setting
+      message(sprintf("Registering and running %s as a Windows scheduler task", task_name))
       taskscheduleR::taskscheduler_create(
         taskname,
         rscript = script,
@@ -236,36 +298,32 @@ register_runner_task <- function(task_name) {
       )
       taskscheduleR::taskscheduler_runnow(taskname)
     } else {
-      run_attached <- TRUE
       warning(
         "Please install taskscheduleR package in order to permanently activate the task. This will run the task attached to this process and will end when you close this session."
       )
     }
   } else {
-    run_attached <- TRUE
-    warning(
-      "Task scheduling is not implemented yet on this OS. You can still schedule it manually. Please refer to package vignette. Running the task attached to this process, it will end when you close this session"
+    message(
+      "Permanent Task scheduling only work in Windows. The task will not automatically trigger on server startup"
     )
+    run_attached <- TRUE
   }
 
   if (run_attached) {
-    # running the requested task as a separate thread. This is useful for testing episomer from the shiny app but it does not permanently schedule the task.
-    # calculating alerts per topic
-    message(paste(
-      "Running task",
-      task_name,
-      "attached. Use this only for testing episomer, you will need to find a permanent way to schedule it on production environments"
-    ))
-    cm <- paste(script, rscript_args)
-    script_log <- paste(task_name, "log", sep = ".")
-    log <- file.path(script_folder, script_log)
-    system2(
-      "Rscript",
-      args = c(script, conf$data_dir),
-      stdout = log,
-      stderr = log,
-      wait = FALSE
-    )
+      # running the requested task as a separate thread. This is useful for testing episomer from the shiny app but it does not permanently schedule the task.
+      # calculating alerts per topic
+      message(sprintf("Running %s as a service attached to this session (for permanent scheduling add the following code to startup tasks)", task_name))
+      cm <- paste(script, rscript_args)
+      script_log <- paste(task_name, "log", sep = ".")
+      log <- file.path(script_folder, script_log)
+      message(sprintf("Rscript '%s' '%s' > %s", script, conf$data_dir, log))
+      system2(
+        "Rscript",
+        args = c(script, conf$data_dir),
+        stdout = log,
+        stderr = log,
+        wait = FALSE
+      )
   }
 }
 
@@ -287,6 +345,8 @@ stop_runner_task <- function(task_name) {
       shQuote(taskname, type = "cmd")
     )
     system(cmd, intern = FALSE)
+  } else {
+  
   }
   # If processes are still running then forcing stop by killing the processes
   if (task_name == "fs") {
@@ -364,8 +424,8 @@ kill_task <- function(pidfile, type = "R") {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    missing_search_jobs()
-#' }
-#' @rdname missing_search_jobs
+#' 
+#' @rdname runners
 #' @export
 missing_search_jobs <- function() {
   stop_if_no_config(paste(
@@ -390,7 +450,7 @@ missing_search_jobs <- function() {
 #'    setup_config(file.choose())
 #'    is_search_running()
 #' }
-#' @rdname is_search_running
+#' @rdname runners
 #' @export
 is_search_running <- function() {
   stop_if_no_config(paste(
@@ -410,7 +470,7 @@ is_search_running <- function() {
 #'    setup_config(file.choose())
 #'    is_fs_running()
 #' }
-#' @rdname is_fs_running
+#' @rdname runners
 #' @export
 is_fs_running <- function() {
   stop_if_no_config(paste(
@@ -424,7 +484,7 @@ is_fs_running <- function() {
   )
 }
 
-# stop with an error uf the embedded database service is not running.
+# stop with an error if the embedded database service is not running.
 stop_if_no_fs <- function(msg = NULL) {
   if (!is_fs_running()) {
     if (!is.null(msg)) stop(msg) else
@@ -446,7 +506,7 @@ stop_if_no_fs <- function(msg = NULL) {
 #'    setup_config(file.choose())
 #'    is_detect_running()
 #' }
-#' @rdname is_detect_running
+#' @rdname runners
 #' @export
 is_detect_running <- function() {
   stop_if_no_config(paste(

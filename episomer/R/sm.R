@@ -81,8 +81,8 @@ sm_api_update_plan_after_request <- function(plan, results) {
 #' @title Save credentials for a social media provider and store them securely
 #' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
 #' @param network char, the name of the social media
-#' @param shiny_input_list list, the shiny input object to extract the information from
-sm_api_set_auth <- function(network, shiny_input_list) {
+#' @param shiny_input_list list, the shiny input object to extract the information from if not provided the password will be requested interactively
+sm_api_set_auth <- function(network, shiny_input_list=NULL) {
   get(sprintf("sm_api_set_auth_%s", network))(
     shiny_input_list
   )
