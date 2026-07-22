@@ -402,6 +402,8 @@ object API {
                     } else {
                       complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not something you can get the md5sum from")) 
                     }
+                  } else if(action == "list") {
+                    complete(Files.exists(localPath).toString())
                   } else { //get
                     if(Files.isRegularFile(localPath)) {
                       complete(HttpEntity.fromFile(MediaTypes.`application/octet-stream`, new File(localPath.toString)))
