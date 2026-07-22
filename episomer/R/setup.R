@@ -16,6 +16,9 @@
 setup <- function(data_dir = NULL, silent = FALSE) {
     message("Welcome to the episomer setup wizard, you will go through a series of steps to ensure episomer works properly\n\n. Episomer tasks may be Stopped")
 
+    if(!setup_can_run()) {
+      stop("Missing requirements for episomer setup to run properly, please check previous warnings (probably related with missing java or wrong version)")
+    }
     ####################################################################################
     ### Making sure we know where is the data folder and calling setup_config  #########
     ####################################################################################

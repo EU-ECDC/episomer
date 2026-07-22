@@ -174,20 +174,17 @@ get_aggregates <- function(
       ret
     }
     #message(q_url)
-    agg_df = (if (conf$onthefly_api)
-      jsonlite::stream_in(url(q_url), verbose = FALSE) else {
-      if (!file.exists(file.path(conf$data_dir, "tmp")))
-        dir.create(file.path(conf$data_dir, "tmp"))
-      dest = file.path(
-        conf$data_dir,
-        "tmp",
-        paste0("aggregate_", as.integer(stats::runif(1, 1, 99999)), ".json")
-      )
-      download.file(url = q_url, destfile = dest, quiet = TRUE)
-      on.exit(if (file.exists(dest)) file.remove(dest))
-      df <- jsonlite::stream_in(file(dest), verbose = FALSE)
-      df
-    })
+    agg_df = (
+      if (conf$onthefly_api)
+        jsonlite::stream_in(url(q_url), verbose = FALSE) 
+      else {
+        dest = paste0(tempfile("aggregate_"), ".json")
+        download.file(url = q_url, destfile = dest, quiet = TRUE)
+        on.exit(if (file.exists(dest)) file.remove(dest))
+        df <- jsonlite::stream_in(file(dest), verbose = FALSE)
+        df
+      }
+    )
     # Calculating the created week
     if (nrow(agg_df) > 0) {
       agg_df$created_week <- strftime(

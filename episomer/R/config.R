@@ -149,6 +149,7 @@ get_empty_config <- function(data_dir) {
   ret$force_date_format <- ""
   ret$maven_repo <- "https://repo1.maven.org/maven2"
   ret$winutils_url <- "https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe"
+  ret$fs_url <- "https://localhost"
   ret$fs_port <- 8080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
@@ -219,33 +220,32 @@ setup_config <- function(
   ignore_properties = FALSE,
   ignore_topics = FALSE,
   save_properties_first = FALSE,
-  save_topics_first = list()
+  save_topics_first = list(),
+  fs_remote = "http://localhost:8080"
 ) {
   #setting the data_dir which is a read only property
   conf$data_dir <- data_dir
-
+  conf$fs_remote <- fs_remote
   # paths contains two files storing configuration data:
   # props which contains properties set on the Shiny App is stored on data_dir/properties.json
   # and data_dir/topics.json which stores search progress and is updated by the search loop
   props_path = get_properties_path()
 
-  #topics_path is the path to the excel file containing the topics provided by the user or episomer default ones
-  user_topics_path <- get_user_topics_path(data_dir)
 
   # save_first may be used by a function which is responsible for a part of the configuration to save changes on its perimeter before refreshing
   if (save_properties_first || length(save_topics_first) > 0) {
     save_config(
       data_dir = data_dir,
       properties = save_properties_first,
-      sm_topics = save_topics_first
+      sm_topics = save_topics_first,
+      sm_remote = sm_remote
     )
   }
   #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing
   temp <- get_empty_config(data_dir)
-
   if (!ignore_properties) {
     # refreshing properties (if requested)
-    if (file.exists(props_path)) {
+    if (file.exists(props_path) || !is.null(fs_remote)) {
       #merging default values with those stored in the properties.json file
       temp = merge_configs(list(
         temp,
@@ -299,6 +299,7 @@ setup_config <- function(
     conf$force_date_format <- temp$force_date_format
     conf$maven_repo <- temp$maven_repo
     conf$winutils_url <- temp$winutils_url
+    conf$fs_url <- temp$fs_url
     conf$fs_port <- temp$fs_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
@@ -309,11 +310,13 @@ setup_config <- function(
     conf$sm_activated_bluesky <- temp$sm_activated_bluesky
   }
   if (!ignore_topics) {
+    #topics_path is the path to the excel file containing the topics provided by the user or episomer default ones
+    user_topics_path <- get_user_topics_path()
     plans_path = get_plans_paths()
     # updating plans and topics if requested
     plans_exists <- FALSE
     topics_plans <- lapply(plans_path, function(p) {
-      if (file.exists(p)) {
+      if (epifile.exists(p)) {
         plans_exists <- TRUE
         tops <- jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE)
 	for(i in seq(1, length(tops$topics), along.with=tops$topics)) {
@@ -334,9 +337,9 @@ setup_config <- function(
     topics_changed <- FALSE
     topics <- {
       t <- list()
-      t$md5 <- as.vector(tools::md5sum(user_topics_path))
+      t$md5 <- epimd5sum(user_topics_path)
       if (t$md5 != temp$topics_md5 || !plans_exists) {
-        t$df <- readxl::read_excel(user_topics_path)
+        t$df <- epiread_xlsx(user_topics_path)
         topics_changed <- TRUE
       }
       t
@@ -473,9 +476,10 @@ copy_plans_from <- function(temp) {
 
 #' @title Save the configuration changes
 #' @description Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
-#' @param data_dir Path to a directory to save configuration settings, Default: conf$data_dir
+#' @param data_dir Path to a directory to save configuration settings if fs_remote is provided this value is ignored, Default: conf$data_dir
 #' @param properties Whether to save the general properties to the properties.json file, default: TRUE
 #' @param sm_topics Whether to save topic download plans to the topics.json file, default: TRUE
+#' @param fs_remote Path to the remote master instance of episomer, default: conf$fs_remote"
 #' @return Nothing
 #' @details Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
 #' to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
@@ -498,11 +502,12 @@ copy_plans_from <- function(temp) {
 save_config <- function(
   data_dir = conf$data_dir,
   properties = TRUE,
-  sm_topics = NULL
+  sm_topics = NULL,
+  fs_remote = conf$fs_remote
 ) {
   # creating the data directory if it does not exists
-  if (!file.exists(conf$data_dir)) {
-    dir.create(conf$data_dir, showWarnings = FALSE)
+  if (!epifile.exists(conf$data_dir)) {
+    epidir.create(conf$data_dir, showWarnings = FALSE)
   }
   if (is.null(sm_topics)) {
     sm_topics <- active_social_media()
@@ -549,6 +554,7 @@ save_config <- function(
     temp$force_date_format <- conf$force_date_format
     temp$maven_repo <- conf$maven_repo
     temp$winutils_url <- conf$winutils_url
+    temp$fs_url <- conf$fs_url
     temp$fs_port <- conf$fs_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
@@ -872,14 +878,3 @@ sm_set_without_alerts <- function(sm) {
 }
 
 
-# Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
-write_json_atomic <- function(x, path, ...) {
-  file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)
-  dir_name <- substring(path, 1, nchar(path) - nchar(file_name) - 1)
-  swap_file <- tempfile(
-    pattern = paste("~", file_name, sep = ""),
-    tmpdir = dir_name
-  )
-  jsonlite::write_json(x = x, path = swap_file, ...)
-  file.rename(swap_file, path)
-}

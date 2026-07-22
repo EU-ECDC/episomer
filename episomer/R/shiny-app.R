@@ -1,10 +1,12 @@
 #' @title Run the episomer Shiny app
-#' @description Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @description Open the episomer Shiny app, to visualise the outputs of episomer and change settings.
+#' @param data_dir Path to the configuration file to extract the localisation of the central episomer instance. The preferred way to call this function is using the fs_remote parameter.
+#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable
+#' This variable is ignored if fs_remote is provided, default: NA
 #' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
-#' @param profile The profileis to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
+#' @param profile The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
+#' @param fs_remote address of the central instance of episomer for accessing
 #' @return The Shiny server object containing the launched application
 #' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
@@ -35,17 +37,20 @@
 #' @importFrom dplyr select
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
-episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host = NULL, port = NULL) {
+episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host = NULL, port = NULL, fs_remote = NULL) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
   match.arg(profile, c("dashboard", "admin"))
-  # Setting up configuration if not already done
-  if (is.na(data_dir)) setup_config_if_not_already() else {
+  if(!is.null(fs_remote) || !is.null(conf$fs_remote)) {
+    setup_config(fs_remote = fs_remote)
+  } else {
     setup_config(data_dir)
+    fs_remote <- sprintf("%s:%s", conf$fs_url, conf$fs_port)
+    setup_config(fs_remote = fs_remote)
   }
-  if (!file.exists(get_properties_path())) {
-    save_config(data_dir = conf$data_dir, properties = TRUE, sm_topics = list())
+  if (!epifile.exists(get_properties_path())) {
+    save_config(sm_topics = list())
     save_tasks(get_tasks())
   }
   # Loading data for dashboard and configuration
@@ -2423,7 +2428,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_users_download <- shiny::downloadHandler(
           filename = function() "users.xlsx",
           content = function(file) {
-            file.copy(get_known_users_path(), file)
+            epifile.copy(get_known_users_path(), file)
           }
         )
 
@@ -2431,7 +2436,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_orig_users_download <- shiny::downloadHandler(
           filename = function() "users.xlsx",
           content = function(file) {
-            file.copy(get_default_known_users_path(), file)
+            epifile.copy(get_default_known_users_path(), file)
           }
         )
 
@@ -2440,7 +2445,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           df <- input$conf_users_upload
           if (!is.null(df) && nrow(df) > 0) {
             uploaded <- df$datapath[[1]]
-            file.copy(
+            epifile.copy(
               uploaded,
               paste(conf$data_dir, "users.xlsx", sep = "/"),
               overwrite = TRUE
@@ -2460,7 +2465,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_lang_download <- shiny::downloadHandler(
           filename = function() "languages.xlsx",
           content = function(file) {
-            file.copy(get_available_languages_path(), file)
+            epifile.copy(get_available_languages_path(), file)
           }
         )
 
@@ -2468,7 +2473,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_orig_lang_download <- shiny::downloadHandler(
           filename = function() "languages.xlsx",
           content = function(file) {
-            file.copy(get_default_available_languages_path(), file)
+            epifile.copy(get_default_available_languages_path(), file)
           }
         )
 
@@ -2477,7 +2482,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           df <- input$conf_lang_upload
           if (!is.null(df) && nrow(df) > 0) {
             uploaded <- df$datapath[[1]]
-            file.copy(
+            epifile.copy(
               uploaded,
               paste(conf$data_dir, "languages.xlsx", sep = "/"),
               overwrite = TRUE
@@ -2537,7 +2542,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_topics_download <- shiny::downloadHandler(
           filename = function() "topics.xlsx",
           content = function(file) {
-            file.copy(get_user_topics_path(), file)
+            epifile.copy(get_user_topics_path(), file)
           }
         )
 
@@ -2545,7 +2550,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_orig_topics_download <- shiny::downloadHandler(
           filename = function() "topics.xlsx",
           content = function(file) {
-            file.copy(get_default_topics_path(), file)
+            epifile.copy(get_default_topics_path(), file)
           }
         )
 
@@ -2554,10 +2559,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           df <- input$conf_topics_upload
           if (!is.null(df) && nrow(df) > 0) {
             uploaded <- df$datapath[[1]]
-            if(file.exists(uploaded)) {
-              file.copy(
+            if(epifile.exists(uploaded)) {
+              epifile.copy(
                 uploaded,
-                paste(conf$data_dir, "topics.xlsx", sep = "/"),
+                epipath("topics.xlsx"),
                 overwrite = TRUE
               )
 	      file.remove(uploaded)
@@ -2615,7 +2620,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_orig_subscribers_download <- shiny::downloadHandler(
           filename = function() "subscribers.xlsx",
           content = function(file) {
-            file.copy(get_default_subscribers_path(), file)
+            epifile.copy(get_default_subscribers_path(), file)
           }
         )
 
@@ -2623,7 +2628,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_subscribers_download <- shiny::downloadHandler(
           filename = function() "subscribers.xlsx",
           content = function(file) {
-            file.copy(get_subscribers_path(), file)
+            epifile.copy(get_subscribers_path(), file)
           }
         )
 
@@ -2632,7 +2637,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           df <- input$conf_subscribers_upload
           if (!is.null(df) && nrow(df) > 0) {
             uploaded <- df$datapath[[1]]
-            file.copy(
+            epifile.copy(
               uploaded,
               paste(conf$data_dir, "subscribers.xlsx", sep = "/"),
               overwrite = TRUE
@@ -2672,7 +2677,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_countries_download <- shiny::downloadHandler(
           filename = function() "countries.xlsx",
           content = function(file) {
-            file.copy(get_countries_path(), file)
+            epifile.copy(get_countries_path(), file)
           }
         )
 
@@ -2680,7 +2685,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         output$conf_orig_countries_download <- shiny::downloadHandler(
           filename = function() "countries.xlsx",
           content = function(file) {
-            file.copy(get_default_countries_path(), file)
+            epifile.copy(get_default_countries_path(), file)
           }
         )
 
@@ -2689,7 +2694,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           df <- input$conf_countries_upload
           if (!is.null(df) && nrow(df) > 0) {
             uploaded <- df$datapath[[1]]
-            file.copy(
+            epifile.copy(
               uploaded,
               paste(conf$data_dir, "countries.xlsx", sep = "/"),
               overwrite = TRUE
@@ -2944,7 +2949,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     write_alert_training_db(alerts)
                     cd$alert_training_refresh_flag(Sys.time())
                     progress_close()
-                    file.copy(get_alert_training_path(), file)
+                    epifile.copy(get_alert_training_path(), file)
                   } else
                     app_error(
                       "Cannot download alerts since no alerts where found with the selected filters",
@@ -2952,7 +2957,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     )
                 } else {
                   progress_close()
-                  file.copy(get_alert_training_path(), file)
+                  epifile.copy(get_alert_training_path(), file)
                 }
               },
               error = function(w) {
@@ -3013,13 +3018,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             progress_start("processing new training set")
             uploaded <- df$datapath[[1]]
             #copying file and making a backup of existing one
-            if (file.exists(get_user_alert_training_path()))
-              file.copy(
+            if (epifile.exists(get_user_alert_training_path()))
+              epifile.copy(
                 get_user_alert_training_path(),
                 paste(get_user_alert_training_path(), ".bak", sep = ""),
                 overwrite = TRUE
               )
-            file.copy(uploaded, get_user_alert_training_path(), overwrite = TRUE)
+            epifile.copy(uploaded, get_user_alert_training_path(), overwrite = TRUE)
             #updating geotraining df taking in condideration new uploaded file
 
             tryCatch(
@@ -3069,7 +3074,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             `F1Score` = double(),
             check.names = FALSE
           )
-          if (file.exists(get_geotraining_evaluation_path())) {
+          if (epifile.exists(get_geotraining_evaluation_path())) {
             df <- jsonlite::fromJSON(
               get_geotraining_evaluation_path(),
               flatten = TRUE
@@ -3132,13 +3137,13 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             progress_start("processing new training set")
             uploaded <- df$datapath[[1]]
             #copying file and making a backup of existing one
-            if (file.exists(get_user_geotraining_path()))
-              file.copy(
+            if (epifile.exists(get_user_geotraining_path()))
+              epifile.copy(
                 get_user_geotraining_path(),
                 paste(get_user_geotraining_path(), ".bak", sep = ""),
                 overwrite = TRUE
               )
-            file.copy(uploaded, get_user_geotraining_path(), overwrite = TRUE)
+            epifile.copy(uploaded, get_user_geotraining_path(), overwrite = TRUE)
             #updating geotraining df taking in condideration new uploaded file
 
             tryCatch(
@@ -3200,7 +3205,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     }
                   )
                 }
-                file.copy(get_geotraining_path(), file)
+                epifile.copy(get_geotraining_path(), file)
                 cd$geotraining_refresh_flag(Sys.time())
               },
               error = function(w) {

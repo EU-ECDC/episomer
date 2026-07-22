@@ -157,7 +157,7 @@ check_winmsvcr100 <- function() {
 # check winutils is installed
 check_winutils <- function() {
   if (.Platform$OS.type == "windows") {
-    if (file.exists(get_winutils_path())) TRUE else {
+    if (epifile.exists(get_winutils_path())) TRUE else {
       warning(
         "To run SPARK on Windows, you need winutils which is a HADOOP binary. You can download it by running the update dependencies task"
       )
@@ -577,6 +577,27 @@ can_run <- function() {
     ))
 }
 
+#' @title Episomer setup can run
+#' @description check whether conditions are met for episomer setup to run
+#' @return logical, whether episomer can run or not
+#' @details Perform configuration checks concerning, Java, bitness whether episomer setup can run.
+#' @examples
+#' \dontrun{
+#'    #importing episomer
+#'    library(episomer)
+#'    message('Please choose the episomer data directory')
+#'    setup_config(file.choose())
+#'    #check if episomer can run
+#'    can_run()
+#' }
+#' @rdname can_run
+#' @export
+setup_can_run <- function() {
+    return(tryCatch(
+        check_64() && check_java_64() && check_java_present() && check_winmsvcr100() 
+        ,warning = function(m) {message(m);FALSE}
+    ))
+}
 
 #' @title Run automatic sanity checks
 #' @description It runs a set of automated sanity checks for helping the user to troubleshot issues

@@ -7,9 +7,9 @@ import org.apache.pekko.actor.{ActorSystem, Actor, Props}
 import org.apache.pekko.stream.ActorMaterializer
 import org.apache.pekko.pattern.{ask, pipe}
 import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.model.{HttpEntity, ContentType, ContentTypes, HttpResponse}
+import org.apache.pekko.http.scaladsl.model.{HttpEntity, ContentType, ContentTypes, HttpResponse, StatusCodes, StatusCode, MediaTypes}
 import org.apache.pekko.http.scaladsl.server.Directives._
-import org.apache.pekko.http.scaladsl.model.{StatusCodes, StatusCode}
+import org.apache.pekko.http.scaladsl.server.directives.FileInfo
 import org.apache.pekko.http.scaladsl.marshalling.ToResponseMarshallable
 import org.apache.pekko.util.{Timeout}
 import spray.json.{JsValue}
@@ -25,9 +25,14 @@ import org.apache.pekko.stream.CompletionStrategy
 import org.apache.pekko.stream.scaladsl._
 import org.apache.pekko.http.scaladsl.model.HttpEntity.{Chunked, Strict}
 import org.apache.pekko.util.ByteString
+import org.apache.pekko.stream.scaladsl.FileIO
 import java.time.Instant
 import java.nio.file.{Paths, Files}
+import java.io.File
+import java.nio.file.StandardCopyOption
 import java.nio.charset.StandardCharsets
+import java.security.{DigestInputStream, MessageDigest}
+
 import spray.json.JsonParser
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
@@ -373,6 +378,93 @@ object API {
                 complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
               }
             }  
+          }
+        } ~ pathPrefix("file") {
+          get {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+              extractUnmatchedPath { path  =>
+                val localPath = Paths.get(conf.epiHome, path.toString)
+                parameters("action".as[String]?"get") { action => 
+                  if(action == "exists") {
+                    complete(Files.exists(localPath).toString())
+                  } else if(action == "md5sum") {
+                    if(Files.isRegularFile(localPath)) {
+                      val dig = MessageDigest.getInstance("MD5")
+                      val is = Files.newInputStream(localPath)
+                      val dis = new DigestInputStream(is, dig)
+                      while(dis.read()>=0){}
+                      val res = dig.digest()
+                      val b = new StringBuilder()
+                      b.append("\"")
+                      res.foreach(v => b.append(String.format("%02x", v)))
+                      b.append("\"")
+                      complete(b.toString)
+                    } else {
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not something you can get the md5sum from")) 
+                    }
+                  } else { //get
+                    if(Files.isRegularFile(localPath)) {
+                      complete(HttpEntity.fromFile(MediaTypes.`application/octet-stream`, new File(localPath.toString)))
+                    } else {
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not something you can download")) 
+                    }
+                  }
+                }
+              }
+            }
+          } ~ 
+          post {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+              parameters("action".as[String]?"upload", "createDirs".as[Boolean]?false, "ignoreIfExists".as[Boolean]?false) { (action, createDirs, ignoreIfExists) => 
+                extractUnmatchedPath { path  =>
+                    val localPath = Paths.get(conf.epiHome, path.toString)
+                    if(action == "createDir") {
+                      if(Files.isDirectory(localPath) && ignoreIfExists) {
+                        complete(s"Ok")
+                      } else {
+                        if(!Files.exists(localPath.getParent) && createDirs)
+                          Files.createDirectories(localPath.getParent)
+                        Files.createDirectory(localPath)
+                        complete(s"Directory created")
+                      }
+                    } else if(action == "copy") {
+                      entity(as[JsString]) { dest  =>
+                        if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
+                          complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                        else { 
+                          val dest = Paths.get(conf.epiHome, dest.toString)
+                          Files.copy(localPath, dest, StandardCopyOption.REPLACE_EXISTING )
+                          complete("ok") 
+                        }
+                      }
+                    } else { //upload
+                      val tempPath = Paths.get(conf.epiHome, f"${path.toString}.part")
+                      if(!Files.exists(localPath.getParent) && createDirs)
+                        Files.createDirectories(localPath.getParent)
+                      if(Files.isDirectory(localPath.getParent()) && (!Files.exists(localPath) || Files.isRegularFile(localPath))) {
+                        fileUpload("data") { case(metadata, byteSource) => 
+                          val sink = FileIO.toPath(tempPath)
+                          if(Files.exists(tempPath))
+                              Files.delete(tempPath)
+                          val writeResult = byteSource.runWith(sink)
+                          onSuccess(writeResult) { result =>
+                              result.status match {
+                                case Success(_) => {
+                                    Files.move(tempPath, localPath, StandardCopyOption.REPLACE_EXISTING,  StandardCopyOption.ATOMIC_MOVE )
+                                    complete(s"Successfully written ${result.count} bytes")
+                                }
+                                case Failure(e) => 
+                                    complete(StatusCodes.InternalServerError, EpisomerActor.Failure(s"Error while uploading the file '$e'\n ${e.getStackTrace.mkString("\n")}"))
+                            }
+                          } 
+                        }
+                      } else {
+                        complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' cannot is not a file that can be created")) 
+                      }
+                    }
+                }
+              }
+            }
           }
         } ~ {
           complete(StatusCodes.NotAcceptable,  EpisomerActor.Failure(s"Cannot find a route for uri $uri")) 

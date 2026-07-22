@@ -1,7 +1,11 @@
 # This script includes all dedicated logic for interacting with the Spark/Scala API via HTTP REST requests
 
 get_scala_api_endpoint <- function() {
-  paste("http://localhost:", conf$fs_port, "/", sep = "")
+  if(is.null(conf$fs_remote)) {
+    paste(conf$fs_url,":", conf$fs_port, "/", sep = "")
+  } else {
+    conf$fs_remote
+  }
 }
 
 get_scala_geotraining_url <- function() {
@@ -49,6 +53,85 @@ get_scala_recalc_hash_url <- function() {
   paste(get_scala_api_endpoint(), "recalculate-hash", sep = "")
 } 
 
+get_scala_file_url <- function(...) {
+    paste(get_scala_api_endpoint(), "file", ... , sep = "/")
+}
+
+epifile.exists <- function(path) {
+    if(!is_remote(path)) 
+        file.exists(path)
+    else
+        jsonlite::read_json(sprintf("%s?action=exists", path))
+}
+
+epidir.create <- function(path, recursive = FALSE, showWarnings = FALSE) {
+    if(!is_remote(path)) 
+        dir.create(path, recursive = recursive, showWarnings = showWarnings)
+    else
+         httr2::request(sprintf("%s?action=createDir&createDirs=%s&ignoreIfExists=true", path, tolower(recursive))) %>% 
+            httr2::req_method("POST") %>%
+            httr2::req_perform() 
+}
+epimd5sum <- function(path, recursive = FALSE) {
+    if(!is_remote(path)) 
+        unname(md5sum(path))
+    else
+        jsonlite::read_json(sprintf("%s?action=md5sum", path))
+}
+
+epiread_xlsx <- function(path) {
+    if(!is_remote(path)) 
+        readxl::read_excel(path)
+    else {
+        tf <- tempfile(pattern="episomer")
+        download.file(path, tf)
+        ret <- readxl::read_excel(tf)
+        file.remove(tf)
+        ret
+    }
+}
+
+epifile.upload <- function(localfile, dest) {
+    httr2::request(dest) %>% httr2::req_body_multipart(data = curl::form_file(localfile)) %>% httr2::req_perform()
+}
+
+epifile.copy <- function(from, to, overwrite = TRUE) {
+    if(is_local(from) && is_local(to))
+        file.copy(from, to, overwrite = overwrite)
+    else if (!is_local(from) && !is_local(to))
+        httr2::request(sprintf("%s?action=copy",from)) %>% httr2::req_body_json(data = to) %>% httr2::req_perform()
+    else if (is_local(dest))
+        download.file(from, to)
+    else #is_local(src)
+        epifile.upload(src, dest)
+}
+
+# Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
+write_json_atomic <- function(x, path, ...) {
+  file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)
+  if(!is_remote(path)) {
+    dir_name <- substring(path, 1, nchar(path) - nchar(file_name) - 1)
+    swap_file <- tempfile(
+      pattern = paste("~", file_name, sep = ""),
+      tmpdir = dir_name
+    )
+  } else {
+    swap_file <- tempfile(
+      pattern = paste("~", file_name, sep = ""),
+    )
+  }
+  jsonlite::write_json(x = x, path = swap_file, ...)
+  if(!is_remote(path)) 
+    file.rename(swap_file, path)
+  else {
+    epifile.upload(swap_file, path)
+    file.remove(swap_file) 
+  }
+}
+
+fs_remote <- function() {
+  !is.null(conf$fs_remote)
+}
 
 #' @title Runs the episomer embedded database loop
 #' @description Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
