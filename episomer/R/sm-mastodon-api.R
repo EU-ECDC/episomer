@@ -105,11 +105,12 @@ sm_api_search_mastodon <- function(
   verbose = TRUE
 ) {
   # @function_def_end (do not delete)
-  instance <- if (!is.null(conf$mastodon_instance) && nchar(conf$mastodon_instance) > 0) {
-    conf$mastodon_instance
-  } else {
-    "mastodon.social"
-  }
+  # instance <- if (!is.null(conf$mastodon_instance) && nchar(conf$mastodon_instance) > 0) {
+  #   conf$mastodon_instance
+  # } else {
+  #   "mastodon.social"
+  # }
+  instance <- "mastodon.social"
   search_url <- sprintf("https://%s/api/v2/search", instance)
   number_of_posts_per_request <- 40 # v2 search caps limit at 40
 
@@ -123,8 +124,23 @@ sm_api_search_mastodon <- function(
   # walk backwards in time: after the first request current_min_id holds the smallest id
   # obtained so far, used as an exclusive upper bound (max_id) for the next page.
   if (!is.null(plan$current_min_id)) {
-    req <- req %>% httr2::req_url_query(max_id = plan$current_min_id)
+    # we do 'minus 1', otherwise the post with the current_min_id is retrieved endlessly
+    req <- req %>%
+      httr2::req_url_query(
+        # max_id = (bit64::as.integer64(plan$current_min_id) - 1)
+        max_id = "116820554139330106"
+      )
   }
+
+  #  req %>%
+  #   httr2::req_headers(Authorization = paste("Bearer", token)) %>%
+  #   httr2::req_retry(
+  #     max_tries = max_retries,
+  #     retry_on_failure = TRUE,
+  #     is_transient = mastodon_rate_limited_check,
+  #     after = mastodon_rerun_after_rate_limit
+  #   ) %>%
+  #   httr2::req_verbose()
 
   resp <- req %>%
     httr2::req_headers(Authorization = paste("Bearer", token)) %>%
@@ -137,6 +153,7 @@ sm_api_search_mastodon <- function(
     httr2::req_perform()
 
   json <- httr2::resp_body_json(resp)
+  # browser()
   mastodon_parse_response(json, plan)
 }
 
@@ -334,12 +351,19 @@ mastodon_parse_response <- function(response, plan) {
     }
     urls <- mastodon_extract_urls(unlist(status$content))
     if (is_boost) {
-      urls <- unique(c(urls, mastodon_extract_urls(unlist(status$reblog$content))))
+      urls <- unique(c(
+        urls,
+        mastodon_extract_urls(unlist(status$reblog$content))
+      ))
     }
 
     ret <- list(
       id = unlist(status$id),
-      uri = if (!is.null(status$url)) unlist(status$url) else unlist(status$uri),
+      uri = if (!is.null(status$url)) {
+        unlist(status$url)
+      } else {
+        unlist(status$uri)
+      },
       created_at = mastodon_format_date(created),
       user_name = unlist(status$account$acct),
       text = unlist(status$content),
@@ -362,19 +386,19 @@ mastodon_parse_response <- function(response, plan) {
       ret <- NULL
     }
     # anti-loop safety: discard posts newer than the current pagination position
-    if (
-      !is.null(ret) &&
-        !is.null(plan$current_min_date) &&
-        created > plan$current_min_date
-    ) {
-      warning(sprintf(
-        "Ignoring post with creation (%s) after the upper bound (%s), uri: (%s)",
-        status$created_at,
-        plan$current_min_date,
-        ret$uri
-      ))
-      ret <- NULL
-    }
+    # if (
+    #   !is.null(ret) &&
+    #     !is.null(plan$current_min_date) &&
+    #     created > plan$current_min_date
+    # ) {
+    #   warning(sprintf(
+    #     "Ignoring post with creation (%s) after the upper bound (%s), uri: (%s)",
+    #     status$created_at,
+    #     plan$current_min_date,
+    #     ret$uri
+    #   ))
+    #   ret <- NULL
+    # }
     # lower bound of the window: discard posts older than plan_min_date. When a whole page
     # falls below this bound the resulting count is 0 and the plan is considered finished.
     if (
