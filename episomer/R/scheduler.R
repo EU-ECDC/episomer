@@ -35,7 +35,7 @@ get_tasks <- function(statuses = list()) {
   tasks_path <- get_tasks_path()
 
   #Loading tasks from file if exists
-  tasks <- if (file.exists(tasks_path)) {
+  tasks <- if (epifile.exists(tasks_path)) {
     #if tasks files exists getting tasks from disk
     t <- tryCatch(
       jsonlite::fromJSON(tasks_path, simplifyVector = FALSE, auto_unbox = TRUE),

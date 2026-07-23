@@ -24,10 +24,18 @@ is_remote <- function(path) {
 }
 
 to_remote_relative <- function(path) {
-    if(!is_remote(path))
+   if(!is_remote(path))
         stop("This function only work with remote episomer paths")
    p <- urltools::url_parse(path)
    gsub("^file", "", p$path)
+}
+
+to_remote_if_needed <- function(path) {
+   if(fs_remote() && !is_remote(path)) {
+     gsub(conf$data_dir, sprintf("%s/file/", conf$fs_remote), path)
+   } else {
+     path
+   }
 }
 
 # Get path of properties files (written by Shiny app)
@@ -185,7 +193,7 @@ get_winutils_hadoop_home_path <- function() epipath("hadoop")
 
 # Get winutils path
 get_winutils_path <- function()
-  epipath(get_winutils_hadoop_home_path(), "bin", "winutils.exe")
+  file.path(get_winutils_hadoop_home_path(), "bin", "winutils.exe")
 
 # Get JSON file name for alert on given date
 get_alert_file <- function(date) {

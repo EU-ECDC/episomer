@@ -4,64 +4,70 @@ get_scala_api_endpoint <- function() {
   if(is.null(conf$fs_remote)) {
     paste(conf$fs_url,":", conf$fs_port, "/", sep = "")
   } else {
-    conf$fs_remote
+    gsub("/$", "", conf$fs_remote)
   }
 }
 
 get_scala_geotraining_url <- function() {
-  paste(get_scala_api_endpoint(), "geotraining-set", sep = "")
+  paste(get_scala_api_endpoint(), "geotraining-set", sep = "/")
 }
 
 get_scala_alert_training_url <- function() {
-  paste(get_scala_api_endpoint(), "evaluate-alerts", sep = "")
+  paste(get_scala_api_endpoint(), "evaluate-alerts", sep = "/")
 }
 
 get_scala_posts_url <- function() {
-  paste(get_scala_api_endpoint(), "posts", sep = "")
+  paste(get_scala_api_endpoint(), "posts", sep = "/")
 }
 
 get_scala_geolocated_posts_url <- function() {
-  paste(get_scala_api_endpoint(), "geolocated-posts", sep = "")
+  paste(get_scala_api_endpoint(), "geolocated-posts", sep = "/")
 }
 
 get_scala_commit_url <- function() {
-  paste(get_scala_api_endpoint(), "commit", sep = "")
+  paste(get_scala_api_endpoint(), "commit", sep = "/")
 }
 
 
 get_scala_geolocate_text_url <- function() {
-  paste(get_scala_api_endpoint(), "geolocate-text", sep = "")
+  paste(get_scala_api_endpoint(), "geolocate-text", sep = "/")
 }
 
 get_scala_aggregate_url <- function() {
-  paste(get_scala_api_endpoint(), "aggregate", sep = "")
+  paste(get_scala_api_endpoint(), "aggregate", sep = "/")
 }
 
 get_scala_period_url <- function() {
-  paste(get_scala_api_endpoint(), "period", sep = "")
+  paste(get_scala_api_endpoint(), "period", sep = "/")
 }
 
 get_scala_status_url <- function() {
-  paste(get_scala_api_endpoint(), "period?serie=country_counts", sep = "")
+  paste(get_scala_api_endpoint(), "period?serie=country_counts", sep = "/")
 }
 
 get_scala_ping_url <- function() {
-  paste(get_scala_api_endpoint(), "ping", sep = "")
+  paste(get_scala_api_endpoint(), "ping", sep = "/")
 }
 
 get_scala_recalc_hash_url <- function() {
-  paste(get_scala_api_endpoint(), "recalculate-hash", sep = "")
+  paste(get_scala_api_endpoint(), "recalculate-hash", sep = "/")
 } 
 
 get_scala_file_url <- function(...) {
     paste(get_scala_api_endpoint(), "file", ... , sep = "/")
 }
 
+get_scala_stopwords_url <- function(code) {
+  paste(get_scala_api_endpoint(), sprintf("stopWords?code=%s", code), sep = "/")
+}
+
 epifile.exists <- function(path) {
-    if(!is_remote(path)) 
-        file.exists(path)
-    else
-        jsonlite::read_json(sprintf("%s?action=exists", path))
+    sapply(path, function(p) {
+      if(!is_remote(p)) 
+        file.exists(p)
+      else
+        jsonlite::read_json(sprintf("%s?action=exists", p))
+    })
 }
 
 epidir.create <- function(path, recursive = FALSE, showWarnings = FALSE) {
@@ -73,10 +79,12 @@ epidir.create <- function(path, recursive = FALSE, showWarnings = FALSE) {
             httr2::req_perform() 
 }
 epimd5sum <- function(path, recursive = FALSE) {
-    if(!is_remote(path)) 
-        unname(md5sum(path))
-    else
-        jsonlite::read_json(sprintf("%s?action=md5sum", path))
+    sapply(path, function(p) {
+      if(!is_remote(p)) 
+        unname(md5sum(p))
+      else
+        jsonlite::read_json(sprintf("%s?action=md5sum", p))
+    })
 }
 
 epiread_xlsx <- function(path) {
@@ -91,19 +99,62 @@ epiread_xlsx <- function(path) {
     }
 }
 
-epifile.upload <- function(localfile, dest) {
-    httr2::request(dest) %>% httr2::req_body_multipart(data = curl::form_file(localfile)) %>% httr2::req_perform()
+epifile.upload <- function(localfile, dest, append = FALSE) {
+    httr2::request(sprintf("%s?append=%s",dest, tolower(append))) %>% httr2::req_body_multipart(data = curl::form_file(localfile)) %>% httr2::req_perform()
 }
 
+epifile.touch <- function(path) {
+  if(!is_remote(path)) {
+    if(!file.exists(path)) {
+      write("", file = path, append = FALSE)
+    }
+    Sys.setFileTime(path, Sys.time())
+  } else {
+    httr2::request(sprintf("%s?action=touch",path)) %>% httr2::req_method("POST") %>% httr2::req_perform()
+  }
+}
 epifile.copy <- function(from, to, overwrite = TRUE) {
-    if(is_local(from) && is_local(to))
+    if(!is_remote(from) && !is_remote(to))
         file.copy(from, to, overwrite = overwrite)
-    else if (!is_local(from) && !is_local(to))
+    else if (is_remote(from) && is_remote(to))
         httr2::request(sprintf("%s?action=copy",from)) %>% httr2::req_body_json(data = to) %>% httr2::req_perform()
-    else if (is_local(dest))
+    else if (!is_remote(to)) {
+        if(!file.exists(dirname(to))) 
+            dir.create(dirname(to), recursive = TRUE)
         download.file(from, to)
-    else #is_local(src)
-        epifile.upload(src, dest)
+    }
+    else #!is_remote(from)
+        epifile.upload(from, to)
+}
+
+epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = FALSE) {
+    if(!is_remote(path))
+        list.files(path, pattern = pattern, full.names = full.names, recursive = recursive)
+    else {
+        files <- unlist(jsonlite::read_json(sprintf("%s?action=list&fullname=%s&recursive=%s", path, tolower(full.names), tolower(recursive))))
+        if(!is.null(pattern))
+             files <- files[grepl(pattern, files)]
+        files
+    }
+}
+epifile.mtime <- function(path) {
+    lapply(path, function(p) {
+      if(!is_remote(p))
+        file.mtime(p)
+      else {
+        if(!epifile.exists(path))
+            NA
+        else
+            lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
+      }
+    })
+}
+
+epilist.dirs <- function(path, full.names = TRUE) {
+    if(!is_remote(path))
+        list.dirs(path, recursive = FALSE, full.names = full.names)
+    else
+        unlist(jsonlite::read_json(sprintf("%s?action=listdir&fullname=%s", path, tolower(full.names))))
 }
 
 # Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
@@ -531,14 +582,9 @@ last_fs_updates <- function(
   collections = c("posts", "topwords", "country_counts", "geolocated")
 ) {
   times <- lapply(collections, function(collection) {
-    folders <- sort(list.files(
-      path = paste(conf$data_dir, "fs", collection, sep = "/"),
-      full.names = T
-    ))
-    if (length(folders) > 0) {
-      files <- list.files(c(folders), full.names = TRUE, recursive = TRUE)
-      files <- files[!grepl("write.lock$", files)]
-      max(file.mtime(files), na.rm = T)
+    time <- epifile.mtime(epipath("fs", collection))
+    if(!is.null(time)){
+      time
     } else {
       NA
     }

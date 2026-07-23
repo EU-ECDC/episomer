@@ -17,6 +17,7 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.{Try, Success, Failure}
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 import org.apache.pekko.actor.ActorRef
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorRef
@@ -27,13 +28,15 @@ import org.apache.pekko.http.scaladsl.model.HttpEntity.{Chunked, Strict}
 import org.apache.pekko.util.ByteString
 import org.apache.pekko.stream.scaladsl.FileIO
 import java.time.Instant
-import java.nio.file.{Paths, Files}
-import java.io.File
-import java.nio.file.StandardCopyOption
+import java.nio.file.{Paths, Files, Path, FileAlreadyExistsException}
+import java.nio.file.attribute.FileTime
+import java.io.{File, FileInputStream, InputStreamReader, BufferedReader}
+import java.util.zip.GZIPInputStream
+import java.nio.file.{StandardCopyOption, StandardOpenOption}
 import java.nio.charset.StandardCharsets
 import java.security.{DigestInputStream, MessageDigest}
 
-import spray.json.JsonParser
+import spray.json.{JsonParser, JsString, JsArray}
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
@@ -379,12 +382,50 @@ object API {
               }
             }  
           }
+        } ~ pathPrefix("stopWords") {
+          get {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+                parameters("code".as[String], "n".as[Int]?500) { (code, n) =>
+                   val ret = ArrayBuffer[String]()
+                   (conf.languages match {
+                     case Some(ll) => ll.filter(l => l.code == code).headOption
+                     case None => None
+                   }).flatMap { lang => 
+                        if(Files.exists(Paths.get(lang.vectorsPath)))
+                            Some(lang.vectorsPath)
+                        else None
+                   }.map{ vectorPath => 
+                         val fileStream = new FileInputStream(vectorPath)
+                         try {
+                           val gzipStream = new GZIPInputStream(fileStream)
+                           val decoder = new InputStreamReader(gzipStream)
+                           val buffered = new BufferedReader(decoder)
+                           var i = 0
+                           var line = buffered.readLine()
+                           line = buffered.readLine() //ignoring first line as is the title
+                           while(i < n && line != null) {
+                               ret.append(line.split(" ")(0))
+                               i = i + 1
+                               line = buffered.readLine()
+                           } 
+                         } finally {
+                           fileStream.close()
+                         }
+                         None
+                    }
+                  val jsonValues = ret.toVector.map(JsString(_))
+                  complete(JsArray(jsonValues).toString())
+                } 
+            } 
+          }
         } ~ pathPrefix("file") {
           get {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
               extractUnmatchedPath { path  =>
                 val localPath = Paths.get(conf.epiHome, path.toString)
-                parameters("action".as[String]?"get") { action => 
+                val url = uri.toString
+                val base = url.substring(0,url.lastIndexOf("?") match {case v if v <0 => url.length case v => v})
+                parameters("action".as[String]?"get", "fullname".as[Boolean].?, "recursive".as[Boolean]?false) { (action, fullname, recursive) => 
                   if(action == "exists") {
                     complete(Files.exists(localPath).toString())
                   } else if(action == "md5sum") {
@@ -402,8 +443,37 @@ object API {
                     } else {
                       complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not something you can get the md5sum from")) 
                     }
+                  } else if(action == "mtime") {
+                    complete(recursiveLastModifiedTime(localPath) match {
+                        case Some(v) => s"\"$v\""
+                        case None => "null"
+                    })
                   } else if(action == "list") {
-                    complete(Files.exists(localPath).toString())
+                    val full = fullname.getOrElse(false)
+                    val jsonValues = recursiveFileList(localPath, recursive = recursive)
+                        .map{p =>
+                            if(full) {
+                                p.toString().replace(localPath.toString, base)
+                            } else if(recursive) {
+                                //recursive but not full
+                                p.toString().replace(localPath.toString, path.toString).replaceAll("^/+", "")
+                            } else {
+                                //not recursive
+                                (new java.io.File(p.toString)).getName
+                            }
+                        } 
+                        .toVector
+                        .map(JsString(_))
+                    complete(JsArray(jsonValues).toString())
+                  } else if(action == "listdir") {
+                    val full = fullname.getOrElse(true)
+                    val jsonValues = Files.list(localPath)
+                        .filter(p => (new java.io.File(p.toString)).isDirectory)
+                        .map(p => (new java.io.File(p.toString)).getName)
+                        .map(p => if(full) f"$base/$p" else p)
+                        .toList.asScala.toVector
+                        .map(JsString(_))
+                    complete(JsArray(jsonValues).toString())
                   } else { //get
                     if(Files.isRegularFile(localPath)) {
                       complete(HttpEntity.fromFile(MediaTypes.`application/octet-stream`, new File(localPath.toString)))
@@ -417,7 +487,7 @@ object API {
           } ~ 
           post {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
-              parameters("action".as[String]?"upload", "createDirs".as[Boolean]?false, "ignoreIfExists".as[Boolean]?false) { (action, createDirs, ignoreIfExists) => 
+              parameters("action".as[String]?"upload", "createDirs".as[Boolean]?false, "ignoreIfExists".as[Boolean]?false, "append".as[Boolean]?false) { (action, createDirs, ignoreIfExists, append) => 
                 extractUnmatchedPath { path  =>
                     val localPath = Paths.get(conf.epiHome, path.toString)
                     if(action == "createDir") {
@@ -429,15 +499,25 @@ object API {
                         Files.createDirectory(localPath)
                         complete(s"Directory created")
                       }
+                    } else if(action == "touch") {
+                       try {
+                          Files.createFile(localPath);
+                       } catch  { case e:FileAlreadyExistsException =>
+                          Files.setLastModifiedTime(localPath, FileTime.from(Instant.now()))
+                       }
+                       complete("ok") 
                     } else if(action == "copy") {
-                      entity(as[JsString]) { dest  =>
-                        if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
-                          complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
-                        else { 
-                          val dest = Paths.get(conf.epiHome, dest.toString)
-                          Files.copy(localPath, dest, StandardCopyOption.REPLACE_EXISTING )
-                          complete("ok") 
-                        }
+                      entity(as[JsValue]) { 
+                        case JsString(dest)  =>
+                            if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
+                                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                            else { 
+                                val localDest = Paths.get(conf.epiHome, dest.toString)
+                                Files.copy(localPath, localDest, StandardCopyOption.REPLACE_EXISTING )
+                                complete("ok") 
+                            }
+                        case dest => 
+                            complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
                       }
                     } else { //upload
                       val tempPath = Paths.get(conf.epiHome, f"${path.toString}.part")
@@ -445,14 +525,15 @@ object API {
                         Files.createDirectories(localPath.getParent)
                       if(Files.isDirectory(localPath.getParent()) && (!Files.exists(localPath) || Files.isRegularFile(localPath))) {
                         fileUpload("data") { case(metadata, byteSource) => 
-                          val sink = FileIO.toPath(tempPath)
                           if(Files.exists(tempPath))
                               Files.delete(tempPath)
+                          val sink = if(!append) FileIO.toPath(tempPath) else  FileIO.toPath(localPath,  Set(StandardOpenOption.APPEND)) 
                           val writeResult = byteSource.runWith(sink)
                           onSuccess(writeResult) { result =>
                               result.status match {
                                 case Success(_) => {
-                                    Files.move(tempPath, localPath, StandardCopyOption.REPLACE_EXISTING,  StandardCopyOption.ATOMIC_MOVE )
+                                    if(!append)
+                                        Files.move(tempPath, localPath, StandardCopyOption.REPLACE_EXISTING,  StandardCopyOption.ATOMIC_MOVE )
                                     complete(s"Successfully written ${result.count} bytes")
                                 }
                                 case Failure(e) => 
@@ -475,6 +556,27 @@ object API {
     
 
     Http().newServerAt("localhost", conf.fsPort).bind(route)
+  }
+  def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
+    if(!Files.exists(path))
+        return Seq()
+    else if(Files.isDirectory(path)) {
+        if(recursive)
+            Files.list(path).map(recursiveFileList(_)).toList().asScala.flatMap(d => d).toSeq 
+        else
+            Files.list(path).toList().asScala.toSeq
+    } else {
+        Seq(path)
+    }
+  }
+  def recursiveLastModifiedTime(path:Path):Option[java.nio.file.attribute.FileTime] = {
+    if(!Files.exists(path))
+        return None
+    else if(Files.isDirectory(path)) {
+        Files.list(path).map(recursiveLastModifiedTime(_)).toList().asScala.flatMap(d => d).maxOption
+    } else {
+        Some(Files.getLastModifiedTime(path))
+    }
   }
   def logThis(log:String) = {
     import java.nio.file.StandardOpenOption

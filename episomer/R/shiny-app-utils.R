@@ -85,15 +85,15 @@ refresh_config_data <- function(
     if (!exists("langs_refresh_flag", where = e)) {
       e$langs_refresh_flag <- shiny::reactiveVal(0)
     } else if (
-      file.exists(get_tasks_path()) &&
-        file.info(get_tasks_path())$mtime > e$langs_refresh_flag()
+      epifile.exists(get_tasks_path()) &&
+        epifile.mtime(get_tasks_path()) > e$langs_refresh_flag()
     ) {
-      e$langs_refresh_flag(file.info(get_tasks_path())$mtime)
+      e$langs_refresh_flag(epifile.mtime(get_tasks_path()))
     } else if (
-      file.exists(get_properties_path()) &&
-        file.info(get_properties_path())$mtime > e$langs_refresh_flag()
+      epifile.exists(get_properties_path()) &&
+        epifile.mtime(get_properties_path()) > e$langs_refresh_flag()
     ) {
-      e$langs_refresh_flag(file.info(get_properties_path())$mtime)
+      e$langs_refresh_flag(epifile.mtime(get_properties_path()))
     }
     e$lang_items <- setNames(langs$Code, langs$`Full Label`)
     e$lang_names <- setNames(langs$Label, langs$Code)
@@ -116,19 +116,19 @@ refresh_config_data <- function(
     }
     if (
       !update &&
-        file.exists(get_user_topics_path()) &&
-        file.info(get_user_topics_path())$mtime != e$topics_refresh_flag()
+        epifile.exists(get_user_topics_path()) &&
+        epifile.mtime(get_user_topics_path())$mtime != e$topics_refresh_flag()
     ) {
       update <- TRUE
-      e$topics_refresh_flag(file.info(get_user_topics_path())$mtime)
+      e$topics_refresh_flag(epifile.mtime(get_user_topics_path()))
     }
     if (
       !update &&
-        file.exists(get_plans_path()) &&
-        file.info(get_plans_path())$mtime != e$plans_refresh_flag()
+        epifile.exists(get_plans_path()) &&
+        epifile.mtime(get_plans_path()) != e$plans_refresh_flag()
     ) {
       update <- TRUE
-      e$plans_refresh_flag(file.info(get_plans_path())$mtime)
+      e$plans_refresh_flag(epifile.mtime(get_plans_path()))
     }
     if (update) {
       e$topics_df <- get_topics_df()
@@ -149,14 +149,14 @@ refresh_config_data <- function(
       e$tasks_refresh_flag <- shiny::reactiveVal()
       update <- TRUE
     } else if (
-      file.exists(get_tasks_path()) &&
-        file.info(get_tasks_path())$mtime != e$tasks_refresh_flag()
+      epifile.exists(get_tasks_path()) &&
+        epifile.mtime(get_tasks_path()) != e$tasks_refresh_flag()
     ) {
       update <- TRUE
     }
     if (update) {
-      if (file.exists(get_tasks_path()))
-        e$tasks_refresh_flag(file.info(get_tasks_path())$mtime)
+      if (epifile.exists(get_tasks_path()))
+        e$tasks_refresh_flag(epifile.mtime(get_tasks_path()))
       tasks <- get_tasks()
       sorted_tasks <- order(sapply(tasks, function(l) l$order))
       e$tasks <- tasks[sorted_tasks]
@@ -215,10 +215,6 @@ can_render <- function(input, d) {
     shiny::need(
       is_fs_running(),
       'Embedded database service is not running, please make sure you have activated it (running update dependencies is necessary after upgrade from episomer version 0.1+ to episomer 1.0+)'
-    ),
-    shiny::need(
-      file.exists(conf$data_dir),
-      'Please go to configuration tab and setup post collection (no data directory found)'
     ),
     shiny::need(
       check_series_present(),

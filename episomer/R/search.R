@@ -273,11 +273,7 @@ search_loop_worker <- function(
 
 #' updates the modificatin date of a flag file indicating that messages have been sent to the embedded database.
 search_touch <- function() {
-  p <- get_search_touch_path()
-  if(!file.exists(p)) {
-      write("", file = p, append = FALSE)
-  }
-  Sys.setFileTime(p, Sys.time())
+  epifile.touch(get_search_touch_path())
 }
 
 #' performs a search following the given plan, query and topic.

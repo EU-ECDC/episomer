@@ -610,7 +610,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
   # Determining whether we should produce alerts for current hour (if aggregation has produced new records since last alert generation
   do_alerts <- FALSE
   alert_file <- get_alert_file(alert_to)
-  if (!file.exists(alert_file)) {
+  if (!epifile.exists(alert_file)) {
     do_alerts <- TRUE
   } else {
     f <- file(alert_file, "rb")
@@ -791,9 +791,12 @@ do_next_alerts <- function(tasks = get_tasks()) {
         alerts$topposts <- NULL
         alerts$id <- NULL
       }
-      f <- file(alert_file, open = "ab")
+      tfile <- tempfile("episomer-alert")
+      f <- file(tfile, open = "wb")
       jsonlite::stream_out(alerts, f, auto_unbox = TRUE)
       close(f)
+      epifile.upload(tfile, alert_file, append = TRUE)
+      unlink(tfile)
     }
   } else {
     message("no alerts to recalculate")
@@ -857,8 +860,8 @@ get_alerts <- function(
   t <- topic
   cnames <- (if (class(countries) %in% c("numeric", "integer"))
     lapply(countries, function(i) regions[[i]]$name) else countries)
-  alert_files <- list.files(
-    file.path(conf$data_dir, "alerts"),
+  alert_files <- epilist.files(
+    epipath("alerts"),
     recursive = TRUE,
     full.names = TRUE
   )

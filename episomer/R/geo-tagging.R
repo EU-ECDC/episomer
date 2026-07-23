@@ -987,7 +987,7 @@ update_forced_geo <- function() {
       auto_unbox = TRUE
     )
   } else {
-    if (file.exists(get_forced_geo_path())) file.remove(get_forced_geo_path())
+    if (epifile.exists(get_forced_geo_path())) epifile.remove(get_forced_geo_path())
   }
 }
 
@@ -1021,8 +1021,8 @@ update_forced_geo_codes <- function() {
       auto_unbox = TRUE
     )
   } else {
-    if (file.exists(get_forced_geo_codes_path()))
-      file.remove(get_forced_geo_codes_path())
+    if (epifile.exists(get_forced_geo_codes_path()))
+      epifile.remove(get_forced_geo_codes_path())
   }
 }
 

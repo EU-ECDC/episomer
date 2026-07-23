@@ -170,7 +170,7 @@ check_winutils <- function() {
 
 # check download Java dependencies has been executed
 check_java_deps <- function() {
-  if (!dir.exists(get_jars_dest_path())) {
+  if (!epifile.exists(get_jars_dest_path())) {
     warning(
       "episomer requires the dependencies task to run and download all Java dependencies"
     )
@@ -179,7 +179,7 @@ check_java_deps <- function() {
     con <- file(get_sbt_file_dep_path())
     deps <- readLines(con)
     close(con)
-    downloaded <- list.files(get_jars_dest_path())
+    downloaded <- epilist.files(get_jars_dest_path())
     if (length(deps) != length(downloaded)) {
       warning(
         "episomer requires the dependencies task to run and download all Java dependencies"
@@ -193,18 +193,18 @@ check_java_deps <- function() {
 
 # check geonames is downloaded and indexed
 check_geonames <- function() {
-  if (!file.exists(get_geonames_txt_path())) {
+  if (!epifile.exists(get_geonames_txt_path())) {
     warning(
       "episomer needs GeoNames to be downloaded and unzipped for geolocating posts. Please run the GeoNames task in the requirements and alert pipeline"
     )
     FALSE
   } else {
     dir <- get_geonames_index_path()
-    ret <- (if (!file.exists(dir)) FALSE else {
-      dirs <- list.dirs(dir, recursive = FALSE)
+    ret <- (if (!epifile.exists(dir)) FALSE else {
+      dirs <- epilist.dirs(dir)
       ind_dir <- dirs[grepl(".*/lucIndex[^/]*", dirs)]
       if (length(ind_dir) == 0) FALSE else
-        length(list.files(ind_dir, "_.*\\.cfs")) > 0
+        length(epilist.files(ind_dir, "_.*\\.cfs")) > 0
     })
     if (ret) TRUE else {
       warning("GeoNames has not been indexed. Please execute the geonames task")
@@ -216,10 +216,10 @@ check_geonames <- function() {
 
 # check that languages are downloaded and indexed
 check_languages <- function() {
-  lang_files <- sapply(conf$languages, function(l) l$vectors)
+  lang_files <- sapply(conf$languages, function(l) to_remote_if_needed(l$vectors))
   if (
     length(lang_files) == 0 ||
-      !all(sapply(lang_files, function(f) file.exists(f)))
+      !all(sapply(lang_files, function(f) epifile.exists(f)))
   ) {
     warning(
       "episomer requires languages models to be downloaded for geolocating posts. Please activate at least one language and launch the languages task"
@@ -227,11 +227,13 @@ check_languages <- function() {
     FALSE
   } else {
     dir <- get_lang_index_path()
-    ret <- (if (!file.exists(dir)) FALSE else {
-      dirs <- list.dirs(dir, recursive = FALSE)
+    ret <- (if (!epifile.exists(dir)) FALSE else {
+      dirs <- epilist.dirs(dir)
       ind_dir <- dirs[grepl(".*/lucIndex[^/]*", dirs)]
-      if (length(ind_dir) == 0) FALSE else
-        length(list.files(ind_dir, "_.*\\.cfs")) > 0
+      if (length(ind_dir) == 0) FALSE else {
+         files <- epilist.files(ind_dir, ".*\\.cfs")
+         length(files) > 0
+      }
     })
     if (ret) TRUE else {
       warning(
@@ -242,52 +244,32 @@ check_languages <- function() {
   }
 }
 
-# check if geolocated files are present (geotag has successfully run)
-check_geolocated_present <- function() {
-  last_month <- tail(
-    list.dirs(
-      path = file.path(conf$data_dir, "posts", "geolocated"),
-      recursive = FALSE
-    ),
-    n = 1
-  )
-  last_file <- tail(list.files(last_month, pattern = "*.json.gz"), n = 1)
-  if (length(last_file) > 0) {
-    TRUE
-  } else {
-    warning("No geolocated files found. Please execute the geotag task")
-    FALSE
-  }
-}
 
 # check if aggregated files are present (aggregate has successfully run)
 check_series_present <- function(
   series = c("country_counts", "geolocated", "topwords", "tags", "urls")
 ) {
-  rds_counts <- sapply(
-    series,
-    function(ds)
-      length(list.files(
-        path = file.path(conf$data_dir, "series"),
-        recursive = TRUE,
-        pattern = paste(ds, ".*\\.Rds", sep = "")
-      ))
-  )
-  fs_counts <- sapply(
-    series,
-    function(ds)
-      length(list.files(
-        path = file.path(conf$data_dir, "fs", ds),
-        recursive = TRUE,
-        pattern = ".*\\.fdt"
-      ))
-  )
-  if (all(rds_counts > 0) || all(fs_counts > 0)) TRUE else {
-    warning(
-      "No aggregated series found. Please run the search loop to collect and aggregate data"
-    )
-    FALSE
+  for(s in series) {
+    found <- FALSE
+    for(p in epilist.dirs(epipath("fs", s))) {
+       for(w in epilist.dirs(p)) {
+         if(length(epilist.files(w, ".*\\.fdt"))>0) {
+            found <- TRUE
+            break
+         }
+       }
+       if(found <- TRUE)
+           break
+    }
+    if(!found) {
+      warning(
+        sprintf("No data was found for %s. Please ensure the search loop is properly running", s)
+      )
+      return(FALSE)
+ 
+    }
   }
+  return(TRUE)
 }
 
 # check if post files are present & post collection has run
@@ -302,13 +284,10 @@ check_posts_present <- function() {
 
 # check if alert files are present
 check_alerts_present <- function() {
-  dirs <- list.dirs(
-    path = file.path(conf$data_dir, "alerts"),
-    recursive = FALSE
-  )
+  dirs <- epilist.dirs(path = epipath("alerts"))
   dirs <- dirs[!grepl(".*NA$", dirs)]
   last_year <- tail(dirs, n = 1)
-  last_file <- tail(list.files(path = last_year, pattern = "*.json"), n = 1)
+  last_file <- tail(epilist.files(path = last_year, pattern = ".*.json"), n = 1)
 
   if (length(last_file) > 0) {
     TRUE
@@ -456,20 +435,6 @@ check_last_sm_auth <- function() {
   }
 }
 
-#check manual tasks requested
-check_manual_task_request <- function() {
-  if (
-    is.na(conf$dep_updated_on) ||
-      is.na(conf$geonames_updated_on) ||
-      is.na(conf$lang_updated_on)
-  ) {
-    warning(
-      "Before running the Requirements & alerts pipeline, you have to click on 'activate' Requirements & alerts pipeline button on configuration page"
-    )
-    FALSE
-  } else TRUE
-}
-
 # can move from temp to data directory
 check_move_from_temp <- function() {
   ok <- tryCatch(
@@ -556,7 +521,7 @@ check_tar_gz <- function() {
 }
 
 #' @title Episomer can run
-#' @description check whether conditions are met for episomer to run
+#' @description check whether conditions are met for episomer app to run
 #' @return logical, whether episomer can run or not
 #' @details Perform configuration checks concerning, Java, bitness, task status, dependencies and social media authentication to determine whether episomer can run.
 #' @examples
@@ -691,7 +656,7 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
         as.numeric(strftime(Sys.time(), "%H")) >= 8
   ) {
     # check 01: if last post collected date is more than 1 hour
-    last_collected <- file.mtime(get_search_touch_path())
+    last_collected <- epifile.mtime(get_search_touch_path())
     if (
       is.na(last_collected) ||
         as.numeric(Sys.time() - last_collected, unit = "hours") >= 1
@@ -834,9 +799,12 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
 }
 
 update_session_info <- function() {
-  con <- file(get_session_info_path())
+  tf <- tempfile("episomer-session")
+  con <- file(tf)
   writeLines(utils::capture.output(utils::sessionInfo()), con)
   close(con)
+  epifile.copy(tf, get_session_info_path())
+  unlink(tf)
 }
 
 
@@ -886,6 +854,8 @@ create_snapshot <- function(
   compress = TRUE,
   progress = function(v, m) message(paste(round(v * 100, 2), m))
 ) {
+  if(!file.exists(destination_dir))
+    dir.create(destination_dir)
   destination <- normalizePath(
     file.path(
       destination_dir,
@@ -903,18 +873,7 @@ create_snapshot <- function(
   if ("settings" %in% types)
     items <- c(
       items,
-      list(
-        "properties.json" = get_properties_path(),
-        "topics.xlsx" = get_user_topics_path(),
-        "tasks.json" = get_tasks_path(),
-        "subscribers.xlsx" = get_subscribers_path(),
-        "countries.xlsx" = get_countries_path(),
-        "users.xlsx" = get_known_users_path(),
-        "languages.xlsx" = get_available_languages_path(),
-        "topics.json" = get_plans_path(),
-        "topic-keywords.json" = get_topic_keywords_path(),
-        "session-info.log" = get_session_info_path()
-      ),
+      episomer_files("", recurse = FALSE),
       episomer_files("collections")
     )
   if ("dependencies" %in% types)
@@ -952,37 +911,7 @@ create_snapshot <- function(
       items,
       episomer_files("alerts", aggregated_period[[1]], aggregated_period[[2]]),
       episomer_files(
-        "fs/contexts",
-        aggregated_period[[1]],
-        aggregated_period[[2]]
-      ),
-      episomer_files(
-        "fs/country_counts",
-        aggregated_period[[1]],
-        aggregated_period[[2]]
-      ),
-      episomer_files(
-        "fs/entities",
-        aggregated_period[[1]],
-        aggregated_period[[2]]
-      ),
-      episomer_files(
-        "fs/geolocated",
-        aggregated_period[[1]],
-        aggregated_period[[2]]
-      ),
-      episomer_files(
-        "fs/hashtags",
-        aggregated_period[[1]],
-        aggregated_period[[2]]
-      ),
-      episomer_files(
-        "fs/topwords",
-        aggregated_period[[1]],
-        aggregated_period[[2]]
-      ),
-      episomer_files(
-        "fs/urls",
+        "fs",
         aggregated_period[[1]],
         aggregated_period[[2]]
       ),
@@ -1001,7 +930,7 @@ create_snapshot <- function(
       episomer_files("fs/posts", posts_period[[1]], posts_period[[2]])
     )
   if ("logs" %in% types)
-    jobs_dir <- file.path(conf$data_dir, "jobs")
+    jobs_dir <- epipath("jobs")
     items <- c(
       items,
       list(
@@ -1014,80 +943,65 @@ create_snapshot <- function(
   i <- 0
   progress(0, paste("Building archive for", nb, "files"))
   last_message <- as.integer(Sys.time())
-  oldwd <- getwd()
-  on.exit(setwd(oldwd))
-  setwd(conf$data_dir)
-
-  # adding files from external folders to ensure portability
-  to_copy <- file.exists(unlist(items)) &
-    (!file.exists(names(items)) |
-      names(items) %in% c("detect.log", "fs.log", "search.log"))
-  if (length(to_copy) > 0) {
-    file.copy(unlist(items[to_copy]), names(items)[to_copy])
-  }
-
-  # creating list of files to add
-  to_arc <- normalizePath(tempfile("toarc"), winslash = "/", mustWork = FALSE)
-  to_arc_con <- file(to_arc, "wb", encoding = "UTF-8")
-  fnames <- normalizePath(names(items), winslash = "/", mustWork = FALSE)
-  writeLines(fnames[file.exists(fnames)], sep = "\n", to_arc_con)
-  close(to_arc_con)
-
-  # launching the compression as a background process
-  cb <- function(line, proc) {
-    i <<- i + 1
-    if (as.integer(Sys.time()) - last_message > 2) {
+  dump <- file.path(destination_dir, "dump")
+  if(file.exists(dump))
+    unlink(dump, recursive = TRUE)
+  dir.create(dump)
+  if(file.exists(destination))
+    unlink(destination)
+  if(nb > 0) {
+    relpaths <- names(items)
+    paths <- unname(items)
+    for(i in 1:nb) {
       progress(
-        1.0 * i / nb,
-        paste("Building archive for", i, "of", nb, "files")
+        round(0.7 * i / nb, 2),
+        paste("Downloading", i, "of", nb, "files")
       )
       last_message <<- as.integer(Sys.time())
+      if(epifile.exists(paths[[i]])) {
+        epifile.copy(paths[[i]], file.path(dump, relpaths[[i]]))
+      }
     }
+    progress(0.8, "Compacting and archiving")
+    comp <- if(compress) "z" else ""
+    processx::run(
+      "tar",
+      c(
+        "--force-local",
+        sprintf("-cv%sf", comp),
+        destination,
+        "."
+      ),
+      wd = dump
+    )
   }
-
-  result = tryCatch(
-    {
-      processx::run(
-        "tar",
-        c(
-          if (compress) "-czvf" else "-cvf",
-          destination,
-          "-T",
-          to_arc,
-          "--force-local"
-        ),
-        stdout_line_callback = cb,
-        wd = conf$data_dir
-      )
-    },
-    error = function(e) {
-      processx::run(
-        "tar",
-        c(if (compress) "-czvf" else "-cvf", destination, "-T", to_arc),
-        stdout_line_callback = cb,
-        wd = conf$data_dir
-      )
-    }
-  )
+  if(file.exists(dump))
+    unlink(dump, recursive = TRUE)
+  progress(1, "Archive done")
 }
 
-episomer_files <- function(rel_path, dmin = NULL, dmax = NULL) {
+episomer_files <- function(rel_path, dmin = NULL, dmax = NULL, recurse = TRUE) {
   if (!is.null(dmin) && is.na(dmin)) dmin <- NULL
   if (!is.null(dmax) && is.na(dmax)) dmax <- NULL
+  
   ret = list()
-  dirs <- list.dirs(file.path(conf$data_dir, rel_path), full.names = FALSE)
-  rel_dirs <- ifelse(dirs == "", rel_path, file.path(rel_path, dirs))
-
-  for (d in rel_dirs) {
-    f <- file.path(conf$data_dir, d)
-    file_names <- setdiff(
-      list.files(f),
-      list.dirs(f, recursive = FALSE, full.names = FALSE)
-    )
+  path <- epipath(rel_path)
+  if(!epifile.exists(path))
+    return(ret)
+  files <- trimws(epilist.files(path, full.names = FALSE))
+  dirs <- trimws(epilist.dirs(path, full.names = FALSE))
+  file_names <- setdiff(
+    files,
+    dirs
+  )
+  # Adding files
+  if(length(file_names)>0) {
     files <- as.list(setNames(
-      file.path(conf$data_dir, d, file_names),
-      file.path(d, file_names)
+      epipath(rel_path, file_names),
+      file.path(rel_path, file_names)
     ))
+    #fixing issues with relativa paths starting with /
+    files <- setNames(files, gsub("^/+", "", names(files)))
     dates <- as.Date(strptime(
       regmatches(
         names(files),
@@ -1123,6 +1037,12 @@ episomer_files <- function(rel_path, dmin = NULL, dmax = NULL) {
         ifelse(is.na(weeks), FALSE, weeks <= wmax)
       )
     ret <- c(ret, files[fd | fw])
+  }
+  # Adding subfolders
+  if(recurse) {
+    for (d in dirs) {
+      ret <- c(ret, episomer_files(file.path(rel_path, d), dmin = dmin, dmax = dmax))
+    }
   }
   ret
 }

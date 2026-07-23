@@ -245,7 +245,7 @@ setup_config <- function(
   temp <- get_empty_config(data_dir)
   if (!ignore_properties) {
     # refreshing properties (if requested)
-    if (file.exists(props_path) || !is.null(fs_remote)) {
+    if (epifile.exists(props_path) || !is.null(fs_remote)) {
       #merging default values with those stored in the properties.json file
       temp = merge_configs(list(
         temp,
