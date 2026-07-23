@@ -124,24 +124,15 @@ sm_api_search_mastodon <- function(
   # walk backwards in time: after the first request current_min_id holds the smallest id
   # obtained so far, used as an exclusive upper bound (max_id) for the next page.
   if (!is.null(plan$current_min_id)) {
-    # we do 'minus 1', otherwise the post with the current_min_id is retrieved endlessly
+    # NOTE: on Mastodon's status search, max_id is NOT an exact id cursor. It is converted
+    # server-side to an inclusive, second-resolution "before:<timestamp>" filter (snowflake
+    # ids sharing the same second are indistinguishable). So the boundary post and its
+    # same-second neighbours keep coming back on every page. We de-duplicate client-side (see plan$seen_ids).
     req <- req %>%
       httr2::req_url_query(
-        # max_id = (bit64::as.integer64(plan$current_min_id) - 1)
-        max_id = "116820554139330106"
+        max_id = plan$current_min_id
       )
   }
-
-  #  req %>%
-  #   httr2::req_headers(Authorization = paste("Bearer", token)) %>%
-  #   httr2::req_retry(
-  #     max_tries = max_retries,
-  #     retry_on_failure = TRUE,
-  #     is_transient = mastodon_rate_limited_check,
-  #     after = mastodon_rerun_after_rate_limit
-  #   ) %>%
-  #   httr2::req_verbose()
-
   resp <- req %>%
     httr2::req_headers(Authorization = paste("Bearer", token)) %>%
     httr2::req_retry(
@@ -153,7 +144,6 @@ sm_api_search_mastodon <- function(
     httr2::req_perform()
 
   json <- httr2::resp_body_json(resp)
-  # browser()
   mastodon_parse_response(json, plan)
 }
 
@@ -207,7 +197,35 @@ sm_api_set_auth_mastodon <- function(shiny_input_list=NULL) {
 #' @param plan list, the plan to update
 #' @param results list, the obtained results of the plan
 sm_api_update_plan_after_request_mastodon <- function(plan, results) {
-# @function_def_end (do not delete)
+  # @function_def_end (do not delete)
+  # explicit stop condition: if the smallest id obtained this round is the same as the
+  # previous cursor, the pagination did not advance and there is nothing new to fetch,
+  # so we end the plan (belt-and-suspenders on top of the client-side de-duplication).
+  if (
+    !is.null(results$pagination$min_id) &&
+      !is.null(plan$current_min_id) &&
+      results$pagination$min_id == plan$current_min_id
+  ) {
+    plan$end_on <- Sys.time()
+    return(plan)
+  }
+
+  # record every id collected this round so already-seen posts are dropped on later pages.
+  # Only ids in the boundary second (that of current_min_id) can ever come back, because
+  # max_id only decreases and never re-includes a second once we have paginated past it.
+  # We therefore keep only the most recently collected ids: seen_ids grows as
+  # c(existing, new_ids) and each round's new_ids are the older posts, so the tail holds
+  # the ids nearest the cursor. A page is capped at 40 posts, so this bound is far larger
+  # than one second's worth of matches while keeping seen_ids from growing without limit.
+  max_seen_ids <- 500L
+  new_ids <- unlist(lapply(results$posts, `[[`, "id"))
+  if (length(new_ids) > 0) {
+    plan$seen_ids <- utils::tail(
+      unique(c(plan$seen_ids, new_ids)),
+      max_seen_ids
+    )
+  }
+
   # advance the pagination cursor: the smallest id obtained becomes the next max_id
   if (!is.null(results$pagination$min_id)) {
     if (
@@ -418,6 +436,16 @@ mastodon_parse_response <- function(response, plan) {
   # aligning with Bluesky: posts without a detected language are discarded
   if (length(res$posts) > 0) {
     res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
+  }
+  # client-side de-duplication: because max_id is a coarse second-resolution filter (see the
+  # note in sm_api_search_mastodon), already-seen posts are returned again on later pages.
+  # Drop any post whose id has already been collected. When a whole page contains only
+  # already-seen posts the resulting count is 0 and the plan is considered finished, which
+  # also protects against an infinite pagination loop.
+  if (length(res$posts) > 0 && !is.null(plan$seen_ids)) {
+    res$posts <- res$posts[
+      sapply(res$posts, function(p) !(p$id %in% plan$seen_ids))
+    ]
   }
 
   if (length(res$posts) > 0) {

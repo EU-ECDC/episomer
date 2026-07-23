@@ -22,7 +22,12 @@ sm_plan_parse_attributes_mastodon <- function(...) {
     # next request to keep walking backwards in time. It is the only id-based attribute we
     # need since the search API paginates by id (window bounds are handled with dates).
     "current_min_id" = if (!is.null(unlist(p$current_min_id)))
-      unlist(p$current_min_id) else NULL
+      unlist(p$current_min_id) else NULL,
+    # ids of every post already collected for this plan, used to de-duplicate results:
+    # the search API's max_id is a coarse second-resolution filter so already-seen posts
+    # come back on later pages. Persisted so de-duplication survives a restart.
+    "seen_ids" = if (!is.null(unlist(p$seen_ids)))
+      unlist(p$seen_ids) else NULL
   )
   ret
 }
@@ -73,7 +78,8 @@ sm_plan_first_attributes_mastodon <- function() {
       tz = "UTC"
     ),
     current_min_date = NULL,
-    current_min_id = NULL
+    current_min_id = NULL,
+    seen_ids = NULL
   )
 }
 
@@ -94,7 +100,8 @@ sm_plan_next_attributes_mastodon <- function(plans) {
       tz = "UTC"
     ),
     current_min_date = NULL,
-    current_min_id = NULL
+    current_min_id = NULL,
+    seen_ids = NULL
   )
 }
 
