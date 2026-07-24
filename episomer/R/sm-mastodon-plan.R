@@ -18,16 +18,14 @@ sm_plan_parse_attributes_mastodon <- function(...) {
         "%Y-%m-%d %H:%M:%OSZ",
         tz = "UTC"
       ) else NULL,
-    # pagination cursor: a mastodon snowflake id kept as a string, used as `max_id` on the
-    # next request to keep walking backwards in time. It is the only id-based attribute we
-    # need since the search API paginates by id (window bounds are handled with dates).
-    "current_min_id" = if (!is.null(unlist(p$current_min_id)))
-      unlist(p$current_min_id) else NULL,
-    # ids of every post already collected for this plan, used to de-duplicate results:
-    # the search API's max_id is a coarse second-resolution filter so already-seen posts
-    # come back on later pages. Persisted so de-duplication survives a restart.
-    "seen_ids" = if (!is.null(unlist(p$seen_ids)))
-      unlist(p$seen_ids) else NULL
+    # pagination cursor (see sm_api_search_mastodon for the combined max_id + offset scheme):
+    # window_max_id selects the current second-window (a snowflake id kept as a string) and
+    # current_offset is how far we have already paged inside it. Both are persisted so the
+    # pagination resumes correctly after a restart.
+    "window_max_id" = if (!is.null(unlist(p$window_max_id)))
+      unlist(p$window_max_id) else NULL,
+    "current_offset" = if (!is.null(unlist(p$current_offset)))
+      as.integer(unlist(p$current_offset)) else NULL
   )
   ret
 }
@@ -57,7 +55,7 @@ sm_plan_format_mastodon <- function(plan) {
       "%Y-%m-%d %H:%M:%OS6Z",
       tz = "UTC"
     )
-  # current_min_id is already a string
+  # window_max_id is already a string and current_offset an integer: both serialise as-is
   plan
 }
 
@@ -78,8 +76,8 @@ sm_plan_first_attributes_mastodon <- function() {
       tz = "UTC"
     ),
     current_min_date = NULL,
-    current_min_id = NULL,
-    seen_ids = NULL
+    window_max_id = NULL,
+    current_offset = NULL
   )
 }
 
@@ -100,8 +98,8 @@ sm_plan_next_attributes_mastodon <- function(plans) {
       tz = "UTC"
     ),
     current_min_date = NULL,
-    current_min_id = NULL,
-    seen_ids = NULL
+    window_max_id = NULL,
+    current_offset = NULL
   )
 }
 
@@ -130,14 +128,20 @@ sm_plan_get_progress_mastodon <- function(plan) {
 sm_plan_search_info_mastodon <- function(plan) {
 # @function_def_end (do not delete)
   info = ""
-  if (is.null(plan$current_min_id)) {
+  if (is.null(plan$window_max_id)) {
     info = paste(
       info,
-      "before (first)",
+      "from newest before",
       strftime(plan$plan_max_date, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC")
     )
   } else {
-    info = paste(info, "before id", plan$current_min_id)
+    info = paste(
+      info,
+      "before id",
+      plan$window_max_id,
+      "offset",
+      if (is.null(plan$current_offset)) 0L else plan$current_offset
+    )
   }
   if (!is.null(plan$plan_min_date)) {
     info = paste(
