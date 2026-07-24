@@ -38,17 +38,17 @@ get_key_ring <- function(backend = NULL) {
   }
 
   # unlocking keyring if unlocked using environment variable to get the password
-  if (
-    kb$keyring_is_locked(keyring = kr_name) &&
-      Sys.getenv("ecdc_wtitter_tool_kr_password") != ""
-  ) {
-    kb$keyring_unlock(
-      keyring = kr_name,
-      password = Sys.getenv("ecdc_wtitter_tool_kr_password")
-    )
-    # unlocking keyring if unlocked using password prompt
-  } else if (kb$keyring_is_locked(keyring = kr_name)) {
-    kb$keyring_unlock(keyring = kr_name)
+  if (kb$keyring_is_locked(keyring = kr_name)) {
+    if(Sys.getenv("ecdc_wtitter_tool_kr_password") == "") {
+       Sys.setenv(ecdc_wtitter_tool_kr_password=askpass::askpass(
+        "Please enter the encruption password for episomer secrets \n(you can otherwise export the 'ecdc_wtitter_tool_kr_password' environment variable)"
+       ))
+    }
+      kb$keyring_unlock(
+        keyring = kr_name,
+        password = Sys.getenv("ecdc_wtitter_tool_kr_password")
+      )
+      # unlocking keyring if unlocked using password prompt
   }
   return(kb)
 }
