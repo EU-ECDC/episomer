@@ -70,6 +70,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         train_langs = get_lang_traing_need(),
         set_sm_credentials = !tryCatch(check_sm_auth(), warning=function(e) FALSE)
     )
+    
     default = "1"
     main_ans <- choose_between("Which action would you like perform?", 
         list(
@@ -212,8 +213,20 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             default_index_geo
         )
         index_geonames <- (index_geo_ans %in% list(1))
-        message("") 
-        update_geonames(download = get_geonames, assemble = ass_geonames, index = index_geonames) 
+        message("")
+        
+        # Checking if there are missing dependenies
+        if(!get_geonames && !file.exists(get_geonames_txt_path()) && (ass_geonames || index_geonames)) {
+          message(alert("Cannot proceed to process assemble or index geonames. It has not been downloaded or marked for download"))
+        } else if(!tryCatch(check_java_deps(), warning=function(e) FALSE) && (ass_geonames || index_geonames)) {
+          message(alert("Cannot proceed to process assemble or index geonames. Java dependencies are missing. Please choose to download them"))
+        } else if(!tryCatch(check_winutils(), warning=function(e) FALSE) && (ass_geonames || index_geonames)) {
+          message(alert("Cannot proceed to process assemble or index geonames. Winutils is missing. Please choose to download it"))
+        } else if(!file.exists(get_geonames_parquet_path()) && (index_geonames)) {
+          message(alert("Cannot proceed to process index geonames. You have to choose to assemble it before"))
+        } else {
+          update_geonames(download = get_geonames, assemble = ass_geonames, index = index_geonames) 
+        }
     }
     ####################################################################################
     ### Option 5. Update languages  ####################################################
@@ -244,7 +257,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             )
             # Removing languages
             if(lang_ans == "3") {
-                if(length(curr_langs)>1) {
+                if(length(lang_list)>1) {
                     remove_this <- choose_between(sprintf("Which language do you want to remove?"), 
                         c(lang_list, list("0"="Cancel")),
                         silent,  
@@ -338,14 +351,22 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         )
         do_training <- (train_lang_ans %in% list(1))
         if(do_training) {
-            pause(silent)
-            save_config()
-            message("Going to launch model retraining, starting the episomer database")
-            register_fs_runner_task(wait=TRUE)
-            message("Episomer database is running, proceeding with training")
-            update_languages() 
-            message("Episomer language models indexed and retrained, stopping the episomer database")
-            stop_fs_runner_task()
+            if(!tryCatch(check_java_deps(), warning=function(e) FALSE)) {
+              message(alert("Cannot proceed to process to train language models. Java dependencies are missing. Please choose to download them"))
+            } else if(!tryCatch(check_winutils(), warning=function(e) FALSE)) {
+              message(alert("Cannot proceed to process to train language models. Winutils is missing. Please choose to download it"))
+            } else if(!tryCatch(check_geonames(), warning=function(e) FALSE)) {
+              message(alert("Cannot proceed to process to train language models. Geonames has not been successfully assemebled and indexed, please choose to do it"))
+            } else {
+              pause(silent)
+              save_config()
+              message("Going to launch model retraining, starting the episomer database")
+              register_fs_runner_task(wait=TRUE)
+              message("Episomer database is running, proceeding with training")
+              update_languages() 
+              message("Episomer language models indexed and retrained, stopping the episomer database")
+              stop_fs_runner_task()
+           }
         }
         
     }
@@ -490,12 +511,26 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         # Performing requested action
         if(s_ans != "6") {
             if(actions[[s_ans]] == "start") {
+              existing_langs <- conf_langs[file.exists(unlist(lapply(conf$languages, `[[`, "vectors")))] 
+              if(length(existing_langs)>0 ||  get_lang_traing_need()) {
+                  message(alert("Cannot proceed starting services, languages needs to be successfully processed."))
+              } else if(! tryCatch(check_java_deps(), warning=function(e) FALSE) || 
+                        ! tryCatch(check_winutils(), warning=function(e) FALSE)) {
+                  message(alert("Cannot proceed starting services, java dependencies has not been downloaded."))
+              } else if(! tryCatch(check_geonames(), warning=function(e) FALSE)) {
+                  message(alert("Cannot proceed starting services, geonames has not been successfully processed."))
+              } else  {
                 message("Starting services")
                 if(targets[[s_ans]] %in% c("fs", "all")) {
                     register_fs_runner_task(wait_until_response=T)
                 }
                 if(targets[[s_ans]] %in% c("search", "all")) {
-                    register_search_runner_task()
+                    if(!tryCatch(check_sm_auth(), warning=function(e) FALSE)) {
+                        message(alert("Cannot start the search service, The social methia authentication is failing."))
+                    }
+                    else {
+                        register_search_runner_task()
+                    }
                 }
                 if(targets[[s_ans]] %in% c("detect", "all")) {
                      save_tasks(get_tasks())
@@ -503,6 +538,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                 }
                 pause(silent)
                 message("Service started")
+              }
             }
             if(actions[[s_ans]] == "stop") {
                 message("Stopping services")
@@ -547,12 +583,22 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            app <- episomer_app(profile = c("admin"))
         }
     }
-    message("Thanks for using episomer!\nHappy signal detection!")
+    message(alert("Thanks for using episomer!\nHappy signal detection!"))
     if(!is.null(app))
         app
     else
        invisible(NULL)
 }
+
+question <- function(txt) crayon::style(txt, crayon::combine_styles(crayon::bold, crayon::blue))
+choice <- function(txt, bold = FALSE) {
+    if(bold)
+            crayon::style(txt, crayon::combine_styles(crayon::bold, crayon::green))
+    else
+            crayon::style(txt,  crayon::green)
+
+}
+alert <- function(txt) crayon::style(txt, crayon::combine_styles(crayon::bold, crayon::magenta, crayon::bgWhite))
 
 pause <- function(silent=FALSE) { if(!silent) Sys.sleep(0.5) else Sys.sleep(0.3)}
 
@@ -561,15 +607,16 @@ choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
         answered <- FALSE
         while(!answered) {
            pause(silent)
-           message(sprintf("\n%s", question))
+           message(question(sprintf("\n%s", question)))
            pause(silent)
-           message <- paste(lapply(names(ops), function(k) sprintf(".... %s <- %s%s", k, ops[[k]], ifelse(!is.null(default) && k == default, " (default ↵ )", ""))), collapse="\n")
+           message <- paste(lapply(names(ops), function(k) choice(sprintf(".... %s <- %s%s", k, ops[[k]], ifelse(!is.null(default) && k == default, " (default ↵ )", "")), k == default)), collapse="\n")
            if(silent) {
                message(message)
                message(sprintf("Chosing default: %s", default))
                return(default)
            }
-           message_end <- sprintf("%s\n your choice%s", message, ifelse(!is.null(default), " (or ↵ ):", ":")) 
+           message_end <- sprintf("your choice%s", ifelse(!is.null(default), " (or ↵ ):", ":")) 
+           message(message)
            cat(message_end)
            ans <- readline()
            if(!is.null(default) && ans == "") {
@@ -579,7 +626,7 @@ choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
            answered <- exists(ans, where=ops)
            if(!answered) {
                pause()
-               message(sprintf("...\n...\nsorry, %s is not among the available options, \nplease try again", ans))
+               message(alert(sprintf("\n\nsorry, %s is not among the available options, \nplease try again", ans)))
            }
         }
         return(ans)

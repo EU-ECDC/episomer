@@ -4,14 +4,21 @@
 \alias{save_config}
 \title{Save the configuration changes}
 \usage{
-save_config(data_dir = conf$data_dir, properties = TRUE, sm_topics = NULL)
+save_config(
+  data_dir = conf$data_dir,
+  properties = TRUE,
+  sm_topics = NULL,
+  fs_remote = conf$fs_remote
+)
 }
 \arguments{
-\item{data_dir}{Path to a directory to save configuration settings, Default: conf$data_dir}
+\item{data_dir}{Path to a directory to save configuration settings if fs_remote is provided this value is ignored, Default: conf$data_dir}
 
 \item{properties}{Whether to save the general properties to the properties.json file, default: TRUE}
 
 \item{sm_topics}{Whether to save topic download plans to the topics.json file, default: TRUE}
+
+\item{fs_remote}{Path to the remote master instance of episomer, default: conf$fs_remote"}
 }
 \value{
 Nothing

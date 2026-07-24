@@ -12,7 +12,8 @@ setup_config(
   ignore_properties = FALSE,
   ignore_topics = FALSE,
   save_properties_first = FALSE,
-  save_topics_first = list()
+  save_topics_first = list(),
+  fs_remote = "http://localhost:8080"
 )
 }
 \arguments{

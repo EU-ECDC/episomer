@@ -10,7 +10,8 @@ episomer_app(
   data_dir = NA,
   profile = c("dashboard", "admin"),
   host = NULL,
-  port = NULL
+  port = NULL,
+  fs_remote = NULL
 )
 
 dashboard_app(data_dir = NA, host = NULL, port = NULL)
@@ -21,11 +22,13 @@ admin_app(data_dir = NA, host = NULL, port = NULL)
 \item{data_dir}{Path to the 'data directory' containing application settings, models and collected posts.
 If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
 
-\item{profile}{The profileis to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")}
+\item{profile}{The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")}
 
 \item{host}{The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)}
 
 \item{port}{The port to run the Shiny app on, default: NULL (will run on a random port)}
+
+\item{fs_remote}{address of the central instance of episomer for accessing}
 }
 \value{
 The Shiny server object containing the launched application
@@ -35,7 +38,7 @@ The Shiny server object containing the launched application
 The Shiny server object containing the launched application
 }
 \description{
-Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
+Open the episomer Shiny app, to visualise the outputs of episomer and change settings.
 }
 \details{
 The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
