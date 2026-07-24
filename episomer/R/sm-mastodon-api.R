@@ -89,27 +89,30 @@ sm_api_translate_query_mastodon <- function(parsed) {
 #' status search: server-side `max_id` is converted to an inclusive, SECOND-resolution
 #' `before:<timestamp>` filter, so it can only address a whole second, never a position inside
 #' it. A popular keyword can have far more than one page (40) of matches in a single second, and
-#' `max_id` on its own would keep returning that second's newest 40 forever.
+#' `max_id` on its own would keep returning that second's newest 40 forever. `offset` alone is not
+#' enough either: the search is backed by Elasticsearch, whose `max_result_window` caps the usable
+#' offset (~10000) — past it the API errors out.
 #'
-#' The strategy (results are ordered id DESC):
-#' - `max_id` (`plan$window_max_id`) selects the "window": all posts in its second and older.
-#' - `offset` (`plan$current_offset`) walks *inside* that window, one page at a time.
-#' - While a page stays entirely within the window's second, we keep the same `max_id` and grow
-#'   the offset by one page (we are draining a dense second).
-#' - As soon as a page crosses into an older second, we rebase `max_id` onto that older second and
-#'   reset the offset to skip (approximately) the posts of it we already saw, so we resume near
-#'   where we stopped. See sm_api_update_plan_after_request_mastodon for the logic.
+#' The strategy (results are ordered id DESC) walks a bounded offset under a moving `max_id`:
+#' - `max_id` (`plan$window_max_id`) selects the "window": all posts in its second and older. It
+#'   is null on the first request, which simply starts from the newest posts.
+#' - `offset` (`plan$current_offset`) walks *inside* that window, one page at a time (0, 40, ...).
+#' - As long as the offset stays below `mastodon_max_offset` we keep the same `max_id` and grow the
+#'   offset by one page, digging deeper into the current window.
+#' - When the offset would reach `mastodon_max_offset` we rebase `max_id` onto the oldest id seen
+#'   so far and reset the offset to 0. Because the rebased window drops every second newer than
+#'   that id, the oldest id sits near the top of the new window, so the bounded offset has room to
+#'   dig past it. See sm_api_update_plan_after_request_mastodon for the logic.
 #'
-#' This keeps the offset bounded by the densest single second (never the whole history) while
-#' `max_id` gives unlimited time depth. Two consequences of the server dropping DB-less rows
-#' (`.objects.compact`) shape the details: (1) a page usually returns fewer than the requested 40
-#' rows even when more exist, so we advance the offset by the requested page size (pre-compact
-#' positions), never by the number of rows kept; (2) exact positioning inside a window is not
-#' observable from the client, so the rebase offset is approximate and a running-min-id filter
-#' (`plan$current_min_id`: drop any post with id >= the smallest id already collected) cleans the
-#' resulting overlap. The lower bound (`plan_min_date`) is enforced client-side by discarding
-#' older posts. Residual limitation: a single second holding more matches than the API's max
-#' offset cannot be fully drained.
+#' This keeps the offset permanently below the Elasticsearch cap while `max_id` gives unlimited
+#' time depth. Two consequences of the server dropping DB-less rows (`.objects.compact`) shape the
+#' details: (1) a page usually returns fewer than the requested 40 rows even when more exist, so we
+#' advance the offset by the requested page size (pre-compact positions), never by the number of
+#' rows kept; (2) each rebase re-reads the head of the window it lands on, so a running-min-id
+#' filter (`plan$current_min_id`: drop any post with id >= the smallest id already collected)
+#' cleans the resulting overlap. The lower bound (`plan_min_date`) is enforced client-side by
+#' discarding older posts. Residual limitation: a single second holding more matches than
+#' `mastodon_max_offset` cannot be fully drained.
 #'
 #' This is the implementation of the mastodon search. You can find more information about the mastodon search API here: \url{https://docs.joinmastodon.org/methods/search/#v2}
 #' Additionnaly more information about the "Status" object is available here: \url{https://docs.joinmastodon.org/entities/Status/}
@@ -232,7 +235,7 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     }
   }
 
-  # --- combined max_id + offset pagination cursor (see @details in sm_api_search_mastodon) ---
+  # --- bounded-offset + moving max_id pagination cursor (see @details in sm_api_search_mastodon) --
   # We reason on the RAW statuses the API returned (its own result positions), not on the posts
   # we kept, because offset addresses the API's ordering and must not be shifted by our
   # client-side filtering (language, window bounds).
@@ -245,14 +248,12 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
   #
   # NB2: because of that same `.compact`, offset lives in the API's PRE-compact position space
   # (each request consumes exactly `mastodon_page_size` positions, whatever survives compaction),
-  # while the counts we can observe are POST-compact. We therefore cannot position the offset to
-  # the exact row from the client. We advance conservatively and let the running-min-id filter in
-  # mastodon_parse_response absorb the residual overlap.
+  # so we always advance the offset by `mastodon_page_size`, never by the number of rows kept.
 
   # advance the running minimum id: the smallest id the API has returned so far. Because we walk
   # strictly backwards (ids decrease) and never skip a retrievable position, any later post with
   # id >= this value has already been seen -> the filter in mastodon_parse_response drops it. One
-  # scalar replaces a whole "seen ids" set.
+  # scalar replaces a whole "seen ids" set, and it is what makes the per-rebase re-read harmless.
   if (
     !is.null(results$pagination$oldest_id) &&
       (is.null(plan$current_min_id) ||
@@ -261,34 +262,20 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     plan$current_min_id <- results$pagination$oldest_id
   }
 
-  # The "window second" is the second whose top we are currently paging under. On the first
-  # request there is no max_id yet, so it is the second of the newest post returned; otherwise
-  # it is the second encoded in the current window_max_id.
-  window_second <- if (is.null(plan$window_max_id)) {
-    results$pagination$newest_second
-  } else {
-    mastodon_id_second(plan$window_max_id)
-  }
-  oldest_second <- results$pagination$oldest_second
+  # advance the bounded offset, rebasing max_id when it would reach the Elasticsearch ceiling.
+  previous_offset <- if (is.null(plan$current_offset)) 0L else plan$current_offset
+  next_offset <- previous_offset + mastodon_page_size
 
-  # Always anchor the next max_id on the oldest id of the page: its second is the one we still
-  # need to keep draining (in the same-second case it is unchanged; in the crossing case it is
-  # the older second we are moving into).
-  plan$window_max_id <- results$pagination$oldest_id
-
-  if (oldest_second == window_second) {
-    # The whole page is still inside the same (dense) second: it is not drained yet, so we keep
-    # the same before:<second> window and advance by one full page of PRE-compact positions.
-    # (Advancing by `mastodon_page_size`, not by the number of rows kept, is what makes the
-    # offset immune to compaction: no gap, no re-fetch inside a window.)
-    previous_offset <- if (is.null(plan$current_offset)) 0L else plan$current_offset
-    plan$current_offset <- previous_offset + mastodon_page_size
+  if (next_offset < mastodon_max_offset) {
+    # Still under the offset ceiling: keep the same window and dig one page deeper.
+    plan$current_offset <- next_offset
   } else {
-    # The page crossed into an older second: we rebase the window onto that older second and skip
-    # (approximately) the posts of it we already saw, so we resume near where we stopped rather
-    # than at the top of the second. `count_in_oldest_second` is a post-compact count, hence only
-    # approximate; the resulting small overlap is cleaned by the de-duplication above.
-    plan$current_offset <- results$pagination$count_in_oldest_second
+    # Reached the ceiling: rebase the window onto the oldest id seen and restart the offset. The
+    # new before:<second> window drops every second newer than that id, so the id sits near the
+    # top of the new window and the bounded offset has room to dig past it. The head of the new
+    # window is re-read (ids >= current_min_id) but the running-min filter above drops it.
+    plan$window_max_id <- results$pagination$oldest_id
+    plan$current_offset <- 0L
   }
 
   return(plan)
@@ -375,32 +362,16 @@ mastodon_min_id <- function(ids) {
   Reduce(function(x, y) if (mastodon_id_lt(x, y)) x else y, ids)
 }
 
-#' returns the largest (newest) of a list/vector of mastodon snowflake ids
-#' @param ids character vector of ids
-mastodon_max_id <- function(ids) {
-  ids <- unlist(ids)
-  ids <- ids[!is.na(ids)]
-  if (length(ids) == 0) {
-    return(NULL)
-  }
-  Reduce(function(x, y) if (mastodon_id_lt(x, y)) y else x, ids)
-}
-
-#' returns the second bucket (unix seconds) of one or several mastodon snowflake ids.
-#' A mastodon snowflake stores the milliseconds since epoch in its top 48 bits
-#' (`id %/% 65536`), so the second is `(id %/% 65536) %/% 1000 == id %/% 65536000`. This is
-#' exactly the resolution the server uses to build its `before:<timestamp>` filter from max_id,
-#' so two ids share a bucket iff max_id cannot tell them apart.
-#' @param ids character vector of ids
-#' @importFrom bit64 as.integer64
-mastodon_id_second <- function(ids) {
-  as.numeric(bit64::as.integer64(unlist(ids)) %/% bit64::as.integer64(65536000))
-}
-
 # page size requested to the v2 search (capped at 40 by the API). It is also the number of
 # PRE-compact result positions each request consumes, so the offset advances by this amount
 # inside a window (see the update function).
 mastodon_page_size <- 40L
+
+# maximum offset walked inside a single max_id window before we rebase max_id and restart the
+# offset at 0. It must stay well under the Elasticsearch `max_result_window` (~10000), past which
+# the search API errors out. Smaller values rebase more often (a little more re-read overhead);
+# larger values rebase less often but get closer to the cap. See the pagination @details.
+mastodon_max_offset <- 400L
 
 #' extracts http(s) urls from the html content of a mastodon status
 #' @param content char, the html content of a status
@@ -431,9 +402,6 @@ mastodon_parse_response <- function(response, plan) {
     pagination = list(
       returned = 0L, # number of statuses the API returned (its page size for this request)
       oldest_id = NULL, # smallest (oldest) id of the page -> next window max_id + running-min
-      oldest_second = NULL, # second bucket of oldest_id (matches the server's before: filter)
-      newest_second = NULL, # second bucket of the newest id (window second on the 1st request)
-      count_in_oldest_second = NULL, # how many returned posts share oldest_second
       min_created_at = NULL # oldest creation date kept (for progress), set further down
     )
   )
@@ -447,13 +415,7 @@ mastodon_parse_response <- function(response, plan) {
   res$pagination$returned <- length(statuses)
   if (length(statuses) > 0) {
     raw_ids <- unlist(lapply(statuses, `[[`, "id"))
-    raw_seconds <- mastodon_id_second(raw_ids)
-    oldest_id <- mastodon_min_id(raw_ids)
-    oldest_second <- mastodon_id_second(oldest_id)
-    res$pagination$oldest_id <- oldest_id
-    res$pagination$oldest_second <- oldest_second
-    res$pagination$newest_second <- mastodon_id_second(mastodon_max_id(raw_ids))
-    res$pagination$count_in_oldest_second <- sum(raw_seconds == oldest_second)
+    res$pagination$oldest_id <- mastodon_min_id(raw_ids)
   }
 
   res[["posts"]] <- lapply(statuses, function(status) {
@@ -514,8 +476,8 @@ mastodon_parse_response <- function(response, plan) {
     #   ))
     #   ret <- NULL
     # }
-    # lower bound of the window: discard posts older than plan_min_date. When a whole page
-    # falls below this bound the resulting count is 0 and the plan is considered finished.
+    # lower bound of the window: discard posts older than plan_min_date. Reaching this bound is
+    # what ends the plan (see the end-of-plan signal computed below, on the raw statuses).
     if (
       !is.null(ret) &&
         !is.null(plan$plan_min_date) &&
@@ -550,6 +512,24 @@ mastodon_parse_response <- function(response, plan) {
       lapply(res$posts, `[[`, "created_at")
     )
   }
-  res$count <- length(res$posts)
+
+  # number of NEW posts to store this request (after de-duplication and every client-side filter)
+  res$stored <- length(res$posts)
+
+  # end-of-plan signal (res$count). It must NOT be `length(res$posts)`: the running-min-id
+  # de-duplication empties res$posts on a rebase page that only re-reads the already-seen head of
+  # a window (max_id's before:<second> is inclusive), even though older posts are still reachable
+  # at the next offset. Keying the plan's end on that would stop the backfill far too early.
+  # Instead we key it on the RAW statuses still inside the lower time bound: the generic
+  # update_plan_after_request() ends the plan (count == 0) only when the API returns nothing, or
+  # everything it returns is older than plan_min_date (the window is fully backfilled).
+  if (length(statuses) == 0) {
+    res$count <- 0L
+  } else if (is.null(plan$plan_min_date)) {
+    res$count <- length(statuses)
+  } else {
+    raw_created <- lapply(statuses, function(s) mastodon_parse_date(s$created_at))
+    res$count <- sum(sapply(raw_created, function(d) d >= plan$plan_min_date))
+  }
   res
 }
