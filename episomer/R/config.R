@@ -14,7 +14,7 @@ get_key_ring <- function(backend = NULL) {
   }
   Sys.setenv(kr_name = "ecdc_wtitter_tool_kr_name")
   Sys.setenv(kr_service = "kr_service")
-  keyring = Sys.getenv("kr_backend")
+  keyring = "file"#Sys.getenv("kr_backend")
   if (keyring == "secret_service") {
     kb <- keyring::backend_secret_service$new()
   } else if (keyring == "wincred") {
@@ -55,32 +55,61 @@ get_key_ring <- function(backend = NULL) {
 
 # Set a secret from the chosen secret management backend
 set_secret <- function(secret, value) {
-  get_key_ring()$set_with_value(
-    service = Sys.getenv("kr_service"),
-    username = secret,
-    password = value
-  )
+  if(!fs_remote()) {
+    get_key_ring()$set_with_value(
+      service = Sys.getenv("kr_service"),
+      username = secret,
+      password = value
+    )
+  } else {
+    resp <- httr2::request(
+            sprintf("%s?secret=%s&passphrase=%s&value=%s", 
+                get_scala_secrets_url(), 
+                secret, 
+                urltools::url_encode(Sys.getenv("ecdc_wtitter_tool_kr_password")),
+                urltools::url_encode(value)
+            )) %>% 
+        httr2::req_method("POST") %>%
+        httr2::req_perform() 
+    ret <- jsonlite::fromJSON(resp %>% httr2::resp_body_string())
+    if(ret$status != "ok")
+       stop("Error on setting secret") 
+  }
 }
 
 # Checks whether a secret is set on the secret management backend
 is_secret_set <- function(secret) {
-  secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
-  return(nrow(secrets[secrets$username == secret, ]) > 0)
+  if(!fs_remote()) {
+    secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
+    return(nrow(secrets[secrets$username == secret, ]) > 0)
+  } else {
+    res <- jsonlite::read_json(sprintf("%s?secret=%s&passphrase=%s", get_scala_secrets_url(), secret, urltools::url_encode(Sys.getenv("ecdc_wtitter_tool_kr_password"))))
+    res$status == "ok"
+  }
 }
 
 # Get a secret from the chosen secret management backend
 get_secret <- function(secret) {
-  get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
+  if(!fs_remote()) {
+    get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
+  } else {
+    res <- jsonlite::read_json(sprintf("%s?secret=%s&passphrase=%s", get_scala_secrets_url(), secret, urltools::url_encode(Sys.getenv("ecdc_wtitter_tool_kr_password"))))
+    if(res$status == "ok")
+       res$value
+    else
+       stop("Could not retrieve the secret")
+    
+  }
 }
 
 # get empty config for initialization, this represents default values for all configuration properties
 get_empty_config <- function(data_dir) {
   ret <- list()
-  ret$keyring <-
-    if (.Platform$OS.type == "windows") "wincred" else if (
-      Sys.info()[['sysname']] == "Darwin"
-    )
-      "macos" else "file"
+  ret$keyring <- "file"
+    #if (.Platform$OS.type == "windows") "wincred" else if (
+    #  Sys.info()[['sysname']] == "Darwin"
+    #)
+    #  "macos" else "file"
   ret$data_dir <- data_dir
   ret$collect_span <- 60
   ret$schedule_span <- 90
@@ -238,7 +267,7 @@ setup_config <- function(
       data_dir = data_dir,
       properties = save_properties_first,
       sm_topics = save_topics_first,
-      sm_remote = sm_remote
+      fs_remote = fs_remote
     )
   }
   #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing

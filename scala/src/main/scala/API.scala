@@ -30,13 +30,13 @@ import org.apache.pekko.stream.scaladsl.FileIO
 import java.time.Instant
 import java.nio.file.{Paths, Files, Path, FileAlreadyExistsException}
 import java.nio.file.attribute.FileTime
-import java.io.{File, FileInputStream, InputStreamReader, BufferedReader}
+import java.io.{File, FileInputStream, InputStreamReader, BufferedReader, OutputStreamWriter, BufferedWriter}
 import java.util.zip.GZIPInputStream
 import java.nio.file.{StandardCopyOption, StandardOpenOption}
 import java.nio.charset.StandardCharsets
 import java.security.{DigestInputStream, MessageDigest}
 
-import spray.json.{JsonParser, JsString, JsArray}
+import spray.json.{JsonParser, JsString, JsArray, JsObject, JsNumber}
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
@@ -381,6 +381,65 @@ object API {
                 complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"This endpoint expects json, got this instead: \n$value")) 
               }
             }  
+          }
+        } ~ pathPrefix("secret") {
+          get {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+                parameters("secret".as[String], "passphrase".as[String]) { (secret, passphrase) =>
+                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret)
+                  val env = pb.environment()
+                  env.put("ecdc_wtitter_tool_kr_password", passphrase)
+                  val p = pb.start();
+                  val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
+                  val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
+                  val out = stdout.readLine
+                  val berr = new StringBuilder()
+                  var line = stderr.readLine
+                  while (line != null) {
+                    berr.append(s"$line\n")
+                    line = stderr.readLine
+                  }
+                  val err = berr.toString
+                  val exitCode = p.waitFor()
+                  if(out !=null && exitCode == 0) { 
+                    complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(out)), ("code",JsNumber(exitCode)))).toString())
+                  }
+                  else if(exitCode == 0) { 
+                    complete(JsObject(Map(("status",JsString("ko")), ("message",JsString(err)), ("code",JsNumber(exitCode)))).toString())
+                  } else {
+                    complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not get the secret exit($exitCode):$err")) 
+                  }
+                }
+            }
+          } ~ post {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+                parameters("secret".as[String], "passphrase".as[String], "value".as[String]) { (secret, passphrase, value) =>
+                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "set_secret.R").toString, secret)
+                  val env = pb.environment()
+                  env.put("ecdc_wtitter_tool_kr_password", passphrase)
+                  val p = pb.start();
+                  val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
+                  val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
+                  val stdin = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()))
+                  stdin.write(value)
+                  stdin.newLine()
+                  stdin.close()
+                  val out = stdout.readLine
+                  val berr = new StringBuilder()
+                  var line = stderr.readLine
+                  while (line != null) {
+                    berr.append(s"$line\n")
+                    line = stderr.readLine
+                  }
+                  val err = berr.toString
+                  val exitCode = p.waitFor()
+                  if(exitCode == 0) { 
+                    complete(JsObject(Map(("status",JsString("ok")), ("code",JsNumber(exitCode)))).toString())
+                  } else {
+                    complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not set the secret exit($exitCode):$err")) 
+                  }
+                }
+            }
           }
         } ~ pathPrefix("stopWords") {
           get {

@@ -893,7 +893,10 @@ update_geotraining_df <- function(
     gridExpand = TRUE
   )
   openxlsx::freezePane(wbk, "geolocation", firstActiveRow = 2)
-  openxlsx::saveWorkbook(wbk, file = get_user_geotraining_path(), overwrite = T)
+  tfile = tempfile("episomerxlsx")
+  openxlsx::saveWorkbook(wbk, file = tfile, overwrite = TRUE)
+  epifile.copy(tfile, get_user_geotraining_path())
+  unlink(tfile)
 }
 
 # retrain the language classifiers for entity recognition with the current set of annotations

@@ -2153,5 +2153,8 @@ write_alert_training_db <- function(
   )
   openxlsx::freezePane(wb, "Alerts", firstActiveRow = 2)
   openxlsx::freezePane(wb, "Runs", firstActiveRow = 2)
-  openxlsx::saveWorkbook(wb, get_user_alert_training_path(), overwrite = TRUE)
+  tfile = tempfile("episomerxlsx")
+  openxlsx::saveWorkbook(wb,tfile, overwrite = TRUE)
+  epifile.copy(tfile, get_user_alert_training_path())
+  unlink(tfile)
 }

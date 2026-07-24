@@ -57,6 +57,10 @@ get_scala_file_url <- function(...) {
     paste(get_scala_api_endpoint(), "file", ... , sep = "/")
 }
 
+get_scala_secrets_url <- function() {
+    paste(get_scala_api_endpoint(), "secret", sep = "/")
+}
+
 get_scala_stopwords_url <- function(code) {
   paste(get_scala_api_endpoint(), sprintf("stopWords?code=%s", code), sep = "/")
 }
@@ -184,6 +188,22 @@ fs_remote <- function() {
   !is.null(conf$fs_remote)
 }
 
+copy_secret_scripts <- function() {
+  for(script_name in c("get_secret.R", "set_secret.R")) {
+    script_base <- system.file(
+      "extdata",
+      script_name,
+      package = get_package_name()
+    )
+
+    script_folder <- file.path(conf$data_dir, "jobs")
+    script <- paste(script_folder, script_name, sep = "/")
+    # Copying the script
+    file.copy(from = script_base, to = script, overwrite = TRUE)
+  }
+}
+
+
 #' @title Runs the episomer embedded database loop
 #' @description Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
@@ -213,9 +233,9 @@ fs_remote <- function() {
 #' @export
 fs_loop <- function(data_dir = NA) {
   if (is.na(data_dir)) setup_config_if_not_already() else
-    setup_config(data_dir = data_dir)
+    setup_config(data_dir = data_dir, fs_remote = NULL)
   data_dir <- conf$data_dir
-
+  copy_secret_scripts()
   # calculating alerts per topic
   future::plan(future::multisession)
   monitor <- future::future(
