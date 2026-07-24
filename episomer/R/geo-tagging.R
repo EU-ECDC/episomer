@@ -23,7 +23,7 @@ get_location_columns <- function(table) {
 # Get raw countries data frame from Excel file
 get_raw_countries <- function() {
   # obtained from https://gist.github.com/AdrianBinDC/621321d6083b176b3a3215c0b75f8146#file-country-bounding-boxes-md but it had been manually updated
-  df <- readxl::read_excel(get_countries_path())
+  df <- epiread_excel(get_countries_path())
   names(df) <- make.names(names(df), unique = TRUE)
   df$minLat <- as.numeric(df$minLat)
   df$maxLat <- as.numeric(df$maxLat)
@@ -598,7 +598,7 @@ get_geotraining_df <- function() {
     "text",
     "text"
   )
-  current <- readxl::read_excel(get_geotraining_path(), col_types = data_types)
+  current <- epiread_excel(get_geotraining_path(), col_types = data_types)
   current$Text <- stringr::str_trim(current$Text)
   current <- current %>%
     dplyr::distinct(

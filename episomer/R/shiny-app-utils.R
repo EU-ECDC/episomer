@@ -117,7 +117,7 @@ refresh_config_data <- function(
     if (
       !update &&
         epifile.exists(get_user_topics_path()) &&
-        epifile.mtime(get_user_topics_path())$mtime != e$topics_refresh_flag()
+        epifile.mtime(get_user_topics_path()) != e$topics_refresh_flag()
     ) {
       update <- TRUE
       e$topics_refresh_flag(epifile.mtime(get_user_topics_path()))

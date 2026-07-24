@@ -178,7 +178,7 @@ get_empty_config <- function(data_dir) {
   ret$force_date_format <- ""
   ret$maven_repo <- "https://repo1.maven.org/maven2"
   ret$winutils_url <- "https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe"
-  ret$fs_url <- "https://localhost"
+  ret$fs_url <- "http://localhost"
   ret$fs_port <- 8080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
@@ -259,7 +259,7 @@ setup_config <- function(
   # props which contains properties set on the Shiny App is stored on data_dir/properties.json
   # and data_dir/topics.json which stores search progress and is updated by the search loop
   props_path = get_properties_path()
-
+  
 
   # save_first may be used by a function which is responsible for a part of the configuration to save changes on its perimeter before refreshing
   if (save_properties_first || length(save_topics_first) > 0) {
@@ -368,7 +368,7 @@ setup_config <- function(
       t <- list()
       t$md5 <- epimd5sum(user_topics_path)
       if (t$md5 != temp$topics_md5 || !plans_exists) {
-        t$df <- epiread_xlsx(user_topics_path)
+        t$df <- epiread_excel(user_topics_path)
         topics_changed <- TRUE
       }
       t
@@ -469,7 +469,7 @@ setup_config <- function(
     conf$dismiss_past_done <- temp$dismiss_past_done
     copy_plans_from(temp)
     # updating topic keywords, necessary for ignoring keywords in top words charts
-    if (topics_changed) update_topic_keywords()
+    if (topics_changed && plans_exists) update_topic_keywords()
   }
   #Getting variables stored on keyring
   #Setting up keyring

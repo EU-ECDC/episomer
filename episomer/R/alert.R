@@ -1120,7 +1120,7 @@ add_topposts <- function(
 
 # get the default or user defined subscribed user list
 get_subscribers <- function() {
-  df <- readxl::read_excel(get_subscribers_path())
+  df <- epiread_excel(get_subscribers_path())
   df$Topics <- as.character(df$Topics)
   df$User <- as.character(df$User)
   df$Email <- as.character(df$Email)
@@ -1634,7 +1634,7 @@ get_alert_training_df <- function() {
     "text",
     "text"
   )
-  current <- readxl::read_excel(
+  current <- epiread_excel(
     get_alert_training_path(),
     col_types = data_types,
     sheet = "Alerts"
@@ -1839,7 +1839,7 @@ get_alert_balanced_df <- function(
 get_alert_training_runs_df <- function() {
   `%>%` <- magrittr::`%>%`
   # Reading runs without type to detect if the balance and force columns are present since added on an intermediate version
-  current <- readxl::read_excel(get_alert_training_path(), sheet = "Runs")
+  current <- epiread_excel(get_alert_training_path(), sheet = "Runs")
   if ("Force to use" %in% colnames(current))
     data_types <- c(
       "numeric",
@@ -1874,7 +1874,7 @@ get_alert_training_runs_df <- function() {
       "text"
     )
 
-  current <- readxl::read_excel(
+  current <- epiread_excel(
     get_alert_training_path(),
     col_types = data_types,
     sheet = "Runs"

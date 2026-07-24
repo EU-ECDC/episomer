@@ -385,7 +385,7 @@ can_wait_for <- function(plans) {
 
 # Last search time on stored in the embedded database
 last_search_time <- function() {
-  last_fs_updates(c("posts"))$posts
+  unlist(last_fs_updates(c("posts"))$posts)
 }
 
 # prints message with date

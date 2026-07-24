@@ -46,7 +46,8 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         }
         
     }
-    setup_config(data_dir)
+    dir.create(data_dir, showWarnings=FALSE, recursive=TRUE)
+    setup_config(data_dir, fs_remote = NULL)
     
     ####################################################################################
     ###  MAIN wizard menu  #############################################################

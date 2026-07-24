@@ -2,7 +2,7 @@
 
 get_scala_api_endpoint <- function() {
   if(is.null(conf$fs_remote)) {
-    paste(conf$fs_url,":", conf$fs_port, "/", sep = "")
+    paste(conf$fs_url,":", conf$fs_port, sep = "")
   } else {
     gsub("/$", "", conf$fs_remote)
   }
@@ -91,13 +91,19 @@ epimd5sum <- function(path, recursive = FALSE) {
     })
 }
 
-epiread_xlsx <- function(path) {
+epiread_excel <- function(path, sheet = NULL, range = NULL, col_names = TRUE,
+    col_types = NULL, na = "", trim_ws = TRUE, skip = 0, n_max = Inf,
+    guess_max = min(1000, n_max), .name_repair = "unique") {
     if(!is_remote(path)) 
-        readxl::read_excel(path)
+        readxl::read_excel(path = path, sheet = sheet, range = range, col_names = col_names,
+        col_types = col_types, na = na, trim_ws = trim_ws, skip = skip,
+        n_max = n_max, guess_max = guess_max, .name_repair = .name_repair)
     else {
         tf <- tempfile(pattern="episomer")
         download.file(path, tf)
-        ret <- readxl::read_excel(tf)
+        ret <- readxl::read_excel(path = tf, sheet = sheet, range = range, col_names = col_names,
+        col_types = col_types, na = na, trim_ws = trim_ws, skip = skip,
+        n_max = n_max, guess_max = guess_max, .name_repair = .name_repair)
         file.remove(tf)
         ret
     }
@@ -142,7 +148,7 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
     }
 }
 epifile.mtime <- function(path) {
-    lapply(path, function(p) {
+    do.call(c, lapply(path, function(p) {
       if(!is_remote(p))
         file.mtime(p)
       else {
@@ -151,7 +157,7 @@ epifile.mtime <- function(path) {
         else
             lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
       }
-    })
+    }))
 }
 
 epilist.dirs <- function(path, full.names = TRUE) {
