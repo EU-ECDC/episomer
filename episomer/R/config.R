@@ -41,7 +41,7 @@ get_key_ring <- function(backend = NULL) {
   if (kb$keyring_is_locked(keyring = kr_name)) {
     if(Sys.getenv("ecdc_wtitter_tool_kr_password") == "") {
        Sys.setenv(ecdc_wtitter_tool_kr_password=askpass::askpass(
-        "Please enter the encruption password for episomer secrets \n(you can otherwise export the 'ecdc_wtitter_tool_kr_password' environment variable)"
+        "Please enter the encryption password for episomer secrets \n(you can otherwise export the 'ecdc_wtitter_tool_kr_password' environment variable)"
        ))
     }
       kb$keyring_unlock(
