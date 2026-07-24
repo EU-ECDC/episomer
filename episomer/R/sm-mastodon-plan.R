@@ -25,7 +25,12 @@ sm_plan_parse_attributes_mastodon <- function(...) {
     "window_max_id" = if (!is.null(unlist(p$window_max_id)))
       unlist(p$window_max_id) else NULL,
     "current_offset" = if (!is.null(unlist(p$current_offset)))
-      as.integer(unlist(p$current_offset)) else NULL
+      as.integer(unlist(p$current_offset)) else NULL,
+    # running minimum id (smallest snowflake id collected so far, kept as a string). Used as a
+    # de-duplication filter: any post with id >= this has already been seen (see
+    # sm_api_search_mastodon). Persisted so it survives a restart.
+    "current_min_id" = if (!is.null(unlist(p$current_min_id)))
+      unlist(p$current_min_id) else NULL
   )
   ret
 }
@@ -77,7 +82,8 @@ sm_plan_first_attributes_mastodon <- function() {
     ),
     current_min_date = NULL,
     window_max_id = NULL,
-    current_offset = NULL
+    current_offset = NULL,
+    current_min_id = NULL
   )
 }
 
@@ -99,7 +105,8 @@ sm_plan_next_attributes_mastodon <- function(plans) {
     ),
     current_min_date = NULL,
     window_max_id = NULL,
-    current_offset = NULL
+    current_offset = NULL,
+    current_min_id = NULL
   )
 }
 
