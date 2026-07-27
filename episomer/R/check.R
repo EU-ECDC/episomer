@@ -559,7 +559,7 @@ can_run <- function() {
 #' @export
 setup_can_run <- function() {
     return(tryCatch(
-        check_64() && check_java_64() && check_java_present() && check_winmsvcr100() 
+        check_64() && check_java_64() && check_java_present()  
         ,warning = function(m) {message(m);FALSE}
     ))
 }

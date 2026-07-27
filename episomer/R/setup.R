@@ -222,7 +222,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
           message(alert("Cannot proceed to process assemble or index geonames. Java dependencies are missing. Please choose to download them"))
         } else if(!tryCatch(check_winutils(), warning=function(e) FALSE) && (ass_geonames || index_geonames)) {
           message(alert("Cannot proceed to process assemble or index geonames. Winutils is missing. Please choose to download it"))
-        } else if(!file.exists(get_geonames_parquet_path()) && (index_geonames)) {
+        } else if(!file.exists(get_geonames_parquet_path()) && (!ass_geonames && index_geonames)) {
           message(alert("Cannot proceed to process index geonames. You have to choose to assemble it before"))
         } else {
           update_geonames(download = get_geonames, assemble = ass_geonames, index = index_geonames) 
@@ -512,7 +512,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         if(s_ans != "6") {
             if(actions[[s_ans]] == "start") {
               existing_langs <- conf_langs[file.exists(unlist(lapply(conf$languages, `[[`, "vectors")))] 
-              if(length(existing_langs)>0 ||  get_lang_traing_need()) {
+              if(length(existing_langs)==0 ||  get_lang_traing_need()) {
                   message(alert("Cannot proceed starting services, languages needs to be successfully processed."))
               } else if(! tryCatch(check_java_deps(), warning=function(e) FALSE) || 
                         ! tryCatch(check_winutils(), warning=function(e) FALSE)) {
@@ -575,7 +575,9 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             default_sh_answer
         )
         # Performing requested action
-        if(sh_ans == "1") {
+        if(!is_fs_running()) {
+            message(alert("Cannot launch the episomer app. The episomer database need to be running"))
+        } else if(sh_ans == "1") {
            app <- episomer_app()
         } else if (sh_ans == "2") {
            app <- episomer_app(profile = c("dashboard"))

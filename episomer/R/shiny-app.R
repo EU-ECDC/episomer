@@ -49,9 +49,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
     fs_remote <- sprintf("%s:%s", conf$fs_url, conf$fs_port)
     setup_config(fs_remote = fs_remote)
   }
-  if(!can_run()) {
-     stop("Episomer app need setup to be run successfully before running, please make sure episomer::setup() has been succeed. \nWe know is tough... good luck!")
-  }
   # Loading data for dashboard and configuration
   d <- refresh_dashboard_data()
   if("admin" %in% profile) {
