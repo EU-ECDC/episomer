@@ -161,6 +161,11 @@ get_empty_config <- function(data_dir) {
   ret$dismiss_past_request <- "1971-01-01 00:00:00"
   ret$dismiss_past_done <- "2000-01-01 00:00:00"
   ret$collect_history_days <-30
+  # Mastodon backfill stop criterion: number of CONSECUTIVE search requests returning no post
+  # inside the target window (created_at >= plan_min_date) before a plan is considered finished.
+  # A single below-window request is not trusted because Mastodon's created_at is noisy (a
+  # "supposedly older" request can still surface more recent posts, see sm_api_search_mastodon).
+  ret$mastodon_max_empty_requests <- 5
   return(ret)
 }
 
@@ -307,7 +312,8 @@ setup_config <- function(
     conf$fs_query_timeout <- temp$fs_query_timeout
     conf$admin_email <- temp$admin_email
     conf$dismiss_past_request <- temp$dismiss_past_request
-    conf$collect_history_days <- temp$collect_history_days 
+    conf$collect_history_days <- temp$collect_history_days
+    conf$mastodon_max_empty_requests <- temp$mastodon_max_empty_requests
     conf$sm_alerts_bluesky <- temp$sm_alerts_bluesky
     conf$sm_activated_bluesky <- temp$sm_activated_bluesky
     conf$sm_alerts_mastodon <- temp$sm_alerts_mastodon
@@ -561,7 +567,8 @@ save_config <- function(
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
     temp$dismiss_past_done <- conf$dismiss_past_done
-    temp$collect_history_days <- conf$collect_history_days 
+    temp$collect_history_days <- conf$collect_history_days
+    temp$mastodon_max_empty_requests <- conf$mastodon_max_empty_requests
     temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
     temp$sm_activated_bluesky <- conf$sm_activated_bluesky
     temp$sm_alerts_mastodon <- conf$sm_alerts_mastodon
