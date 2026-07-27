@@ -207,6 +207,12 @@ returns a logical value being TRUE if the alert detection task is actually runni
    library(episomer)
    message('Please choose the episomer data directory')
    setup_config(file.choose())
+   missing_search_jobs()
+} 
+\dontrun{
+   library(episomer)
+   message('Please choose the episomer data directory')
+   setup_config(file.choose())
    is_search_running()
 }
 \dontrun{

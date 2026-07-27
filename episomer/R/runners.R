@@ -439,7 +439,7 @@ kill_task <- function(pidfile, type = "R") {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    missing_search_jobs()
-#' 
+#'} 
 #' @rdname runners
 #' @export
 missing_search_jobs <- function() {
