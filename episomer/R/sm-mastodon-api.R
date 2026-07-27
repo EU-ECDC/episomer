@@ -110,9 +110,11 @@ sm_api_translate_query_mastodon <- function(parsed) {
 #' details: (1) a page usually returns fewer than the requested 40 rows even when more exist, so we
 #' advance the offset by the requested page size (pre-compact positions), never by the number of
 #' rows kept; (2) each anchor change re-reads the head of the second it lands on, producing some
-#' duplicate posts at the boundary -- we do NOT filter these on the id side (any downstream
-#' de-duplication handles the overlap). The only client-side filter is the lower time bound
-#' (`plan_min_date`): posts older than it are discarded.
+#' duplicate posts at the boundary. The client-side filters on the returned posts are the lower time
+#' bound (`plan_min_date`, posts older than it are discarded) and a de-duplication against
+#' `plan$seen_ids`, a sliding memory of the last `mastodon_seen_ids_size` ids returned by this plan
+#' (the API is not stable enough to guarantee a status is served only once). Neither filter touches
+#' the pagination bookkeeping, which is computed on the raw statuses.
 #'
 #' Stop criterion: Mastodon orders results by `id` (ingestion time) while the lower bound is on
 #' `created_at`, and the two axes diverge because of federation, so a single request walked by id
@@ -246,6 +248,19 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     }
   }
 
+  # sliding memory of the ids returned by the recent requests, used by mastodon_parse_response to
+  # drop the duplicates the API hands back (see mastodon_seen_ids_size). Newest ids first, so the
+  # oldest ones fall off the end once the memory is full.
+  new_ids <- unlist(results$pagination$new_ids)
+  if (length(new_ids) > 0) {
+    seen_ids <- unique(c(new_ids, unlist(plan$seen_ids)))
+    plan$seen_ids <- if (length(seen_ids) > mastodon_seen_ids_size) {
+      seen_ids[1:mastodon_seen_ids_size]
+    } else {
+      seen_ids
+    }
+  }
+
   # --- bounded-offset + moving max_id pagination cursor (see @details in sm_api_search_mastodon) --
   # We reason on the RAW statuses the API returned (its own result positions), not on the posts
   # we kept, because offset addresses the API's ordering and must not be shifted by our
@@ -308,8 +323,8 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
   if (is_first_request) {
     # First (max_id-less) page done: seed the anchor onto its oldest id and restart the offset, so
     # the next request paginates inside `before:<that second>`. The oldest id's second is re-read
-    # at the boundary; duplicates are tolerated (there is no id-side filter, only the created_at
-    # bound), any downstream de-duplication handling the overlap.
+    # at the boundary; the resulting duplicates are dropped by the plan$seen_ids filter in
+    # mastodon_parse_response, and never affect the cursor (computed on the raw statuses).
     plan$current_min_id <- results$pagination$oldest_id
     plan$current_offset <- 0L
     return(plan)
@@ -325,8 +340,8 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     # Reached the ceiling: rebase the anchor onto the oldest id seen and restart the offset. Since
     # we have walked deep into `before:<current anchor>`, this oldest id is well older than the
     # anchor, so the new `before:<second>` window drops every second newer than it and the bounded
-    # offset has room to dig past it. Its second is re-read at the boundary (duplicates tolerated,
-    # see above).
+    # offset has room to dig past it. Its second is re-read at the boundary (duplicates dropped by
+    # the plan$seen_ids filter, see above).
     plan$current_min_id <- results$pagination$oldest_id
     plan$current_offset <- 0L
   }
@@ -420,6 +435,13 @@ mastodon_min_id <- function(ids) {
 # inside a window (see the update function).
 mastodon_page_size <- 40L
 
+# number of recently returned post ids kept in `plan$seen_ids` to drop duplicates (see
+# mastodon_parse_response). The API is not stable across requests (an anchor change re-reads the
+# head of the second it lands on, and Elasticsearch positions can shift between requests), so the
+# same status can come back several times. A short sliding memory is enough: duplicates only ever
+# show up a few requests apart, and it keeps the plan file small.
+mastodon_seen_ids_size <- 100L
+
 # maximum offset walked inside a single max_id window before we rebase max_id and restart the
 # offset at 0. It must stay well under the Elasticsearch `max_result_window` (~10000), past which
 # the search API errors out. Smaller values rebase more often (a little more re-read overhead);
@@ -457,7 +479,8 @@ mastodon_parse_response <- function(response, plan) {
       returned = 0L, # number of statuses the API returned (its page size for this request)
       oldest_id = NULL, # smallest (oldest) id of the page -> next anchor (max_id) at first req/rebase
       min_created_at = NULL, # oldest creation date kept (for progress), set further down
-      in_window = 0L # raw statuses with created_at >= plan_min_date -> consecutive-empty streak
+      in_window = 0L, # raw statuses with created_at >= plan_min_date -> consecutive-empty streak
+      new_ids = character(0) # ids kept by this request -> appended to plan$seen_ids by the update fn
     )
   )
 
@@ -551,6 +574,24 @@ mastodon_parse_response <- function(response, plan) {
   if (length(res$posts) > 0) {
     res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
   }
+
+  # de-duplication against the ids returned by the last `mastodon_seen_ids_size` posts of this plan
+  # (`plan$seen_ids`). The search API is not stable: each anchor change re-reads the head of the
+  # second it lands on (max_id's `before:<second>` is inclusive) and Elasticsearch positions can
+  # shift between requests, so a status we already returned can come back. Only res$posts is
+  # filtered here: res$pagination is deliberately computed on the RAW statuses (positions, oldest
+  # id, in_window streak), so dropping duplicates never disturbs the pagination cursor nor the
+  # stop criterion.
+  if (length(res$posts) > 0 && length(unlist(plan$seen_ids)) > 0) {
+    seen <- unlist(plan$seen_ids)
+    res$posts <- res$posts[sapply(res$posts, function(p) !(p$id %in% seen))]
+  }
+  # ids kept by this request: sm_api_update_plan_after_request_mastodon pushes them onto
+  # plan$seen_ids so the following requests can filter them out.
+  if (length(res$posts) > 0) {
+    res$pagination$new_ids <- unlist(lapply(res$posts, `[[`, "id"))
+  }
+
   if (length(res$posts) > 0) {
     res$pagination$min_created_at <- Reduce(
       function(x, y) if (x < y) x else y,
@@ -562,9 +603,9 @@ mastodon_parse_response <- function(response, plan) {
   res$stored <- length(res$posts)
 
   # number of RAW statuses still inside the lower time bound (created_at >= plan_min_date). We
-  # reason on the raw statuses, not on res$posts: the running-min-id de-duplication empties
-  # res$posts on a rebase page that only re-reads the already-seen head of a window (max_id's
-  # before:<second> is inclusive), even though older posts are still reachable at the next offset.
+  # reason on the raw statuses, not on res$posts: the seen_ids de-duplication can empty res$posts on
+  # a rebase page that only re-reads the already-seen head of a window (max_id's before:<second> is
+  # inclusive), even though older posts are still reachable at the next offset.
   # When there is no lower bound every returned status counts as in-window.
   if (length(statuses) == 0) {
     in_window <- 0L

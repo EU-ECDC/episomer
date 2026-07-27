@@ -33,7 +33,13 @@ sm_plan_parse_attributes_mastodon <- function(...) {
     # conf$mastodon_max_empty_requests (see sm_api_update_plan_after_request_mastodon).
     # Persisted so the streak is not lost across a restart.
     "consecutive_empty" = if (!is.null(unlist(p$consecutive_empty)))
-      as.integer(unlist(p$consecutive_empty)) else NULL
+      as.integer(unlist(p$consecutive_empty)) else NULL,
+    # sliding memory of the last mastodon_seen_ids_size post ids returned by this plan (newest
+    # first), used to drop the duplicates the search API hands back (see mastodon_parse_response).
+    # Kept as a character vector of snowflake ids. Persisted so duplicates are still filtered after
+    # a restart.
+    "seen_ids" = if (!is.null(unlist(p$seen_ids)))
+      as.character(unlist(p$seen_ids)) else NULL
   )
   ret
 }
@@ -63,7 +69,8 @@ sm_plan_format_mastodon <- function(plan) {
       "%Y-%m-%d %H:%M:%OS6Z",
       tz = "UTC"
     )
-  # current_min_id is already a string and current_offset an integer: both serialise as-is
+  # current_min_id is already a string, current_offset an integer and seen_ids a character vector
+  # (serialised as a json array of ids): all serialise as-is
   plan
 }
 
@@ -86,7 +93,8 @@ sm_plan_first_attributes_mastodon <- function() {
     current_min_date = NULL,
     current_offset = NULL,
     current_min_id = NULL,
-    consecutive_empty = NULL
+    consecutive_empty = NULL,
+    seen_ids = NULL
   )
 }
 
@@ -109,7 +117,8 @@ sm_plan_next_attributes_mastodon <- function(plans) {
     current_min_date = NULL,
     current_offset = NULL,
     current_min_id = NULL,
-    consecutive_empty = NULL
+    consecutive_empty = NULL,
+    seen_ids = NULL
   )
 }
 
