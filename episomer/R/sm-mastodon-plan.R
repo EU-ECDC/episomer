@@ -145,10 +145,13 @@ sm_plan_search_info_mastodon <- function(plan) {
       strftime(plan$plan_max_date, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC")
     )
   } else {
-    info = paste(
+    info <- paste(
       info,
       "before id",
       plan$current_min_id,
+      "(current_min_date",
+      plan$current_min_date,
+      ")",
       "offset",
       if (is.null(plan$current_offset)) 0L else plan$current_offset
     )
