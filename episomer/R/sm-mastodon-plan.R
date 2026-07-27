@@ -19,18 +19,21 @@ sm_plan_parse_attributes_mastodon <- function(...) {
         tz = "UTC"
       ) else NULL,
     # pagination cursor (see sm_api_search_mastodon for the combined max_id + offset scheme):
-    # window_max_id selects the current second-window (a snowflake id kept as a string) and
-    # current_offset is how far we have already paged inside it. Both are persisted so the
+    # current_offset is how far we have already paged inside the current window. Persisted so the
     # pagination resumes correctly after a restart.
-    "window_max_id" = if (!is.null(unlist(p$window_max_id)))
-      unlist(p$window_max_id) else NULL,
     "current_offset" = if (!is.null(unlist(p$current_offset)))
       as.integer(unlist(p$current_offset)) else NULL,
-    # running minimum id (smallest snowflake id collected so far, kept as a string). Used as a
-    # de-duplication filter: any post with id >= this has already been seen (see
+    # pagination anchor sent as max_id (a snowflake id kept as a string). It selects the current
+    # second-window; seeded on the first request and advanced onto an older id at each rebase (see
     # sm_api_search_mastodon). Persisted so it survives a restart.
     "current_min_id" = if (!is.null(unlist(p$current_min_id)))
-      unlist(p$current_min_id) else NULL
+      unlist(p$current_min_id) else NULL,
+    # number of consecutive requests that returned no post inside the target window
+    # (created_at >= plan_min_date). The plan ends once it reaches
+    # conf$mastodon_max_empty_requests (see sm_api_update_plan_after_request_mastodon).
+    # Persisted so the streak is not lost across a restart.
+    "consecutive_empty" = if (!is.null(unlist(p$consecutive_empty)))
+      as.integer(unlist(p$consecutive_empty)) else NULL
   )
   ret
 }
@@ -60,7 +63,7 @@ sm_plan_format_mastodon <- function(plan) {
       "%Y-%m-%d %H:%M:%OS6Z",
       tz = "UTC"
     )
-  # window_max_id is already a string and current_offset an integer: both serialise as-is
+  # current_min_id is already a string and current_offset an integer: both serialise as-is
   plan
 }
 
@@ -81,9 +84,9 @@ sm_plan_first_attributes_mastodon <- function() {
       tz = "UTC"
     ),
     current_min_date = NULL,
-    window_max_id = NULL,
     current_offset = NULL,
-    current_min_id = NULL
+    current_min_id = NULL,
+    consecutive_empty = NULL
   )
 }
 
@@ -104,9 +107,9 @@ sm_plan_next_attributes_mastodon <- function(plans) {
       tz = "UTC"
     ),
     current_min_date = NULL,
-    window_max_id = NULL,
     current_offset = NULL,
-    current_min_id = NULL
+    current_min_id = NULL,
+    consecutive_empty = NULL
   )
 }
 
@@ -135,7 +138,7 @@ sm_plan_get_progress_mastodon <- function(plan) {
 sm_plan_search_info_mastodon <- function(plan) {
 # @function_def_end (do not delete)
   info = ""
-  if (is.null(plan$window_max_id)) {
+  if (is.null(plan$current_min_id)) {
     info = paste(
       info,
       "from newest before",
@@ -145,7 +148,7 @@ sm_plan_search_info_mastodon <- function(plan) {
     info = paste(
       info,
       "before id",
-      plan$window_max_id,
+      plan$current_min_id,
       "offset",
       if (is.null(plan$current_offset)) 0L else plan$current_offset
     )
