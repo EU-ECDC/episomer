@@ -6,9 +6,8 @@
 #' @return Token
 #' @export
 sm_api_get_token_mastodon <- function() {
-# @function_def_end (do not delete)
+  # @function_def_end (do not delete)
   # Mastodon uses a personal access token (Preferences > Development > New application).
-  # Unlike Bluesky there is no login/password session to create: the token is used directly.
   if (is_secret_set("mastodon_token")) {
     return(get_secret("mastodon_token"))
   }
@@ -122,8 +121,11 @@ sm_api_translate_query_mastodon <- function(parsed) {
 #' do not end the plan on the first below-window request; instead we count CONSECUTIVE requests that
 #' bring back no in-window post (`created_at >= plan_min_date`) in `plan$consecutive_empty`, and end
 #' the plan once that streak reaches `conf$mastodon_max_empty_requests` (any in-window post resets
-#' it). Residual limitation: a single second holding more matches than `mastodon_max_offset` cannot
-#' be fully drained.
+#' it). The one exception is the very FIRST request of the plan (no anchor, no offset, i.e. the
+#' newest statuses matching the query): if it brings back no in-window post the plan ends
+#' immediately, since every following request walks strictly older ids and could only move further
+#' away from the window. Residual limitation: a single second holding more matches than
+#' `mastodon_max_offset` cannot be fully drained.
 #'
 #' This is the implementation of the mastodon search. You can find more information about the mastodon search API here: \url{https://docs.joinmastodon.org/methods/search/#v2}
 #' Additionnaly more information about the "Status" object is available here: \url{https://docs.joinmastodon.org/entities/Status/}
@@ -265,19 +267,6 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
   # We reason on the RAW statuses the API returned (its own result positions), not on the posts
   # we kept, because offset addresses the API's ordering and must not be shifted by our
   # client-side filtering (language, window bounds).
-  #
-  # NB1: we do NOT stop on `returned < page size`. Mastodon paginates Elasticsearch and then
-  # drops statuses whose DB record is gone (`.objects.compact`), so a page almost always comes
-  # back with fewer than the requested 40 rows even when more results exist. We also do NOT stop
-  # on the first below-window (or empty) request: Mastodon's created_at is noisy (see @details),
-  # so a request walked by id can dip below plan_min_date and then surface newer posts again. The
-  # plan ends only after `conf$mastodon_max_empty_requests` CONSECUTIVE requests with no in-window
-  # post; the streak lives in `plan$consecutive_empty` and is advanced here, while
-  # mastodon_parse_response turns a completed streak into the `results$count == 0` end signal.
-  #
-  # NB2: because of that same `.compact`, offset lives in the API's PRE-compact position space
-  # (each request consumes exactly `mastodon_page_size` positions, whatever survives compaction),
-  # so we always advance the offset by `mastodon_page_size`, never by the number of rows kept.
 
   # advance the consecutive-empty streak used as the plan's stop criterion. A request that brought
   # back at least one in-window post (created_at >= plan_min_date) resets the streak; a request
@@ -540,20 +529,7 @@ mastodon_parse_response <- function(response, plan) {
       ))
       ret <- NULL
     }
-    # anti-loop safety: discard posts newer than the current pagination position
-    # if (
-    #   !is.null(ret) &&
-    #     !is.null(plan$current_min_date) &&
-    #     created > plan$current_min_date
-    # ) {
-    #   warning(sprintf(
-    #     "Ignoring post with creation (%s) after the upper bound (%s), uri: (%s)",
-    #     status$created_at,
-    #     plan$current_min_date,
-    #     ret$uri
-    #   ))
-    #   ret <- NULL
-    # }
+
     # lower bound of the window: discard posts older than plan_min_date. Reaching this bound is
     # what ends the plan (see the end-of-plan signal computed below, on the raw statuses).
     if (
@@ -637,11 +613,19 @@ mastodon_parse_response <- function(response, plan) {
   } else {
     plan$consecutive_empty
   }
+  # the very first request of the plan (no offset set yet, see the update function) has neither
+  # anchor nor offset: it returns the newest statuses matching the query. If none of them is inside
+  # the window there is nothing to collect at all -- every following request walks strictly older
+  # ids, so it could only go further away from the window. We end the plan straight away instead of
+  # spending `threshold` requests on it: the noisy-created_at argument below only justifies
+  # persevering *while paginating*, not on a head request that already comes back empty.
+  is_first_request <- is.null(plan$current_offset)
   if (in_window > 0) {
     # in-window posts found: keep paginating, streak resets in the update function.
     res$count <- in_window
-  } else if (prev_streak + 1L >= threshold) {
-    # this request completes the streak of empty requests -> end the plan.
+  } else if (is_first_request || prev_streak + 1L >= threshold) {
+    # first request with nothing in the window, or this request completes the streak of empty
+    # requests -> end the plan.
     res$count <- 0L
   } else {
     # still below the streak threshold: keep paginating (positive sentinel so the plan continues
