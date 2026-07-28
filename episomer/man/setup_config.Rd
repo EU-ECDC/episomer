@@ -31,6 +31,8 @@ default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv
 \item{save_properties_first}{Whether to save current settings before loading new ones from disk, default: FALSE}
 
 \item{save_topics_first}{List of social media to save its topics to disk before loading new ones from disk, default: list()}
+
+\item{fs_remote}{address of the central instance of episomer for accessing}
 }
 \value{
 Nothing

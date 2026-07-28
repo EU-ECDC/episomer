@@ -228,7 +228,7 @@ stop_all_runner_tasks <- function() {
 #' @export
 start_all_runner_tasks <- function() {
   stop_all_runner_tasks()
-  register_fs_runner_task(wait = TRUE)
+  register_fs_runner_task(wait_until_response = TRUE)
   register_search_runner_task()
   register_detect_runner_task()
 }

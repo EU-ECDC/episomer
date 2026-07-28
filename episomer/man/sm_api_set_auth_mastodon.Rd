@@ -22,7 +22,10 @@ Update authentication tokens in configuration object
 \dontrun{
  #Setting the configuration values
    sm_api_set_auth_mastodon(
-     shiny_input_list = list(mastodon_token = "your token here", mastodon_instance = "mastodon.social"),
+     shiny_input_list = list(
+           mastodon_token = "your token here",
+           mastodon_instance = "mastodon.social"
+   ),
    )
 }
 }

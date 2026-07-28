@@ -22,5 +22,8 @@ utils::globalVariables(c(
   "get_token",
   "parse_plan",
   "progress_close",
-  "progress_start"
+  "progress_start",
+  "am",
+  "check_manual_task_request",
+  "epifile.remove"
 ))

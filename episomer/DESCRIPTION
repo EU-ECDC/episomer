@@ -98,7 +98,8 @@ Imports:
     lubridate,
     sf,
     cli,
-    askpass
+    askpass,
+    bit64
 Suggests: 
     knitr,
     taskscheduleR,

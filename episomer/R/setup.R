@@ -94,8 +94,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
     ### Option 9: Aborting or stopping services  #######################################
     ####################################################################################
     if(main_ans == 9) {
-       message("Aborting setup")
-       return
+       stop("Aborting setup")
     } else if(!(main_ans %in% c(6, 7, 8))){
        message("Stopping any running service")
        stop_all_runner_tasks()
@@ -361,7 +360,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
               pause(silent)
               save_config()
               message("Going to launch model retraining, starting the episomer database")
-              register_fs_runner_task(wait=TRUE)
+              register_fs_runner_task(wait_until_response = TRUE)
               message("Episomer database is running, proceeding with training")
               update_languages() 
               message("Episomer language models indexed and retrained, stopping the episomer database")
@@ -610,29 +609,52 @@ pause <- function(silent=FALSE) { if(!silent) Sys.sleep(0.5) else Sys.sleep(0.3)
 choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
     if(length(options) > 0) {
         answered <- FALSE
-        while(!answered) {
-           pause(silent)
-           message(question(sprintf("\n%s", question)))
-           pause(silent)
-           message <- paste(lapply(names(ops), function(k) choice(sprintf(".... %s <- %s%s", k, ops[[k]], ifelse(!is.null(default) && k == default, " (default ↵ )", "")), k == default)), collapse="\n")
-           if(silent) {
-               message(message)
-               message(sprintf("Chosing default: %s", default))
-               return(default)
-           }
-           message_end <- sprintf("your choice%s", ifelse(!is.null(default), " (or ↵ ):", ":")) 
-           message(message)
-           cat(message_end)
-           ans <- readline()
-           if(!is.null(default) && ans == "") {
-               message(sprintf("%s %s", message_end, default))
-               return(default)
-           }
-           answered <- exists(ans, where=ops)
-           if(!answered) {
-               pause()
-               message(alert(sprintf("\n\nsorry, %s is not among the available options, \nplease try again", ans)))
-           }
+        while (!answered) {
+            pause(silent)
+            message(question(sprintf("\n%s", question)))
+            pause(silent)
+            message <- paste(
+                lapply(names(ops), function(k) {
+                    choice(
+                        sprintf(
+                            ".... %s <- %s%s",
+                            k,
+                            ops[[k]],
+                            ifelse(
+                                !is.null(default) && k == default,
+                                " (default \u21b5 )",
+                                ""
+                            )
+                        ),
+                        k == default
+                    )
+                }),
+                collapse = "\n"
+            )
+            if (silent) {
+                message(message)
+                message(sprintf("Chosing default: %s", default))
+                return(default)
+            }
+            message_end <- sprintf(
+                "your choice%s",
+                ifelse(!is.null(default), " (or \u21b5 ):", ":")
+            )
+            message(message)
+            cat(message_end)
+            ans <- readline()
+            if (!is.null(default) && ans == "") {
+                message(sprintf("%s %s", message_end, default))
+                return(default)
+            }
+            answered <- exists(ans, where = ops)
+            if (!answered) {
+                pause()
+                message(alert(sprintf(
+                    "\n\nsorry, %s is not among the available options, \nplease try again",
+                    ans
+                )))
+            }
         }
         return(ans)
     }
