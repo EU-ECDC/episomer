@@ -487,17 +487,17 @@ mastodon_parse_response <- function(response, plan) {
 
   res[["posts"]] <- lapply(statuses, function(status) {
     created <- mastodon_parse_date(status$created_at)
-    is_boost <- !is.null(status$reblog)
+    is_quote <- !is.null(status$quote)
     tags <- if (!is.null(status$tags)) {
       lapply(status$tags, function(t) unlist(t$name))
     } else {
       list()
     }
     urls <- mastodon_extract_urls(unlist(status$content))
-    if (is_boost) {
+    if (is_quote) {
       urls <- unique(c(
         urls,
-        mastodon_extract_urls(unlist(status$reblog$content))
+        mastodon_extract_urls(unlist(status$quote$quoted_status$content))
       ))
     }
 
@@ -512,13 +512,24 @@ mastodon_parse_response <- function(response, plan) {
       user_name = unlist(status$account$acct),
       text = unlist(status$content),
       lang = unlist(status$language),
-      is_quote = is_boost,
-      quoted_text = if (is_boost) unlist(status$reblog$content) else NULL,
-      quoted_lang = if (is_boost) unlist(status$reblog$language) else NULL,
+      is_quote = is_quote,
+      quoted_text = if (is_quote) {
+        unlist(status$quote$quoted_status$content)
+      } else {
+        NULL
+      },
+      quoted_lang = if (is_quote) {
+        unlist(status$quote$quoted_status$language)
+      } else {
+        NULL
+      },
       tags = tags,
       urls = urls,
       categories = list()
     )
+    if (is_quote) {
+      browser()
+    }
 
     # discard posts with a creation date in the future
     if (created > Sys.time()) {
