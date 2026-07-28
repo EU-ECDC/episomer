@@ -441,7 +441,10 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny::fluidRow(
                 shiny::column(3, "episomer database"),
                 shiny::column(5, shiny::htmlOutput("fs_running")),
-                shiny::column(2, shiny::actionButton("activate_fs", "activate")),
+                shiny::column(
+                  2,
+                  shiny::actionButton("activate_fs", "activate")
+                ),
                 shiny::column(2, shiny::actionButton("stop_fs", "stop"))
               ),
               shiny::fluidRow(
@@ -680,7 +683,11 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               ),
               shiny::conditionalPanel(
                 condition = "false",
-                shiny::textInput("os_type", value = .Platform$OS.type, label = NULL)
+                shiny::textInput(
+                  "os_type",
+                  value = .Platform$OS.type,
+                  label = NULL
+                )
               ),
               shiny::conditionalPanel(
                 condition = "input.os_type == 'windows'",
@@ -807,7 +814,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny::fluidRow(
                 shiny::column(
                   12,
-                  shiny::actionButton("request_alerts", "Run alerts now")                  
+                  shiny::actionButton("request_alerts", "Run alerts now")
                 )
               ),
               DT::dataTableOutput("tasks_df"),
@@ -937,7 +944,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_topics_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
                 ),
                 shiny::column(
@@ -974,7 +982,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_lang_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
                 ),
               ),
@@ -1005,7 +1014,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_users_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
                 ),
               ),
@@ -1031,7 +1041,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_subscribers_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
                 ),
               ),
@@ -1058,7 +1069,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_countries_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
                 ),
               ),
@@ -2416,65 +2428,68 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         ######### PROPERTIES LOGIC ##################
         reactive_elements_to_save_in_conf <- shiny::reactive({
           list(
-          conf_collect_span = input$conf_collect_span,
-          conf_schedule_span = input$conf_schedule_span,
-          conf_keyring = input$conf_keyring,
-          conf_spark_cores = input$conf_spark_cores,
-          conf_spark_memory = input$conf_spark_memory,
-          conf_onthefly_api = input$conf_onthefly_api,
-          geolocation_threshold = input$geolocation_threshold,
-          conf_geonames_url = input$conf_geonames_url,
-          conf_maven_repo = input$conf_maven_repo,
-          conf_winutils_url = input$conf_winutils_url,
-          conf_geonames_simplify = input$conf_geonames_simplify,
-          conf_regions_disclaimer = input$conf_regions_disclaimer,
-          conf_alpha = input$conf_alpha,
-          conf_alpha_outlier = input$conf_alpha_outlier,
-          conf_k_decay = input$conf_k_decay,
-          conf_history = input$conf_history,
-          conf_same_weekday_baseline = input$conf_same_weekday_baseline,
-          conf_with_bonferroni_correction = input$conf_with_bonferroni_correction,
-          conf_with_quotes = input$conf_with_quotes,
-          conf_smtp_host = input$smtp_host,
-          conf_smtp_port = input$smtp_port,
-          conf_smtp_insecure = input$smtp_insecure,
-          conf_admin_email = input$admin_email,
-          conf_smtp_from = input$smtp_from,
-          conf_smtp_login = input$smtp_login,
-          conf_smtp_password = input$smtp_password,
-          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
+            conf_collect_span = input$conf_collect_span,
+            conf_schedule_span = input$conf_schedule_span,
+            conf_keyring = input$conf_keyring,
+            conf_spark_cores = input$conf_spark_cores,
+            conf_spark_memory = input$conf_spark_memory,
+            conf_onthefly_api = input$conf_onthefly_api,
+            geolocation_threshold = input$geolocation_threshold,
+            conf_geonames_url = input$conf_geonames_url,
+            conf_maven_repo = input$conf_maven_repo,
+            conf_winutils_url = input$conf_winutils_url,
+            conf_geonames_simplify = input$conf_geonames_simplify,
+            conf_regions_disclaimer = input$conf_regions_disclaimer,
+            conf_alpha = input$conf_alpha,
+            conf_alpha_outlier = input$conf_alpha_outlier,
+            conf_k_decay = input$conf_k_decay,
+            conf_history = input$conf_history,
+            conf_same_weekday_baseline = input$conf_same_weekday_baseline,
+            conf_with_bonferroni_correction = input$conf_with_bonferroni_correction,
+            conf_with_quotes = input$conf_with_quotes,
+            conf_smtp_host = input$smtp_host,
+            conf_smtp_port = input$smtp_port,
+            conf_smtp_insecure = input$smtp_insecure,
+            conf_admin_email = input$admin_email,
+            conf_smtp_from = input$smtp_from,
+            conf_smtp_login = input$smtp_login,
+            conf_smtp_password = input$smtp_password,
+            conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
+            conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
             conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
             conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
-          conf_force_date_format = input$force_date_format
-	  )
+            conf_force_date_format = input$force_date_format
+          )
     })
     debounced_elements_to_save_in_conf <- shiny::debounce(reactive_elements_to_save_in_conf, 3000)
 
-        shiny::observeEvent(debounced_elements_to_save_in_conf(), {          
-          update_config_from_input(debounced_elements_to_save_in_conf())
+        shiny::observeEvent(
+          debounced_elements_to_save_in_conf(),
+          {
+            update_config_from_input(debounced_elements_to_save_in_conf())
 
             # Saving Bluesky properties
-          sm_api_set_auth(
-            network = "bluesky",
-            shiny_input_list = input
-          )                      
+            sm_api_set_auth(
+              network = "bluesky",
+              shiny_input_list = input
+            )
 
             # Saving Bluesky properties
             sm_api_set_auth(
               network = "mastodon",
               shiny_input_list = input
             )
-          
-          # Saving properties.json
-          save_config(
-            data_dir = conf$data_dir,
-          )
 
-          # Forcing update on properties dependant refresh (e.g. time slots)
-          cd$properties_refresh_flag(Sys.time())
+            # Saving properties.json
+            save_config(
+              data_dir = conf$data_dir,
+            )
 
-        }, ignoreInit = TRUE)
+            # Forcing update on properties dependant refresh (e.g. time slots)
+            cd$properties_refresh_flag(Sys.time())
+          },
+          ignoreInit = TRUE
+        )
 
         ######### IMPORTANT USERS LOGIC ###########
         # downloading current important users file
