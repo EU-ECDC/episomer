@@ -392,7 +392,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                     options[[ie]] <- sprintf("Deactivate %s (currently active)", sm)
                     actions[[ie]] <- "deactivate"
                 } else {
-                    otions[[ie]] <- sprintf("Activate %s (currently active)", am)
+                    options[[ie]] <- sprintf("Activate %s (currently active)", sm)
                     actions[[ie]] <- "activate"
                     if(default_sm_answer == end_answer)
                         default_sm_answer <- ie
