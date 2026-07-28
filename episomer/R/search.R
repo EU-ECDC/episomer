@@ -14,7 +14,9 @@
 #'
 #' To see more details about the collection algorithm please see episomer vignette.
 #'
-#' In order to work, this task needs Bluesky credentials, which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}}
+#' In order to work, this task needs Bluesky and/or Mastodon credentials,
+#'  which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}} or
+#' \code{\link{sm_api_set_auth_mastodon}}
 #'
 #' @examples
 #' \dontrun{
@@ -26,6 +28,7 @@
 #' @rdname search_loop
 #' @seealso
 #' \code{\link{sm_api_set_auth_bluesky}}
+#' \code{\link{sm_api_set_auth_mastodon}}
 #' @export
 search_loop <- function(
   data_dir = NA,

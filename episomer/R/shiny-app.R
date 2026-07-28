@@ -820,6 +820,9 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 shiny::column(8, "Configuration"),
                 style = "font-weight:bold"
               ),
+              #################
+              # Bluesky logic #
+              #################
               shiny::fluidRow(
                 shiny::column(
                   4,
@@ -845,8 +848,11 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                         shiny::textInput(
                           "bluesky_user",
                           label = NULL,
-                          value = if (is_secret_set("bluesky_user"))
-                            get_secret("bluesky_user") else NULL
+                          value = if (is_secret_set("bluesky_user")) {
+                            get_secret("bluesky_user")
+                          } else {
+                            NULL
+                          }
                         )
                       )
                     ),
@@ -857,8 +863,51 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                         shiny::passwordInput(
                           "bluesky_password",
                           label = NULL,
-                          value = if (is_secret_set("bluesky_password"))
-                            get_secret("bluesky_password") else NULL
+                          value = if (is_secret_set("bluesky_password")) {
+                            get_secret("bluesky_password")
+                          } else {
+                            NULL
+                          }
+                        )
+                      )
+                    )
+                  )
+                ),
+                style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
+              ),
+              ##################
+              # Mastodon logic #
+              ##################
+              shiny::fluidRow(
+                shiny::column(
+                  4,
+                  shiny::checkboxInput(
+                    "conf_sm_activated_mastodon",
+                    label = "Mastodon",
+                    value = conf$sm_activated_mastodon
+                  )
+                ),
+                shiny::column(
+                  8,
+                  shiny::conditionalPanel(
+                    condition = "input.conf_sm_activated_mastodon == true",
+                    shiny::checkboxInput(
+                      "conf_sm_alerts_mastodon",
+                      label = "Calculate alerts",
+                      value = conf$sm_alerts_mastodon
+                    ),
+                    shiny::fluidRow(
+                      shiny::column(3, "User token"),
+                      shiny::column(
+                        9,
+                        shiny::passwordInput(
+                          "mastodon_token",
+                          label = NULL,
+                          value = if (is_secret_set("mastodon_token")) {
+                            get_secret("mastodon_token")
+                          } else {
+                            NULL
+                          }
                         )
                       )
                     )
@@ -2395,6 +2444,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           conf_smtp_password = input$smtp_password,
           conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
           conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
+            conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
+            conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
           conf_force_date_format = input$force_date_format
 	  )
     })
@@ -2403,11 +2454,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
         shiny::observeEvent(debounced_elements_to_save_in_conf(), {          
           update_config_from_input(debounced_elements_to_save_in_conf())
 
-          # Saving Bluesky propertes          
+            # Saving Bluesky properties
           sm_api_set_auth(
             network = "bluesky",
             shiny_input_list = input
           )                      
+
+            # Saving Bluesky properties
+            sm_api_set_auth(
+              network = "mastodon",
+              shiny_input_list = input
+            )
           
           # Saving properties.json
           save_config(
