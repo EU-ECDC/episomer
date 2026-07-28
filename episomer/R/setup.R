@@ -473,7 +473,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             actions["2"] <- "stop"
             targets["2"] <- "fs"
         } else {
-            options["2"] <- "Sart episomer database (currently stopped)"
+            options["2"] <- "Start episomer database (currently stopped)"
             actions["2"] <- "start"
             targets["2"] <- "fs"
         }
@@ -482,7 +482,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             actions["3"] <- "stop"
             targets["3"] <- "search"
         } else {
-            options["3"] <- "Sart search loop (currently stopped)"
+            options["3"] <- "Start search loop (currently stopped)"
             actions["3"] <- "start"
             targets["3"] <- "search"
         }
@@ -491,7 +491,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             actions["4"] <- "stop"
             targets["4"] <- "detect"
         } else {
-            options["4"] <- "Sart detect loop (currently stopped)"
+            options["4"] <- "Start detect loop (currently stopped)"
             actions["4"] <- "start"
             targets["4"] <- "detect"
         }
