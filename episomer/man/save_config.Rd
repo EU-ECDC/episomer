@@ -28,7 +28,8 @@ Permanently saves configuration changes to the data folder (excluding social med
 }
 \details{
 Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
-to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
+to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}} or
+\code{\link{sm_api_set_auth_mastodon}}
 }
 \examples{
 \dontrun{
@@ -45,4 +46,5 @@ to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}
 \seealso{
 \code{\link{setup_config}}
 \code{\link{sm_api_set_auth_bluesky}}
+\code{\link{sm_api_set_auth_mastodon}}
 }
