@@ -57,6 +57,7 @@ Changes made to conf can be stored permanently (except for 'data_dir') using:
 \itemize{
   \item{\code{\link{save_config}}, or}
    \item{\code{\link{sm_api_set_auth_bluesky}}}
+   \item{\code{\link{sm_api_set_auth_mastodon}}}
 }
 }
 \examples{
@@ -70,6 +71,7 @@ Changes made to conf can be stored permanently (except for 'data_dir') using:
 \seealso{
 \code{\link{save_config}}
 \code{\link{sm_api_set_auth_bluesky}}
+\code{\link{sm_api_set_auth_mastodon}}
 \code{\link{episomer_app}}
 \code{\link{search_loop}}
 \code{\link{detect_loop}}

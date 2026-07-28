@@ -243,6 +243,7 @@ get_empty_config <- function(data_dir) {
 #' \itemize{
 #'   \item{\code{\link{save_config}}, or}
 #'    \item{\code{\link{sm_api_set_auth_bluesky}}}
+#'    \item{\code{\link{sm_api_set_auth_mastodon}}}
 #' }
 #' @examples
 #' \dontrun{
@@ -254,6 +255,7 @@ get_empty_config <- function(data_dir) {
 #' @seealso
 #' \code{\link{save_config}}
 #' \code{\link{sm_api_set_auth_bluesky}}
+#' \code{\link{sm_api_set_auth_mastodon}}
 #' \code{\link{episomer_app}}
 #' \code{\link{search_loop}}
 #' \code{\link{detect_loop}}
@@ -537,7 +539,8 @@ copy_plans_from <- function(temp) {
 #' @param fs_remote Path to the remote master instance of episomer, default: conf$fs_remote"
 #' @return Nothing
 #' @details Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
-#' to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}}
+#' to save social media credentials please use \code{\link{sm_api_set_auth_bluesky}} or
+#' \code{\link{sm_api_set_auth_mastodon}}
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -553,6 +556,7 @@ copy_plans_from <- function(temp) {
 #' @seealso
 #' \code{\link{setup_config}}
 #' \code{\link{sm_api_set_auth_bluesky}}
+#' \code{\link{sm_api_set_auth_mastodon}}
 #' @export
 save_config <- function(
   data_dir = conf$data_dir,
