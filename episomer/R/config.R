@@ -39,14 +39,16 @@ get_key_ring <- function(backend = NULL) {
 
   # unlocking keyring if unlocked using environment variable to get the password
   if (kb$keyring_is_locked(keyring = kr_name)) {
-    if(Sys.getenv("ecdc_wtitter_tool_kr_password") == "") {
-       Sys.setenv(ecdc_wtitter_tool_kr_password=askpass::askpass(
-        "Please enter the encryption password for episomer secrets \n(you can otherwise export the 'ecdc_wtitter_tool_kr_password' environment variable)"
-       ))
+    if (Sys.getenv("episomer_kr_password") == "") {
+      Sys.setenv(
+        episomer_kr_password = askpass::askpass(
+          "Please enter the encryption password for episomer secrets \n(you can otherwise export the 'episomer_kr_password' environment variable)"
+        )
+      )
     }
       kb$keyring_unlock(
         keyring = kr_name,
-        password = Sys.getenv("ecdc_wtitter_tool_kr_password")
+        password = Sys.getenv("episomer_kr_password")
       )
       # unlocking keyring if unlocked using password prompt
   }
@@ -63,14 +65,16 @@ set_secret <- function(secret, value) {
     )
   } else {
     resp <- httr2::request(
-            sprintf("%s?secret=%s&passphrase=%s&value=%s", 
-                get_scala_secrets_url(), 
-                secret, 
-                urltools::url_encode(Sys.getenv("ecdc_wtitter_tool_kr_password")),
-                urltools::url_encode(value)
-            )) %>% 
-        httr2::req_method("POST") %>%
-        httr2::req_perform() 
+      sprintf(
+        "%s?secret=%s&passphrase=%s&value=%s",
+        get_scala_secrets_url(),
+        secret,
+        urltools::url_encode(Sys.getenv("episomer_kr_password")),
+        urltools::url_encode(value)
+      )
+    ) %>%
+      httr2::req_method("POST") %>%
+      httr2::req_perform() 
     ret <- jsonlite::fromJSON(resp %>% httr2::resp_body_string())
     if(ret$status != "ok")
        stop("Error on setting secret") 
@@ -83,7 +87,12 @@ is_secret_set <- function(secret) {
     secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
     return(nrow(secrets[secrets$username == secret, ]) > 0)
   } else {
-    res <- jsonlite::read_json(sprintf("%s?secret=%s&passphrase=%s", get_scala_secrets_url(), secret, urltools::url_encode(Sys.getenv("ecdc_wtitter_tool_kr_password"))))
+    res <- jsonlite::read_json(sprintf(
+      "%s?secret=%s&passphrase=%s",
+      get_scala_secrets_url(),
+      secret,
+      urltools::url_encode(Sys.getenv("episomer_kr_password"))
+    ))
     res$status == "ok"
   }
 }
@@ -93,7 +102,12 @@ get_secret <- function(secret) {
   if(!fs_remote()) {
     get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
   } else {
-    res <- jsonlite::read_json(sprintf("%s?secret=%s&passphrase=%s", get_scala_secrets_url(), secret, urltools::url_encode(Sys.getenv("ecdc_wtitter_tool_kr_password"))))
+    res <- jsonlite::read_json(sprintf(
+      "%s?secret=%s&passphrase=%s",
+      get_scala_secrets_url(),
+      secret,
+      urltools::url_encode(Sys.getenv("episomer_kr_password"))
+    ))
     if(res$status == "ok")
        res$value
     else

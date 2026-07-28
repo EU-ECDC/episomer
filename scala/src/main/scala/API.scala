@@ -388,7 +388,7 @@ object API {
                 parameters("secret".as[String], "passphrase".as[String]) { (secret, passphrase) =>
                   val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret)
                   val env = pb.environment()
-                  env.put("ecdc_wtitter_tool_kr_password", passphrase)
+                  env.put("episomer_kr_password", passphrase)
                   val p = pb.start();
                   val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
                   val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
@@ -416,7 +416,7 @@ object API {
                 parameters("secret".as[String], "passphrase".as[String], "value".as[String]) { (secret, passphrase, value) =>
                   val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "set_secret.R").toString, secret)
                   val env = pb.environment()
-                  env.put("ecdc_wtitter_tool_kr_password", passphrase)
+                  env.put("episomer_kr_password", passphrase)
                   val p = pb.start();
                   val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
                   val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))

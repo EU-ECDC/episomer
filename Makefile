@@ -32,7 +32,7 @@ search:
 search-sandboxed:
 	$(call check_epi_home)
 	$(call set_kr_pass)
-	@export ecdc_wtitter_tool_kr_password=`pass epitools/ecdc_kr_pwd` && \
+	@export episomer_kr_password=`pass epitools/ecdc_kr_pwd` && \
 	R -e "devtools::load_all('epitweetr');epitweetr::setup_config('$$EPI_HOME');epitweetr::search_loop(sandboxed=TRUE)"
 
 R:
@@ -49,7 +49,7 @@ R-test:
 	$(call set_kr_pass)
 	devscripts/package.sh
 	Rscript devscripts/renv.test.R
-	@export ecdc_wtitter_tool_kr_password=`pass epitools/ecdc_kr_pwd` && \
+	@export episomer_kr_password=`pass epitools/ecdc_kr_pwd` && \
 	cd test && R
 
 spark:

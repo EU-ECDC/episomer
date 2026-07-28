@@ -7,7 +7,7 @@ then
   pass=`pass epitools/ecdc_kr_pwd`
 fi
 
-export ecdc_wtitter_tool_kr_password=$pass
+export episomer_kr_password=$pass
 expect -c '
 spawn R
 expect ">"
