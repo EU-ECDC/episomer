@@ -455,6 +455,141 @@ mastodon_extract_urls <- function(content) {
   as.list(unique(urls))
 }
 
+#' tells if an optional mastodon object is actually present.
+#' the API serialises absent objects as `{}` (and not as `null`), which jsonlite turns into an
+#' empty list: `is.null()` is therefore NOT enough to test for absence (`status$quote`,
+#' `status$reblog`, `status$card`, `status$poll`, `status$in_reply_to_id`... are all `{}` on a
+#' plain status).
+#' @param x the value read from the parsed json
+mastodon_is_present <- function(x) {
+  !is.null(x) && length(x) > 0
+}
+
+#' extracts the quoted / embedded texts of a mastodon status, in the same spirit as
+#' bluesky_parse_quoted(): everything that carries text around the status itself is collected and
+#' concatenated into a single `quoted_text` used downstream for keyword matching.
+#'
+#' The mastodon cases and their bluesky counterparts:
+#' \itemize{
+#'   \item quote post (`status$quote$quoted_status`, mastodon >= 4.4) and boost (`status$reblog`)
+#'         ~ bluesky `embed$record`: the content of the quoted / boosted status. These are the only
+#'         cases that set `is_quote`.
+#'   \item link preview card (`card`, title + description) ~ bluesky `embed$external`.
+#'         Like bluesky, a card alone does NOT make the status a quote.
+#'   \item media alternative texts (`media_attachments[[i]]$description`)
+#'         ~ bluesky `embed$images[[i]]$alt`.
+#'   \item polls (`poll`) are acknowledged but their options are not collected, like
+#'         bluesky videos / poll facets.
+#' }
+#' A quoted / boosted status is a full Status object of its own: it carries its own `card` and its
+#' own `media_attachments`, and those are harvested too (bluesky does the same by reading
+#' `post$embed$record$embeds[[i]]$external`). A quote post whose card is the only place where the
+#' keyword appears would otherwise be missed.
+#'
+#' Texts coming from a status content are kept as raw html, consistently with the `text` field of
+#' mastodon_parse_response() (see the html question in the vignette).
+#' @param status list, the status to extract data from, in mastodon format
+mastodon_parse_quoted <- function(status) {
+  # utilitary functions, same semantics as in bluesky_parse_quoted()
+  first <- function(x) {
+    x <- x[!sapply(x, is.null)]
+    unlist(x[min(1, length(x))])
+  }
+  mode <- function(x) first(names(sort(table(unlist(x)), decreasing = TRUE)))
+
+  quoted_texts <- list()
+  urls <- list()
+  is_quote <- FALSE
+
+  status_lang <- unlist(status$language)
+
+  # attachments of a status: link preview card and media alternative texts. Collected both on the
+  # status itself and on every quoted / boosted status (which are full Status objects), hence the
+  # local function. `default_lang` is the fallback when the attachment carries no language.
+  parse_attachments <- function(s, default_lang) {
+    texts <- list()
+    found_urls <- list()
+    # link preview card -> title and description of the linked page
+    if (mastodon_is_present(s$card)) {
+      card_texts <- unlist(lapply(
+        c("title", "description"),
+        function(attr) unlist(s$card[[attr]])
+      ))
+      card_texts <- card_texts[!is.na(card_texts) & nchar(card_texts) > 0]
+      if (length(card_texts) > 0) {
+        texts <- c(
+          texts,
+          list(list(
+            text = paste(card_texts, collapse = "\n"),
+            # the card language is the language of the linked page, a better guess than the
+            # language of the status when both are available
+            lang = first(c(unlist(s$card$language), default_lang))
+          ))
+        )
+      }
+      if (mastodon_is_present(s$card$url)) {
+        found_urls <- c(found_urls, unlist(s$card$url))
+      }
+    }
+    # alternative texts of the attached medias
+    for (media in s$media_attachments) {
+      description <- unlist(media$description)
+      if (!is.null(description) && nchar(description) > 0) {
+        texts <- c(texts, list(list(text = description, lang = default_lang)))
+      }
+    }
+    # polls: options not considered
+    list(texts = texts, urls = found_urls)
+  }
+
+  # case 1: quote post and boost -> content of the quoted / boosted status, plus its own
+  # attachments (the quoted status is a full Status object).
+  quoted_statuses <- list()
+  if (
+    mastodon_is_present(status$quote) &&
+      mastodon_is_present(status$quote$quoted_status)
+  ) {
+    quoted_statuses <- c(quoted_statuses, list(status$quote$quoted_status))
+  }
+  # a quote whose state is not "accepted" (pending, rejected, revoked, deleted, unauthorized)
+  # carries no quoted_status at all: there is simply nothing to extract.
+  if (mastodon_is_present(status$reblog)) {
+    quoted_statuses <- c(quoted_statuses, list(status$reblog))
+  }
+  for (quoted in quoted_statuses) {
+    quoted_lang <- first(c(unlist(quoted$language), status_lang))
+    content <- unlist(quoted$content)
+    if (!is.null(content) && nchar(content) > 0) {
+      is_quote <- TRUE
+      quoted_texts <- c(
+        quoted_texts,
+        list(list(text = content, lang = quoted_lang))
+      )
+      urls <- c(urls, mastodon_extract_urls(content))
+    }
+    nested <- parse_attachments(quoted, quoted_lang)
+    quoted_texts <- c(quoted_texts, nested$texts)
+    urls <- c(urls, nested$urls)
+  }
+
+  # case 2: attachments of the status itself
+  own <- parse_attachments(status, status_lang)
+  quoted_texts <- c(quoted_texts, own$texts)
+  urls <- c(urls, own$urls)
+
+  text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
+  lang <- paste(
+    substr(mode(lapply(quoted_texts, `[[`, "lang")), 1, 2),
+    collapse = "\n"
+  )
+  list(
+    text = if (nchar(text) == 0) NULL else text,
+    lang = if (nchar(lang) == 0) NULL else lang,
+    urls = unique(urls),
+    is_quote = is_quote
+  )
+}
+
 #' parses the response of the mastodon search API into the standardised episomer format. For more details see the vignette.
 #' @param response list, the raw parsed json response (contains accounts, statuses, hashtags)
 #' @param plan list, the current plan, used to discard posts out of the targeted window
@@ -487,19 +622,17 @@ mastodon_parse_response <- function(response, plan) {
 
   res[["posts"]] <- lapply(statuses, function(status) {
     created <- mastodon_parse_date(status$created_at)
-    is_quote <- !is.null(status$quote)
+    quote <- mastodon_parse_quoted(status)
     tags <- if (!is.null(status$tags)) {
       lapply(status$tags, function(t) unlist(t$name))
     } else {
       list()
     }
-    urls <- mastodon_extract_urls(unlist(status$content))
-    if (is_quote) {
-      urls <- unique(c(
-        urls,
-        mastodon_extract_urls(unlist(status$quote$quoted_status$content))
-      ))
-    }
+    # urls of the status itself + those of the embedded content (card, quoted status)
+    urls <- unique(c(
+      mastodon_extract_urls(unlist(status$content)),
+      unlist(quote$urls)
+    ))
 
     ret <- list(
       id = unlist(status$id),
@@ -512,24 +645,16 @@ mastodon_parse_response <- function(response, plan) {
       user_name = unlist(status$account$acct),
       text = unlist(status$content),
       lang = unlist(status$language),
-      is_quote = is_quote,
-      quoted_text = if (is_quote) {
-        unlist(status$quote$quoted_status$content)
-      } else {
-        NULL
-      },
-      quoted_lang = if (is_quote) {
-        unlist(status$quote$quoted_status$language)
-      } else {
-        NULL
-      },
+      # like bluesky: a status is a quote only if some quoted text was actually extracted
+      is_quote = quote$is_quote &&
+        !is.null(quote$text) &&
+        nchar(quote$text) > 0,
+      quoted_text = quote$text,
+      quoted_lang = quote$lang,
       tags = tags,
       urls = urls,
       categories = list()
     )
-    if (is_quote) {
-      browser()
-    }
 
     # discard posts with a creation date in the future
     if (created > Sys.time()) {
