@@ -917,6 +917,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                           }
                         )
                       )
+                    ),
+                    shiny::fluidRow(
+                      shiny::column(3, "Mastodon instance"),
+                      shiny::column(
+                        9,
+                        shiny::textInput(
+                          "mastodon_instance",
+                          label = NULL,
+                          value = conf$mastodon_instance
+                        )
+                      )
                     )
                   )
                 ),
