@@ -12,7 +12,7 @@ get_key_ring <- function(backend = NULL) {
   if (!is.null(backend)) {
     Sys.setenv(kr_backend = backend)
   }
-  Sys.setenv(kr_name = "ecdc_wtitter_tool_kr_name")
+  Sys.setenv(kr_name = "episomer_kr_name")
   Sys.setenv(kr_service = "kr_service")
   keyring = "file"#Sys.getenv("kr_backend")
   if (keyring == "secret_service") {
