@@ -100,7 +100,7 @@ epiread_excel <- function(path, sheet = NULL, range = NULL, col_names = TRUE,
         n_max = n_max, guess_max = guess_max, .name_repair = .name_repair)
     else {
         tf <- tempfile(pattern="episomer")
-        download.file(path, tf)
+        download.file(path, tf, mode="wb")
         ret <- readxl::read_excel(path = tf, sheet = sheet, range = range, col_names = col_names,
         col_types = col_types, na = na, trim_ws = trim_ws, skip = skip,
         n_max = n_max, guess_max = guess_max, .name_repair = .name_repair)
@@ -131,7 +131,7 @@ epifile.copy <- function(from, to, overwrite = TRUE) {
     else if (!is_remote(to)) {
         if(!file.exists(dirname(to))) 
             dir.create(dirname(to), recursive = TRUE)
-        download.file(from, to)
+        download.file(from, to, mode="wb")
     }
     else #!is_remote(from)
         epifile.upload(from, to)

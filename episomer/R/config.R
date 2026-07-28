@@ -869,10 +869,14 @@ alerts_social_media <- function() {
 }
 
 is_sm_authenticated <- function(sm) {
-    if(sm %in% supported_social_media()) {
-      token <- sm_api_get_token(sm)
-      return(is.character(token) && length(token)  > 0)
-    }
+    tryCatch(
+      if(sm %in% supported_social_media()) {
+        token <- sm_api_get_token(sm)
+        return(is.character(token) && length(token)  > 0)
+      },
+      warning = function(m) {},
+      error = function(e) {}
+    )
     return(FALSE)
 }
 

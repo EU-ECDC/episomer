@@ -131,8 +131,8 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            default <- "1"
         else
            default <- "3"
-        if (.Platform$OS.type == "windows" && winutils) {
-            winutil_ans <- choose_between("Download WINUTILS?", 
+        if (.Platform$OS.type == "windows") {
+            winutils_ans <- choose_between("Download WINUTILS?", 
                 list(
                     "1"=sprintf("yes, from %s", conf$winutils_url), 
                     "2"="yes, from other URL",
@@ -419,7 +419,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                 } else {
                     options[[ie]] <- sprintf("Update %s credentials (not properly set up)", sm)
                     actions[[ie]] <- "credentials"
-                    if(default_sm_answer == end_answer && !silent)
+                    if(default_sm_answer == end_answer)
                         default_sm_answer <- ie
                 }
                 options[[end_answer]] <- "Do no changes in sm authentication"
@@ -578,10 +578,13 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         if(!is_fs_running()) {
             message(alert("Cannot launch the episomer app. The episomer database need to be running"))
         } else if(sh_ans == "1") {
+           message("Opening the shiny app in full mode...")
            app <- episomer_app()
         } else if (sh_ans == "2") {
+           message("Opening the shiny app in dashboard...")
            app <- episomer_app(profile = c("dashboard"))
         } else if (sh_ans == "3") {
+           message("Opening the shiny app in admin...")
            app <- episomer_app(profile = c("admin"))
         }
     }

@@ -299,7 +299,7 @@ register_runner_task <- function(task_name) {
       # Note that the date format is being guess using %DATE% shell variable
       # This value can be overridden by conf$fore_date_format setting
       message(sprintf("Registering and running %s as a Windows scheduler task", task_name))
-      message(sprintf("Logs written to %s", gsub(".R", ".log", rscript)))
+      message(sprintf("Logs written to %s", gsub(".R", ".log", script)))
       taskscheduleR::taskscheduler_create(
         taskname,
         rscript = script,
@@ -312,9 +312,10 @@ register_runner_task <- function(task_name) {
       )
       taskscheduleR::taskscheduler_runnow(taskname)
     } else {
-      warning(
+      message(
         "Please install taskscheduleR package in order to permanently activate the task. This will run the task attached to this process and will end when you close this session."
       )
+      run_attached <- TRUE
     }
   } else {
     message(
