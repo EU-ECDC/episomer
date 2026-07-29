@@ -24,7 +24,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
     ####################################################################################
     if(is.null(data_dir)) {
         if(!silent 
-            && exists("data_dir", where = conf)
+            && exists("data_dir", where = conf) 
             && (choose_between(
                     "Do you want to keep current data folder?", 
                     list(
@@ -38,7 +38,13 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             data_dir <- conf$data_dir
         } else if(!silent){
             message("Please choose the location of the episomer data folder")
-            data_dir <- file.choose()
+            data.nir
+            if (.Platform$OS.type == "windows") {
+              data_dir <- choose.dir()
+            } else {
+              data_dir <- file.choose()
+            }
+
         } else if (exists("data_dir", where = conf)) {
             data_dir <- conf$data_dir
         } else {
@@ -46,6 +52,10 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         }
         
     }
+    if(is.na(data_dir) || is.null(data_dir)) {
+      stop("Could not determine the data dir, please pass it as a parameter while runing setup")
+    }
+ 
     dir.create(data_dir, showWarnings=FALSE, recursive=TRUE)
     setup_config(data_dir, fs_remote = NULL)
     
@@ -87,14 +97,14 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         silent,
         default
     )
-    
     if(main_ans %in% c("1", "2"))
-        silent <- TRUE 
+        auto <- TRUE 
+    
     ####################################################################################
     ### Option 9: Aborting or stopping services  #######################################
     ####################################################################################
     if(main_ans == 9) {
-       stop("Aborting setup")
+       alert("Aborting setup")
     } else if(!(main_ans %in% c(6, 7, 8))){
        message("Stopping any running service")
        stop_all_runner_tasks()
@@ -108,6 +118,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            default = "1"
         else
            default = "3"
+        is_silent <- silent | (auto && default == "3")
 
         jar_ans <- choose_between("Download JAVA packages?", 
             list(
@@ -115,7 +126,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                 "2"="yes, from other repo",
                 "3"="no"
             ), 
-            silent,  
+            is_silent,  
             default
         )
         download_jars <- (jar_ans %in% list(1, 2))
@@ -131,13 +142,14 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         else
            default <- "3"
         if (.Platform$OS.type == "windows") {
+            is_silent <- silent | (auto && default == "3")
             winutils_ans <- choose_between("Download WINUTILS?", 
                 list(
                     "1"=sprintf("yes, from %s", conf$winutils_url), 
                     "2"="yes, from other URL",
                     "3"="no"
                 ), 
-                silent,  
+                is_silent,  
                 default
             )
             download_winutils <- (winutils_ans %in% list(1, 2))
@@ -151,8 +163,10 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             download_winutils <- FALSE
         }
         pause(silent)
-        message("Downloading dependencies")
-        download_dependencies(jars = download_jars, winutils = download_winutils)
+        if( download_jars || download_winutils) {
+          message("Downloading dependencies")
+          download_dependencies(jars = download_jars, winutils = download_winutils)
+        }
     }
 
     ####################################################################################
@@ -165,13 +179,14 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            default_get_geo <- "1"
         else
            default_get_geo <- "3"
+        is_silent <- silent | (auto && default_get_geo == "3")
         get_geo_ans <- choose_between("Do you want to download geonames?", 
             list(
                 "1"=sprintf("yes, from %s", conf$geonames_url), 
                 "2"="yes, from other URL",
                 "3"="no"
             ), 
-            silent,  
+            is_silent,  
             default_get_geo
         )
         get_geonames <- (get_geo_ans %in% list(1, 2))
@@ -187,12 +202,13 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            default_assemble_geo <- "1"
         else
            default_assemble_geo <- "2"
+        is_silent <- silent | (auto && default_assemble_geo == "2")
         ass_geo_ans = choose_between("Do you want to assemble geonames?", 
             list(
                 "1"="yes", 
                 "2"="no"
             ), 
-            silent,  
+            is_silent,  
             default_assemble_geo
         )
         ass_geonames <- (ass_geo_ans %in% list(1))
@@ -203,12 +219,13 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            default_index_geo <- "1"
         else
            default_index_geo <- "2"
+        is_silent <- silent | (auto && default_index_geo == "2")
         index_geo_ans = choose_between("Do you want to index geonames?", 
             list(
                 "1"="yes", 
                 "2"="no"
             ), 
-            silent,  
+            is_silent,  
             default_index_geo
         )
         index_geonames <- (index_geo_ans %in% list(1))
@@ -245,13 +262,14 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                             lapply(conf$languages, function(l) l$name),
                             lapply(conf$languages, function(l) l$code)
             )
+            is_silent <- silent | (auto)
             lang_ans <- choose_between(sprintf("Currently episomer is configured to use %s, do you want to change languages?", curr_langs), 
                 list(
                     "1"="No changes in the language list", 
                     "2"="Add languages",
                     "3"="Remove languages"
                 ), 
-                silent,  
+                is_silent,  
                 end_answer
             )
             # Removing languages
@@ -308,6 +326,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         else 
            default_get_langs <- "1"
 
+        is_silent <- silent | (auto && default_get_langs == do_nothing_index)
         get_lang_ans = choose_between("Do you want to download languages? Which ones?", 
             c(
                 list(
@@ -317,7 +336,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                 setNames(sapply(conf$languages, function(l) sprintf("Download %s (%s) only", l$name, l$code)), as.character((1:length(conf_langs))+2)),
                 do_nothing_item
             ),
-            silent,  
+            is_silent,  
             default_get_langs
         )
         langs_to_download <- (
@@ -340,12 +359,13 @@ setup <- function(data_dir = NULL, silent = FALSE) {
            default_train_lang = "1"
         else
            default_train_lang = "2"
+        is_silent <- silent | (auto && default_train_lang == "2")
         train_lang_ans = choose_between("Do you want to launch language model retrain?", 
             list(
                 "1"="yes", 
                 "2"="no"
             ), 
-            silent,  
+            is_silent,  
             default_train_lang
         )
         do_training <- (train_lang_ans %in% list(1))
@@ -374,6 +394,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
     ####################################################################################
     if(main_ans %in% list("1", "2", "6")) {
         sms <- supported_social_media()
+        sms <- sms[sms!="mastodon"]
         end_answer <- as.character(3* length(sms) + 1)
         sm_ans <- "0"
         while(sm_ans != end_answer) {
@@ -421,12 +442,13 @@ setup <- function(data_dir = NULL, silent = FALSE) {
                     if(default_sm_answer == end_answer)
                         default_sm_answer <- ie
                 }
-                options[[end_answer]] <- "Do no changes in sm authentication"
             } 
+            options[[end_answer]] <- "Do no changes in sm authentication"
  
+            is_silent <- silent | (auto && default_sm_answer == end_answer)
             sm_ans <- choose_between("Do you want to perform changes in social media activation / authentication", 
                 options,
-                silent,  
+                is_silent,  
                 default_sm_answer
             )
             # Performing requested action
@@ -502,9 +524,10 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         actions[["6"]] <- ""
         targets[["6"]] <- ""
  
+        is_silent <- silent | (auto && default_s_answer == "6")
         s_ans <- choose_between("Do you want to perform changes in social media activation / authentication", 
             options,
-            silent,  
+            is_silent,  
             default_s_answer
         )
         # Performing requested action
@@ -563,6 +586,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         pause(silent)
         # Building options
         default_sh_answer <- "1"
+        end_ans = 4
         sh_ans <- choose_between("Do you want to open the shiny app", 
             list(
                 "1"="Open the full shiny app",
@@ -574,7 +598,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             default_sh_answer
         )
         # Performing requested action
-        if(!is_fs_running()) {
+        if(sh_ans != end_ans && !is_fs_running()) {
             message(alert("Cannot launch the episomer app. The episomer database need to be running"))
         } else if(sh_ans == "1") {
            message("Opening the shiny app in full mode...")
@@ -604,7 +628,7 @@ choice <- function(txt, bold = FALSE) {
 }
 alert <- function(txt) crayon::style(txt, crayon::combine_styles(crayon::bold, crayon::magenta, crayon::bgWhite))
 
-pause <- function(silent=FALSE) { if(!silent) Sys.sleep(0.5) else Sys.sleep(0.3)}
+pause <- function(silent=FALSE) { if(!silent) Sys.sleep(0.5)}
 
 choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
     if(length(options) > 0) {
