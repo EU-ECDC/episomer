@@ -1,6 +1,9 @@
 #' @noRd
 removeHTMLtags <- function(htmlString) {
-  gsub(pattern = "<.*?>", replacement = "", x = htmlString)
+  clean_string <- gsub(pattern = "<.*?>", replacement = "", x = htmlString)
+  clean_string <- gsub(pattern = "<a", replacement = "", x = clean_string)
+  clean_string <- gsub(pattern = "href", replacement = "", x = clean_string)
+  clean_string
 }
 
 #' @noRd
@@ -15,7 +18,9 @@ remove_newlines <- function(htmlString) {
 
 #' @noRd
 remove_nbsp <- function(htmlString) {
-  gsub(pattern = "&nbsp;",replacement = " ",x = htmlString)
+  clean_string <- gsub(pattern = "&nbsp;", replacement = " ", x = htmlString)
+  clean_string <- gsub(pattern = "nbsp", replacement = " ", x = clean_string)
+  clean_string
 }
 
 #' @noRd
