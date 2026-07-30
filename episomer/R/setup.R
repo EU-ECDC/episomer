@@ -574,9 +574,11 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             default_sh_answer
         )
         # Performing requested action
-        if(!is_fs_running()) {
-            message(alert("Cannot launch the episomer app. The episomer database need to be running"))
-        } else if(sh_ans == "1") {
+        if (!is_fs_running()) {
+            message(
+                "Cannot launch the episomer app. The episomer database need to be running"
+            )
+        } else if (sh_ans == "1") {
            message("Opening the shiny app in full mode...")
            app <- episomer_app()
         } else if (sh_ans == "2") {
