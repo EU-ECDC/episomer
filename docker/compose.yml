@@ -1,0 +1,10 @@
+services:
+  fs_loop:
+    build: 
+        context: ./episomer-dev 
+        additional_contexts:
+           src: ..
+    ports:
+      - "${FS_PORT}:8080"
+    volumes:
+        - "${EPI_HOME}:/app"

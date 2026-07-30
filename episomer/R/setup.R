@@ -38,7 +38,6 @@ setup <- function(data_dir = NULL, silent = FALSE) {
             data_dir <- conf$data_dir
         } else if(!silent){
             message("Please choose the location of the episomer data folder")
-            data.nir
             if (.Platform$OS.type == "windows") {
               data_dir <- choose.dir()
             } else {
