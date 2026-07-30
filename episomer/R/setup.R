@@ -585,7 +585,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         pause(silent)
         # Building options
         default_sh_answer <- "1"
-        end_ans = 4
+        end_ans = "4"
         sh_ans <- choose_between("Do you want to open the shiny app", 
             list(
                 "1"="Open the full shiny app",
@@ -599,7 +599,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         # Performing requested action
         if(sh_ans != end_ans && !is_fs_running()) {
             message(alert("Cannot launch the episomer app. The episomer database need to be running"))
-        } else if(sh_ans == "1") {
+        } else if (sh_ans == "1") {
            message("Opening the shiny app in full mode...")
            app <- episomer_app()
         } else if (sh_ans == "2") {

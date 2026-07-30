@@ -586,7 +586,7 @@ object API {
                         fileUpload("data") { case(metadata, byteSource) => 
                           if(Files.exists(tempPath))
                               Files.delete(tempPath)
-                          val sink = if(!append) FileIO.toPath(tempPath) else  FileIO.toPath(localPath,  Set(StandardOpenOption.APPEND)) 
+                          val sink = if(!append) FileIO.toPath(tempPath) else  FileIO.toPath(localPath,  Set(StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.CREATE)) 
                           val writeResult = byteSource.runWith(sink)
                           onSuccess(writeResult) { result =>
                               result.status match {
