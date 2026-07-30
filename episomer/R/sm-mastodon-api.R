@@ -646,13 +646,13 @@ mastodon_parse_response <- function(response, plan) {
       },
       created_at = mastodon_format_date(created),
       user_name = unlist(status$account$acct),
-      text = unlist(status$content),
+      text = unlist(status$content) %>% clean_messages(),
       lang = unlist(status$language),
       # like bluesky: a status is a quote only if some quoted text was actually extracted
       is_quote = quote$is_quote &&
         !is.null(quote$text) &&
         nchar(quote$text) > 0,
-      quoted_text = quote$text,
+      quoted_text = quote$text %>% clean_messages(),
       quoted_lang = quote$lang,
       tags = tags,
       urls = urls,
