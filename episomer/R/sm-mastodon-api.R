@@ -438,7 +438,7 @@ mastodon_seen_ids_size <- 100L
 # offset at 0. It must stay well under the Elasticsearch `max_result_window` (~10000), past which
 # the search API errors out. Smaller values rebase more often (a little more re-read overhead);
 # larger values rebase less often but get closer to the cap. See the pagination @details.
-mastodon_max_offset <- 400L
+mastodon_max_offset <- 1000L
 
 
 #' extracts http(s) urls from the html content of a mastodon status
