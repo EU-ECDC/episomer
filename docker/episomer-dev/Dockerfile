@@ -47,12 +47,12 @@ WORKDIR /episomer
 COPY --chown=${USER}:${USER} --from=src ./episomer/DESCRIPTION /episomer/episomer
 COPY --chown=${USER}:${USER} --from=src ./Makefile /episomer/Makefile
 COPY --chown=${USER}:${USER} --from=src ./devscripts /episomer/devscripts
-RUN DEVT=1 make package
-RUN DEPS=1 make package
+RUN DEVT=1 make package-step
+RUN DEPS=1 make package-step
 
 ## Compiling scala code and producing JAE 
 COPY --chown=${USER}:${USER} --from=src ./scala /episomer/scala
-RUN JAR=1 make package
+RUN JAR=1 make package-step
 
 ## Packaging episomer
 USER root
@@ -61,10 +61,10 @@ RUN apt-get update && \
     apt-get clean
 USER ${USER}:${USER}
 COPY --chown=${USER}:${USER} --from=src . /episomer/
-RUN PACK=1 make package
+RUN PACK=1 make package-step
 
 ## Installing episomer
-RUN INSTALL=1 make package
+RUN INSTALL=1 make package-step
 
 ## Entry point
 ENTRYPOINT ["sleep", "infinity"]

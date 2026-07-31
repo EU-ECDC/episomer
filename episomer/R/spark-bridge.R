@@ -309,22 +309,22 @@ download_sbt_dependencies <- function() {
   )
 
   # iterating over all files
+  tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
   for (i in 1:length(urls)) {
-    tryCatch(
-      {
+    tryCatch2({
         # downloading files on first format
-        message(paste("downloading", urls[[i]]))
+        message(paste("downloading", urls[[i]]), "-->", dest_file[[i]])
         download.file(url = urls[[i]], destfile = dest_file[[i]], mode = "wb")
       },
-      warning = function(c) {
-        # downloading files on secong format
-        message(paste("downloading", urls2[[i]]))
-        download.file(url = urls2[[i]], destfile = dest_file[[i]], mode = "wb")
-      },
-      error = function(c) {
-        # downloading files on secong format
-        message(paste("downloading", urls2[[i]]))
-        download.file(url = urls2[[i]], destfile = dest_file[[i]], mode = "wb")
+      handler = function(c) {
+	tryCatch2({
+            # downloading files on second format
+            message(paste("downloading v2(w)", urls2[[i]]), "-->", dest_file[[i]])
+            download.file(url = urls2[[i]], destfile = dest_file[[i]], mode = "wb")
+        },
+        function(e) {
+            stop(e)
+        })
       }
     )
   }

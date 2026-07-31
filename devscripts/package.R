@@ -3,27 +3,23 @@ print(getwd())
 
 dir.create(path = Sys.getenv("R_LIBS_USER"), showWarnings = FALSE, recursive = TRUE)
 
-fast <- FALSE
-
-if((Sys.getenv("DEVT")!="" && !fast) && !("devtools" %in% installed.packages()[,"Package"])) {
+if((Sys.getenv("DEVT")!="") && !("devtools" %in% installed.packages()[,"Package"])) {
   message("Installing devtools")
   install.packages(c("devtools", "remotes"), lib = Sys.getenv("R_LIBS_USER"))
 } else {
   message("Not installing devtools")
 }
-if(Sys.getenv("DEPS")!="" && !fast) {
+if(Sys.getenv("DEPS")!="") {
     devtools::install_deps("episomer")
+}
+if(Sys.getenv("DOC")!="") {
+    devtools::document("episomer")
+    devtools::build_manual("episomer")
+    devtools::build_vignettes("episomer")
 }
 
 if(Sys.getenv("PACK")!="") {
 
-    if(!fast) {
-        devtools::document("episomer")
-        if(("renv" %in% installed.packages()[,"Package"]))
-            renv::snapshot()
-        devtools::build_manual("episomer")
-        devtools::build_vignettes("episomer")
-    }
     
     if(!file.exists(file.path("install"))){
       dir.create(file.path("install"), showWarnings = FALSE)
@@ -54,10 +50,14 @@ if(Sys.getenv("PACK")!="") {
     )
     
     file.rename(file.path(installer_path), file.path("install", installer_name))
-    if(!fast) {
-        manual_name <- paste("episomer_",packageVersion("episomer"),".pdf", sep = "") 
-        #moving manual
-        file.rename(file.path(manual_name), file.path("manual", manual_name))
-    }
 }
 
+if(Sys.getenv("DOC")!="") {
+    devtools::load_all("episomer")
+    manual_name <- paste("episomer_",packageVersion("episomer"),".pdf", sep = "") 
+    #moving manual
+    file.rename(file.path(manual_name), file.path("manual", manual_name))
+}
+
+if(Sys.getenv("RENV")!="" && ("renv" %in% installed.packages()[,"Package"]))
+	renv::snapshot()

@@ -17,17 +17,21 @@ init:
 
 install-dependencies:
 	devscripts/install-dependencies.sh
+
+package-full:
+	DEVT=1 DEPS=1 JAR=1 PACK=1 DOC=1 devscripts/package.sh
+
 package:
+	JAR=1 PACK=1 devscripts/package.sh
+
+install-package:
+	JAR=1 PACK=1 INSTALL=1 devscripts/package.sh
+
+package-step:
 	devscripts/package.sh
 
 install-test:
 	Rscript devscripts/renv.test.R
-
-app:
-	devscripts/app.sh
-
-search:
-	devscripts/search.sh
 
 search-sandboxed:
 	$(call check_epi_home)
@@ -57,3 +61,21 @@ spark:
 
 scala:
 	devscripts/scala-interpreter.sh
+
+run-app:
+	EPISOMER_RUN=APP Rscript devscripts/run.R  
+
+run-app-admin:
+	EPISOMER_RUN=ADMIN Rscript devscripts/run.R  
+
+run-app-dashboard:
+	EPISOMER_RUN=DASH Rscript devscripts/run.R  
+
+run-fs:
+	EPISOMER_RUN=DATA Rscript devscripts/run.R  
+
+run-detect:
+	EPISOMER_RUN=DETECT Rscript devscripts/run.R  
+
+run-search:
+	EPISOMER_RUN=SEARCH Rscript devscripts/run.R  

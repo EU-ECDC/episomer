@@ -13,7 +13,7 @@
 #' }
 #' @rdname setup
 #' @export
-setup <- function(data_dir = NULL, silent = FALSE) {
+setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     message("Welcome to the episomer setup wizard, you will go through a series of steps to ensure episomer works properly\n\n. Episomer tasks may be Stopped")
 
     if(!setup_can_run()) {
@@ -46,6 +46,8 @@ setup <- function(data_dir = NULL, silent = FALSE) {
 
         } else if (exists("data_dir", where = conf)) {
             data_dir <- conf$data_dir
+        } else if(Sys.getenv("EPI_HOME")!="") {
+            data_dir <- Sys.getenv("EPI_HOME")
         } else {
              stop("Cannot continue the episomer setup wizard, cannot determine the data_folder to use")
         }
@@ -97,7 +99,9 @@ setup <- function(data_dir = NULL, silent = FALSE) {
         default
     )
     if(main_ans %in% c("1", "2"))
-        auto <- TRUE 
+        auto <- TRUE
+    else
+        auto <- FALSE 
     
     ####################################################################################
     ### Option 9: Aborting or stopping services  #######################################
@@ -391,7 +395,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
     ####################################################################################
     ### Option 6. Social media authentication  #########################################
     ####################################################################################
-    if(main_ans %in% list("1", "2", "6")) {
+    if(main_ans == "6" || (main_ans %in% list("1", "2")) && launch) {
         sms <- supported_social_media()
         sms <- sms[sms!="mastodon"]
         end_answer <- as.character(3* length(sms) + 1)
@@ -482,7 +486,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
     ####################################################################################
     ### Option 7. Runnin episomer services  ############################################
     ####################################################################################
-    if(main_ans %in% list("1", "2", "7")) {
+    if(main_ans == "7" || (main_ans %in% list("1", "2")) && launch) {
         pause(silent)
         # Building options
         default_s_answer <- 1
@@ -581,7 +585,7 @@ setup <- function(data_dir = NULL, silent = FALSE) {
     ### Option 8. Runnin the shiny app  ################################################
     ####################################################################################
     app <- NULL
-    if(main_ans %in% list("1", "2", "8")) {
+    if(main_ans == "8" || (main_ans %in% list("1", "2")) && launch) {
         pause(silent)
         # Building options
         default_sh_answer <- "1"

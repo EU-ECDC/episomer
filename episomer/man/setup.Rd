@@ -4,7 +4,7 @@
 \alias{setup}
 \title{Run the setup of episomer}
 \usage{
-setup(data_dir = NULL, silent = FALSE)
+setup(data_dir = NULL, silent = FALSE, launch = TRUE)
 }
 \arguments{
 \item{data_dir}{Character the data directory where episomer will store all files. If not provided and already set in the current session it will reused, default: NULL}
