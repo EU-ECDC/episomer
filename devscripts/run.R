@@ -6,8 +6,8 @@ if(Sys.getenv("EPISOMER_RUN")=="APP") {
     episomer::dashboard_app()
 } else if(Sys.getenv("EPISOMER_RUN")=="DATA") {
     #Ensuring setup is running
-    episomer::setup(silent=T)
-    message("Launghing the FS Loop")
+    episomer::setup(silent=T, launch=F)
+    message("Launching the FS Loop")
     episomer::fs_loop()
 } else if(Sys.getenv("EPISOMER_RUN")=="DETECT") {
     episomer::detect_loop()
