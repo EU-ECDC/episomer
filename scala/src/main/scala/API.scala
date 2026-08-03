@@ -386,9 +386,9 @@ object API {
           get {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
                 parameters("secret".as[String], "passphrase".as[String]) { (secret, passphrase) =>
-                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret)
+                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret, conf.epiHome)
                   val env = pb.environment()
-                  env.put("episomer_kr_password", passphrase)
+                  env.put("EPISOMER_KR_PASSWORD", passphrase)
                   val p = pb.start();
                   val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
                   val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
@@ -414,9 +414,9 @@ object API {
           } ~ post {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
                 parameters("secret".as[String], "passphrase".as[String], "value".as[String]) { (secret, passphrase, value) =>
-                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "set_secret.R").toString, secret)
+                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "set_secret.R").toString, secret, conf.epiHome)
                   val env = pb.environment()
-                  env.put("episomer_kr_password", passphrase)
+                  env.put("EPISOMER_KR_PASSWORD", passphrase)
                   val p = pb.start();
                   val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
                   val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
@@ -614,7 +614,7 @@ object API {
       }
     
 
-    Http().newServerAt("localhost", conf.fsPort).bind(route)
+    Http().newServerAt(conf.fsUrl.replace("http://", ""), conf.fsPort).bind(route)
   }
   def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
     if(!Files.exists(path))

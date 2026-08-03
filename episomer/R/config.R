@@ -32,25 +32,18 @@ get_key_ring <- function(backend = NULL) {
     kr_name <- Sys.getenv("kr_name")
     krs <- kb$keyring_list()
     if (nrow(krs[krs$keyring == kr_name, ]) == 0) {
-      kb$keyring_create(kr_name)
+      kb$keyring_create(kr_name, get_episomer_kr_password())
     }
     kb$keyring_set_default(kr_name)
   }
 
   # unlocking keyring if unlocked using environment variable to get the password
   if (kb$keyring_is_locked(keyring = kr_name)) {
-    if (Sys.getenv("episomer_kr_password") == "") {
-      Sys.setenv(
-        episomer_kr_password = askpass::askpass(
-          "Please enter the encryption password for episomer secrets \n(you can otherwise export the 'episomer_kr_password' environment variable)"
-        )
-      )
-    }
-      kb$keyring_unlock(
+    kb$keyring_unlock(
         keyring = kr_name,
-        password = Sys.getenv("episomer_kr_password")
-      )
-      # unlocking keyring if unlocked using password prompt
+        password = get_episomer_kr_password()
+    )
+    # unlocking keyring if unlocked using password prompt
   }
   return(kb)
 }
@@ -69,7 +62,7 @@ set_secret <- function(secret, value) {
         "%s?secret=%s&passphrase=%s&value=%s",
         get_scala_secrets_url(),
         secret,
-        urltools::url_encode(Sys.getenv("episomer_kr_password")),
+        urltools::url_encode(get_episomer_kr_password()),
         urltools::url_encode(value)
       )
     ) %>%
@@ -85,34 +78,60 @@ set_secret <- function(secret, value) {
 is_secret_set <- function(secret) {
   if(!fs_remote()) {
     secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
-    return(nrow(secrets[secrets$username == secret, ]) > 0)
+    env_secrets <- get_env_secrets()
+    return(nrow(secrets[secrets$username == secret, ]) > 0 || exists(secret, where = env_secrets))
+
   } else {
     res <- jsonlite::read_json(sprintf(
       "%s?secret=%s&passphrase=%s",
       get_scala_secrets_url(),
       secret,
-      urltools::url_encode(Sys.getenv("episomer_kr_password"))
+      urltools::url_encode(get_episomer_kr_password())
     ))
     res$status == "ok"
   }
 }
 
+get_episomer_kr_password <- function() {
+    if (Sys.getenv("EPISOMER_KR_PASSWORD") != "") {
+	
+    } else if (Sys.getenv("EPISOMER_KR_PASSWORD_FILE") != "" && file.exists(Sys.getenv("EPISOMER_KR_PASSWORD_FILE"))) {
+        con <- file(Sys.getenv("EPISOMER_KR_PASSWORD_FILE"), "r", encoding = "UTF-8")
+        val <- readLines(con, n=1, warn=FALSE)
+        close(con)
+        Sys.setenv(EPISOMER_KR_PASSWORD = val)
+    } else {
+      Sys.setenv(
+        EPISOMER_KR_PASSWORD = askpass::askpass(
+          "Please enter the encryption password for episomer secrets \n(you can otherwise export the 'EPISOMER_KR_PASSWORD' environment variable)"
+        )
+      )
+    }
+    return(Sys.getenv("EPISOMER_KR_PASSWORD"))
+}
 # Get a secret from the chosen secret management backend
 get_secret <- function(secret) {
   if(!fs_remote()) {
-    get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
+    secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
+    env_secrets <- get_env_secrets()
+    if (nrow(secrets[secrets$username == secret, ]) > 0)
+        get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
+    else if( exists(secret, where = env_secrets)) { 
+        env_secrets[[secret]]
+    } else {
+        stop("Could not found the requested secret")
+    }
   } else {
     res <- jsonlite::read_json(sprintf(
       "%s?secret=%s&passphrase=%s",
       get_scala_secrets_url(),
       secret,
-      urltools::url_encode(Sys.getenv("episomer_kr_password"))
+      urltools::url_encode(get_episomer_kr_password())
     ))
     if(res$status == "ok")
        res$value
     else
        stop("Could not retrieve the secret")
-    
   }
 }
 
@@ -275,7 +294,7 @@ setup_config <- function(
   ignore_topics = FALSE,
   save_properties_first = FALSE,
   save_topics_first = list(),
-  fs_remote = "http://localhost:8080"
+  fs_remote =  if(Sys.getenv("EPI_HOST") != "") Sys.getenv("EPI_HOST") else "http://localhost:8080"
 ) {
   #setting the data_dir which is a read only property
   conf$data_dir <- data_dir
@@ -303,6 +322,7 @@ setup_config <- function(
       #merging default values with those stored in the properties.json file
       temp = merge_configs(list(
         temp,
+        get_env_props(),
         jsonlite::read_json(
           props_path,
           simplifyVector = FALSE,
@@ -945,4 +965,31 @@ sm_set_without_alerts <- function(sm) {
         conf[[prop]] = FALSE
 }
 
+get_env_props <- function() {
+  envs <- as.list(Sys.getenv())
+  envs <- envs[grepl("^EPISOMER_OPTION_.*", names(envs))]
+  setNames(envs, tolower(gsub("^EPISOMER_OPTION_", "", names(envs))))
+}
 
+
+
+get_env_secrets <- function() {
+  envs <- as.list(Sys.getenv())
+  envs <- envs[grepl("^EPISOMER_SECRET_.*", names(envs))]
+  envs <- setNames(envs, gsub("^EPISOMER_SECRET_", "", names(envs)))
+  ret <- list() 
+  # fetching values if provided on files
+  for(p in names(envs)) {
+     if(!grepl(".*_FILE$", p)) {
+         ## Standard secret
+         ret[[tolower(p)]] <- envs[[p]] 
+     } else if(envs[[p]]!="" && file.exists(envs[[p]])) {
+         ## Secret file
+         con <- file(envs[[p]], "r", encoding = "UTF-8")
+         val <- readLines(con, n=1, warn=FALSE)
+         close(con)
+         ret[[tolower(gsub("_FILE$", "", p))]] <- val 
+     }
+  }
+  ret
+}

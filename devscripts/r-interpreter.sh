@@ -8,7 +8,7 @@ then
   pass=`pass epitools/ecdc_kr_pwd`
 fi
 
-export episomer_kr_password=$pass
+export EPISOMER_KR_PASSWORD=$pass
 export TMPDIR=$EPI_HOME/tmp
 expect -c '
 spawn R

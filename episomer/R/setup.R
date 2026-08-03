@@ -381,10 +381,14 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
               message(alert("Cannot proceed to process to train language models. Geonames has not been successfully assemebled and indexed, please choose to do it"))
             } else {
               pause(silent)
-              save_config()
               message("Going to launch model retraining, starting the episomer database")
+              # using temporary port for fs_runner to prevent incorrect detection of execution success
+              conf$fs_port = conf$fs_port + 1000 
+              save_config()
               register_fs_runner_task(wait_until_response = TRUE)
-              message("Episomer database is running, proceeding with training")
+              conf$fs_port = conf$fs_port - 1000 
+              save_config()
+	      message("Episomer database is running, proceeding with training")
               update_languages() 
               message("Episomer language models indexed and retrained, stopping the episomer database")
               stop_fs_runner_task()

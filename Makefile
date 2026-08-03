@@ -8,6 +8,14 @@ define set_kr_pass
 	@export pa=`pass epitools/ecdc_kr_pwd` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_kr_pwd; fi
 endef
 
+define set_bluesky_user
+	@export pa=`pass epitools/ecdc_bluesky_user` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_bluesky_user; fi
+endef
+
+define set_bluesky_password
+	@export pa=`pass epitools/ecdc_bluesky_password` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_bluesky_password; fi
+endef
+
 init:
 	rm -rf renv/
 	rm -f .Rprofile
@@ -25,7 +33,7 @@ package:
 	JAR=1 PACK=1 devscripts/package.sh
 
 install-package:
-	JAR=1 PACK=1 INSTALL=1 devscripts/package.sh
+	JAR=1 PACK=1 RENV=1 INSTALL=1 devscripts/package.sh
 
 package-step:
 	devscripts/package.sh
@@ -36,7 +44,7 @@ install-test:
 search-sandboxed:
 	$(call check_epi_home)
 	$(call set_kr_pass)
-	@export episomer_kr_password=`pass epitools/ecdc_kr_pwd` && \
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	R -e "devtools::load_all('epitweetr');epitweetr::setup_config('$$EPI_HOME');epitweetr::search_loop(sandboxed=TRUE)"
 
 R:
@@ -53,7 +61,7 @@ R-test:
 	$(call set_kr_pass)
 	devscripts/package.sh
 	Rscript devscripts/renv.test.R
-	@export episomer_kr_password=`pass epitools/ecdc_kr_pwd` && \
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	cd test && R
 
 spark:
@@ -72,10 +80,29 @@ run-app-dashboard:
 	EPISOMER_RUN=DASH Rscript devscripts/run.R  
 
 run-fs:
-	EPISOMER_RUN=DATA Rscript devscripts/run.R  
+	$(call check_epi_home)
+	$(call set_kr_pass)
+	$(call set_bluesky_user)
+	$(call set_bluesky_password)
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
+	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
+	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	EPISOMER_RUN=FS Rscript devscripts/run.R  
 
 run-detect:
 	EPISOMER_RUN=DETECT Rscript devscripts/run.R  
 
 run-search:
-	EPISOMER_RUN=SEARCH Rscript devscripts/run.R  
+	$(call set_kr_pass)
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
+	EPISOMER_RUN=SEARCH Rscript devscripts/run.R
+
+compose-up:
+	$(call check_epi_home)
+	$(call set_kr_pass)
+	$(call set_bluesky_user)
+	$(call set_bluesky_password)
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
+	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
+	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	docker compose -f docker/compose.yml up --build -d
