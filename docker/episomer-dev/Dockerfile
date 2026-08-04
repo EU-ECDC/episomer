@@ -71,11 +71,7 @@ RUN PACK=1 make package-step
 ## Installing episomer
 RUN INSTALL=1 make package-step
 
-## Creating the data folder
-user root
-RUN mkdir -p "/episomer-data/jobs"
-RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer-data
 USER ${EPISOMER_USER}:${EPISOMER_USER}
 
 ## Entry point
-ENTRYPOINT ["Rscript", "/episomer/devscripts/run.R"]
+ENTRYPOINT ["bash", "/episomer/devscripts/run.sh"]
