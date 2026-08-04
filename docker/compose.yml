@@ -23,6 +23,9 @@
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
         EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
         EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
+        OPENBLAS_NUM_THREADS: 1
+        TMPDIR: "/episomer-data/tmp"
+        _JAVA_OPTIONS=-Djava.io.tmpdir: "/episomer-data/tmp"
       secrets:
         - episomer_kr_password
         - episomer_bluesky_user
