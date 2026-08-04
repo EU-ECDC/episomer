@@ -71,6 +71,9 @@ RUN PACK=1 make package-step
 ## Installing episomer
 RUN INSTALL=1 make package-step
 
+USER root
+RUN mkdir /episomer-data
+RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer-data
 USER ${EPISOMER_USER}:${EPISOMER_USER}
 
 ## Entry point

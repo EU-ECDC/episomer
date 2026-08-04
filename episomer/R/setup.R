@@ -556,12 +556,13 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                   message(alert("Cannot proceed starting services, geonames has not been successfully processed."))
               } else  {
                 message("Starting services")
+                save_config()
                 if(targets[[s_ans]] %in% c("fs", "all")) {
                     register_fs_runner_task(wait_until_response=T)
                 }
                 if(targets[[s_ans]] %in% c("search", "all")) {
                     if(!tryCatch(check_sm_auth(), warning=function(e) FALSE)) {
-                        message(alert("Cannot start the search service, The social methia authentication is failing."))
+                        message(alert("Cannot start the search service, The social media authentication is failing."))
                     }
                     else {
                         register_search_runner_task()
@@ -624,6 +625,8 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
            app <- episomer_app(profile = c("admin"))
         }
     }
+    save_config()    
+    message("config saved")
     message(alert("Thanks for using episomer!\nHappy signal detection!"))
     if(!is.null(app))
         app
