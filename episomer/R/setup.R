@@ -383,15 +383,21 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
               pause(silent)
               message("Going to launch model retraining, starting the episomer database")
               # using temporary port for fs_runner to prevent incorrect detection of execution success
-              conf$fs_port = conf$fs_port + 1000 
-              save_config()
-              register_fs_runner_task(wait_until_response = TRUE)
-              conf$fs_port = conf$fs_port - 1000 
-              save_config()
-	      message("Episomer database is running, proceeding with training")
-              update_languages() 
+              tryCatch({
+                  conf$fs_port = conf$fs_port + 1000 
+                  save_config()
+                  register_fs_runner_task(wait_until_response = TRUE)
+	          message("Episomer database is running, proceeding with training")
+                  update_languages()
+                  stop_fs_runner_task()
+                }
+                , finally = {
+              	  conf$fs_port = conf$fs_port - 1000 
+              	  save_config()
+	          remove_running_task_pid("fs") 
+                }
+              )
               message("Episomer language models indexed and retrained, stopping the episomer database")
-              stop_fs_runner_task()
            }
         }
         

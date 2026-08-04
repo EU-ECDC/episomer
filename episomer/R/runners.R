@@ -263,6 +263,7 @@ stop_fs_runner_task <- function() {
          }
      }
   }
+  
 }
 
 # This task is currently Windows only
@@ -529,6 +530,12 @@ is_detect_running <- function() {
     "Cannot check detect batch status for search without configuration setup"
   ))
   get_running_task_pid("detect") >= 0
+}
+
+remove_running_task_pid <- function(name) {
+  pid_path <- paste(conf$data_dir, "/", name, ".PID", sep = "")
+  if(file.exists(pid_path))
+    unlink(pid_path)
 }
 
 # Get runner active PID this function will return -1 if no process was detected

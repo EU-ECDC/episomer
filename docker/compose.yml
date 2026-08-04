@@ -19,7 +19,7 @@
         EPISOMER_RUN: "FS"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
         EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "FALSE"
-        EPISOMER_OPTION_FS_HOST: "fs"
+        EPISOMER_OPTION_FS_URL: "http://fs"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
         EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
         EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
