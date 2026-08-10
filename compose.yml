@@ -1,0 +1,82 @@
+  services:
+    fs:
+      image: episomer-dev
+      pull_policy: never
+      build: 
+        context: ./episomer-dev 
+        additional_contexts:
+          src: ".."
+      ports:
+        - "${EPISOMER_FS_PORT}:8080"
+      healthcheck:
+        test: curl --fail http://fs:8080/ping
+        interval: 30s
+        timeout: 5s
+        retries: 400
+        start_period: 10s
+      environment:
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "FS"
+        EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
+        EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
+        EPISOMER_OPTION_FS_URL: "http://fs"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+        EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
+        EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
+        EPISOMER_SECRET_MASTODON_TOKEN_FILE: "/run/secrets/episomer_mastodon_token"
+        OPENBLAS_NUM_THREADS: 1
+        TMPDIR: "/episomer-data/tmp"
+        _JAVA_OPTIONS=-Djava.io.tmpdir: "/episomer-data/tmp"
+      secrets:
+        - episomer_kr_password
+        - episomer_bluesky_user
+        - episomer_bluesky_password
+        - episomer_mastodon_token
+      volumes:
+        - ${EPI_HOME}:/episomer-data
+    search:
+      image: episomer-dev
+      pull_policy: never
+      depends_on:
+        fs:
+          condition: service_healthy
+      environment:
+        EPI_HOST: "http://fs:8080"
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "SEARCH"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+      secrets:
+        - episomer_kr_password
+      healthcheck:
+        test:  R -e "episomer::setup_config();tryCatch(episomer::check_sm_auth(), warning = function(m) stop(m))"
+        interval: 40s
+        timeout: 30s
+        retries: 3
+        start_period: 30s
+      volumes:
+        - ${EPI_HOME}/jobs:/episomer-data/jobs
+    detect:
+      image: episomer-dev
+      pull_policy: never
+      depends_on:
+        fs:
+          condition: service_healthy
+      environment:
+        EPI_HOST: "http://fs:8080"
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "DETECT"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+      secrets:
+        - episomer_kr_password
+      volumes:
+        - ${EPI_HOME}/jobs:/episomer-data/jobs
+  secrets:
+    episomer_kr_password:
+      environment: EPISOMER_KR_PASSWORD
+    episomer_bluesky_user:
+      environment: EPISOMER_BLUESKY_USER  
+    episomer_bluesky_password:
+      environment: EPISOMER_BLUESKY_PASSWORD
+    episomer_mastodon_token:
+      environment: EPISOMER_MASTODON_TOKEN
+    
