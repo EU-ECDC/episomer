@@ -57,11 +57,11 @@ WORKDIR /episomer
 RUN R -e 'dir.create(path = Sys.getenv("R_LIBS_USER"), showWarnings = FALSE, recursive = TRUE)'
 RUN R -e 'install.packages(c("devtools", "remotes"), lib = Sys.getenv("R_LIBS_USER"))'
 
-COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} --from=src ./episomer/DESCRIPTION /episomer/episomer
+COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} ./episomer/DESCRIPTION /episomer/episomer
 RUN R -e 'devtools::install_deps("episomer")'
 
 ## Compiling scala code and producing JAR
-COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} --from=src ./scala /episomer/scala
+COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} ./scala /episomer/scala
 WORKDIR /episomer/scala
 RUN sbt package
 RUN mkdir -p /episomer/episomer/inst/java
@@ -70,7 +70,7 @@ RUN cp /episomer/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-1.0.jar /tmp/
 
 ## Packaging episomer
 WORKDIR /episomer
-COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} --from=src . /episomer/
+COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} ./episomer /episomer/
 RUN cp /tmp/ecdc-episomer-bundle_2.13-1.0.jar /episomer/episomer/inst/java
 RUN PACK=1 make package-step
 
