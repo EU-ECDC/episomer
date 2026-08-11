@@ -66,7 +66,7 @@ RUN apt-get update && \
 # Create unprivileged user
 # ============================================================
 
-ARG EPISOMER_UID=1000
+ARG EPISOMER_USER=1000
 RUN if id "${EPISOMER_USER}" >/dev/null 2>&1; then \
     echo 'user exists already found, reusing it'; \
 else \
