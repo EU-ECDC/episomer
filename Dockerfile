@@ -67,15 +67,13 @@ RUN apt-get update && \
 # ============================================================
 
 ARG EPISOMER_UID=1000
-ARG EPISOMER_USER=epirunner
+RUN if id "${EPISOMER_USER}" >/dev/null 2>&1; then \
+    echo 'user exists already found, reusing it'; \
+else \
+    RUN groupadd -g "${EPISOMER_USER}" epirunner \
+      && useradd --create-home --no-log-init -u "${EPISOMER_USER}" -g "${EPISOMER_USER}" epirunner; \
+fi
 
-RUN groupadd --gid "${EPISOMER_UID}" "${EPISOMER_USER}" && \
-    useradd \
-        --create-home \
-        --no-log-init \
-        --uid "${EPISOMER_UID}" \
-        --gid "${EPISOMER_USER}" \
-        "${EPISOMER_USER}"
 
 # ============================================================
 # Install SBT
