@@ -1,4 +1,4 @@
-FROM rocker/r-base:latest
+FROM rocker/r-base:latest as src
 
 ## Installing System dependencies
 RUN apt-get update && \
