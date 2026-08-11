@@ -43,6 +43,11 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             } else {
               data_dir <- file.choose()
             }
+            if(is.null(data_dir) || is.na(data_dir)) {
+               data_dir <- readline("Could not read the data dir. Please type the path of the folder?: \n")
+            }
+            if(is.null(data_dir) || length(data_dir)==0) 
+               stop("Could not retrieve the data dir")
 
         } else if (exists("data_dir", where = conf)) {
             data_dir <- conf$data_dir

@@ -15,6 +15,9 @@ endef
 define set_bluesky_password
 	@export pa=`pass epitools/ecdc_bluesky_password` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_bluesky_password; fi
 endef
+define set_mastodon_token
+	@export pa=`pass epitools/ecdc_mastodon_token` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_mastodon_token; fi
+endef
 
 init:
 	rm -rf renv/
@@ -48,6 +51,15 @@ search-sandboxed:
 	R -e "devtools::load_all('epitweetr');epitweetr::setup_config('$$EPI_HOME');epitweetr::search_loop(sandboxed=TRUE)"
 
 R:
+	$(call check_epi_home)
+	$(call set_kr_pass)
+	$(call set_bluesky_user)
+	$(call set_bluesky_password)
+	$(call set_mastodon_token)
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
+	export EPISOMER_SECRET_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
+	export EPISOMER_SECRET_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	export EPISOMER_SECRET_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
 	devscripts/r-interpreter.sh
 
 check:
@@ -65,6 +77,15 @@ R-test:
 	cd test && R
 
 spark:
+	$(call check_epi_home)
+	$(call set_kr_pass)
+	$(call set_bluesky_user)
+	$(call set_bluesky_password)
+	$(call set_mastodon_token)
+	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
+	export EPISOMER_SECRET_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
+	export EPISOMER_SECRET_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	export EPISOMER_SECRET_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
 	devscripts/spark-interpreter.sh
 
 scala:
@@ -84,6 +105,7 @@ run-fs:
 	$(call set_kr_pass)
 	$(call set_bluesky_user)
 	$(call set_bluesky_password)
+	$(call set_mastodon_token)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
 	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
@@ -102,7 +124,12 @@ compose-up:
 	$(call set_kr_pass)
 	$(call set_bluesky_user)
 	$(call set_bluesky_password)
+	$(call set_mastodon_token)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
 	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	export EPISOMER_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
 	docker compose -f docker/compose.yml up --build -d
+
+compose-down:
+	docker compose -f docker/compose.yml down

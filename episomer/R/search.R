@@ -195,7 +195,7 @@ search_loop_worker <- function(
 
     #msg(paste("iterating in topics", length(conf$topics), min_requests))
     #performing search only for plans with a minimum number of requests (round robin)
-
+    message(sprintf("--------------- SEARCH LOOP (%s)----------------------------------------------------", length(conf$topics)))
     for (i in 1:length(conf$topics)) {
       for (j in 1:length(conf$topics[[i]]$plan)) {
         if (max_requests == 0 || requests_done <= max_requests) {
@@ -207,6 +207,7 @@ search_loop_worker <- function(
           ) {
             requests_done <- requests_done + 1
             #if search is performed on the first plan and we get an too old error, we will retry without time limit
+            #message(sprintf("This is plan %s, doing request %s out of %s", j, plan$requests + 1,length(conf$topics[[i]]$plan) ))
             tryCatch(
               {
                 conf$topics[[i]]$plan[[j]] = search_topic(
@@ -239,7 +240,7 @@ search_loop_worker <- function(
               if (req2Commit > 100) {
 		# setting a timestamp for indicating proper run of search loop
 	        search_touch() 
-		# commiting posts
+                # commiting posts
                 commit_posts()
                 req2Commit <- 0
               }
@@ -273,7 +274,7 @@ search_loop_worker <- function(
     }
   }
 }
-
+#printtime <- function(t) {}
 #' updates the modificatin date of a flag file indicating that messages have been sent to the embedded database.
 search_touch <- function() {
   epifile.touch(get_search_touch_path())
@@ -290,16 +291,17 @@ search_topic <- function(
   topic,
   sandboxed = FALSE
 ) {
-  token <- sm_api_get_token(plan$network)
-  info <- sm_plan_next_search_info(plan)
 
+  info <- sm_plan_next_search_info(plan)
   msg(paste(
     "searching for topic",
     topic,
     info
   ))
-
+  
+  token <- sm_api_get_token(plan$network)
   # doing the post search and storing the response object to obtain details on resp
+  
   results <- sm_api_search(
     query = query,
     token = token,

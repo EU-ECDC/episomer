@@ -27,3 +27,4 @@ prerequisites
 .RData
 .Rhistory
 .Rprofile
+scala/.Rprofile

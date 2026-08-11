@@ -12,3 +12,6 @@ installer_name <- (
 
 # Installing
 devtools::install_local(sprintf("install/%s", installer_name[[1]]), dependencies=T) 
+
+if(Sys.getenv("RENV")!="" && ("renv" %in% installed.packages()[,"Package"]))
+	renv::snapshot()

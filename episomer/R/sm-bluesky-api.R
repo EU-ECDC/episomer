@@ -553,15 +553,13 @@ bluesky_parse_features <- function(post) {
 bluesky_create_session <- function(handle = NULL, password = NULL) {
   if (is.null(handle) && is_secret_set("bluesky_user")) {
     handle = get_secret("bluesky_user")
-  } else if (is.null(handle) && Sys.getenv("bluesky_id") != "")
-    handle = Sys.getenv("bluesky_id") else {
+  } else {
     stop("You have to provide a user_name to collect Bluesky posts")
   }
 
   if (is.null(password) && is_secret_set("bluesky_password")) {
     password = get_secret("bluesky_password")
-  } else if (is.null(handle) && Sys.getenv("bluesky_pwd") != "")
-    password = Sys.getenv("bluesky_pwd") else {
+  } else {
     stop("You have to provide a password to collect Bluesky posts")
   }
   login_url = "https://bsky.social/xrpc/com.atproto.server.createSession"

@@ -18,6 +18,7 @@ import scala.concurrent.Future
 import scala.util.{Try, Success, Failure}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{Map => MMap}
 import org.apache.pekko.actor.ActorRef
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorRef
@@ -49,6 +50,7 @@ object API {
   var actorSystemPointer:Option[ActorSystem] = None
   var oLuceneRunner:Option[ActorRef] = None
   var oConf:Option[Settings] = None
+  val secrets = MMap[String, String]()
   def run(epiHome:String) {
     import fs.EpiSerialisation._
     Logger.getLogger("pekko").setLevel(Level.DEBUG)
@@ -386,28 +388,40 @@ object API {
           get {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
                 parameters("secret".as[String], "passphrase".as[String]) { (secret, passphrase) =>
-                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret, conf.epiHome)
-                  val env = pb.environment()
-                  env.put("EPISOMER_KR_PASSWORD", passphrase)
-                  val p = pb.start();
-                  val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
-                  val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
-                  val out = stdout.readLine
-                  val berr = new StringBuilder()
-                  var line = stderr.readLine
-                  while (line != null) {
-                    berr.append(s"$line\n")
-                    line = stderr.readLine
-                  }
-                  val err = berr.toString
-                  val exitCode = p.waitFor()
-                  if(out !=null && exitCode == 0) { 
-                    complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(out)), ("code",JsNumber(exitCode)))).toString())
-                  }
-                  else if(exitCode == 0) { 
-                    complete(JsObject(Map(("status",JsString("ko")), ("message",JsString(err)), ("code",JsNumber(exitCode)))).toString())
-                  } else {
-                    complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not get the secret exit($exitCode):$err")) 
+                  secrets.get(secret) match {
+                      case Some(s) =>
+                          complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(s)), ("code",JsNumber(0)))).toString())
+                      case None =>
+		          val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret, conf.epiHome)
+                          
+                          sys.env.get("R_EPIHOME") match {
+                            case Some(path) => 
+	                        pb.directory(new File(path))
+                            case _ =>
+                          }
+                          val env = pb.environment()
+                          env.put("EPISOMER_KR_PASSWORD", passphrase)
+                          val p = pb.start();
+                          val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
+                          val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
+                          val out = stdout.readLine
+                          val berr = new StringBuilder()
+                          var line = stderr.readLine
+                          while (line != null) {
+                            berr.append(s"$line\n")
+                            line = stderr.readLine
+                          }
+                          val err = berr.toString
+                          val exitCode = p.waitFor()
+                          if(out !=null && exitCode == 0) { 
+                            secrets(secret) = out
+                            complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(out)), ("code",JsNumber(exitCode)))).toString())
+                          }
+                          else if(exitCode == 0) { 
+                            complete(JsObject(Map(("status",JsString("ko")), ("message",JsString(err)), ("code",JsNumber(exitCode)))).toString())
+                          } else {
+                            complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not get the secret exit($exitCode):$err")) 
+                          }
                   }
                 }
             }
@@ -415,6 +429,11 @@ object API {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
                 parameters("secret".as[String], "passphrase".as[String], "value".as[String]) { (secret, passphrase, value) =>
                   val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "set_secret.R").toString, secret, conf.epiHome)
+                  sys.env.get("R_EPIHOME") match {
+                    case Some(path) => 
+	                pb.directory(new File(path))
+                    case _ =>
+                  }
                   val env = pb.environment()
                   env.put("EPISOMER_KR_PASSWORD", passphrase)
                   val p = pb.start();
@@ -433,7 +452,8 @@ object API {
                   }
                   val err = berr.toString
                   val exitCode = p.waitFor()
-                  if(exitCode == 0) { 
+                  if(exitCode == 0) {
+                    secrets(secret)=value
                     complete(JsObject(Map(("status",JsString("ok")), ("code",JsNumber(exitCode)))).toString())
                   } else {
                     complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not set the secret exit($exitCode):$err")) 

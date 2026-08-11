@@ -11,9 +11,6 @@ sm_api_get_token_mastodon <- function() {
   if (is_secret_set("mastodon_token")) {
     return(get_secret("mastodon_token"))
   }
-  if (Sys.getenv("MASTODON_TOKEN") != "") {
-    return(Sys.getenv("MASTODON_TOKEN"))
-  }
   stop("You have to provide a Mastodon access token to collect Mastodon posts")
 }
 
@@ -57,7 +54,7 @@ sm_api_translate_query_mastodon <- function(parsed) {
 #' @param plan Plan object
 #' @param max_retries Maximum number of retries
 #' @param verbose Whether to print progress messages
-#' @details This function impleents the search of messages for a given query and plan.
+#' @details This function implements the search of messages for a given query and plan.
 #' The query has been already transformed by sm_api_translate_query_xxx so it is expected to be already in the native social media format
 #' The token has been produced by the function sm_api_get_token_xxx and shoulb be used to autenticate the request
 #' The plan should be used to extract the precise time-span to request messages
@@ -175,6 +172,8 @@ sm_api_search_mastodon <- function(
         offset = plan$current_offset
       )
   }
+  
+  #cat(round(system.time(
   resp <- req %>%
     httr2::req_headers(Authorization = paste("Bearer", token)) %>%
     httr2::req_retry(
@@ -184,6 +183,7 @@ sm_api_search_mastodon <- function(
       after = mastodon_rerun_after_rate_limit
     ) %>%
     httr2::req_perform()
+  #)[[3]], 2));cat("|+|")
 
   json <- httr2::resp_body_json(resp)
   mastodon_parse_response(json, plan)
@@ -242,6 +242,10 @@ sm_api_set_auth_mastodon <- function(shiny_input_list=NULL) {
 #' @param plan list, the plan to update
 #' @param results list, the obtained results of the plan
 sm_api_update_plan_after_request_mastodon <- function(plan, results) {
+  #message(length(results$posts))
+  #message({gg<-results$pagination;gg["new_ids"]<- length(gg["new_ids"]);jsonlite::toJSON(gg, auto_unbox=T)})
+  #message({gg<-plan;gg["seen_ids"]<- length(gg["seen_ids"]);sprintf("-- START > %s", jsonlite::toJSON(gg, auto_unbox=T))})
+  
   # @function_def_end (do not delete)
   # track the oldest collected date (used for progress computation, like Bluesky)
   if (!is.null(results$pagination$min_created_at)) {
@@ -275,12 +279,12 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
   # back at least one in-window post (created_at >= plan_min_date) resets the streak; a request
   # with none extends it. mastodon_parse_response reads this streak to decide when to end the plan
   # (once it reaches conf$mastodon_max_empty_requests), so the two must stay in sync.
-  in_window <- if (is.null(results$pagination$in_window)) {
+  posts_after_mindate <- if (is.null(results$pagination$posts_after_mindate)) {
     0L
   } else {
-    results$pagination$in_window
+    results$pagination$posts_after_mindate
   }
-  if (in_window > 0) {
+  if (posts_after_mindate > 0) {
     plan$consecutive_empty <- 0L
   } else {
     plan$consecutive_empty <- (if (is.null(plan$consecutive_empty)) {
@@ -309,6 +313,7 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     # forward inside the current window. Repeated empty pages keep extending the streak above and
     # will end the plan once it reaches the threshold, so this cannot loop forever.
     plan$current_offset <- previous_offset + mastodon_page_size
+    #message({gg<-plan;gg["seen_ids"]<- length(gg["seen_ids"]);sprintf("--NO IDS > %s", jsonlite::toJSON(gg, auto_unbox=T))})
     return(plan)
   }
 
@@ -319,6 +324,7 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     # mastodon_parse_response, and never affect the cursor (computed on the raw statuses).
     plan$current_min_id <- results$pagination$oldest_id
     plan$current_offset <- 0L
+    #message({gg<-plan;gg["seen_ids"]<- length(gg["seen_ids"]);sprintf("--1st RQ > %s", jsonlite::toJSON(gg, auto_unbox=T))})
     return(plan)
   }
 
@@ -337,7 +343,7 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
     plan$current_min_id <- results$pagination$oldest_id
     plan$current_offset <- 0L
   }
-
+  #message({gg<-plan;gg["seen_ids"]<- length(gg["seen_ids"]);sprintf("--OFFSET > %s", jsonlite::toJSON(gg, auto_unbox=T))})
   return(plan)
 }
 
@@ -606,7 +612,7 @@ mastodon_parse_response <- function(response, plan) {
       returned = 0L, # number of statuses the API returned (its page size for this request)
       oldest_id = NULL, # smallest (oldest) id of the page -> next anchor (max_id) at first req/rebase
       min_created_at = NULL, # oldest creation date kept (for progress), set further down
-      in_window = 0L, # raw statuses with created_at >= plan_min_date -> consecutive-empty streak
+      posts_after_mindate = 0L, # raw statuses with created_at >= plan_min_date -> consecutive-empty streak
       new_ids = character(0) # ids kept by this request -> appended to plan$seen_ids by the update fn
     )
   )
@@ -695,7 +701,7 @@ mastodon_parse_response <- function(response, plan) {
   # second it lands on (max_id's `before:<second>` is inclusive) and Elasticsearch positions can
   # shift between requests, so a status we already returned can come back. Only res$posts is
   # filtered here: res$pagination is deliberately computed on the RAW statuses (positions, oldest
-  # id, in_window streak), so dropping duplicates never disturbs the pagination cursor nor the
+  # id, posts_after_mindate streak), so dropping duplicates never disturbs the pagination cursor nor the
   # stop criterion.
   if (length(res$posts) > 0 && length(unlist(plan$seen_ids)) > 0) {
     seen <- unlist(plan$seen_ids)
@@ -723,17 +729,17 @@ mastodon_parse_response <- function(response, plan) {
   # inclusive), even though older posts are still reachable at the next offset.
   # When there is no lower bound every returned status counts as in-window.
   if (length(statuses) == 0) {
-    in_window <- 0L
+    posts_after_mindate <- 0L
   } else if (is.null(plan$plan_min_date)) {
-    in_window <- length(statuses)
+    posts_after_mindate <- length(statuses)
   } else {
     raw_created <- lapply(statuses, function(s) {
       mastodon_parse_date(s$created_at)
     })
-    in_window <- sum(sapply(raw_created, function(d) d >= plan$plan_min_date))
+    posts_after_mindate <- sum(sapply(raw_created, function(d) d >= plan$plan_min_date))
   }
   # expose it so sm_api_update_plan_after_request_mastodon can advance the consecutive-empty streak
-  res$pagination$in_window <- in_window
+  res$pagination$posts_after_mindate <- posts_after_mindate
 
   # end-of-plan signal (res$count), consumed by the generic update_plan_after_request(): it ends
   # the plan when count == 0. We do NOT end on the first below-window request, because Mastodon's
@@ -759,9 +765,9 @@ mastodon_parse_response <- function(response, plan) {
   # spending `threshold` requests on it: the noisy-created_at argument below only justifies
   # persevering *while paginating*, not on a head request that already comes back empty.
   is_first_request <- is.null(plan$current_offset)
-  if (in_window > 0) {
+  if (posts_after_mindate > 0) {
     # in-window posts found: keep paginating, streak resets in the update function.
-    res$count <- in_window
+    res$count <- posts_after_mindate
   } else if (is_first_request || prev_streak + 1L >= threshold) {
     # first request with nothing in the window, or this request completes the streak of empty
     # requests -> end the plan.

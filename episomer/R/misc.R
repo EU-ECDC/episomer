@@ -25,9 +25,12 @@ remove_nbsp <- function(htmlString) {
 
 #' @noRd
 clean_messages <- function(text) {
-  text %>% 
-    removeHTMLtags()%>% 
-    removeURLS()%>% 
-    remove_newlines()%>%
-    remove_nbsp()
+  if(is.null(text))
+     NULL
+  else
+    text %>% 
+      removeHTMLtags()%>% 
+      removeURLS()%>% 
+      remove_newlines()%>%
+      remove_nbsp()
 }

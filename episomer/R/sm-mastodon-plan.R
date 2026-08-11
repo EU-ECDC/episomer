@@ -151,7 +151,11 @@ sm_plan_search_info_mastodon <- function(plan) {
     info = paste(
       info,
       "from newest before",
-      strftime(plan$plan_max_date, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC")
+      strftime(plan$plan_max_date, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
+      "offset",
+      if (is.null(plan$current_offset)) 0L else plan$current_offset,
+      "requests",
+      plan$requests
     )
   } else {
     info <- paste(
@@ -162,7 +166,9 @@ sm_plan_search_info_mastodon <- function(plan) {
       plan$current_min_date,
       ")",
       "offset",
-      if (is.null(plan$current_offset)) 0L else plan$current_offset
+      if (is.null(plan$current_offset)) 0L else plan$current_offset,
+      "requests",
+      plan$requests
     )
   }
   if (!is.null(plan$plan_min_date)) {

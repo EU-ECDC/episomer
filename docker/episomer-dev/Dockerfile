@@ -10,6 +10,17 @@ RUN apt-get update && \
     apt-get install -y openjdk-21-jdk && \
     apt-get clean
 
+## deb dependencies
+RUN apt-get update && \
+    apt-get install -y libfontconfig1-dev libcurl4-openssl-dev libuv1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev && \
+    apt-get install -y libjpeg-dev libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev cmake gdal-bin libsecret-1-dev && \
+    apt-get clean
+
+## documentatin dependencies
+RUN apt-get update && \
+    apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra pandoc && \
+    apt-get clean
+
 ## Creating unprivilegied user for episomer
 ARG EPISOMER_USER=1000
 RUN if id "${EPISOMER_USER}" >/dev/null 2>&1; then \
@@ -33,16 +44,11 @@ RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 RUN mkdir -p /episomer/episomer/java
 RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer
 
-## Installing R package dependencids
-## deb dependencies
-RUN apt-get update && \
-    apt-get install -y libfontconfig1-dev libcurl4-openssl-dev libuv1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev && \
-    apt-get install -y libjpeg-dev libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev cmake gdal-bin libsecret-1-dev && \
-    apt-get clean
+## Creating episomer data folder 
+RUN mkdir /episomer-data
+RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer-data
 
-RUN apt-get update && \
-    apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra pandoc && \
-    apt-get clean
+## Installing R package dependencids
 
 ## dependant packages
 USER ${EPISOMER_USER}:${EPISOMER_USER}
@@ -70,11 +76,6 @@ RUN PACK=1 make package-step
 
 ## Installing episomer
 RUN INSTALL=1 make package-step
-
-USER root
-RUN mkdir /episomer-data
-RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer-data
-USER ${EPISOMER_USER}:${EPISOMER_USER}
 
 ## Entry point
 ENTRYPOINT ["bash", "/episomer/devscripts/run.sh"]
