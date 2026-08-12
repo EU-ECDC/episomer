@@ -68,9 +68,7 @@ RUN mkdir -p /episomer/episomer/inst/java && \
     cp /episomer/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-1.0.jar /tmp/ecdc-episomer-bundle_2.13-1.0.jar
 
 WORKDIR /episomer
-RUN cp /tmp/ecdc-episomer-bundle_2.13-1.0.jar /episomer/episomer/inst/java && \
-    PACK=1 make package-step && \
-    INSTALL=1 make package-step
+RUN make package
 
 EXPOSE 8080
 ENTRYPOINT ["bash", "/episomer/devscripts/run.sh"]
