@@ -71,9 +71,9 @@ get_java_version <- function() {
   }
 }
 
-java_min_version <- function() 17
-java_max_version <- function() 21
-java_tested_version <- function() 21
+java_min_version <- function() 21
+java_max_version <- function() 25
+java_tested_version <- function() 25
 # check Java version
 check_java_version <- function() {
   java_version <- get_java_version()
@@ -559,7 +559,7 @@ can_run <- function() {
 #' @export
 setup_can_run <- function() {
     return(tryCatch(
-        check_64() && check_java_64() && check_java_present()  
+        check_64() && check_java_64() && check_java_present()  && check_java_version()  
         ,warning = function(m) {message(m);FALSE}
     ))
 }

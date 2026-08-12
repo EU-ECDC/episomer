@@ -13,7 +13,8 @@ setup_config(
   ignore_topics = FALSE,
   save_properties_first = FALSE,
   save_topics_first = list(),
-  fs_remote = "http://localhost:8080"
+  fs_remote = if (Sys.getenv("EPI_HOST") != "") Sys.getenv("EPI_HOST") else
+    "http://localhost:8080"
 )
 }
 \arguments{

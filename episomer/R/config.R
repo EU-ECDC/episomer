@@ -103,7 +103,15 @@ get_episomer_kr_password <- function() {
     } else {
       Sys.setenv(
         EPISOMER_KR_PASSWORD = askpass::askpass(
-          "Please enter the encryption password for episomer secrets \n(you can otherwise export the 'EPISOMER_KR_PASSWORD' environment variable)"
+          paste(c(
+		"Please enter the encryption password for episomer secrets",
+          	"(you can set the environment variable 'EPISOMER_KR_PASSWORD' to avoid this message)",
+                "If you have forgotten the password please remove the file located at:",
+                "    Windows: C:\\Users\\<your user name>\\AppData\\Roaming\\r-keyring\\r-keyring\\episomer_kr_name.keyring",
+                "    Linux: /home/<your user name>/.config/r-keyring/episomer_kr_name.keyring",
+                "    Mac: /home/<your user name>/Library/Application Support/r-keyring/episomer_kr_name.keyring"
+          ),
+          collapse = "\n")
         )
       )
     }

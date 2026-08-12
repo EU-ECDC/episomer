@@ -24,7 +24,7 @@ List with posts int the standard post format defined in episomer
 Search posts for a given query and produce standardised results
 }
 \details{
-This function impleents the search of messages for a given query and plan.
+This function implements the search of messages for a given query and plan.
 The query has been already transformed by sm_api_translate_query_xxx so it is expected to be already in the native social media format
 The token has been produced by the function sm_api_get_token_xxx and shoulb be used to autenticate the request
 The plan should be used to extract the precise time-span to request messages

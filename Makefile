@@ -30,7 +30,7 @@ install-dependencies:
 	devscripts/install-dependencies.sh
 
 package-full:
-	DEVT=1 DEPS=1 JAR=1 PACK=1 DOC=1 devscripts/package.sh
+	DEVT=1 DEPS=1 JAR=1 PACK=1 DOC=1 RENV=1 devscripts/package.sh
 
 package:
 	JAR=1 PACK=1 devscripts/package.sh
