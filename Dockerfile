@@ -35,8 +35,12 @@ RUN apt-get update && \
       pandoc && \
     rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -g "${EPISOMER_USER}" epirunner && \
-    useradd --create-home --no-log-init -u "${EPISOMER_USER}" -g "${EPISOMER_USER}" epirunner
+RUN if id "${EPISOMER_USER}" >/dev/null 2>&1; then \
+    echo 'user exists already found, reusing it'; \
+else \
+    RUN groupadd -g "${EPISOMER_USER}" epirunner \
+      && useradd --create-home --no-log-init -u "${EPISOMER_USER}" -g "${EPISOMER_USER}" epirunner; \
+fi
 
 RUN mkdir -p /git /episomer/episomer/java /episomer-data && \
     chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git /episomer /episomer-data
