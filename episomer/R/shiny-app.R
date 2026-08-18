@@ -2469,6 +2469,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
             conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
             conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
             conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
+            conf_mastodon_instance = input$mastodon_instance,
             conf_force_date_format = input$force_date_format
           )
     })
@@ -2485,7 +2486,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny_input_list = input
             )
 
-            # Saving Bluesky properties
+            # Saving Mastodon properties
             sm_api_set_auth(
               network = "mastodon",
               shiny_input_list = input

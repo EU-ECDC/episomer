@@ -345,5 +345,6 @@ update_config_from_input <- function(input) {
   conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
   conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
   conf$sm_alerts_mastodon <- input$conf_sm_alerts_mastodon
+  conf$mastodon_instance <- input$conf_mastodon_instance
   conf$sm_activated_mastodon <- input$conf_sm_activated_mastodon
 }
