@@ -111,3 +111,82 @@ test_that("alerts_social_media works", {
 
   expect_identical(alerts_social_media(), character(0))
 })
+
+
+test_that("sm_add_instance fails with an unknown social media", {
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE,
+    "mastodon_instances" = list(
+      "mastodon.social",
+      "mstdn.party"
+    )
+  )
+  expect_error(
+    sm_add_instance(family = "pif", instance = "paf"),
+    "There is no social media family 'pif', known families are: bluesky, mastodon"
+  )
+})
+
+
+test_that("sm_add_instance fails with a not federated social media", {
+  local_conf(
+    sm_activated_bluesky = TRUE
+  )
+  expect_error(
+    sm_add_instance(family = "bluesky", instance = "paf"),
+    "The social media 'bluesky' is not federated, it has no instances to choose from"
+  )
+})
+
+
+test_that("sm_add_instance fails with a not valid instance name", {
+  local_conf(
+    sm_activated_mastodon = TRUE
+  )
+  expect_error(
+    sm_add_instance(family = "mastodon", instance = "paf"),
+    "'paf' is not a valid instance domain"
+  )
+})
+
+test_that("sm_add_instance works", {
+  local_conf(
+    sm_activated_mastodon = TRUE
+  )
+
+  res <- sm_add_instance(family = "mastodon", instance = "fosstodon.org")
+
+  expect_equal(res, "mastodon.fosstodon.org")
+
+  expect_equal(
+    unlist(conf$mastodon_instances),
+    "fosstodon.org"
+  )
+})
+
+
+test_that("sm_remove_instance fails when the instance to be deleted is not present", {
+  local_conf(
+    sm_activated_mastodon = TRUE,
+    mastodon_instances = "mastodon.social"
+  )
+
+  expect_error(
+    sm_remove_instance(family = "mastodon", "pif"),
+    "The instance 'pif' is not among the mastodon instances collected"
+  )
+})
+
+
+test_that("sm_remove_instance fails works", {
+  local_conf(
+    sm_activated_mastodon = TRUE,
+    mastodon_instances = c("mastodon.social", "mstdn.party")
+  )
+  sm_remove_instance(family = "mastodon", "mstdn.party")
+
+  expect_false(
+    "mstdn.party" %in% unlist(conf$mastodon_instances)
+  )
+})
