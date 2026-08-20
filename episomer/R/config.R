@@ -925,13 +925,51 @@ sm_config_properties <- function(x) {
 # the families declared in the configuration, i.e. those having activation switches
 social_media_families <- function() {
   props <- names(conf)
-  sm_props <- props[grepl("^sm_activated", props)]
-  active_sm_props <- sm_props[sapply(
-    sm_props,
-    function(sm_prop) conf[[sm_prop]]
+  sub("^sm_activated_", "", props[grepl("^sm_activated_", props)])
+}
+
+# the domains of the instances a federated family collects from, character(0) if none
+sm_instances_of <- function(family) {
+  instances <- unlist(conf[[sprintf("%s_instances", family)]])
+  if (is.null(instances)) character(0) else instances
+}
+
+# the networks served by a family: one per instance when federated, the family itself otherwise
+sm_networks_of <- function(family) {
+  if (!sm_is_federated(family)) {
+    return(family)
+  }
+  instances <- sm_instances_of(family)
+  if (length(instances) == 0) {
+    character(0)
+  } else {
+    sprintf("%s.%s", family, instances)
+  }
+}
+
+# the networks of the families passing the given switch e.g. "sm_activated_"
+sm_networks_where <- function(prefix) {
+  families <- social_media_families()
+  on <- families[vapply(
+    families,
+    function(family) isTRUE(conf[[sprintf("%s%s", prefix, family)]]),
+    logical(1)
   )]
-  active_sm <- gsub("sm_activated_", "", active_sm_props)
-  active_sm
+  sm_flatten_networks(lapply(on, sm_networks_of))
+}
+
+supported_social_media <- function() {
+  sm_flatten_networks(lapply(social_media_families(), sm_networks_of))
+}
+
+# unlist() on a list of empty character vectors returns NULL, keep a character vector instead
+sm_flatten_networks <- function(networks) {
+  ret <- unlist(networks, use.names = FALSE)
+  if (is.null(ret)) character(0) else ret
+}
+
+active_social_media <- function() {
+  sm_networks_where("sm_activated_")
 }
 
 alerts_social_media <- function() {
