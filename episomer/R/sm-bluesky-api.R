@@ -1,11 +1,24 @@
 # @function_def_start (do not delete)
 
+#' Whether this social media is made of independent instances
+#' @details Bluesky is served by a single API endpoint, so it is collected as one network.
+#' @return FALSE
+#' @export
+sm_is_federated_bluesky <- function() {
+# @function_def_end (do not delete)
+  FALSE
+}
+
+# @function_def_start (do not delete)
+
 #' Get social media token
-#' @details this function implements the authethication on the respective social media and stores it securely. 
+#' @details this function implements the authethication on the respective social media and stores it securely.
 #' It is called by the search loop before starting message collection
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
 #' @return Token
 #' @export
-sm_api_get_token_bluesky <- function() {
+sm_api_get_token_bluesky <- function(network = NULL) {
 # @function_def_end (do not delete)
   if (is_secret_set("bluesky_session")) {
     session <- jsonlite::fromJSON(get_secret("bluesky_session"))
@@ -143,6 +156,8 @@ sm_api_search_bluesky <- function(
 #' @title Save bluesky credentials (login and password) and store them securely
 #' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
 #' @param shiny_input_list List of shiny input values containing the bluesky specific credentials if not provided the input will be requested interactively
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
 #' @details Update authentication tokens in configuration object
 #' @examples
 #' \dontrun{
@@ -155,7 +170,7 @@ sm_api_search_bluesky <- function(
 #' \code{\link{save_config}}
 #' @return Nothing. Called for side effects (saving credentials)
 #' @export
-sm_api_set_auth_bluesky <- function(shiny_input_list=NULL) {
+sm_api_set_auth_bluesky <- function(shiny_input_list=NULL, network = NULL) {
 # @function_def_end (do not delete)
   if(!is.null(shiny_input_list)) {
     if(!"bluesky_user" %in% names(shiny_input_list)) {
