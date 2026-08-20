@@ -15,5 +15,8 @@ test_that("sm_is_federated works", {
 })
 
 test_that("sm_secret_name works", {
-  expect_equal(sm_secret_name(network = "mastodon.titi.toto", name = "token"), "mastodon_titi_toto_token")
+  expect_equal(
+    sm_secret_name(network = "mastodon.titi.toto", name = "token"),
+    "mastodon_titi_toto_token"
+  )
 })
