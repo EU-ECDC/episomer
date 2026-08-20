@@ -1,6 +1,58 @@
 # functions in this script are the generic functions that needs to be implemented for 
 # code in episomer call these functions instead of the social media specific passing the plan which contains the name of the social media.
 # social media specific functions are identified by naming convention using adding the name of the social media at the end of the function name.
+#
+# Network identifiers
+# -------------------
+# A network identifier is either a plain family name (e.g. "bluesky") or a family name followed
+# by the domain of the instance it collects from (e.g. "mastodon.mstdn.party"). Federated social
+# media are made of independent instances, each with its own API endpoint and its own access
+# token, so each instance is handled as a network of its own: it gets its own plan file
+# (topics.<network>.json), its own search process, its own PID and its own secrets, all for free
+# because those are already keyed by network.
+#
+# The instances to collect from are listed in the <family>_instances configuration property, and
+# the whole family is switched on or off at once by sm_activated_<family> / sm_alerts_<family>.
+# Once the identifier is built, the instance is read back from it by sm_instance(), so nothing
+# downstream has to know about the property: plans need no instance attribute either since
+# plan$network already carries it.
+#
+# The identifier is a persistent key (plan file name, secret name, network column on the stored
+# posts): it must be chosen once and never renamed, renaming one orphans its history.
+
+#' returns the code family of a network, i.e. the suffix of the sm_* functions implementing it
+#' @details for a network bound to an instance the family is the part before the first dot,
+#' "mastodon.mstdn.party" is served by the sm_*_mastodon functions. Networks without an instance
+#' are their own family.
+#' @param network char, the name of the social media
+sm_family <- function(network) sub("\\..*$", "", network)
+
+#' returns the instance domain a network collects from, or NULL when the network is not federated
+#' @param network char, the name of the social media
+sm_instance <- function(network) {
+  if (grepl(".", network, fixed = TRUE)) sub("^[^.]*\\.", "", network) else NULL
+}
+
+#' whether a social media family is federated, i.e. made of independent instances each collected
+#' as a network of its own
+#' @details a federated family serves one network per domain listed in its <family>_instances
+#' configuration property, and none when that list is empty. Families that do not implement
+#' sm_is_federated_<family> are not federated.
+#' @param family char, the social media family
+sm_is_federated <- function(family) {
+  implementation <- sprintf("sm_is_federated_%s", family)
+  if (exists(implementation)) isTRUE(get(implementation)()) else FALSE
+}
+
+#' returns the name of a secret belonging to a network
+#' @details network identifiers contain dots, which are not safe in every secret backend (secret
+#' names are also used as environment variable names, see get_env_secrets), so they are flattened
+#' to underscores: the token of "mastodon.mstdn.party" is stored as "mastodon_mstdn_party_token".
+#' @param network char, the name of the social media
+#' @param name char, the name of the secret within the network e.g. "token"
+sm_secret_name <- function(network, name) {
+  sprintf("%s_%s", gsub("[^A-Za-z0-9]", "_", network), name)
+}
 
 #' parse custom attributes for a plan in this specific social media and returns them as a named list with attributes in the proper type
 #' @param network char, the name of the social media 
