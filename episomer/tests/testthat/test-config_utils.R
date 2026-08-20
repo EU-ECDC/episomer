@@ -217,3 +217,16 @@ test_that("sm_remove_instance fails works", {
     "mstdn.party" %in% unlist(conf$mastodon_instances)
   )
 })
+
+test_that("sm_config_properties works", {
+  local_conf(
+    sm_activated_mastodon = TRUE,
+    mastodon_instances = c("mastodon.social", "mstdn.party"),
+    bobo = FALSE
+  )
+
+  expect_equal(
+    sm_config_properties(conf),
+    c("mastodon_instances", "sm_activated_mastodon")
+  )
+})
