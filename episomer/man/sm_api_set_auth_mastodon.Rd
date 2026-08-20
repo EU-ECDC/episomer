@@ -2,30 +2,35 @@
 % Please edit documentation in R/sm-mastodon-api.R
 \name{sm_api_set_auth_mastodon}
 \alias{sm_api_set_auth_mastodon}
-\title{Save mastodon credentials (access token and instance) and store them securely}
+\title{Save mastodon credentials and store them securely}
 \usage{
-sm_api_set_auth_mastodon(shiny_input_list = NULL)
+sm_api_set_auth_mastodon(shiny_input_list = NULL, network)
 }
 \arguments{
 \item{shiny_input_list}{List of shiny input values containing the mastodon specific credentials if not provided the input will be requested interactively}
+
+\item{network}{char, the network the token belongs to. The instance the token has to be issued
+by is the one the network is named after.}
 }
 \value{
 Nothing. Called for side effects (saving credentials)
 }
 \description{
-Update configuration object and underlying storage with given mastodon access token and instance. The token is encrypted.
+Update the underlying storage with the mastodon access token of a network. The token is encrypted.
 }
 \details{
-Update authentication tokens in configuration object
+Update the authentication token of the network. The instance is not asked for: it is
+part of the network identifier, set once when registering it with
+\code{\link{sm_add_instance}}.
 }
 \examples{
 \dontrun{
  #Setting the configuration values
    sm_api_set_auth_mastodon(
      shiny_input_list = list(
-           mastodon_token = "your token here",
-           mastodon_instance = "mastodon.social"
-   ),
+           mastodon_mstdn_party_token = "your token here"
+     ),
+     network = "mastodon.mstdn.party"
    )
 }
 }
