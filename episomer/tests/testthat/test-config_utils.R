@@ -1,3 +1,30 @@
+test_that("supported_social_media works", {
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = FALSE
+  )
+
+  expect_setequal(supported_social_media(), c("bluesky"))
+
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE
+  )
+
+  expect_setequal(supported_social_media(), c("bluesky"))
+
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE,
+    mastodon_instances = c("toto", "titi")
+  )
+  expect_setequal(
+    supported_social_media(),
+    c("bluesky", "mastodon.titi", "mastodon.toto")
+  )
+})
+
+
 test_that("social_media_families lists the families having an activation switch", {
   local_conf(
     sm_activated_bluesky = TRUE,
