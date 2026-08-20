@@ -885,6 +885,9 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               ##################
               # Mastodon logic #
               ##################
+              # The checkboxes below switch the whole of Mastodon on or off. The instances to
+              # collect from and their access tokens are not editable here: they are added from
+              # the social media menu of episomer::setup(), which stores each token in the keyring.
               shiny::fluidRow(
                 shiny::column(
                   4,
@@ -904,28 +907,12 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                       value = conf$sm_alerts_mastodon
                     ),
                     shiny::fluidRow(
-                      shiny::column(3, "User token"),
+                      shiny::column(3, "Instances"),
                       shiny::column(
                         9,
-                        shiny::passwordInput(
-                          "mastodon_token",
-                          label = NULL,
-                          value = if (is_secret_set("mastodon_token")) {
-                            get_secret("mastodon_token")
-                          } else {
-                            NULL
-                          }
-                        )
-                      )
-                    ),
-                    shiny::fluidRow(
-                      shiny::column(3, "Mastodon instance"),
-                      shiny::column(
-                        9,
-                        shiny::textInput(
-                          "mastodon_instance",
-                          label = NULL,
-                          value = conf$mastodon_instance
+                        shiny::textOutput("conf_mastodon_instances"),
+                        shiny::helpText(
+                          "Mastodon instances and their access tokens are added by running episomer::setup() and choosing the social media authentication step."
                         )
                       )
                     )
@@ -2502,6 +2489,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           },
           ignoreInit = TRUE
         )
+
+      # the instances collected from, added with episomer::setup()
+      output$conf_mastodon_instances <- shiny::renderText({
+        cd$properties_refresh_flag()
+        instances <- sm_instances_of("mastodon")
+        if (length(instances) == 0) {
+          "No instance configured yet, no Mastodon post will be collected."
+        } else {
+          paste(instances, collapse = ", ")
+        }
+      })
 
         ######### IMPORTANT USERS LOGIC ###########
         # downloading current important users file
