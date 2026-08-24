@@ -323,7 +323,7 @@ search_topic <- function(
               "?topic=",
               curl::curl_escape(topic),
               "&network=",
-              plan$network,
+              sm_family(plan$network), # We use the family to deal with multi-instances network (e.g Mastodon, we want to merge all the instances into a single SM)
               "&geolocate=true"
             ),
             httr::content_type_json(),

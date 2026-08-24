@@ -10,7 +10,7 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
     setNames(1:length(regions), sapply(regions, function(r) r$name))
   }
   e$sms <- {
-    sms <- active_social_media()
+    sms <- active_social_media() %>% sm_family() %>% unique()
     setNames(sms, paste0(toupper(substr(sms, 1, 1)), substr(sms, 2, nchar(sms))))
   }
   agg_dates <- get_aggregated_period()
