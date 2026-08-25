@@ -224,11 +224,17 @@ get_empty_config <- function(data_dir) {
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
   ret$admin_email <- ""
+  # Each social media family is switched on or off as a whole by its sm_activated_<family> /
+  # sm_alerts_<family> pair. A federated family such as mastodon is made of independent instances
+  # listed in <family>_instances: each of them is collected as a network of its own named
+  # <family>.<instance> (see R/sm.R), and the family switches gate all of them at once.
   ret$sm_alerts_bluesky <- TRUE
   ret$sm_activated_bluesky <- TRUE
   ret$sm_alerts_mastodon <- FALSE
   ret$sm_activated_mastodon <- FALSE
-  ret$mastodon_instance <- "mastodon.social"
+  # domains of the mastodon instances to collect from e.g. list("mastodon.social", "mstdn.party"),
+  # managed from the social media menu of setup(). Stored as a list so it stays a JSON array.
+  ret$mastodon_instances <- list()
   ret$dismiss_past_request <- "1971-01-01 00:00:00"
   ret$dismiss_past_done <- "2000-01-01 00:00:00"
   ret$collect_history_days <-30
@@ -389,11 +395,15 @@ setup_config <- function(
     conf$dismiss_past_request <- temp$dismiss_past_request
     conf$collect_history_days <- temp$collect_history_days
     conf$mastodon_max_empty_requests <- temp$mastodon_max_empty_requests
-    conf$sm_alerts_bluesky <- temp$sm_alerts_bluesky
-    conf$sm_activated_bluesky <- temp$sm_activated_bluesky
-    conf$sm_alerts_mastodon <- temp$sm_alerts_mastodon
-    conf$sm_activated_mastodon <- temp$sm_activated_mastodon
-    conf$mastodon_instance <- temp$mastodon_instance
+    # The properties declaring the social media are not a fixed list: a family added with
+    # add_new_social_media() brings its own switches, and each federated family brings its list of
+    # instances. We therefore copy whatever temp holds (the defaults merged with the properties
+    # file) rather than a hardcoded set, dropping the ones currently in conf first so a family
+    # removed from the file is really forgotten.
+    rm(list = sm_config_properties(conf), envir = conf)
+    for (sm_prop in sm_config_properties(temp)) {
+      conf[[sm_prop]] <- temp[[sm_prop]]
+    }
   }
   if (!ignore_topics) {
     #topics_path is the path to the excel file containing the topics provided by the user or episomer default ones
@@ -651,11 +661,10 @@ save_config <- function(
     temp$dismiss_past_done <- conf$dismiss_past_done
     temp$collect_history_days <- conf$collect_history_days
     temp$mastodon_max_empty_requests <- conf$mastodon_max_empty_requests
-    temp$sm_alerts_bluesky <- conf$sm_alerts_bluesky
-    temp$sm_activated_bluesky <- conf$sm_activated_bluesky
-    temp$sm_alerts_mastodon <- conf$sm_alerts_mastodon
-    temp$sm_activated_mastodon <- conf$sm_activated_mastodon
-    temp$mastodon_instance <- conf$mastodon_instance
+    # saving every declared social media, see the symmetric read in setup_config
+    for (sm_prop in sm_config_properties(conf)) {
+      temp[[sm_prop]] <- conf[[sm_prop]]
+    }
     temp$topics_md5 <- conf$topics_md5
     # writing the JSON file
     write_json_atomic(
@@ -903,32 +912,157 @@ get_known_users <- function() {
   gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])
 }
 
-supported_social_media <- function() {
-  props <- names(conf)
-  sm_props <- props[grepl("^sm_activated", props)]
-  sm <- gsub("sm_activated_", "", sm_props)
-  sm
+# The properties declaring the social media: the per family switches and, for federated families,
+# the list of instances to collect from. The list of networks is derived from them.
+sm_config_properties <- function(x) {
+  grep(
+    "^sm_(activated|alerts)_|^[A-Za-z0-9]+_instances$",
+    names(x),
+    value = TRUE
+  )
 }
-active_social_media <- function() {
+
+# the families declared in the configuration, i.e. those having activation switches
+social_media_families <- function() {
   props <- names(conf)
-  sm_props <- props[grepl("^sm_activated", props)]
-  active_sm_props <- sm_props[sapply(
-    sm_props,
-    function(sm_prop) conf[[sm_prop]]
+  sub("^sm_activated_", "", props[grepl("^sm_activated_", props)])
+}
+
+# the domains of the instances a federated family collects from, character(0) if none
+sm_instances_of <- function(family) {
+  instances <- unlist(conf[[sprintf("%s_instances", family)]])
+  if (is.null(instances)) character(0) else instances
+}
+
+# the networks served by a family: one per instance when federated, the family itself otherwise
+sm_networks_of <- function(family) {
+  if (!sm_is_federated(family)) {
+    return(family)
+  }
+  instances <- sm_instances_of(family)
+  if (length(instances) == 0) {
+    character(0)
+  } else {
+    sprintf("%s.%s", family, instances)
+  }
+}
+
+# the networks of the families passing the given switch e.g. "sm_activated_"
+sm_networks_where <- function(prefix) {
+  families <- social_media_families()
+  on <- families[vapply(
+    families,
+    function(family) isTRUE(conf[[sprintf("%s%s", prefix, family)]]),
+    logical(1)
   )]
-  active_sm <- gsub("sm_activated_", "", active_sm_props)
-  active_sm
+  sm_flatten_networks(lapply(on, sm_networks_of))
+}
+
+supported_social_media <- function() {
+  sm_flatten_networks(lapply(social_media_families(), sm_networks_of))
+}
+
+# unlist() on a list of empty character vectors returns NULL, keep a character vector instead
+sm_flatten_networks <- function(networks) {
+  ret <- unlist(networks, use.names = FALSE)
+  if (is.null(ret)) character(0) else ret
+}
+
+active_social_media <- function() {
+  sm_networks_where("sm_activated_")
 }
 
 alerts_social_media <- function() {
-  props <- names(conf)
-  sm_props <- props[grepl("^sm_alerts", props)]
-  alerts_sm_props <- sm_props[sapply(
-    sm_props,
-    function(sm_prop) conf[[sm_prop]]
-  )]
-  alerts_sm <- gsub("sm_alerts_", "", alerts_sm_props)
-  alerts_sm
+  sm_networks_where("sm_alerts_")
+}
+
+#' @title Add an instance of a federated social media
+#' @description Adds a domain to the instances a federated social media family collects from.
+#' Each instance is collected as a network of its own, named <family>.<instance>, with its own
+#' plan file, its own search process and its own access token.
+#' @param family char, the federated social media family e.g. "mastodon"
+#' @param instance char, the domain of the instance to collect from e.g. "mstdn.party"
+#' @details The network identifier built from family and instance is a persistent key: it names
+#' the plan file, the secrets and the network column of every post stored for it. Removing an
+#' instance and adding it back resumes on its former history, but renaming it orphans that
+#' history.
+#' The credentials still have to be provided with \code{\link{sm_api_set_auth}}, and the
+#' configuration is not written to disk, call \code{\link{save_config}} afterwards. The social
+#' media menu of \code{\link{setup}} does all of it at once.
+#' @return char, the identifier of the network collecting from this instance
+#' @examples
+#' \dontrun{
+#'    library(episomer)
+#'    setup_config(file.choose())
+#'    network <- sm_add_instance("mastodon", "mstdn.party")
+#'    sm_api_set_auth(network)
+#'    save_config()
+#' }
+#' @seealso \code{\link{sm_remove_instance}}
+#' @rdname sm_add_instance
+#' @export
+sm_add_instance <- function(family, instance) {
+  if (!family %in% social_media_families()) {
+    stop(sprintf(
+      "There is no social media family '%s', known families are: %s",
+      family,
+      paste(social_media_families(), collapse = ", ")
+    ))
+  }
+  if (!sm_is_federated(family)) {
+    stop(sprintf(
+      "The social media '%s' is not federated, it has no instances to choose from",
+      family
+    ))
+  }
+  instance <- tolower(instance)
+  # the domain ends up in the network identifier, which is a file name, a secret name and a query
+  # parameter, so it is checked before being stored
+  if (
+    !grepl(
+      "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$",
+      instance
+    )
+  ) {
+    stop(sprintf("'%s' is not a valid instance domain", instance))
+  }
+  # adding an instance already collected is a no-op, so this can be called to refresh its token
+  if (!instance %in% sm_instances_of(family)) {
+    # stored as a list so it is serialised as a JSON array even when holding a single instance
+    conf[[sprintf("%s_instances", family)]] <- as.list(c(
+      sm_instances_of(family),
+      instance
+    ))
+  }
+  sprintf("%s.%s", family, instance)
+}
+
+#' @title Stop collecting from an instance of a federated social media
+#' @description Removes a domain from the instances a federated social media family collects from.
+#' @param family char, the federated social media family e.g. "mastodon"
+#' @param instance char, the domain of the instance to stop collecting from
+#' @details The posts already collected from this instance are NOT deleted, they stay stored under
+#' the network name of the instance, as does its plan file topics.<family>.<instance>.json and its
+#' access token. Adding the instance back therefore resumes on its former history.
+#' The configuration is not written to disk, call \code{\link{save_config}} afterwards.
+#' @return Nothing
+#' @seealso \code{\link{sm_add_instance}}
+#' @rdname sm_remove_instance
+#' @export
+sm_remove_instance <- function(family, instance) {
+  instances <- sm_instances_of(family)
+  if (!instance %in% instances) {
+    stop(sprintf(
+      "The instance '%s' is not among the %s instances collected",
+      instance,
+      family
+    ))
+  }
+  conf[[sprintf("%s_instances", family)]] <- as.list(setdiff(
+    instances,
+    instance
+  ))
+  invisible(NULL)
 }
 
 is_sm_authenticated <- function(sm) {

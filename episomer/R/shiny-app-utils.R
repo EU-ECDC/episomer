@@ -10,7 +10,7 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
     setNames(1:length(regions), sapply(regions, function(r) r$name))
   }
   e$sms <- {
-    sms <- active_social_media()
+    sms <- active_social_media() %>% sm_family() %>% unique()
     setNames(sms, paste0(toupper(substr(sms, 1, 1)), substr(sms, 2, nchar(sms))))
   }
   agg_dates <- get_aggregated_period()
@@ -345,6 +345,5 @@ update_config_from_input <- function(input) {
   conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
   conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
   conf$sm_alerts_mastodon <- input$conf_sm_alerts_mastodon
-  conf$mastodon_instance <- input$conf_mastodon_instance
   conf$sm_activated_mastodon <- input$conf_sm_activated_mastodon
 }

@@ -4,7 +4,11 @@
 \alias{sm_api_get_token_bluesky}
 \title{Get social media token}
 \usage{
-sm_api_get_token_bluesky()
+sm_api_get_token_bluesky(network = NULL)
+}
+\arguments{
+\item{network}{char, unused, bluesky is not federated so all its networks would share the same
+credentials, default: NULL}
 }
 \value{
 Token
@@ -13,6 +17,6 @@ Token
 Get social media token
 }
 \details{
-this function implements the authethication on the respective social media and stores it securely. 
+this function implements the authethication on the respective social media and stores it securely.
 It is called by the search loop before starting message collection
 }
