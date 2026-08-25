@@ -28,7 +28,7 @@ test_that("epipath works", {
 
   expect_equal(
     epipath("some_file.txt"),
-    paste(remote, "file/some_file.txt",sep="/")
+    paste(remote, "file/some_file.txt", sep = "/")
   )
 })
 
@@ -107,7 +107,9 @@ test_that("to_remote_relative removes 'file' prefix from path", {
   result <- to_remote_relative("http://example.com:8080/file/data.json")
   expect_equal(result, "/data.json")
 
-  result <- to_remote_relative("http://example.com:8080/file/nested/path/file.txt")
+  result <- to_remote_relative(
+    "http://example.com:8080/file/nested/path/file.txt"
+  )
   expect_equal(result, "/nested/path/file.txt")
 })
 
