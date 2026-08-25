@@ -42,15 +42,15 @@ episomer_app <- function(
   profile = c("dashboard", "admin"),
   host = NULL,
   port = NULL,
-  fs_remote = sprintf("%s:%s", conf$fs_url, conf$fs_port)
+  fs_remote = NULL
 ) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
   match.arg(profile, c("dashboard", "admin"))
 
-  if (length(sprintf("%s:%s", NULL, NULL)) == 0) {
-    fs_remote <- NULL
+  if (is.null(fs_remote) && !is.null(conf$fs_url) && !is.null(conf$fs_port)) {
+    fs_remote <- sprintf("%s:%s", conf$fs_url, conf$fs_port)
   }
   setup_config(data_dir = data_dir, fs_remote = fs_remote)
 
