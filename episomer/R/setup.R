@@ -496,6 +496,20 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                         ),
                         is_sm_activated(sm) && length(instances) == 0
                     )
+                    add_option(
+                        "remove_instance",
+                        sm,
+                        sprintf(
+                            "Remove a %s instance (currently collecting from: %s)",
+                            sm,
+                            if (length(instances) > 0) {
+                                paste(instances, collapse = ", ")
+                            } else {
+                                "none"
+                            }
+                        ),
+                        is_sm_activated(sm) && length(instances) == 0
+                    )
                 }
             }
             end_answer <- as.character(length(options) + 1)
