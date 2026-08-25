@@ -496,6 +496,20 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                         ),
                         is_sm_activated(sm) && length(instances) == 0
                     )
+                    add_option(
+                        "remove_instance",
+                        sm,
+                        sprintf(
+                            "Remove a %s instance (currently collecting from: %s)",
+                            sm,
+                            if (length(instances) > 0) {
+                                paste(instances, collapse = ", ")
+                            } else {
+                                "none"
+                            }
+                        ),
+                        is_sm_activated(sm) && length(instances) == 0
+                    )
                 }
             }
             end_answer <- as.character(length(options) + 1)
@@ -575,6 +589,33 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                             save_config()
                             message(sprintf(
                                 "episomer will now collect posts from %s",
+                                instance
+                            ))
+                        },
+                        error = function(e) message(alert(conditionMessage(e)))
+                    )
+                }
+            } else if (action == "remove_instance") {
+                instance <- trimws(readline(sprintf(
+                    "Domain of the %s instance to stop collecting from (e.g. mastodon.social):",
+                    target
+                )))
+                if (nchar(instance) > 0) {
+                    tryCatch(
+                        {
+                            sm_remove_instance(target, instance)
+                            network <- paste(target, instance, sep = ".")
+                            secret <- sm_secret_name(network, "token")
+                            set_secret(secret = secret, value = "")
+                            message(sprintf(
+                                "Removing token for %s",
+                                instance
+                            ))
+                            # reloading so the new network gets its own topics, then saving them
+                            setup_config(save_properties_first = TRUE)
+                            save_config()
+                            message(sprintf(
+                                "episomer stops collecting posts from %s",
                                 instance
                             ))
                         },
