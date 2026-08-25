@@ -630,7 +630,7 @@ bluesky_check_token_validity <- function(
     httr2::req_perform()
   )
   if (httr2::resp_status(last_response()) %in% c(400, 401)) {
-    message("Invalid token. Creating a new session.")
+    message("Invalid token. Creating a new session for Bluesky.")
     access_jwt <- bluesky_create_session()$access_jwt
   }
   return(access_jwt)
