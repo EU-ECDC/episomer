@@ -1,7 +1,10 @@
 test_that("removeHTMLtags removes HTML tags", {
   expect_equal(removeHTMLtags("<p>Hello</p>"), "Hello")
   expect_equal(removeHTMLtags("<a href='#'>link</a>"), "link")
-  expect_equal(removeHTMLtags("text with <b>bold</b> content"), "text with bold content")
+  expect_equal(
+    removeHTMLtags("text with <b>bold</b> content"),
+    "text with bold content"
+  )
   expect_equal(removeHTMLtags("<div class='test'>content</div>"), "content")
 })
 
@@ -12,9 +15,15 @@ test_that("removeHTMLtags handles edge cases", {
 })
 
 test_that("removeURLS removes URLs", {
-  expect_equal(removeURLS("Check this http://example.com out"), "Check this  out")
+  expect_equal(
+    removeURLS("Check this http://example.com out"),
+    "Check this  out"
+  )
   expect_equal(removeURLS("Visit https://google.com today"), "Visit  today")
-  expect_equal(removeURLS("text with http://example.com/path/to/page and more"), "text with  and more")
+  expect_equal(
+    removeURLS("text with http://example.com/path/to/page and more"),
+    "text with  and more"
+  )
 })
 
 test_that("removeURLS handles edge cases", {
@@ -26,7 +35,10 @@ test_that("removeURLS handles edge cases", {
 test_that("remove_newlines removes line breaks", {
   expect_equal(remove_newlines("line1\nline2"), "line1line2")
   expect_equal(remove_newlines("line1\r\nline2"), "line1line2")
-  expect_equal(remove_newlines("text\nwith\nmultiple\nbreaks"), "textwithmultiplebreaks")
+  expect_equal(
+    remove_newlines("text\nwith\nmultiple\nbreaks"),
+    "textwithmultiplebreaks"
+  )
 })
 
 test_that("remove_newlines handles edge cases", {
