@@ -42,23 +42,18 @@ episomer_app <- function(
   profile = c("dashboard", "admin"),
   host = NULL,
   port = NULL,
-  fs_remote = NULL
+  fs_remote = sprintf("%s:%s", conf$fs_url, conf$fs_port)
 ) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
   match.arg(profile, c("dashboard", "admin"))
 
-
-  if (!is.null(fs_remote)) {
-    setup_config(fs_remote = fs_remote)
-  } else if (!is.null(conf$fs_remote)) {
-    setup_config(fs_remote = conf$fs_remote)
-  } else {
-    setup_config(data_dir)
-    fs_remote <- sprintf("%s:%s", conf$fs_url, conf$fs_port)
-    setup_config(fs_remote = fs_remote)
+  if (length(sprintf("%s:%s", NULL, NULL)) == 0) {
+    fs_remote <- NULL
   }
+  setup_config(data_dir = data_dir, fs_remote = fs_remote)
+
   # Loading data for dashboard and configuration
   d <- refresh_dashboard_data()
   if("admin" %in% profile) {
