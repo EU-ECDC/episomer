@@ -7,7 +7,7 @@
 \title{Run the episomer Shiny app}
 \usage{
 episomer_app(
-  data_dir = NA,
+  data_dir,
   profile = c("dashboard", "admin"),
   host = NULL,
   port = NULL,

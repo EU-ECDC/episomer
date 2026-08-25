@@ -410,7 +410,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     ####################################################################################
     ### Option 6. Social media authentication  #########################################
     ####################################################################################
-    if (main_ans == "6" || (main_ans %in% list("1", "2")) && launch) {
+    if (main_ans == "6" || ((main_ans %in% list("1", "2")) && launch)) {
         repeat {
             pause(silent)
             # Building the options, three per social media. The menu is rebuilt at each iteration
@@ -628,7 +628,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     ####################################################################################
     ### Option 7. Runnin episomer services  ############################################
     ####################################################################################
-    if(main_ans == "7" || (main_ans %in% list("1", "2")) && launch) {
+    if (main_ans == "7" || ((main_ans %in% list("1", "2")) && launch)) {
         pause(silent)
         # Building options
         default_s_answer <- 1
@@ -728,7 +728,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     ### Option 8. Runnin the shiny app  ################################################
     ####################################################################################
     app <- NULL
-    if(main_ans == "8" || (main_ans %in% list("1", "2")) && launch) {
+    if (main_ans == "8" || ((main_ans %in% list("1", "2")) && launch)) {
         pause(silent)
         # Building options
         default_sh_answer <- "1"
