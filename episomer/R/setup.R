@@ -748,13 +748,16 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             message(alert("Cannot launch the episomer app. The episomer database need to be running"))
         } else if (sh_ans == "1") {
            message("Opening the shiny app in full mode...")
-           app <- episomer_app()
+            app <- episomer_app(data_dir = conf$data_dir)
         } else if (sh_ans == "2") {
            message("Opening the shiny app in dashboard...")
-           app <- episomer_app(profile = c("dashboard"))
+            app <- episomer_app(
+                data_dir = conf$data_dir,
+                profile = c("dashboard")
+            )
         } else if (sh_ans == "3") {
            message("Opening the shiny app in admin...")
-           app <- episomer_app(profile = c("admin"))
+            app <- episomer_app(data_dir = conf$data_dir, profile = c("admin"))
         }
     }
     save_config()    
