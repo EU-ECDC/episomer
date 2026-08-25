@@ -37,13 +37,23 @@
 #' @importFrom dplyr select
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
-episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host = NULL, port = NULL, fs_remote = NULL) {
+episomer_app <- function(
+  data_dir,
+  profile = c("dashboard", "admin"),
+  host = NULL,
+  port = NULL,
+  fs_remote = NULL
+) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
   match.arg(profile, c("dashboard", "admin"))
-  if(!is.null(fs_remote) || !is.null(conf$fs_remote)) {
+
+
+  if (!is.null(fs_remote)) {
     setup_config(fs_remote = fs_remote)
+  } else if (!is.null(conf$fs_remote)) {
+    setup_config(fs_remote = conf$fs_remote)
   } else {
     setup_config(data_dir)
     fs_remote <- sprintf("%s:%s", conf$fs_url, conf$fs_port)
