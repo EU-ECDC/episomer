@@ -672,7 +672,12 @@ mastodon_parse_response <- function(response, plan) {
     ))
 
     ret <- list(
-      id = unlist(status$id),
+      # For mastodon, we need to pass the uri instead of the id to avoid same messages with different ids between Mastodon instances
+      id = if (!is.null(status$uri)) {
+        unlist(status$uri)
+      } else {
+        unlist(status$id)
+      },
       uri = if (!is.null(status$url)) {
         unlist(status$url)
       } else {
