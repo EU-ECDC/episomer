@@ -2,6 +2,7 @@
 #' @description Perform configuration tasks needed for the proper work of episomer or change settings of these configuration
 #' @param data_dir Character the data directory where episomer will store all files. If not provided and already set in the current session it will reused, default: NULL
 #' @param silent Logical whether episomer should take default actions without asking the user default: FALSE
+#' @param launch Logical whether episomer should run automatically extra steps when selecting Option 1 or 2 in the wizard (setting credentials, running services and shiny app)
 #' @return NULL.
 #' @details Perform configuration tasks needed for the proper work of episomer or change settings of these configuration
 #' @examples
