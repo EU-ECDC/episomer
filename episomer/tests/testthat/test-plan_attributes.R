@@ -59,18 +59,21 @@ for (network in names(families)) {
 
   # ---- format ---------------------------------------------------------------
 
-  test_that(sprintf("[%s] format turns the window dates into strings", network), {
-    f <- family$format(list(
-      plan_max_date = a_date("2026-01-02 03:04:05.123456"),
-      plan_min_date = a_date("2025-12-26 10:00:00"),
-      current_min_date = a_date("2025-12-30 12:00:00.5")
-    ))
+  test_that(
+    sprintf("[%s] format turns the window dates into strings", network),
+    {
+      f <- family$format(list(
+        plan_max_date = a_date("2026-01-02 03:04:05.123456"),
+        plan_min_date = a_date("2025-12-26 10:00:00"),
+        current_min_date = a_date("2025-12-30 12:00:00.5")
+      ))
 
-    expect_type(f$plan_max_date, "character")
-    expect_equal(f$plan_max_date, "2026-01-02 03:04:05.123456Z")
-    expect_equal(f$plan_min_date, "2025-12-26 10:00:00.000000Z")
-    expect_equal(f$current_min_date, "2025-12-30 12:00:00.500000Z")
-  })
+      expect_type(f$plan_max_date, "character")
+      expect_equal(f$plan_max_date, "2026-01-02 03:04:05.123456Z")
+      expect_equal(f$plan_min_date, "2025-12-26 10:00:00.000000Z")
+      expect_equal(f$current_min_date, "2025-12-30 12:00:00.500000Z")
+    }
+  )
 
   test_that(sprintf("[%s] format leaves an absent date absent", network), {
     f <- family$format(list(
@@ -85,100 +88,130 @@ for (network in names(families)) {
     expect_null(f$current_min_date)
   })
 
-  test_that(sprintf("[%s] format leaves the rest of the plan untouched", network), {
-    # the formatter is handed the whole plan, not just its own attributes: everything it does not
-    # own has to come out of it unchanged, the common dates included (they are stringified by
-    # jsonlite, which is the root of B-1)
-    plan <- list(
-      network = network,
-      expected_end = a_date("2026-01-02 03:04:05", tz = ""),
-      requests = 4,
-      got_rows = TRUE,
-      progress = 0.5,
-      plan_max_date = a_date("2026-01-02 03:04:05")
-    )
+  test_that(
+    sprintf("[%s] format leaves the rest of the plan untouched", network),
+    {
+      # the formatter is handed the whole plan, not just its own attributes: everything it does not
+      # own has to come out of it unchanged, the common dates included (they are stringified by
+      # jsonlite, which is the root of B-1)
+      plan <- list(
+        network = network,
+        expected_end = a_date("2026-01-02 03:04:05", tz = ""),
+        requests = 4,
+        got_rows = TRUE,
+        progress = 0.5,
+        plan_max_date = a_date("2026-01-02 03:04:05")
+      )
 
-    f <- family$format(plan)
+      f <- family$format(plan)
 
-    expect_equal(f$network, network)
-    expect_s3_class(f$expected_end, "POSIXlt")
-    expect_equal(f$requests, 4)
-    expect_true(f$got_rows)
-    expect_equal(f$progress, 0.5)
-  })
+      expect_equal(f$network, network)
+      expect_s3_class(f$expected_end, "POSIXlt")
+      expect_equal(f$requests, 4)
+      expect_true(f$got_rows)
+      expect_equal(f$progress, 0.5)
+    }
+  )
 
-  test_that(sprintf("[%s] format is idempotent on an already formatted date", network), {
-    # not academic: sm_plan_first_attributes_<family>() returns the dates ALREADY as strings, so
-    # the first save of a brand new plan formats a string, not a POSIXlt
-    once <- family$format(list(plan_max_date = a_date("2026-01-02 03:04:05.123456")))
+  test_that(
+    sprintf("[%s] format is idempotent on an already formatted date", network),
+    {
+      # not academic: sm_plan_first_attributes_<family>() returns the dates ALREADY as strings, so
+      # the first save of a brand new plan formats a string, not a POSIXlt
+      once <- family$format(list(
+        plan_max_date = a_date("2026-01-02 03:04:05.123456")
+      ))
 
-    twice <- family$format(once)
+      twice <- family$format(once)
 
-    expect_equal(twice$plan_max_date, once$plan_max_date)
-  })
+      expect_equal(twice$plan_max_date, once$plan_max_date)
+    }
+  )
 
   # ---- parse ----------------------------------------------------------------
 
-  test_that(sprintf("[%s] parse returns the window dates as UTC POSIXlt", network), {
-    p <- family$parse(
-      plan_max_date = "2026-01-02 03:04:05.123456Z",
-      plan_min_date = "2025-12-26 10:00:00.000000Z",
-      current_min_date = "2025-12-30 12:00:00.500000Z"
-    )
+  test_that(
+    sprintf("[%s] parse returns the window dates as UTC POSIXlt", network),
+    {
+      p <- family$parse(
+        plan_max_date = "2026-01-02 03:04:05.123456Z",
+        plan_min_date = "2025-12-26 10:00:00.000000Z",
+        current_min_date = "2025-12-30 12:00:00.500000Z"
+      )
 
-    for (d in window_dates) {
-      expect_s3_class(p[[d]], "POSIXlt")
-      expect_equal(attr(p[[d]], "tzone"), "UTC")
+      for (d in window_dates) {
+        expect_s3_class(p[[d]], "POSIXlt")
+        expect_equal(attr(p[[d]], "tzone"), "UTC")
+      }
+      expect_equal(
+        format(p$plan_max_date, "%Y-%m-%d %H:%M:%OS6"),
+        "2026-01-02 03:04:05.123456"
+      )
+      expect_equal(
+        format(p$current_min_date, "%Y-%m-%d %H:%M:%OS6"),
+        "2025-12-30 12:00:00.500000"
+      )
     }
-    expect_equal(
-      format(p$plan_max_date, "%Y-%m-%d %H:%M:%OS6"),
-      "2026-01-02 03:04:05.123456"
-    )
-    expect_equal(
-      format(p$current_min_date, "%Y-%m-%d %H:%M:%OS6"),
-      "2025-12-30 12:00:00.500000"
-    )
-  })
+  )
 
-  test_that(sprintf("[%s] parse keeps the window dates as NULL when they are absent", network), {
-    p <- family$parse()
+  test_that(
+    sprintf(
+      "[%s] parse keeps the window dates as NULL when they are absent",
+      network
+    ),
+    {
+      p <- family$parse()
 
-    # the names must be there with a NULL value: format and merge_plans both rely on it
-    expect_true(all(window_dates %in% names(p)))
-    for (d in window_dates) expect_null(p[[d]])
-  })
+      # the names must be there with a NULL value: format and merge_plans both rely on it
+      expect_true(all(window_dates %in% names(p)))
+      for (d in window_dates) {
+        expect_null(p[[d]])
+      }
+    }
+  )
 
-  test_that(sprintf("[%s] parse reads an empty json object as an absent date", network), {
-    # jsonlite writes a NULL as {} and reads it back as an empty list, not as a NULL: the
-    # is.null(unlist(x)) guards are what make a saved plan reloadable
-    p <- family$parse(
-      plan_max_date = list(),
-      plan_min_date = list(),
-      current_min_date = list()
-    )
+  test_that(
+    sprintf("[%s] parse reads an empty json object as an absent date", network),
+    {
+      # jsonlite writes a NULL as {} and reads it back as an empty list, not as a NULL: the
+      # is.null(unlist(x)) guards are what make a saved plan reloadable
+      p <- family$parse(
+        plan_max_date = list(),
+        plan_min_date = list(),
+        current_min_date = list()
+      )
 
-    for (d in window_dates) expect_null(p[[d]])
-  })
+      for (d in window_dates) {
+        expect_null(p[[d]])
+      }
+    }
+  )
 
-  test_that(sprintf("[%s] parse reads the length-1 list jsonlite hands back", network), {
-    # with simplifyVector = FALSE every scalar comes back wrapped in a list
-    p <- family$parse(plan_max_date = list("2026-01-02 03:04:05.123456Z"))
+  test_that(
+    sprintf("[%s] parse reads the length-1 list jsonlite hands back", network),
+    {
+      # with simplifyVector = FALSE every scalar comes back wrapped in a list
+      p <- family$parse(plan_max_date = list("2026-01-02 03:04:05.123456Z"))
 
-    expect_s3_class(p$plan_max_date, "POSIXlt")
-    expect_equal(
-      format(p$plan_max_date, "%Y-%m-%d %H:%M:%OS6"),
-      "2026-01-02 03:04:05.123456"
-    )
-  })
+      expect_s3_class(p$plan_max_date, "POSIXlt")
+      expect_equal(
+        format(p$plan_max_date, "%Y-%m-%d %H:%M:%OS6"),
+        "2026-01-02 03:04:05.123456"
+      )
+    }
+  )
 
-  test_that(sprintf("[%s] parse forces UTC whatever the session timezone", network), {
-    withr::local_timezone("Europe/Paris")
+  test_that(
+    sprintf("[%s] parse forces UTC whatever the session timezone", network),
+    {
+      withr::local_timezone("Europe/Paris")
 
-    p <- family$parse(plan_max_date = "2026-07-02 03:04:05.000000Z")
+      p <- family$parse(plan_max_date = "2026-07-02 03:04:05.000000Z")
 
-    expect_equal(attr(p$plan_max_date, "tzone"), "UTC")
-    expect_equal(format(p$plan_max_date, "%H:%M:%S"), "03:04:05")
-  })
+      expect_equal(attr(p$plan_max_date, "tzone"), "UTC")
+      expect_equal(format(p$plan_max_date, "%H:%M:%S"), "03:04:05")
+    }
+  )
 
   test_that(sprintf("[%s] parse yields NA on a date it cannot read", network), {
     # KNOWN TRAP, behaviour frozen here on purpose (roadmap T1-6).
@@ -194,138 +227,204 @@ for (network in names(families)) {
       current_min_date = "not a date"
     )
 
-    for (d in window_dates) expect_true(is.na(p[[d]]))
+    for (d in window_dates) {
+      expect_true(is.na(p[[d]]))
+    }
   })
 
   # ---- round trip -----------------------------------------------------------
 
-  test_that(sprintf("[%s] the window dates survive a save and reload", network), {
-    plan <- list(
-      network = network,
-      plan_max_date = a_date("2026-01-02 03:04:05.123456"),
-      plan_min_date = a_date("2025-12-26 10:00:00"),
-      current_min_date = a_date("2025-12-30 12:00:00.5")
-    )
-
-    back <- round_trip(family, plan)
-
-    for (d in window_dates) {
-      expect_equal(
-        format(back[[d]], "%Y-%m-%d %H:%M:%OS6"),
-        format(plan[[d]], "%Y-%m-%d %H:%M:%OS6")
+  test_that(
+    sprintf("[%s] the window dates survive a save and reload", network),
+    {
+      plan <- list(
+        network = network,
+        plan_max_date = a_date("2026-01-02 03:04:05.123456"),
+        plan_min_date = a_date("2025-12-26 10:00:00"),
+        current_min_date = a_date("2025-12-30 12:00:00.5")
       )
-      expect_equal(as.numeric(back[[d]]), as.numeric(plan[[d]]))
+
+      back <- round_trip(family, plan)
+
+      for (d in window_dates) {
+        expect_equal(
+          format(back[[d]], "%Y-%m-%d %H:%M:%OS6"),
+          format(plan[[d]], "%Y-%m-%d %H:%M:%OS6")
+        )
+        expect_equal(as.numeric(back[[d]]), as.numeric(plan[[d]]))
+      }
     }
-  })
+  )
 
-  test_that(sprintf("[%s] absent window dates survive a save and reload as NULL", network), {
-    back <- round_trip(family, list(
-      network = network,
-      plan_max_date = a_date("2026-01-02 03:04:05"),
-      plan_min_date = NULL,
-      current_min_date = NULL
-    ))
+  test_that(
+    sprintf(
+      "[%s] absent window dates survive a save and reload as NULL",
+      network
+    ),
+    {
+      back <- round_trip(
+        family,
+        list(
+          network = network,
+          plan_max_date = a_date("2026-01-02 03:04:05"),
+          plan_min_date = NULL,
+          current_min_date = NULL
+        )
+      )
 
-    # current_min_date is NULL for the whole first request of every plan, and both search
-    # functions branch on it: turning it into anything else would change the first query
-    expect_null(back$plan_min_date)
-    expect_null(back$current_min_date)
-    expect_false(is.null(back$plan_max_date))
-  })
+      # current_min_date is NULL for the whole first request of every plan, and both search
+      # functions branch on it: turning it into anything else would change the first query
+      expect_null(back$plan_min_date)
+      expect_null(back$current_min_date)
+      expect_false(is.null(back$plan_max_date))
+    }
+  )
 
-  test_that(sprintf("[%s] a window date falling exactly on midnight survives", network), {
-    # the contrast with B-1: the format string is explicit here, so the time part is written even
-    # when it is 00:00:00 and the reload gets a full datetime back. The common dates, left to
-    # jsonlite, are the ones that lose it.
-    back <- round_trip(family, list(
-      plan_min_date = a_date("2026-01-01 00:00:00")
-    ))
+  test_that(
+    sprintf("[%s] a window date falling exactly on midnight survives", network),
+    {
+      # the contrast with B-1: the format string is explicit here, so the time part is written even
+      # when it is 00:00:00 and the reload gets a full datetime back. The common dates, left to
+      # jsonlite, are the ones that lose it.
+      back <- round_trip(
+        family,
+        list(
+          plan_min_date = a_date("2026-01-01 00:00:00")
+        )
+      )
 
-    expect_false(is.na(back$plan_min_date))
-    expect_equal(
-      format(back$plan_min_date, "%Y-%m-%d %H:%M:%S"),
-      "2026-01-01 00:00:00"
-    )
-  })
+      expect_false(is.na(back$plan_min_date))
+      expect_equal(
+        format(back$plan_min_date, "%Y-%m-%d %H:%M:%S"),
+        "2026-01-01 00:00:00"
+      )
+    }
+  )
 
-  test_that(sprintf("[%s] a date given in local time comes back as the same instant", network), {
-    withr::local_timezone("Europe/Paris")
-    # the plan holds whatever the API parser produced; only the instant has to be preserved
-    plan <- list(current_min_date = as.POSIXct(
-      "2026-07-02 03:04:05",
-      tz = "Europe/Paris"
-    ))
+  test_that(
+    sprintf(
+      "[%s] a date given in local time comes back as the same instant",
+      network
+    ),
+    {
+      withr::local_timezone("Europe/Paris")
+      # the plan holds whatever the API parser produced; only the instant has to be preserved
+      plan <- list(
+        current_min_date = as.POSIXct(
+          "2026-07-02 03:04:05",
+          tz = "Europe/Paris"
+        )
+      )
 
-    back <- round_trip(family, plan)
+      back <- round_trip(family, plan)
 
-    expect_equal(as.numeric(back$current_min_date), as.numeric(plan$current_min_date))
-    expect_equal(format(back$current_min_date, "%H:%M:%S"), "01:04:05")
-  })
+      expect_equal(
+        as.numeric(back$current_min_date),
+        as.numeric(plan$current_min_date)
+      )
+      expect_equal(format(back$current_min_date, "%H:%M:%S"), "01:04:05")
+    }
+  )
 
-  test_that(sprintf("[%s] the microsecond precision does not drift over saves", network), {
-    # a plan is saved after every request, so the round trip runs hundreds of times on the same
-    # date: a formatter that rounded down would walk the window boundary backwards
-    plan <- list(current_min_date = a_date("2026-01-02 03:04:05.999999"))
+  test_that(
+    sprintf(
+      "[%s] the microsecond precision does not drift over saves",
+      network
+    ),
+    {
+      # a plan is saved after every request, so the round trip runs hundreds of times on the same
+      # date: a formatter that rounded down would walk the window boundary backwards
+      plan <- list(current_min_date = a_date("2026-01-02 03:04:05.999999"))
 
-    for (i in 1:10) plan <- round_trip(family, plan)
+      for (i in 1:10) {
+        plan <- round_trip(family, plan)
+      }
 
-    expect_equal(
-      format(plan$current_min_date, "%Y-%m-%d %H:%M:%OS6"),
-      "2026-01-02 03:04:05.999999"
-    )
-  })
+      expect_equal(
+        format(plan$current_min_date, "%Y-%m-%d %H:%M:%OS6"),
+        "2026-01-02 03:04:05.999999"
+      )
+    }
+  )
 
-  test_that(sprintf("[%s] a reloaded date still supports sub-second arithmetic", network), {
-    # sm_api_search_bluesky asks for `until = current_min_date - 0.000001` to exclude the oldest
-    # post already collected: a date that came back from the file with a second-level resolution
-    # would make that decrement a no-op and the search would loop on the same post
-    back <- round_trip(family, list(
-      current_min_date = a_date("2026-01-02 03:04:05.123456")
-    ))
+  test_that(
+    sprintf(
+      "[%s] a reloaded date still supports sub-second arithmetic",
+      network
+    ),
+    {
+      # sm_api_search_bluesky asks for `until = current_min_date - 0.000001` to exclude the oldest
+      # post already collected: a date that came back from the file with a second-level resolution
+      # would make that decrement a no-op and the search would loop on the same post
+      back <- round_trip(
+        family,
+        list(
+          current_min_date = a_date("2026-01-02 03:04:05.123456")
+        )
+      )
 
-    expect_equal(
-      strftime(back$current_min_date - 0.000001, "%Y-%m-%d %H:%M:%OS6Z", tz = "UTC"),
-      "2026-01-02 03:04:05.123455Z"
-    )
-  })
+      expect_equal(
+        strftime(
+          back$current_min_date - 0.000001,
+          "%Y-%m-%d %H:%M:%OS6Z",
+          tz = "UTC"
+        ),
+        "2026-01-02 03:04:05.123455Z"
+      )
+    }
+  )
 
   # ---- the attributes of a new plan are readable by the parser ---------------
 
-  test_that(sprintf("[%s] the first plan attributes are readable by the parser", network), {
-    local_conf(collect_history_days = 7)
+  test_that(
+    sprintf(
+      "[%s] the first plan attributes are readable by the parser",
+      network
+    ),
+    {
+      local_conf(collect_history_days = 7)
 
-    p <- do.call(family$parse, family$first())
+      p <- do.call(family$parse, family$first())
 
-    expect_s3_class(p$plan_max_date, "POSIXlt")
-    expect_equal(
-      as.numeric(p$plan_max_date),
-      as.numeric(Sys.time()),
-      tolerance = 1e-6
-    )
-    # the first plan backfills collect_history_days, from midnight
-    expect_equal(as.Date(p$plan_min_date), Sys.Date() - 7)
-    expect_equal(format(p$plan_min_date, "%H:%M:%S"), "00:00:00")
-    expect_null(p$current_min_date)
-  })
+      expect_s3_class(p$plan_max_date, "POSIXlt")
+      expect_equal(
+        as.numeric(p$plan_max_date),
+        as.numeric(Sys.time()),
+        tolerance = 1e-6
+      )
+      # the first plan backfills collect_history_days, from midnight
+      expect_equal(as.Date(p$plan_min_date), Sys.Date() - 7)
+      expect_equal(format(p$plan_min_date, "%H:%M:%S"), "00:00:00")
+      expect_null(p$current_min_date)
+    }
+  )
 
-  test_that(sprintf("[%s] the next plan attributes chain on the previous window", network), {
-    previous <- list(list(plan_max_date = a_date("2026-01-02 03:04:05.123456")))
+  test_that(
+    sprintf(
+      "[%s] the next plan attributes chain on the previous window",
+      network
+    ),
+    {
+      previous <- list(list(
+        plan_max_date = a_date("2026-01-02 03:04:05.123456")
+      ))
 
-    p <- do.call(family$parse, family$next_attrs(previous))
+      p <- do.call(family$parse, family$next_attrs(previous))
 
-    # the new window starts exactly where the previous one stopped: any loss here would either
-    # re-collect or skip the posts of the gap
-    expect_equal(
-      format(p$plan_min_date, "%Y-%m-%d %H:%M:%OS6"),
-      "2026-01-02 03:04:05.123456"
-    )
-    expect_equal(
-      as.numeric(p$plan_max_date),
-      as.numeric(Sys.time()),
-      tolerance = 1e-6
-    )
-    expect_null(p$current_min_date)
-  })
+      # the new window starts exactly where the previous one stopped: any loss here would either
+      # re-collect or skip the posts of the gap
+      expect_equal(
+        format(p$plan_min_date, "%Y-%m-%d %H:%M:%OS6"),
+        "2026-01-02 03:04:05.123456"
+      )
+      expect_equal(
+        as.numeric(p$plan_max_date),
+        as.numeric(Sys.time()),
+        tolerance = 1e-6
+      )
+      expect_null(p$current_min_date)
+    }
+  )
 }
 
 
@@ -392,7 +491,13 @@ test_that("the mastodon parser keeps the cursor attributes as NULL when absent",
 
   expect_named(
     p,
-    c(window_dates, "current_offset", "current_min_id", "consecutive_empty", "seen_ids")
+    c(
+      window_dates,
+      "current_offset",
+      "current_min_id",
+      "consecutive_empty",
+      "seen_ids"
+    )
   )
   expect_null(p$current_offset)
   expect_null(p$current_min_id)
@@ -404,7 +509,10 @@ test_that("a zero offset is NOT read as an absent offset", {
   # sm_api_update_plan_after_request_mastodon tells a first request from a resumed one by
   # current_offset being NULL (see T3-1): a plan rebased to offset 0 must not look like a first
   # request after a restart, or it would seed its anchor again and re-collect the same page
-  p <- sm_plan_parse_attributes_mastodon(current_offset = 0, consecutive_empty = 0)
+  p <- sm_plan_parse_attributes_mastodon(
+    current_offset = 0,
+    consecutive_empty = 0
+  )
 
   expect_equal(p$current_offset, 0L)
   expect_equal(p$consecutive_empty, 0L)
@@ -424,14 +532,17 @@ test_that("the mastodon formatter leaves the cursor attributes as they are", {
 })
 
 test_that("the mastodon cursor survives a save and reload", {
-  back <- round_trip(families$mastodon, list(
-    plan_max_date = a_date("2026-01-02 03:04:05.123456"),
-    current_min_date = a_date("2025-12-30 12:00:00"),
-    current_offset = 120L,
-    current_min_id = "113456789012345678",
-    consecutive_empty = 2L,
-    seen_ids = c("113456789012345678", "113456789012345677")
-  ))
+  back <- round_trip(
+    families$mastodon,
+    list(
+      plan_max_date = a_date("2026-01-02 03:04:05.123456"),
+      current_min_date = a_date("2025-12-30 12:00:00"),
+      current_offset = 120L,
+      current_min_id = "113456789012345678",
+      consecutive_empty = 2L,
+      seen_ids = c("113456789012345678", "113456789012345677")
+    )
+  )
 
   expect_equal(back$current_offset, 120L)
   expect_equal(back$current_min_id, "113456789012345678")
@@ -443,11 +554,14 @@ test_that("a single seen id survives the auto_unbox of the plan file", {
   # the only place where the json leg changes a value of this family: auto_unbox = TRUE writes a
   # length-1 vector as a scalar, so the reload has to widen it back to a character vector,
   # otherwise the de-duplication memory silently breaks on the plan that has seen exactly one post
-  back <- via_json(families$mastodon, list(
-    seen_ids = "113456789012345678",
-    current_min_id = "113456789012345678",
-    current_offset = 120L
-  ))
+  back <- via_json(
+    families$mastodon,
+    list(
+      seen_ids = "113456789012345678",
+      current_min_id = "113456789012345678",
+      current_offset = 120L
+    )
+  )
 
   expect_type(back$seen_ids, "character")
   expect_length(back$seen_ids, 1)

@@ -6,7 +6,9 @@
 
 # a post carrying a single facet holding the given features
 a_faceted_post <- function(...) {
-  list(record = list(text = "a post", facets = list(list(features = list(...)))))
+  list(
+    record = list(text = "a post", facets = list(list(features = list(...))))
+  )
 }
 
 a_feature <- function(type, ...) {
@@ -106,9 +108,14 @@ test_that("bluesky_parse_features returns the three empty lists on a post withou
   empty <- list(tags = list(), urls = list(), categories = list())
 
   expect_equal(bluesky_parse_features(list(cid = "x")), empty)
-  expect_equal(bluesky_parse_features(list(record = list(text = "a post"))), empty)
   expect_equal(
-    bluesky_parse_features(list(record = list(text = "a post", facets = list()))),
+    bluesky_parse_features(list(record = list(text = "a post"))),
+    empty
+  )
+  expect_equal(
+    bluesky_parse_features(list(
+      record = list(text = "a post", facets = list())
+    )),
     empty
   )
 })
@@ -130,7 +137,10 @@ test_that("bluesky_parse_features accepts both spellings of the tag facet", {
 
 test_that("bluesky_parse_features collects the link targets", {
   post <- a_faceted_post(
-    a_feature("app.bsky.richtext.facet#link", uri = "https://www.ecdc.europa.eu/en/flu")
+    a_feature(
+      "app.bsky.richtext.facet#link",
+      uri = "https://www.ecdc.europa.eu/en/flu"
+    )
   )
 
   res <- bluesky_parse_features(post)
@@ -158,10 +168,17 @@ test_that("bluesky_parse_features walks all the facets of a post", {
     record = list(
       text = "a post",
       facets = list(
-        list(features = list(a_feature("app.bsky.richtext.facet#tag", tag = "flu"))),
-        list(features = list(
-          a_feature("app.bsky.richtext.facet#link", uri = "https://a.example.org")
-        ))
+        list(
+          features = list(a_feature("app.bsky.richtext.facet#tag", tag = "flu"))
+        ),
+        list(
+          features = list(
+            a_feature(
+              "app.bsky.richtext.facet#link",
+              uri = "https://a.example.org"
+            )
+          )
+        )
       )
     )
   )
@@ -301,7 +318,10 @@ test_that("bluesky_format_date converts to UTC whatever the local timezone is", 
   withr::local_timezone("Europe/Paris")
   paris_afternoon <- as.POSIXct("2026-06-15 14:30:00", tz = "Europe/Paris")
 
-  expect_equal(bluesky_format_date(paris_afternoon), "2026-06-15T12:30:00.000000Z")
+  expect_equal(
+    bluesky_format_date(paris_afternoon),
+    "2026-06-15T12:30:00.000000Z"
+  )
 })
 
 test_that("bluesky_parse_date returns a POSIXct anchored on UTC", {
@@ -311,7 +331,10 @@ test_that("bluesky_parse_date returns a POSIXct anchored on UTC", {
 
   expect_s3_class(res, "POSIXct")
   expect_equal(attr(res, "tzone"), "UTC")
-  expect_equal(format(res, "%Y-%m-%d %H:%M:%S", tz = "UTC"), "2026-06-15 12:30:00")
+  expect_equal(
+    format(res, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    "2026-06-15 12:30:00"
+  )
 })
 
 test_that("bluesky_parse_date accepts the list shape jsonlite produces", {
@@ -322,7 +345,10 @@ test_that("bluesky_parse_date accepts the list shape jsonlite produces", {
 })
 
 test_that("bluesky_parse_date parses a whole page of createdAt at once", {
-  res <- bluesky_parse_date(list("2026-01-02T03:04:05Z", "2026-01-03T00:00:00Z"))
+  res <- bluesky_parse_date(list(
+    "2026-01-02T03:04:05Z",
+    "2026-01-03T00:00:00Z"
+  ))
 
   expect_length(res, 2)
   expect_equal(

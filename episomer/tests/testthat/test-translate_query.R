@@ -97,7 +97,10 @@ test_that("a query with no operator is a single term", {
 test_that("a term keeps its inner spaces", {
   parsed <- parsed_query("long covid or post covid syndrome")
 
-  expect_equal(plain(parsed), list(list("long covid"), list("post covid syndrome")))
+  expect_equal(
+    plain(parsed),
+    list(list("long covid"), list("post covid syndrome"))
+  )
 })
 
 
@@ -179,8 +182,14 @@ test_that("an all-negative query yields an empty subquery", {
 # ---- known quirks, behaviour frozen on purpose -------------------------------
 
 test_that("the operators are recognised in mixed case", {
-  expect_equal(plain(parsed_query("flu Or influenza")), list(list("flu"), list("influenza")))
-  expect_equal(plain(parsed_query("flu And influenza")), list(list("flu", "influenza")))
+  expect_equal(
+    plain(parsed_query("flu Or influenza")),
+    list(list("flu"), list("influenza"))
+  )
+  expect_equal(
+    plain(parsed_query("flu And influenza")),
+    list(list("flu", "influenza"))
+  )
 })
 
 test_that("an operator at the very end of the query is now correctly handled", {

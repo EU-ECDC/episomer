@@ -72,29 +72,44 @@ test_that("a plan with no current_min_date gets one on the first request", {
 
 test_that("the current_min_date moves to a strictly older date", {
   older <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(min_created_at = "2026-03-01T00:00:00.000000Z")
   )
 
-  expect_equal(older$current_min_date, lubridate::as_datetime("2026-03-01T00:00:00Z"))
+  expect_equal(
+    older$current_min_date,
+    lubridate::as_datetime("2026-03-01T00:00:00Z")
+  )
 })
 
 test_that("the current_min_date stays the same if the result is newer", {
   newer <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(min_created_at = "2026-03-08T00:00:00.000000Z")
   )
 
-  expect_equal(newer$current_min_date, lubridate::as_datetime("2026-03-04T00:00:00Z"))
+  expect_equal(
+    newer$current_min_date,
+    lubridate::as_datetime("2026-03-04T00:00:00Z")
+  )
 })
 
 test_that("the current_min_date stays the same if result is exactly equal", {
   equal <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(min_created_at = "2026-03-04T00:00:00.000000Z")
   )
 
-  expect_equal(equal$current_min_date, lubridate::as_datetime("2026-03-04T00:00:00Z"))
+  expect_equal(
+    equal$current_min_date,
+    lubridate::as_datetime("2026-03-04T00:00:00Z")
+  )
 })
 
 
@@ -102,11 +117,16 @@ test_that("the current_min_date stays the same if result is exactly equal", {
 
 test_that("a page with NULL min_created_at leaves current_min_date untouched", {
   plan <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(min_created_at = NULL)
   )
 
-  expect_equal(plan$current_min_date, lubridate::as_datetime("2026-03-04T00:00:00Z"))
+  expect_equal(
+    plan$current_min_date,
+    lubridate::as_datetime("2026-03-04T00:00:00Z")
+  )
 })
 
 test_that("an empty page on the first request leaves current_min_date absent", {
@@ -127,11 +147,16 @@ test_that("a missing min_created_at is handled as NULL", {
   results$pagination$min_created_at <- NULL
 
   plan <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results
   )
 
-  expect_equal(plan$current_min_date, lubridate::as_datetime("2026-03-04T00:00:00Z"))
+  expect_equal(
+    plan$current_min_date,
+    lubridate::as_datetime("2026-03-04T00:00:00Z")
+  )
 })
 
 
@@ -139,7 +164,9 @@ test_that("a missing min_created_at is handled as NULL", {
 
 test_that("a full walk steadily moves the window backwards", {
   # one plan driven through successive requests, advancing backwards in time
-  plan <- first_plan(plan_min_date = lubridate::as_datetime("2026-01-01T00:00:00Z"))
+  plan <- first_plan(
+    plan_min_date = lubridate::as_datetime("2026-01-01T00:00:00Z")
+  )
   min_dates <- character(0)
 
   for (request in 1:9) {

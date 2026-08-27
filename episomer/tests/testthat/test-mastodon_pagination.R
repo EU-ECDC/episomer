@@ -332,7 +332,9 @@ test_that("the oldest collected date is recorded on a plan that has none", {
 
 test_that("the oldest collected date moves backwards only", {
   older <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(
       oldest_id = "111000000000000000",
       posts_after_mindate = 3L,
@@ -340,7 +342,9 @@ test_that("the oldest collected date moves backwards only", {
     )
   )
   newer <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(
       oldest_id = "111000000000000000",
       posts_after_mindate = 3L,
@@ -348,17 +352,28 @@ test_that("the oldest collected date moves backwards only", {
     )
   )
 
-  expect_equal(older$current_min_date, lubridate::as_datetime("2026-03-01T00:00:00Z"))
-  expect_equal(newer$current_min_date, lubridate::as_datetime("2026-03-04T00:00:00Z"))
+  expect_equal(
+    older$current_min_date,
+    lubridate::as_datetime("2026-03-01T00:00:00Z")
+  )
+  expect_equal(
+    newer$current_min_date,
+    lubridate::as_datetime("2026-03-04T00:00:00Z")
+  )
 })
 
 test_that("a page without any kept post leaves the oldest collected date alone", {
   plan <- update(
-    walking_plan(current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")),
+    walking_plan(
+      current_min_date = lubridate::as_datetime("2026-03-04T00:00:00Z")
+    ),
     results_page(oldest_id = "111000000000000000")
   )
 
-  expect_equal(plan$current_min_date, lubridate::as_datetime("2026-03-04T00:00:00Z"))
+  expect_equal(
+    plan$current_min_date,
+    lubridate::as_datetime("2026-03-04T00:00:00Z")
+  )
 })
 
 
@@ -367,7 +382,9 @@ test_that("a page without any kept post leaves the oldest collected date alone",
 test_that("a full walk seeds, digs and rebases without ever leaving the window", {
   # one plan driven through the sequence the search loop would produce, to check the pieces
   # compose: first request -> offsets 40, 80, ... -> rebase at the ceiling -> offsets again
-  plan <- first_plan(plan_min_date = lubridate::as_datetime("2026-01-01T00:00:00Z"))
+  plan <- first_plan(
+    plan_min_date = lubridate::as_datetime("2026-01-01T00:00:00Z")
+  )
   anchors <- character(0)
   offsets <- integer(0)
 

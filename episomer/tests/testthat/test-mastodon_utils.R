@@ -4,7 +4,6 @@
 # (mastodon_parse_response, mastodon_parse_quoted, sm_api_update_plan_after_request_mastodon) are
 # roadmap items T3-1 to T3-3 and are not touched here.
 
-
 # ---- mastodon_id_lt ---------------------------------------------------------
 
 test_that("mastodon_id_lt compares snowflake ids beyond the 32-bit range", {
@@ -67,7 +66,10 @@ test_that("mastodon_min_id returns the numerically smallest id", {
 })
 
 test_that("mastodon_min_id does not pick the lexicographically smallest id", {
-  expect_equal(mastodon_min_id(c("999999999999", "1000000000000")), "999999999999")
+  expect_equal(
+    mastodon_min_id(c("999999999999", "1000000000000")),
+    "999999999999"
+  )
 })
 
 test_that("mastodon_min_id flattens a nested list of ids", {
@@ -144,7 +146,10 @@ test_that("mastodon_is_present only looks at the length, an empty string is pres
 # ---- mastodon_extract_urls --------------------------------------------------
 
 test_that("mastodon_extract_urls returns an empty list when the content has no link", {
-  expect_identical(mastodon_extract_urls("<p>a status without any link</p>"), list())
+  expect_identical(
+    mastodon_extract_urls("<p>a status without any link</p>"),
+    list()
+  )
 })
 
 test_that("mastodon_extract_urls extracts the target of a link and drops the href markup", {
@@ -159,7 +164,10 @@ test_that("mastodon_extract_urls extracts the target of a link and drops the hre
 test_that("mastodon_extract_urls matches http as well as https", {
   content <- '<a href="http://legacy.example.org/a">a</a>'
 
-  expect_equal(mastodon_extract_urls(content), list("http://legacy.example.org/a"))
+  expect_equal(
+    mastodon_extract_urls(content),
+    list("http://legacy.example.org/a")
+  )
 })
 
 test_that("mastodon_extract_urls deduplicates and keeps the first occurrence order", {
@@ -203,7 +211,10 @@ test_that("mastodon_extract_urls ignores a single-quoted href", {
   # KNOWN QUIRK, behaviour frozen here on purpose (roadmap T1-4).
   # The regexp hardcodes double quotes, which is what the mastodon API serves; a status rendered
   # with single quotes would have its links silently dropped.
-  expect_identical(mastodon_extract_urls("<a href='https://a.example.org'>a</a>"), list())
+  expect_identical(
+    mastodon_extract_urls("<a href='https://a.example.org'>a</a>"),
+    list()
+  )
 })
 
 test_that("mastodon_extract_urls only accepts one content at a time", {
@@ -212,7 +223,10 @@ test_that("mastodon_extract_urls only accepts one content at a time", {
   # "'length = 2' in coercion to 'logical(1)'" instead of scanning both. All the callers pass a
   # single status content, so this only documents that the helper is scalar-only.
   expect_error(
-    mastodon_extract_urls(c('<a href="https://a.example.org">a</a>', "<p>b</p>")),
+    mastodon_extract_urls(c(
+      '<a href="https://a.example.org">a</a>',
+      "<p>b</p>"
+    )),
     "coercion to 'logical\\(1\\)'"
   )
 })
@@ -252,7 +266,10 @@ test_that("mastodon_parse_date returns a POSIXct anchored on UTC", {
 
   expect_s3_class(res, "POSIXct")
   expect_equal(attr(res, "tzone"), "UTC")
-  expect_equal(format(res, "%Y-%m-%d %H:%M:%S", tz = "UTC"), "2026-06-15 12:30:00")
+  expect_equal(
+    format(res, "%Y-%m-%d %H:%M:%S", tz = "UTC"),
+    "2026-06-15 12:30:00"
+  )
 })
 
 test_that("mastodon_parse_date accepts the list shape jsonlite produces", {
@@ -263,7 +280,10 @@ test_that("mastodon_parse_date accepts the list shape jsonlite produces", {
 })
 
 test_that("mastodon_parse_date parses a whole page of dates at once", {
-  res <- mastodon_parse_date(list("2026-01-02T03:04:05Z", "2026-01-03T00:00:00Z"))
+  res <- mastodon_parse_date(list(
+    "2026-01-02T03:04:05Z",
+    "2026-01-03T00:00:00Z"
+  ))
 
   expect_length(res, 2)
   expect_equal(

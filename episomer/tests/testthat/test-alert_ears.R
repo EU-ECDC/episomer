@@ -78,10 +78,14 @@ test_that("the first no_historic points have no baseline to compare against", {
 
 test_that("no_historic moves the first monitored point", {
   # a shorter baseline starts monitoring sooner -- and is noisier, cf. the df of the t quantile
-  expect_true(all(is.na(ears_t_reweighted(example_ts, no_historic = 3)$U0[1:3])))
+  expect_true(all(is.na(ears_t_reweighted(example_ts, no_historic = 3)$U0[
+    1:3
+  ])))
   expect_false(is.na(ears_t_reweighted(example_ts, no_historic = 3)$U0[[4]]))
 
-  expect_true(all(is.na(ears_t_reweighted(example_ts, no_historic = 10)$U0[1:10])))
+  expect_true(all(is.na(ears_t_reweighted(example_ts, no_historic = 10)$U0[
+    1:10
+  ])))
   expect_false(is.na(ears_t_reweighted(example_ts, no_historic = 10)$U0[[11]]))
 })
 
