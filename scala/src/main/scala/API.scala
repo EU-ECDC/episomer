@@ -585,14 +585,14 @@ object API {
                           Files.setLastModifiedTime(localPath, FileTime.from(Instant.now()))
                        }
                        complete("ok") 
-                    } else if(action == "copy") {
+                    } else if(action == "move") {
                       entity(as[JsValue]) { 
                         case JsString(dest)  =>
                             if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
                                 complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
                             else { 
                                 val localDest = Paths.get(conf.epiHome, dest.toString)
-                                Files.copy(localPath, localDest, StandardCopyOption.REPLACE_EXISTING )
+                                Files.move(localPath, localDest, StandardCopyOption.REPLACE_EXISTING )
                                 complete("ok") 
                             }
                         case dest => 
