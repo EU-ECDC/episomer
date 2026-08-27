@@ -163,3 +163,156 @@ test_that("to_remote_if_needed handles paths without data_dir prefix", {
   # Path without data_dir prefix should be returned unchanged
   expect_equal(result, other_path)
 })
+
+
+test_that("get_alert_training_path returns user path when it exists", {
+  local_conf(data_dir = "/data")
+
+  user_path <- "/data/alert-training.xlsx"
+  local_mocked_bindings(
+    epifile.exists = function(path) identical(path, user_path),
+    .package = "episomer"
+  )
+
+  expect_equal(get_alert_training_path(), user_path)
+})
+
+test_that("get_alert_training_path falls back to default when user path doesn't exist", {
+  local_conf(data_dir = "/data")
+
+  local_mocked_bindings(
+    epifile.exists = function(path) FALSE,
+    .package = "episomer"
+  )
+
+  result <- get_alert_training_path()
+  expect_match(result, "alert-training.xlsx$")
+  expect_match(result, "extdata")
+})
+
+test_that("get_geotraining_path returns user path when it exists", {
+  local_conf(data_dir = "/data")
+
+  user_path <- "/data/geo-training.xlsx"
+  local_mocked_bindings(
+    epifile.exists = function(path) identical(path, user_path),
+    .package = "episomer"
+  )
+
+  expect_equal(get_geotraining_path(), user_path)
+})
+
+test_that("get_geotraining_path falls back to default when user path doesn't exist", {
+  local_conf(data_dir = "/data")
+
+  local_mocked_bindings(
+    epifile.exists = function(path) FALSE,
+    .package = "episomer"
+  )
+
+  result <- get_geotraining_path()
+  expect_match(result, "geo-training.xlsx$")
+  expect_match(result, "extdata")
+})
+
+test_that("get_topic_keywords_path creates geo folder if needed", {
+  local_conf(data_dir = withr::local_tempdir())
+
+  geo_folder <- epipath("geo")
+
+  # Initially folder doesn't exist
+  expect_false(dir.exists(geo_folder))
+
+  result <- get_topic_keywords_path()
+
+  # Folder should be created
+  expect_true(dir.exists(geo_folder))
+  # Result should be correct path
+  expect_equal(result, file.path(geo_folder, "topic-keywords.json"))
+})
+
+test_that("get_topic_keywords_path doesn't recreate existing geo folder", {
+  local_conf(data_dir = withr::local_tempdir())
+
+  geo_folder <- epipath("geo")
+  dir.create(geo_folder)
+
+  # Should not error when folder already exists
+  result <- get_topic_keywords_path()
+  expect_equal(result, file.path(geo_folder, "topic-keywords.json"))
+})
+
+test_that("get_alert_file creates alert folders with correct structure", {
+  local_conf(data_dir = withr::local_tempdir())
+
+  date <- as.POSIXct("2024-03-15 10:30:00", tz = "UTC")
+  result <- get_alert_file(date)
+
+  # Check path structure: alerts/2024/2024.03.15-alerts.json
+  expect_match(result, "alerts/2024/2024.03.15-alerts.json$")
+
+  # Verify folders are created
+  alert_folder <- epipath("alerts")
+  year_folder <- file.path(alert_folder, "2024")
+  expect_true(dir.exists(alert_folder))
+  expect_true(dir.exists(year_folder))
+})
+
+test_that("get_alert_file handles multiple dates correctly", {
+  local_conf(data_dir = withr::local_tempdir())
+
+  date1 <- as.POSIXct("2024-03-15", tz = "UTC")
+  date2 <- as.POSIXct("2025-12-31", tz = "UTC")
+
+  result1 <- get_alert_file(date1)
+  result2 <- get_alert_file(date2)
+
+  expect_match(result1, "2024.03.15-alerts.json$")
+  expect_match(result2, "2025.12.31-alerts.json$")
+
+  # Both years should be created
+  expect_true(dir.exists(file.path(epipath("alerts"), "2024")))
+  expect_true(dir.exists(file.path(epipath("alerts"), "2025")))
+})
+
+test_that("get_plans_paths returns named vector for active social media", {
+  local_mocked_bindings(
+    active_social_media = function() c("mastodon.social", "bluesky.net"),
+    .package = "episomer"
+  )
+  local_conf(data_dir = "/data")
+
+  result <- get_plans_paths()
+
+  expect_length(result, 2)
+  expect_named(result, c("mastodon.social", "bluesky.net"))
+  expect_match(result[[1]], "mastodon\\.social\\.json$")
+  expect_match(result[[2]], "bluesky\\.net\\.json$")
+})
+
+test_that("get_plans_paths returns character(0) when no active social media", {
+  local_mocked_bindings(
+    active_social_media = function() character(0),
+    .package = "episomer"
+  )
+  local_conf(data_dir = "/data")
+
+  result <- get_plans_paths()
+
+  expect_length(result, 0)
+  expect_equal(result, character(0))
+})
+
+test_that("get_plans_paths substitutes .json extension correctly", {
+  local_mocked_bindings(
+    active_social_media = function() c("mastodon", "bluesky"),
+    .package = "episomer"
+  )
+  local_conf(data_dir = "/data")
+
+  result <- get_plans_paths()
+
+  # Should replace .json with .sm.json
+  expect_match(result[["mastodon"]], "topics\\.mastodon\\.json$")
+  expect_match(result[["bluesky"]], "topics\\.bluesky\\.json$")
+})
