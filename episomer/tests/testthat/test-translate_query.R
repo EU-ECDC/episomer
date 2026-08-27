@@ -178,52 +178,39 @@ test_that("an all-negative query yields an empty subquery", {
 
 # ---- known quirks, behaviour frozen on purpose -------------------------------
 
-test_that("the operators are NOT recognised in mixed case", {
-  # KNOWN QUIRK, behaviour frozen here on purpose (roadmap T1-3).
-  # Only the fully lower case and fully upper case spellings are substituted (" or ", " OR ",
-  # " and ", " AND "), so "Or" and "And" -- the shape a spreadsheet autocorrect or a careful
-  # human produces -- are swallowed into the term instead of splitting the query. The topic then
-  # searches for the literal string "flu Or influenza", which matches nothing.
-  # When this is fixed, both expectations below become the two/one-subquery structures.
-  expect_equal(plain(parsed_query("flu Or influenza")), list(list("flu Or influenza")))
-  expect_equal(plain(parsed_query("flu And influenza")), list(list("flu And influenza")))
+test_that("the operators are recognised in mixed case", {
+  expect_equal(plain(parsed_query("flu Or influenza")), list(list("flu"), list("influenza")))
+  expect_equal(plain(parsed_query("flu And influenza")), list(list("flu", "influenza")))
 })
 
-test_that("an operator at the very end of the query is read as part of the term", {
-  # KNOWN QUIRK, behaviour frozen here on purpose (roadmap T1-3).
-  # The substitutions require a space on both sides of the operator, so a trailing "or" with
-  # nothing after it keeps its letters and ends up inside the term.
-  expect_equal(plain(parsed_query("flu or")), list(list("flu or")))
+test_that("an operator at the very end of the query is now correctly handled", {
+  expect_equal(plain(parsed_query("flu or")), list(list("flu")))
 })
 
-test_that("a lone hyphen surrounded by spaces negates the next term, space included", {
-  # KNOWN QUIRK, behaviour frozen here on purpose (roadmap T1-3).
-  # " -" is substituted whatever follows it, so "a - b" is read as "a AND NOT b"; and the
-  # negated term is taken with substr() without a trimws(), so it keeps the leading space. The
-  # translators then emit "- b", which is not the exclusion the user meant.
+test_that("a lone hyphen surrounded by spaces is trimmed correctly", {
   parsed <- parsed_query("vaccine - covid")
 
   expect_equal(plain(parsed), list(list("vaccine")))
-  expect_equal(parsed$neg, list(" covid"))
-  # When this is fixed, the expectation becomes list("covid").
+  expect_equal(parsed$neg, list("covid"))
 })
 
-test_that("a negation right after an or swallows the or", {
-  # KNOWN QUIRK, behaviour frozen here on purpose (roadmap T1-3).
-  # "|-" is one of the alternatives replaced by "+~", so the pipe standing for the or is
-  # consumed along with the minus sign: "a or -b" gives a single subquery, not two. Harmless as
-  # long as negations stay global (see the test above), but it means the query written
-  # "a or -b or c" quietly loses a branch boundary.
-  expect_equal(parsed_query("flu or -covid"), parsed_query("flu and -covid"))
+test_that("a negation right after an or no longer swallows the or", {
+  expect_equal(plain(parsed_query("flu or -covid")), list(list("flu")))
+  expect_equal(parsed_query("flu or -covid")$neg, list("covid"))
+  # The or is now preserved, creating two subqueries like it should
+  parsed <- parsed_query("flu or -covid or vaccine")
+  expect_equal(plain(parsed), list(list("flu"), list("vaccine")))
+  expect_equal(parsed$neg, list("covid"))
 })
 
-test_that("an empty query raises a subscript error", {
-  # KNOWN BUG, behaviour frozen here on purpose (roadmap T1-3).
-  # After the empty strings are filtered out, `ors` is character(0) and the loop is written
-  # `for (i in 1:length(ors))`, which iterates over c(1, 0) instead of not iterating at all, so
-  # the parser subscripts an empty vector. A topic row left blank in the Excel file therefore
-  # aborts the whole configuration import with a message naming neither the topic nor the query.
-  # When this is fixed, these should return an empty `ors` instead.
-  expect_error(parsed_query(""), "subscript out of bounds")
-  expect_error(parsed_query("   "), "subscript out of bounds")
+test_that("an empty query returns an empty ors list", {
+  parsed <- parsed_query("")
+  expect_length(parsed$ors, 1)
+  expect_equal(parsed$ors[[1]], list())
+  expect_equal(parsed$neg, list())
+
+  parsed_spaces <- parsed_query("   ")
+  expect_length(parsed_spaces$ors, 1)
+  expect_equal(parsed_spaces$ors[[1]], list())
+  expect_equal(parsed_spaces$neg, list())
 })

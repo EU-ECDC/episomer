@@ -731,30 +731,39 @@ merge_config_lists <- function(configs, property) {
 # parse topic query and translate it to particular social media quert language
 translate_query <- function(sm, q) {
   r = list(neg=list(), ors=list())
-  q = gsub(" or ", "|", q) 
-  q = gsub(" OR ", "|", q) 
-  q = gsub(" AND ", "&", q) 
-  q = gsub(" and ", "&", q) 
-  q = gsub("^-| -|&-|\\|-", "+~", q) 
-  ors <- trimws(strsplit(q, "\\|")[[1]])
-  ors <- ors[ors != ""]
-  for(i in 1:length(ors)) {
-    r$ors[[i]] <- list()
-    ands <- trimws(strsplit(ors[[i]], "&")[[1]])
-    ands <- ands[ands != ""]
-    for(j in 1:length(ands)) {
-       parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
-       parts <- parts[parts != ""]
-       for(k in 1:length(parts)) {
-          part <- trimws(parts[[k]])
-          if(startsWith(part, "~") && nchar(part)>1) {
-             neg <- substr(part, 2, 1000)
-             r$neg <- c(r$neg,  neg)
-	  } else if(nchar(part)>0) {
-             pos <- as.list(trimws(strsplit(part, "/")[[1]]))
-             r$ors[[i]] <- c(r$ors[[i]], list(pos))
-          }
-       }
+  q = trimws(q)
+  q = gsub("^(or|and)\\s+", "", q, ignore.case = TRUE)
+  q = gsub("\\s+(or|and)\\s*$", "", q, ignore.case = TRUE)
+  q = gsub("\\s+or\\s+", "|", q, ignore.case = TRUE)
+  q = gsub("\\s+and\\s+", "&", q, ignore.case = TRUE)
+  q = gsub("^-| -|&-|\\|-", "+~", q)
+  if (q == "") {
+    r$ors[[1]] <- list()
+  } else {
+    ors <- trimws(strsplit(q, "\\|")[[1]])
+    ors <- ors[ors != ""]
+    if (length(ors) == 0) {
+      r$ors[[1]] <- list()
+    } else {
+      for(i in seq_along(ors)) {
+        r$ors[[i]] <- list()
+        ands <- trimws(strsplit(ors[[i]], "&")[[1]])
+        ands <- ands[ands != ""]
+        for(j in seq_along(ands)) {
+           parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
+           parts <- parts[parts != ""]
+           for(k in seq_along(parts)) {
+              part <- trimws(parts[[k]])
+              if(startsWith(part, "~") && nchar(part)>1) {
+                 neg <- trimws(substr(part, 2, 1000))
+                 r$neg <- c(r$neg,  neg)
+	      } else if(nchar(part)>0) {
+                 pos <- as.list(trimws(strsplit(part, "/")[[1]]))
+                 r$ors[[i]] <- c(r$ors[[i]], list(pos))
+              }
+           }
+        }
+      }
     }
   }
   sm_api_translate_query(network = sm, r)
