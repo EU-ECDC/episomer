@@ -8,7 +8,7 @@ removeHTMLtags <- function(htmlString) {
 
 #' @noRd
 removeURLS <- function(htmlString) {
-  gsub(pattern = "http.*", replacement = "",x = htmlString)
+  gsub(pattern = "https?://[^ ]+", replacement = "", x = htmlString)
 }
 
 #' @noRd
