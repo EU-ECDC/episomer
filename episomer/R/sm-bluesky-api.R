@@ -260,9 +260,13 @@ bluesky_rerun_after_rate_limit <- function(resp) {
     time <- as.numeric(httr2::resp_header(resp, "RateLimit-Reset"))
     reset_after <- time - unclass(Sys.time())
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # The wait itself is done by heartbeat_before_retry(): httr2 would sleep inside req_perform(),
+    # and a rate-limit reset can be longer than the search lease TTL (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 

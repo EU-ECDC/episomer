@@ -418,7 +418,7 @@ mastodon_rerun_after_rate_limit <- function(resp) {
     message("Rate limit exceeded. Waiting for reset.")
     reset <- httr2::resp_header(resp, "X-RateLimit-Reset")
     if (is.null(reset)) {
-      return(60)
+      return(heartbeat_before_retry(60))
     }
     reset_after <- as.numeric(difftime(
       lubridate::as_datetime(reset),
@@ -427,9 +427,13 @@ mastodon_rerun_after_rate_limit <- function(resp) {
     ))
     reset_after <- max(reset_after, 1)
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # A Mastodon rate-limit window is 5 minutes, i.e. the whole search lease TTL: this wait has to
+    # be done with a heartbeat rather than left to httr2 (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 
