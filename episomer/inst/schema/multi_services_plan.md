@@ -613,11 +613,63 @@ Decided while implementing:
   both test files can use it (testthat gives each test file its own environment).
 
 ### Issue 5 — Heartbeat during long waits
-- [ ] `sleep_with_heartbeat(seconds, name)`
-- [ ] replaces `Sys.sleep()` at `R/search.R:177`, `R/scheduler.R:293`, `R/alert.R:601`
-- [ ] `renew_runner_lease()` also called once per iteration at the top of each loop
-- [ ] check that no code path in `search_loop_worker()` can stay silent longer than the TTL
+- [x] `sleep_with_heartbeat(seconds, name)`
+- [x] replaces `Sys.sleep()` at `R/search.R:177`, `R/scheduler.R:293`, `R/alert.R:601`
+- [x] `renew_runner_lease()` also called once per iteration at the top of each loop
+- [x] check that no code path in `search_loop_worker()` can stay silent longer than the TTL
       (rate-limit waits are the case to verify, §3.3)
+
+Diagram updated: `inst/schema/runners_lease.excalidraw`, panel 6 (the two heartbeat shapes, the
+three silences they cover and the one they cannot reach).
+
+Decided while implementing:
+
+* **A second helper next to `sleep_with_heartbeat()`: `renew_runner_lease_if_due()`.** Sleeping is
+  not the only way a loop stays silent — one round-robin pass of `search_loop_worker()` over many
+  topics can take longer than the search TTL without ever sleeping. A heartbeat has to be callable
+  from inside such a loop, which a plain `renew_runner_lease()` is not (one HTTP touch per
+  request). `if_due` costs one lookup in `lease_last_renewal`, a package environment recording
+  when this process last renewed each of its leases, and touches the fs at most once per
+  `runner_heartbeat_span`. That record is *local bookkeeping only*: freshness is still decided by
+  the mtime on the fs machine, never by what a runner believes about itself. It notes the
+  *attempt*, not the success, so a lease that is gone is not re-tested on every iteration — losing
+  it is what `stop_if_lease_lost()` is for.
+* **The rate-limit waits are the real silence, and `sleep_with_heartbeat()` cannot reach them.**
+  They are not a `Sys.sleep()` of ours: `httr2::req_retry()` sleeps *inside* `req_perform()`
+  (`R/sm-bluesky-api.R`, `R/sm-mastodon-api.R`), and a Mastodon rate-limit window is 5 minutes —
+  exactly `runner_ttl_search`. The only place httr2 gives the control back before sleeping is the
+  `after =` callback, so that is where the heartbeat goes: `heartbeat_before_retry(seconds)`,
+  called by `bluesky_rerun_after_rate_limit()` and `mastodon_rerun_after_rate_limit()`. A wait
+  longer than the heartbeat span is performed there, chopped and with renewals, and `0` is
+  returned so httr2 retries immediately; anything shorter — and the `NA` of a transient
+  500/502/503 — is returned unchanged, leaving httr2's own exponential backoff (capped at 60 s per
+  try, far below every TTL) in place with one renewal before it. Doing the waiting inside a
+  callback is unusual enough to be commented at both ends.
+* **`fs` could not beat at all — fixed here, though the checklist did not list it.** `fs_loop()`
+  claims the lease and then hands the process over to `spark_job()`, which never returns to R, so
+  after `runner_ttl_fs` (120 s) the `fs` lease is stale while the service is perfectly healthy.
+  This is *not* the multi-machine case — fs runs on exactly one machine by deployment, `search` is
+  the service meant to be spread — so the stake is smaller: the lease is the safety net for the
+  day somebody points a second machine at the same data directory, and it is what the status table
+  of issue 8 reads. Both are worth having right. The fs monitor future is the only part of the fs
+  service still running R code, so it now calls `renew_fs_runner_lease()` on its 2-second loop.
+  Two things keep this from being the background beater §3.3 rejects: it beats only while the
+  service really answers `/ping`, so a wedged fs still lets its lease expire, and the `/ping` call
+  itself only happens when a beat is due.
+* **The parent `search` lease still goes stale, and that is left as is.** `search_loop()` claims
+  `search`, then blocks in `parallel::parLapply()` for the lifetime of the service: there is no
+  iteration to hang a heartbeat on. The consequence is cosmetic for now — the Shiny table of issue
+  8 will show `search` as stale on a perfectly healthy machine — because exclusivity that matters
+  lives on `search.<network>`, which the workers renew. It is the same question as §9.5 (make the
+  parent entry presence-only, or drop it), and it should be settled there rather than patched with
+  a heartbeat in a process that has nothing left to do.
+* **Two `Sys.sleep()` left alone in the loops.** `R/search.R` sleeps 1 second when an iteration
+  performed no request, and `R/scheduler.R:44` sleeps 5 seconds before re-reading a `tasks.json`
+  it failed to parse. Both are shorter than any heartbeat span, so chopping them would only add
+  noise; the renewal at the top of each loop already covers them.
+* **`detect_loop()`'s 5-second sleep goes through `sleep_with_heartbeat()` anyway.** Not for the
+  renewal — 5 seconds is far below the span — but for the `stop_if_lease_lost()` it brings: an
+  idle detect loop then notices a stolen lease while idle, instead of on its next write.
 
 ### Issue 6 — Guard the writes
 - [ ] `stop_if_lease_lost()` before `commit_posts()` / `save_config()` in `search_loop_worker()`
@@ -628,6 +680,13 @@ Decided while implementing:
 - [ ] `episomer_lease_lost` caught at the top of each loop: log, exit cleanly, do not release
 - [ ] `search_loop()` cluster: one worker exiting on a lost lease must produce a clear log line,
       not the current unexplained `stop()` at `R/search.R:74`
+- [ ] **found while doing issue 5:** the `tryCatch()` wrapping `search_topic()` in
+      `search_loop_worker()` re-raises anything that is not `"too-old"` as
+      `stop(paste(e$message, e))`, which flattens the condition into a plain error and loses the
+      `episomer_lease_lost` class. That path is now reachable: `heartbeat_before_retry()` can
+      raise it from inside `req_perform()` during a rate-limit wait. The worker still stops, so
+      nothing is corrupted, but it stops with an unexplained error instead of a clean exit —
+      re-raise conditions of that class unchanged.
 
 ### Issue 7 — `is_*_running()` reads the lease
 - [ ] `is_search_running()`, `is_detect_running()`, `missing_search_jobs()` based on the lease
@@ -686,8 +745,12 @@ Cases worth covering, in `tests/testthat/test-runners_lease.R`:
 - [x] stolen lease → `stop_if_lease_lost()` raises a condition of class `episomer_lease_lost`
 - [x] `renew_runner_lease()` moves the mtime forward and does **not** change the content
 - [x] per-service TTL: `runner_lease_ttl("search.bluesky")` → `conf$runner_ttl_search`
-- [ ] (issue 5) `sleep_with_heartbeat(2)` with `runner_heartbeat_span = 1` renews at least once (mock
-      `renew_runner_lease()` and count calls — do not sleep for real in the suite)
+- [x] (issue 5) `sleep_with_heartbeat(2)` with `runner_heartbeat_span = 1` renews at least once (mock
+      `renew_runner_lease()` and count calls — do not sleep for real in the suite). Done with
+      tenths of a second rather than no sleep at all: the span is read from `conf`, so a test makes
+      a "long" wait last 0.3 s, which keeps the real `Sys.sleep()` path — the thing being tested —
+      instead of mocking a base function testthat refuses to mock. Same section covers
+      `heartbeat_before_retry()` and `renew_fs_runner_lease()`.
 - [ ] (issue 7) `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE
 
 Also covered, and the helper the plan suggested: `with_instance()` lives in
