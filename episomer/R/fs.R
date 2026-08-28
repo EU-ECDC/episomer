@@ -315,11 +315,11 @@ fs_loop <- function(data_dir = NA) {
   message("Launching fs")
   # Registering the fs runner using current PID and ensuring no other instance of the search is actually running.
   register_fs_runner()
-  # Giving the lease back when this loop ends, so that another machine can take the fs over
-  # immediately instead of waiting for the whole TTL to expire (multi_services_plan.md 3.4).
-  # release_runner_lease() checks it is still the holder before moving anything, so an instance
-  # that silently lost its lease cannot take away the new holder's file.
-  on.exit(release_runner_lease(), add = TRUE)
+  # Giving the lease and the PID file back when this loop ends, so that another machine can take
+  # the fs over immediately instead of waiting for the whole TTL to expire (multi_services_plan.md
+  # 3.4). release_runner_lease() checks it is still the holder before moving anything, so an
+  # instance that silently lost its lease cannot take away the new holder's file.
+  on.exit(unregister_runner(), add = TRUE)
 
   # Infinite loop calling the fs runner
   while (TRUE) {

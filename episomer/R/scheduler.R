@@ -198,14 +198,14 @@ detect_loop <- function(data_dir = NA) {
   register_detect_runner()
   # Same clean release as in fs_loop(): a detect lease has a long TTL (30 min, because a single
   # task can run for very long), so not releasing it would make a simple restart wait half an hour.
-  on.exit(release_runner_lease(), add = TRUE)
+  on.exit(unregister_runner(), add = TRUE)
 
   # lass_sleeping_message set to ensure it will be shown if all is done
   last_sleeping_message <- Sys.time() - (conf$schedule_span * 60)
   # Same handler as in search_loop_worker(): the guard points below raise episomer_lease_lost,
   # and this turns it into a clean end of the detect service with an explicit log line rather
-  # than an error. The on.exit(release_runner_lease()) above refuses to release a lease that is
-  # not ours anymore, so it stays as it is (R/runners-lease.R).
+  # than an error. The on.exit(unregister_runner()) above refuses to release a lease that is not
+  # ours anymore, so it stays as it is (R/runners-lease.R).
   run_until_lease_lost({
     while (TRUE) {
       # Proving the detect runner is still alive, once per turn of the loop (R/runners-lease.R).
