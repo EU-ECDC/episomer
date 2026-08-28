@@ -17,6 +17,11 @@
       environment:
         EPI_HOME: "/episomer-data"
         EPISOMER_RUN: "FS"
+        # Human readable name of this instance, reported by the services and displayed by the
+        # Shiny app ("search.bluesky is running on ..."). Without it episomer falls back to the
+        # host name, which is a random hex string inside a container. Give each machine of a
+        # multi-machine deployment a distinct value.
+        EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
         EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
         EPISOMER_OPTION_FS_URL: "http://fs"
@@ -44,6 +49,7 @@
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
         EPISOMER_RUN: "SEARCH"
+        EPISOMER_INSTANCE: "search"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
       secrets:
         - episomer_kr_password
@@ -65,6 +71,7 @@
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
         EPISOMER_RUN: "DETECT"
+        EPISOMER_INSTANCE: "detect"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
       secrets:
         - episomer_kr_password
