@@ -1,4 +1,5 @@
-# registers the data collection task (by writing search.PID file) for the current process or stops if no configuration has been set or if it is already running
+# registers the data collection task (PID file + runner lease) for the current process or stops if
+# no configuration has been set or if it is already running, here or on another machine
 register_search_runner <- function(network = NULL) {
   stop_if_no_config(paste(
     "Cannot check running status for search without configuration setup"
@@ -11,7 +12,8 @@ register_search_runner <- function(network = NULL) {
 }
 
 
-# registers the fs_monitor (by writing fs.PID file) for the current process or stops if no configuration has been set or if it is already running
+# registers the fs service (PID file + runner lease) for the current process or stops if no
+# configuration has been set or if it is already running, here or on another machine
 register_fs_runner <- function() {
   stop_if_no_config(paste(
     "Cannot check running status for fs without configuration setup"
@@ -19,7 +21,8 @@ register_fs_runner <- function() {
   register_runner("fs")
 }
 
-# registers the detect_runner (by writing detect.PID file) for the current process or stops if no configuration has been set or if it is already running
+# registers the detect runner (PID file + runner lease) for the current process or stops if no
+# configuration has been set or if it is already running, here or on another machine
 register_detect_runner <- function() {
   stop_if_no_config(paste(
     "Cannot check running status for fs without configuration setup"
@@ -49,8 +52,20 @@ register_fs_monitor <- function() {
   register_runner("fs_mon")
 }
 
-# Registers the a task runner (by writing "name".PID file) for the current process
-# or stops if no configuration has been set or if it is already running
+# Registers a task runner for the current process, or stops if no configuration has been set or if
+# the runner is already running somewhere.
+#
+# Two independent layers have to agree before this process may act as `name`:
+#
+#   1. the PID file, on the local disk - "is there another process *on this machine* doing this?"
+#      It is also what gives kill_task() / stop_runner_task() something to work with, so it stays
+#      exactly as it was;
+#   2. the runner lease, on the fs machine - "am I allowed to be this runner in the whole cluster?"
+#      This is the layer that stops two machines sharing the same data directory from collecting
+#      the same posts twice (R/runners-lease.R, inst/schema/multi_services_plan.md section 6.1).
+#
+# The local check comes first on purpose: it is cheap, it needs no network, and failing on it does
+# not disturb the fs machine at all.
 register_runner <- function(name) {
   stop_if_no_config(paste(
     "Cannot register ",
@@ -67,6 +82,22 @@ register_runner <- function(name) {
   # If here means that the current process has to register as the runner service
   pid_path <- paste(conf$data_dir, "/", name, ".PID", sep = "")
   write(pid, file = pid_path, append = FALSE)
+
+  # Second layer: claiming the lease. Failing here is a normal, expected situation - it is the
+  # standby machine of a two-machine deployment discovering that the other one already collects.
+  if (!claim_runner_lease(name)) {
+    # The PID file written a few lines above must not survive the refusal: it would make this
+    # machine look like it hosts a running runner, which is exactly what is_*_running() and
+    # stop_all_runner_tasks() read locally.
+    remove_running_task_pid(name)
+    stop(runner_lease_holder_message(name))
+  }
+
+  # Session state, not configuration: it lets renew_runner_lease(), stop_if_lease_lost() and
+  # release_runner_lease() be called with no argument from anywhere in this process. It is set
+  # last, so it only ever names a runner this process really holds.
+  conf$runner_name <- name
+  invisible(name)
 }
 
 #' @title Registers the social media message collection task
