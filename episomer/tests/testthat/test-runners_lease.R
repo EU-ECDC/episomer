@@ -1,0 +1,369 @@
+# Runner leases (multi-instance services, plan issue 2).
+#
+# Everything here runs with fs_remote = NULL, so epipath() resolves to a temp directory and the
+# lease primitives exercise their local branch: no network, no second machine. A "second instance"
+# is just another conf$instance_id, which is what with_instance() (helper-conf.R) borrows.
+#
+# The remote branch of the same code paths (HTTP calls to the fs API) is not covered here: it needs
+# a running server, and is checked manually on docker compose - see the end of section 11 of
+# inst/schema/multi_services_plan.md.
+
+# Configuration of a local instance owning a fresh, empty data directory.
+local_lease_conf <- function(
+  instance_id = "instance-A",
+  instance_host = "machine-A",
+  ...,
+  .local_envir = parent.frame()
+) {
+  data_dir <- withr::local_tempdir(.local_envir = .local_envir)
+  local_conf(
+    data_dir = data_dir,
+    fs_remote = NULL,
+    instance_id = instance_id,
+    instance_host = instance_host,
+    ...,
+    .local_envir = .local_envir
+  )
+  data_dir
+}
+
+# Paths and names ---------------------------------------------------------------------------------
+
+test_that("runner_lease_path() puts one file per runner under runners/", {
+  data_dir <- local_lease_conf()
+
+  expect_identical(
+    runner_lease_path("search.bluesky"),
+    file.path(data_dir, "runners", "search.bluesky.json")
+  )
+  # a Mastodon runner name carries the instance host, dots included
+  expect_identical(
+    runner_lease_path("search.mastodon.piaille.fr"),
+    file.path(data_dir, "runners", "search.mastodon.piaille.fr.json")
+  )
+})
+
+test_that("runner_lease_path() creates the runners folder only when asked to", {
+  data_dir <- local_lease_conf()
+  runners <- file.path(data_dir, "runners")
+
+  # reading a lease happens far more often than writing one, and must not create anything
+  runner_lease_path("detect")
+  expect_false(dir.exists(runners))
+
+  runner_lease_path("detect", create_dir = TRUE)
+  expect_true(dir.exists(runners))
+})
+
+test_that("runner_lease_released_path() keeps successive releases apart", {
+  data_dir <- local_lease_conf(instance_id = "instance-A")
+
+  expect_identical(
+    runner_lease_released_path("search.bluesky"),
+    file.path(data_dir, "runners", "old", "search.bluesky.instance-A.json")
+  )
+  # a second instance releasing the same runner writes next to it, it does not overwrite it
+  expect_identical(
+    with_instance("instance-B", code = runner_lease_released_path("search.bluesky")),
+    file.path(data_dir, "runners", "old", "search.bluesky.instance-B.json")
+  )
+})
+
+test_that("a runner name that could escape the runners folder is refused", {
+  local_lease_conf()
+
+  # part of a runner name comes from the configuration (the Mastodon instance host)
+  expect_error(runner_lease_path("../../etc/passwd"), "Invalid runner name")
+  expect_error(runner_lease_path("search/bluesky"), "Invalid runner name")
+  expect_error(runner_lease_path(""), "Invalid runner name")
+  expect_error(runner_lease_path(c("search", "detect")), "Invalid runner name")
+})
+
+# Per-service TTL ---------------------------------------------------------------------------------
+
+test_that("runner_service() reads the service out of a runner name", {
+  expect_identical(runner_service("search.mastodon.piaille.fr"), "search")
+  expect_identical(runner_service("search.bluesky"), "search")
+  expect_identical(runner_service("detect"), "detect")
+  expect_identical(runner_service("fs"), "fs")
+})
+
+test_that("runner_lease_ttl() takes the TTL of the service from the configuration", {
+  local_lease_conf(
+    runner_ttl_search = 300,
+    runner_ttl_detect = 1800,
+    runner_ttl_fs = 120
+  )
+
+  # every search runner shares the search TTL, whatever the network
+  expect_equal(runner_lease_ttl("search.bluesky"), 300)
+  expect_equal(runner_lease_ttl("search.mastodon.piaille.fr"), 300)
+  expect_equal(runner_lease_ttl("detect"), 1800)
+  expect_equal(runner_lease_ttl("fs"), 120)
+})
+
+test_that("runner_lease_ttl() coerces a value coming from the environment", {
+  # EPISOMER_OPTION_* properties arrive as strings and this value is used in arithmetic
+  local_lease_conf(runner_ttl_search = "42")
+
+  expect_identical(runner_lease_ttl("search.bluesky"), 42)
+})
+
+test_that("runner_lease_ttl() falls back on the defaults of the plan", {
+  local_lease_conf()
+
+  expect_equal(runner_lease_ttl("detect"), runner_lease_ttl_defaults()$detect)
+  # an unknown service gets the fallback rather than an error: too short a TTL causes false
+  # expiries, too long a one only delays failover
+  expect_equal(runner_lease_ttl("whatever"), runner_lease_ttl_fallback)
+})
+
+# Reading a lease ---------------------------------------------------------------------------------
+
+test_that("read_runner_lease() returns NULL when no lease file exists", {
+  local_lease_conf()
+
+  expect_null(read_runner_lease("search.bluesky"))
+})
+
+test_that("write_runner_lease() then read_runner_lease() round trips the identity", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A")
+
+  write_runner_lease("search.bluesky")
+  lease <- read_runner_lease("search.bluesky")
+
+  expect_identical(lease$runner, "search.bluesky")
+  expect_identical(lease$service, "search")
+  expect_identical(lease$instance_id, "instance-A")
+  expect_identical(lease$host, "machine-A")
+  expect_equal(lease$pid, Sys.getpid())
+  # seen_at is the file mtime, added by the reader - it is never stored in the JSON
+  expect_s3_class(lease$seen_at, "POSIXct")
+  expect_false("seen_at" %in% names(jsonlite::read_json(runner_lease_path("search.bluesky"))))
+})
+
+test_that("read_runner_lease() ignores a lease file that is not a lease", {
+  data_dir <- local_lease_conf()
+  dir.create(file.path(data_dir, "runners"))
+  # e.g. the empty file epifile.touch() would create if renew_runner_lease() did not check first
+  writeLines("", file.path(data_dir, "runners", "detect.json"))
+
+  expect_null(read_runner_lease("detect"))
+})
+
+# Claiming ----------------------------------------------------------------------------------------
+
+test_that("a free runner (no lease file) can be claimed", {
+  local_lease_conf(instance_id = "instance-A")
+
+  # guard = 0 everywhere in this file: the confirmation read is what is being tested, not the wait
+  expect_true(claim_runner_lease("search.bluesky", guard = 0))
+  expect_true(i_hold_runner_lease("search.bluesky"))
+})
+
+test_that("a fresh foreign lease cannot be claimed and is left untouched", {
+  local_lease_conf(instance_id = "instance-A", runner_ttl_search = 300)
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search.bluesky"))
+
+  expect_false(claim_runner_lease("search.bluesky", guard = 0))
+  # no write at all when the runner is taken: the holder must not be disturbed
+  expect_identical(read_runner_lease("search.bluesky")$instance_id, "instance-B")
+  expect_false(i_hold_runner_lease("search.bluesky"))
+  # and the holder is reported, which is what the caller displays ("already running on machine-B")
+  status <- runner_lease_status("search.bluesky")
+  expect_identical(status$status, "running")
+  expect_identical(status$host, "machine-B")
+  expect_false(status$mine)
+})
+
+test_that("an expired foreign lease can be claimed", {
+  local_lease_conf(instance_id = "instance-A", runner_ttl_search = 300)
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search.bluesky"))
+  # aging the file itself rather than mocking: this exercises the real mtime path, which is where
+  # freshness comes from (the fs machine clock, never the JSON timestamps)
+  path <- runner_lease_path("search.bluesky")
+  Sys.setFileTime(path, Sys.time() - 600)
+
+  expect_identical(runner_lease_status("search.bluesky")$status, "stale")
+  expect_true(claim_runner_lease("search.bluesky", guard = 0))
+  expect_identical(read_runner_lease("search.bluesky")$instance_id, "instance-A")
+})
+
+test_that("a released foreign lease can be claimed whatever its age", {
+  local_lease_conf(instance_id = "instance-B", runner_ttl_search = 300)
+  # B claims, then releases cleanly on exit
+  expect_true(claim_runner_lease("search.bluesky", guard = 0))
+  expect_true(release_runner_lease("search.bluesky"))
+
+  released <- file.path(
+    conf$data_dir,
+    "runners",
+    "old",
+    "search.bluesky.instance-B.json"
+  )
+
+  # the live file is simply gone, which is already the "free" case - no released flag to handle
+  expect_false(file.exists(runner_lease_path("search.bluesky")))
+  # and the trail is kept: an operator can still read who held the runner and until when
+  expect_true(file.exists(released))
+  expect_identical(
+    jsonlite::read_json(released, simplifyVector = TRUE)$instance_id,
+    "instance-B"
+  )
+
+  # A takes over immediately, without waiting for the TTL
+  with_instance("instance-A", host = "machine-A", code = {
+    expect_true(claim_runner_lease("search.bluesky", guard = 0))
+    expect_true(i_hold_runner_lease("search.bluesky"))
+  })
+})
+
+test_that("the loser of a simultaneous claim backs off", {
+  local_lease_conf(instance_id = "instance-A", runner_ttl_search = 300)
+  # both instances read an absent lease and both write; B's write lands last, so B wins. Simulated
+  # by letting B write during A's guard wait, which is exactly what the confirmation read is for.
+  local_mocked_bindings(
+    runner_claim_wait = function(guard) {
+      with_instance("instance-B", host = "machine-B", code = write_runner_lease("search.bluesky"))
+    },
+    .package = "episomer"
+  )
+
+  expect_false(claim_runner_lease("search.bluesky", guard = 5))
+  expect_identical(read_runner_lease("search.bluesky")$instance_id, "instance-B")
+})
+
+# Renewing ----------------------------------------------------------------------------------------
+
+test_that("renew_runner_lease() moves the mtime forward without touching the content", {
+  local_lease_conf(instance_id = "instance-A")
+  write_runner_lease("search.bluesky")
+  path <- runner_lease_path("search.bluesky")
+  before <- jsonlite::read_json(path)
+  Sys.setFileTime(path, Sys.time() - 600)
+
+  expect_true(renew_runner_lease("search.bluesky"))
+
+  # the heartbeat is a touch, so renewed_at (content) is unchanged while seen_at (mtime) is not
+  expect_identical(jsonlite::read_json(path), before)
+  expect_lt(
+    as.numeric(difftime(Sys.time(), epifile.mtime(path), units = "secs")),
+    60
+  )
+})
+
+test_that("renew_runner_lease() does not recreate a lease that is gone", {
+  local_lease_conf(instance_id = "instance-A")
+  write_runner_lease("search.bluesky")
+  release_runner_lease("search.bluesky")
+
+  # epifile.touch() creates a missing file: renewing a released lease would leave an empty
+  # non-JSON file under runners/ and pollute the listing the Shiny status table reads
+  expect_false(renew_runner_lease("search.bluesky"))
+  expect_false(file.exists(runner_lease_path("search.bluesky")))
+})
+
+# Releasing ---------------------------------------------------------------------------------------
+
+test_that("release_runner_lease() leaves the lease alone when it was stolen meanwhile", {
+  local_lease_conf(instance_id = "instance-A", runner_ttl_search = 300)
+  claim_runner_lease("search.bluesky", guard = 0)
+  # A froze, its lease expired, B took over
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search.bluesky"))
+
+  # a release issued by an instance that lost its lease would take away the *new* holder's file
+  expect_message(
+    expect_false(release_runner_lease("search.bluesky")),
+    "not held by this instance"
+  )
+  expect_identical(read_runner_lease("search.bluesky")$instance_id, "instance-B")
+  expect_false(dir.exists(file.path(conf$data_dir, "runners", "old")))
+})
+
+# Guarding the writes -----------------------------------------------------------------------------
+
+test_that("stop_if_lease_lost() stays silent while the lease is mine", {
+  local_lease_conf(instance_id = "instance-A")
+  claim_runner_lease("search.bluesky", guard = 0)
+
+  expect_silent(stop_if_lease_lost("search.bluesky"))
+  # even a stale lease is still mine: nobody took it, I am only late renewing it
+  Sys.setFileTime(runner_lease_path("search.bluesky"), Sys.time() - 600)
+  expect_silent(stop_if_lease_lost("search.bluesky"))
+})
+
+test_that("stop_if_lease_lost() raises a typed condition when the lease was taken", {
+  local_lease_conf(instance_id = "instance-A")
+  claim_runner_lease("search.bluesky", guard = 0)
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search.bluesky"))
+
+  # a typed condition, so a loop can tell "I lost my spot" (exit quietly, release nothing) from a
+  # real error
+  expect_error(
+    stop_if_lease_lost("search.bluesky"),
+    class = "episomer_lease_lost"
+  )
+  condition <- tryCatch(
+    stop_if_lease_lost("search.bluesky"),
+    episomer_lease_lost = function(c) c
+  )
+  expect_identical(condition$runner, "search.bluesky")
+})
+
+test_that("stop_if_lease_lost() raises when the lease disappeared altogether", {
+  local_lease_conf(instance_id = "instance-A")
+  claim_runner_lease("search.bluesky", guard = 0)
+  file.remove(runner_lease_path("search.bluesky"))
+
+  expect_error(
+    stop_if_lease_lost("search.bluesky"),
+    class = "episomer_lease_lost"
+  )
+})
+
+test_that("the lease helpers do nothing when no runner name is known", {
+  # the Shiny app and the R console are not runners: conf$runner_name is unset there, and the
+  # helpers called with no argument must not invent a lease
+  local_lease_conf()
+
+  expect_false(i_hold_runner_lease())
+  expect_false(renew_runner_lease())
+  expect_false(release_runner_lease())
+  expect_silent(stop_if_lease_lost())
+})
+
+test_that("the helpers use conf$runner_name when called with no argument", {
+  local_lease_conf(instance_id = "instance-A", runner_name = "detect")
+  claim_runner_lease("detect", guard = 0)
+
+  expect_true(i_hold_runner_lease())
+  expect_true(renew_runner_lease())
+  expect_silent(stop_if_lease_lost())
+  expect_true(release_runner_lease())
+})
+
+# Status ------------------------------------------------------------------------------------------
+
+test_that("runner_lease_status() reports a free runner", {
+  local_lease_conf(instance_id = "instance-A", runner_ttl_detect = 1800)
+
+  status <- runner_lease_status("detect")
+
+  expect_identical(status$status, "free")
+  expect_identical(status$runner, "detect")
+  expect_equal(status$ttl, 1800)
+  expect_false(status$mine)
+  expect_true(is.na(status$seen_at))
+})
+
+test_that("runner_lease_status() reports my own runner as running", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A")
+  claim_runner_lease("detect", guard = 0)
+
+  status <- runner_lease_status("detect")
+
+  expect_identical(status$status, "running")
+  expect_identical(status$host, "machine-A")
+  expect_true(status$mine)
+  expect_lt(status$age, 60)
+})
