@@ -676,6 +676,17 @@ is_r_pid_running <- function(pid) {
 }
 
 loop_run_issues <- function(loop_name) {
+  # A service whose lease is alive on another machine sharing this database *is* running, and no
+  # amount of fixing the local tasks below would make a second one start here (plan issue 8). Note
+  # that the runner name of each of the three loops is the loop name itself, and that a lease held
+  # on this very host is not a case for this message: register_*_runner_task() is a local action,
+  # and the local PID check refuses a duplicate with a message naming the process to stop.
+  if (loop_name %in% c("fs", "search", "detect")) {
+    running_elsewhere <- runner_running_elsewhere_message(loop_name)
+    if (running_elsewhere != "") {
+      return(running_elsewhere)
+    }
+  }
   t <- get_tasks()
   if (loop_name == "fs") {
     if (

@@ -567,6 +567,7 @@ runner_lease_status <- function(name) {
       host = NA_character_,
       instance_id = NA_character_,
       pid = NA_integer_,
+      claimed_at = NA_character_,
       seen_at = as.POSIXct(NA),
       age = NA_real_,
       ttl = runner_lease_ttl(name),
@@ -583,6 +584,10 @@ runner_lease_status <- function(name) {
     host = lease$host,
     instance_id = lease$instance_id,
     pid = lease$pid,
+    # From the JSON, not from the file: "since when is this instance the holder". Renewing only
+    # touches the file, so claimed_at is not refreshed by a heartbeat - which is exactly what the
+    # "since" column of the status table wants to show.
+    claimed_at = lease$claimed_at,
     seen_at = lease$seen_at,
     age = age,
     ttl = ttl,
@@ -695,4 +700,190 @@ runner_lease_holder_message <- function(name) {
     age,
     runner_lease_ttl(name)
   )
+}
+
+# Explains why a runner must not be started on *this* machine right now, or "" when nothing stands
+# in the way.
+#
+# This is the distinction plan issue 8 is about: "not running here" and "not running at all" used to
+# be the same sentence, and they are not the same situation anymore. A service whose lease is held,
+# alive, by another machine sharing this database is running - starting a second one here would be
+# refused by register_runner() after the fact, so the app says so before spawning anything.
+#
+# Two cases deliberately do *not* produce a message:
+#
+#  * a stale lease held by another machine: taking over is exactly what the standby is for, and the
+#    claim is going to succeed;
+#  * a lease held by this very host: starting is a local matter then, and the local PID check of
+#    register_runner() already refuses a duplicate with a message naming the PID to kill.
+runner_running_elsewhere_message <- function(name) {
+  status <- runner_lease_status(name)
+  if (!identical(status$status, "running")) {
+    return("")
+  }
+  host <- if (length(status$host) != 1 || is.na(status$host)) NA_character_ else
+    as.character(status$host)
+  if (identical(host, as.character(conf$instance_host))) {
+    return("")
+  }
+  sprintf(
+    paste(
+      "Runner '%s' is already running on host '%s' (holding its lease since %s, last seen %s).",
+      "Only one machine sharing this episomer database may run it at a time, so it has not been",
+      "started here. Stop it on that machine, or wait for its lease to expire (TTL: %s), and try",
+      "again."
+    ),
+    name,
+    if (is.na(host)) "unknown" else host,
+    runner_lease_since_label(status),
+    runner_lease_last_seen_label(status),
+    format_lease_duration(status$ttl)
+  )
+}
+
+# The status table of the Shiny app --------------------------------------------------------------
+#
+# Everything below is read-only and is meant for a human: the Shiny status panel (plan section 8)
+# and an operator reading runners/ by hand. No decision of the lease mechanism depends on it.
+#
+# The whole table is one listing of runners/ plus one read per file. runners/old/ is deliberately
+# left out: a released runner is one whose file is gone (section 3.4), so it has no row at all,
+# which is what "free" looks like here. A runner that has never been claimed has no row either -
+# the table says who is *holding* something, not what could be started.
+
+# Names of the runners holding a live lease right now, in display order.
+#
+# The listing is not recursive, so runners/old/ appears in it as a directory entry: the .json
+# pattern is what keeps it out (and the fs API answers an empty list for a missing folder, so a
+# deployment that has never started a runner needs no special case).
+runner_lease_names <- function() {
+  files <- epilist.files(runner_lease_dir(), pattern = "\\.json$")
+  if (length(files) == 0) {
+    return(character(0))
+  }
+  names <- sub("\\.json$", "", basename(files))
+  sort_runner_names(names)
+}
+
+# Display order of the runners: services in the order an operator thinks about them, then
+# alphabetical inside a service. Alphabetical puts the parent lease of search ("search", taken by
+# search_loop()) right before its per-network children ("search.bluesky", ...), which is the
+# reading order that makes the split of a collection between machines obvious.
+sort_runner_names <- function(names) {
+  services <- c("fs", "fs_mon", "search", "detect")
+  rank <- match(runner_service(names), services)
+  # an unknown service sorts last rather than dropping out of the table
+  rank[is.na(rank)] <- length(services) + 1L
+  names[order(rank, names)]
+}
+
+# Status of every runner holding a live lease, as a list of runner_lease_status() entries.
+runner_leases <- function() {
+  stop_if_no_config("Cannot list the runner leases without configuration setup")
+  lapply(runner_lease_names(), runner_lease_status)
+}
+
+# The same thing as a data.frame, ready to be displayed: one row per runner, the five columns of
+# plan issue 8.
+#
+# A lease can disappear between the listing and its read (its holder released it, or another
+# instance took over and moved the file): runner_lease_status() then reports it as "free", and such
+# a row is dropped instead of being shown as a runner nobody holds.
+runner_leases_df <- function() {
+  leases <- Filter(
+    function(lease) !identical(lease$status, "free"),
+    runner_leases()
+  )
+  if (length(leases) == 0) {
+    # An empty table with its columns, not an empty data.frame: the app renders the header either
+    # way and the caller does not have to special-case the "nothing running anywhere" deployment.
+    return(data.frame(
+      Runner = character(0),
+      Status = character(0),
+      Host = character(0),
+      `Last seen` = character(0),
+      Since = character(0),
+      check.names = FALSE,
+      stringsAsFactors = FALSE
+    ))
+  }
+  data.frame(
+    Runner = vapply(leases, function(l) l$runner, character(1)),
+    Status = vapply(leases, runner_lease_status_label, character(1)),
+    Host = vapply(leases, runner_lease_host_label, character(1)),
+    `Last seen` = vapply(leases, runner_lease_last_seen_label, character(1)),
+    Since = vapply(leases, runner_lease_since_label, character(1)),
+    check.names = FALSE,
+    stringsAsFactors = FALSE
+  )
+}
+
+# How a status reads in the table.
+#
+# "stale" covers two very different situations and an operator needs to tell them apart:
+# a lease nobody renewed (the holder's machine is unreachable, or its clock-independent heartbeat
+# stopped) and a lease whose holder was a process of *this* machine that is not running anymore
+# (holder_dead_locally, see lease_holder_is_dead_locally()). The second one is a crash we can be
+# sure about, and it is reclaimable right now instead of at the end of the TTL.
+runner_lease_status_label <- function(lease) {
+  if (identical(lease$status, "running")) {
+    return("running")
+  }
+  if (isTRUE(lease$holder_dead_locally)) {
+    return("crashed here")
+  }
+  sprintf("stale (no heartbeat for %s)", format_lease_duration(lease$ttl))
+}
+
+# Which machine holds the runner. The marker matters in the single-machine deployment, where every
+# row is local and an unmarked host name would leave the reader wondering.
+runner_lease_host_label <- function(lease) {
+  host <- if (is.null(lease$host) || is.na(lease$host)) "unknown" else
+    as.character(lease$host)
+  if (identical(host, as.character(conf$instance_host))) {
+    return(paste(host, "(this machine)"))
+  }
+  host
+}
+
+# When the holder last proved it was alive, i.e. the age of the lease file's mtime - the only
+# quantity the expiry decision is based on (section 3.2).
+runner_lease_last_seen_label <- function(lease) {
+  age <- format_lease_duration(lease$age)
+  if (is.na(age)) "unknown" else paste(age, "ago")
+}
+
+# Since when this holder has been the holder, read from the JSON. It does not move when the lease
+# is renewed, so a long "since" next to a short "last seen" is the picture of a healthy runner.
+#
+# Displayed in UTC, like the stored value: the holder may sit in another timezone than the reader,
+# and the point of this column is to be comparable with the runners/*.json files and with the logs
+# of the other machines. Anything unparseable is shown as it was written rather than hidden.
+runner_lease_since_label <- function(lease) {
+  if (is.null(lease$claimed_at) || is.na(lease$claimed_at)) {
+    return("unknown")
+  }
+  claimed_at <- as.character(lease$claimed_at)
+  parsed <- suppressWarnings(as.POSIXct(claimed_at, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC"))
+  if (length(parsed) != 1 || is.na(parsed)) {
+    return(claimed_at)
+  }
+  paste(strftime(parsed, format = "%Y-%m-%d %H:%M", tz = "UTC"), "UTC")
+}
+
+# A duration in seconds, written for a human reading a status line.
+format_lease_duration <- function(seconds) {
+  if (length(seconds) != 1 || is.na(seconds)) {
+    return(NA_character_)
+  }
+  seconds <- max(0, round(as.numeric(seconds)))
+  if (seconds < 60) {
+    sprintf("%d s", seconds)
+  } else if (seconds < 3600) {
+    sprintf("%d min", round(seconds / 60))
+  } else if (seconds < 86400) {
+    sprintf("%.1f h", seconds / 3600)
+  } else {
+    sprintf("%.1f days", seconds / 86400)
+  }
 }
