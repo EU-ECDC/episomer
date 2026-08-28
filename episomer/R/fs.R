@@ -290,6 +290,9 @@ fs_loop <- function(data_dir = NA) {
       step = 2
       while (TRUE) {
         register_fs_monitor()
+        # Beating for the fs runner as well: the fs process itself is inside spark_job() and will
+        # not come back to renew anything (see renew_fs_runner_lease(), R/runners-lease.R).
+        renew_fs_runner_lease()
         if (x == 0) {
           health_check()
           x = 60
@@ -303,7 +306,8 @@ fs_loop <- function(data_dir = NA) {
       "data_dir",
       "setup_config",
       "health_check",
-      "register_fs_monitor"
+      "register_fs_monitor",
+      "renew_fs_runner_lease"
     ),
     envir = rlang::current_env()
   )
