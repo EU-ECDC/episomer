@@ -104,6 +104,12 @@ test_that("sm_networks_of works", {
 test_that("sm_networks_where works", {
   local_conf(
     sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE
+  )
+  expect_setequal(sm_networks_where("sm_activated_"), c("bluesky"))
+
+  local_conf(
+    sm_activated_bluesky = TRUE,
     sm_activated_mastodon = TRUE,
     "mastodon_instances" = list(
       "mastodon.social",
@@ -112,7 +118,7 @@ test_that("sm_networks_where works", {
     sm_alerts_bluesky = TRUE,
     sm_alerts_mastodon = TRUE
   )
-  expect_setequal(sm_networks_where("sm_activated_"), c("bluesky"))
+
   expect_setequal(
     sm_networks_where("sm_alerts_"),
     c("bluesky", "mastodon.mastodon.social", "mastodon.mstdn.party")
