@@ -778,7 +778,12 @@ merge_configs <- function(configs) {
     rest <- merge_configs(configs[-1])
     keys <- unique(c(names(first), names(rest)))
     as.list(setNames(
-      mapply(function(x, y) if (is.null(y)) x else y, first[keys], rest[keys]),
+      mapply(
+        function(x, y) if (is.null(y)) x else y,
+        first[keys],
+        rest[keys],
+        simplify = FALSE
+      ),
       keys
     ))
   }
