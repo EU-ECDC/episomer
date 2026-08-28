@@ -799,10 +799,73 @@ Decided while implementing:
   dropped it. Restored in the source.
 
 ### Issue 8 — Shiny app: distributed services status
-- [ ] `runner_leases()` listing everything under `runners/`
-- [ ] status table: runner, status, host, last seen, since
-- [ ] `loop_run_issues()` (`R/runners.R:572`) messages updated for the remote case ("running on
+- [x] `runner_leases()` listing everything under `runners/`
+- [x] status table: runner, status, host, last seen, since
+- [x] `loop_run_issues()` (`R/runners.R:572`) messages updated for the remote case ("running on
       another host" is not the same thing as "not running")
+- [x] tests: `tests/testthat/test-runners_status.R`
+
+Diagram updated: `inst/schema/runners_lease.excalidraw`, panel 9 (how the table is built, its five
+columns, and when the remote message speaks).
+
+Decided while implementing:
+
+* **The table is built on `runner_lease_status()`, not on the raw JSON.** Issue 7 put the local
+  cross-check inside it precisely so that "issue 8's status table gets it for free", and it does:
+  a runner whose process crashed on this very machine reads as `crashed here` rather than
+  `running`, with no line of its own here. `runner_leases()` therefore returns *statuses* (one per
+  lease), and `runner_leases_df()` only turns them into the five display columns.
+* **Only live leases have a row, and an empty table is a legitimate answer.** A free runner has no
+  file (§3.4), so it has no row: the table says who is *holding* something, not what could be
+  started — that is what the three Running/Stopped labels above it are for. `runners/old/` is not
+  listed, and the `.json` pattern is what keeps it out of the non-recursive listing (it shows up
+  there as a directory entry). When nothing holds a lease, DataTables' `emptyTable` message says it
+  in words — "no episomer service is running on any machine sharing this database" — instead of
+  showing an empty grid.
+* **A row that vanishes between the listing and its read is dropped.** Its holder released it, or
+  another instance took over and moved the file; `runner_lease_status()` reports `free` and such a
+  row would read as "a runner nobody holds", which is not a thing this table can display.
+* **`claimed_at` is now part of `runner_lease_status()`.** It is the "since" column, and it is the
+  one field that must come from the JSON rather than from the file: renewing only touches the file,
+  so `claimed_at` stays put while `seen_at` moves. A long "since" next to a short "last seen" is
+  exactly the picture of a healthy runner, and the two columns are only readable together.
+* **"stale" is worded with the TTL it exceeded, and "crashed here" is a status of its own.** Both
+  are `stale` for `runner_lease_status()`, but they call for different actions: one is a machine we
+  have not heard from (look at it, or wait for the TTL), the other is a certainty about a process of
+  ours that is gone and reclaimable right now. Hiding the difference behind one word would waste
+  the `holder_dead_locally` flag issue 7 added for this.
+* **The host column marks our own machine.** In the single-machine deployment — how episomer runs
+  almost everywhere — every row is local, and a bare host name next to a column called "Host"
+  leaves the reader wondering whether it is theirs. `machine-A (this machine)` costs one comparison
+  with `conf$instance_host` and removes the question.
+* **`Since` is displayed in UTC, like the stored value.** The holder may sit in another timezone
+  than the reader, and the point of that column is to be comparable with the `runners/*.json` files
+  and with the logs of the other machines. Anything unparseable is shown as it was written.
+* **The remote message *blocks* the activation, it does not merely inform.** `loop_run_issues()`
+  already gates the "activate" buttons through a modal, and spawning a process whose only future is
+  to die on `runner_lease_holder_message()` teaches the operator nothing that the modal cannot say
+  first — while naming the host, the claim time, the age of the last heartbeat and the TTL, i.e.
+  what to do next.
+* **`runner_running_elsewhere_message()` is deliberately silent in two cases.** A *stale* lease on
+  another machine is what the standby exists for and the claim is going to succeed; a lease held by
+  our own host makes starting a local matter, and there the PID check of `register_runner()` gives
+  the strictly better message because it names the process to stop. Both are tested, because both
+  look like missing checks on a quick read.
+* **The check sits at the very top of `loop_run_issues()`, before `get_tasks()`.** Nothing in the
+  local task states below could make that start succeed, so asking them first would only produce a
+  more precise answer to the wrong question. The runner name of each of the three loops is the loop
+  name itself, which is why one line covers `fs`, `search` and `detect`.
+* **The table is a status block, not a data table.** `dom = "t"`, no paging, no sorting: the rows
+  come in the reading order of `runner_leases_df()` (fs, fs_mon, search, detect, then alphabetical,
+  which puts the parent `search` lease right before its `search.<network>` children), and letting a
+  click reorder them would only break that. It refreshes with the rest of the `tasks` block of
+  `refresh_config_data()`, i.e. every ten seconds: one listing plus one read per runner, the same
+  order of magnitude as the four cluster-wide fields the page already computed.
+* **Found on the way:** the "activate" button of the alerts service never called
+  `loop_run_issues()` at all (`R/shiny-app.R`), so it is the one button that still spawns a doomed
+  process when another machine holds `detect`. `loop_run_issues("detect")` now answers the remote
+  case, so wiring it in is a two-line change — but it also starts gating a button that was never
+  gated, which is a behaviour change this issue does not own. Left for issue 9.
 
 ### Issue 9 — Documentation & deployment
 - [ ] vignette / README section: how to run one fs + N machines
@@ -862,6 +925,13 @@ Cases worth covering, in `tests/testthat/test-runners_lease.R`:
       `tryCatch()` that used to flatten the condition, and still failing loudly on a real error;
       `report_search_loop_outcomes()` on both of its cases; and `save_tasks()` staying unguarded for
       the Shiny app.
+- [x] (issue 8) in `tests/testthat/test-runners_status.R`: `runner_leases_df()` empty but with its
+      five columns when nothing holds a lease, one row per live lease in reading order, the
+      released lease under `runners/old/` and a stray non-JSON file both ignored, the wording of
+      `stale` vs `crashed here`, the "last seen"/"since" pair on an aged lease,
+      `format_lease_duration()` on its four scales plus a negative age, and
+      `runner_running_elsewhere_message()` / `loop_run_issues()` naming the remote host while
+      staying silent on a stale foreign lease and on a lease of our own host.
 - [x] (issue 7) `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE. In
       `tests/testthat/test-runners_running.R`, together with: a fresh *foreign* lease reading as
       running with no PID file on this machine at all (the point of the issue), the split of §7 case
