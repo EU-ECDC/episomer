@@ -147,9 +147,12 @@ Why this is better than the `released = true` marker first considered here:
 * `epilist.files(epipath("runners"))` then lists **live runners only**, which is exactly what the
   Shiny status table of §8 wants to show;
 * the released files are kept, not lost: `runners/old/` is a trail an operator can read after the
-  fact ("who held this and until when", the mtime being the release time). The `<instance_id>` in
-  the name keeps successive releases from overwriting each other, and nothing lists that folder, so
-  the accumulation costs nothing but disk.
+  fact ("who held this and until when"). Careful with the mtime there: moving a file preserves it,
+  both locally (`file.rename()`) and remotely (`Files.move`), so what it dates is the **last
+  heartbeat** of the holder, not the release. That is the useful value anyway — it is the last
+  moment that runner was known alive. The `<instance_id>` in the name keeps successive releases
+  from overwriting each other, and nothing lists that folder, so the accumulation costs nothing but
+  disk.
 
 Same precaution as with the marker, and it is the important one: **release only if we still hold
 the lease**. A move issued by an instance that silently lost its lease would take away the *new*
@@ -949,4 +952,77 @@ exactly during the guard wait — and `epifile.move()` / `to_remote_dest()` are 
 
 Kept for a manual/integration check on `docker compose`: everything going through the fs API
 over HTTP (only the `fs_remote = NULL` branch is unit-tested) and the takeover after killing a
-container (case 5).
+container (case 5). Those are written down as a runnable checklist, with the file, log line or
+table row to look at for each of them, in `inst/schema/multi_services_manual_tests.md`.
+
+### Issue 11 — A failed request must not kill the collection of a network
+
+Not planned: found on the **first real run** of the whole thing, with the three services started
+one by one from the `setup()` wizard. Everything below was read from `EPI_HOME` after the fact.
+
+Symptom: `runners/search.mastodon.*.json` were being renewed every twenty seconds while
+`search.bluesky` had already been moved to `runners/old/`, six seconds after the service started.
+`jobs/search.bluesky.log` stopped in the middle of the collection, on the line announcing its very
+first request, with **no error after it**. The worker process was still alive — a PSOCK node idling
+in `select()`, waiting for a command from its parent — while mastodon collected next to it for
+hours as if nothing had happened.
+
+What actually happened, and why none of it was visible:
+
+* `search_topic()` raised on the first bluesky request. The `tryCatch()` of `search_loop_worker()`
+  re-raised anything that was not `"too-old"`, so **one failed request ended the collection of that
+  network** until somebody restarted the whole service;
+* the error text was lost. A PSOCK node hands its errors back to the parent process, which reads
+  them only once **every** node has returned — and the other networks are still looping, so never.
+  `report_search_loop_outcomes()` (issue 6) is unreachable in that case: it is the *return* path,
+  and the crash path never reaches it;
+* the `on.exit(release_runner_lease())` of issue 4 ran and did its job, which is why the lease was
+  in `runners/old/`. The PID file `search.bluesky.PID` stayed behind though, still naming a live
+  process (the idling node) — so the two exclusion layers answered differently about the same
+  runner: "free" for the cluster, "running here" for this machine.
+
+- [x] `try_search_topic()`: one request, three outcomes (`done` / `too-old` / `failed`), returned
+      instead of raised. `episomer_lease_lost` still goes straight through — it is not a request
+      that went wrong, and retrying it would mean writing from an instance that is not the runner
+- [x] the worker absorbs a failed request, logs it, waits (exponential backoff capped at five
+      minutes, through `sleep_with_heartbeat()`) and tries again
+- [x] `search_max_request_failures()` consecutive failures end the worker, so that a permanent
+      failure releases the lease instead of pretending to collect
+- [x] `search_loop()` catches what a worker raises, writes it in that network's log and turns it
+      into an outcome `report_search_loop_outcomes()` can name
+- [x] the node restores its `sink()`s on exit
+- [x] `unregister_runner()` = release the lease + drop the PID file, used by the `on.exit()` of the
+      four loops
+- [x] tests: `tests/testthat/test-search_retry.R`, plus `unregister_runner()` in
+      `test-runners_register.R`
+
+Decided while implementing:
+
+* **Retrying for ever is not the safe default it looks like.** A wrong credential or a query the
+  API rejects fails identically every time, and a worker that keeps retrying keeps renewing its
+  lease: the service would look healthy while collecting nothing, which is strictly worse than the
+  crash it replaces. Giving up after ten consecutive failures (~20 minutes with the backoff)
+  releases the lease, which is what puts the network back in `missing_search_jobs()` and in the
+  status table of issue 8. The cluster-wide visibility built by issues 7 and 8 *is* the alerting
+  mechanism here — but only if a dead runner stops holding its lease.
+* **The counter is per worker and reset by any success**, not per plan. A network that answers
+  answers for every topic, and a flaky one must never accumulate its way to the cap. The known
+  cost: a single topic failing while the others succeed keeps being retried ahead of them
+  (`plan$requests` does not move on a failure, so the round robin comes back to it), starving the
+  others until the cap. Bounded, and the common case — the whole network being down — is unaffected.
+* **The backoff waits through `sleep_with_heartbeat()`**, like every other long wait since issue 5.
+  Five minutes of plain `Sys.sleep()` is exactly the search TTL: a runner would hand its network to
+  a standby machine while it was merely waiting for an API to come back, and wake up collecting
+  behind the new holder.
+* **`search_max_request_failures()` and `search_retry_wait()` are functions, not `conf`
+  properties.** Issue 3 established where deployment knobs go, but these two are not knobs yet:
+  nobody has needed a different value, and a function is what a test can shorten. Promoting them to
+  `conf` is purely additive if that changes.
+* **Found on the way:** the `"too-old"` recovery of the first plan called `search_topic()` without
+  passing `sandboxed` on, so a sandboxed run recovering from a too-old request uploaded posts after
+  all. Fixed with a test.
+* **Still true, and not fixed here:** the parent process cannot notice a worker that returned while
+  the others keep looping — that is `parLapply()`'s scheduling, and changing it means changing the
+  parallelism model. What makes a dead network visible now is the log of that network, plus the
+  released lease showing up in `missing_search_jobs()`. Worth revisiting if the search service ever
+  gets a supervisor.

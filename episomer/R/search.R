@@ -45,10 +45,10 @@ search_loop <- function(
   if (!sandboxed) {
     # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
     register_search_runner()
-    # Releasing the parent "search" lease on exit. Not strictly required by the plan (which only
-    # lists the three loops that do the work), but the reason is the same: without it, restarting
-    # the search service means waiting for the TTL before it may collect again.
-    on.exit(release_runner_lease(), add = TRUE)
+    # Releasing the parent "search" lease and the PID file on exit. Not strictly required by the
+    # plan (which only lists the three loops that do the work), but the reason is the same: without
+    # it, restarting the search service means waiting for the TTL before it may collect again.
+    on.exit(unregister_runner(), add = TRUE)
   }
 
   if(log_to_file) {
@@ -76,11 +76,39 @@ search_loop <- function(
           outcon <- file(file.path(jobs_dir, sprintf("search.%s.log", sm)), open = "a")
           sink(outcon)
           sink(outcon, type = "message")
+          # Undoing the redirection is not cosmetic: a worker leaving without it hands its PSOCK
+          # node back to the cluster with both sinks still pointing at a network log file, so
+          # anything the node is asked to do next writes there instead of where it should.
+          on.exit(
+            {
+              sink(NULL, type = "message")
+              sink(NULL)
+              close(outcon)
+            },
+            add = TRUE
+          )
       }
       episomer::setup_config(data_dir)
       m <- paste("Running search agent for ",sm, Sys.time())
       message(m)
-      episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests)
+      # A worker that raises has its error carried back to this parent process by `parallel`, which
+      # only hands it over once *every* node has returned - and the other networks are still
+      # looping, so that is never. The error text was simply lost, and the log of the dead network
+      # stopped mid-collection with nothing to say why. Catching it here writes it down while the
+      # sinks above still point at that network's log, and turns it into an outcome
+      # report_search_loop_outcomes() can name.
+      tryCatch(
+        episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests),
+        error = function(e) {
+          message(sprintf(
+            "%s [ERROR]: the search worker for %s stopped: %s",
+            Sys.time(),
+            sm,
+            conditionMessage(e)
+          ))
+          paste("error:", conditionMessage(e))
+        }
+      )
   })
   report_search_loop_outcomes(sms, outcomes)
 }
@@ -137,7 +165,9 @@ report_search_loop_outcomes <- function(networks, outcomes) {
 #' @param max_requests The maximum number of requests to perform.
 #' @return Invisibly, why the worker stopped: \code{"lease-lost"} when another instance took this
 #' network over, \code{"ended"} when \code{max_requests} was reached. Read by \code{search_loop()}
-#' to tell an orderly handover from an unexpected end.
+#' to tell an orderly handover from an unexpected end. A failed request does not stop the worker,
+#' it is logged and tried again; only \code{search_max_request_failures()} consecutive failures do,
+#' and that one raises rather than returning.
 #' @details The search loop worker is a function that runs the search loop for a given social media network.
 #' It is used to run the search loop in a separate process.
 search_loop_worker <- function(
@@ -159,11 +189,16 @@ search_loop_worker <- function(
     register_search_runner(network)
     # This is the lease that really matters: exclusivity is per network ("search.bluesky",
     # "search.mastodon.piaille.fr"), because that is where two machines would push the same posts
-    # twice. Releasing it lets the standby machine take this network over on its next restart.
-    on.exit(release_runner_lease(), add = TRUE)
+    # twice. Releasing it lets the standby machine take this network over on its next restart, and
+    # dropping the PID file with it keeps the local layer from claiming a runner that has stopped.
+    on.exit(unregister_runner(), add = TRUE)
   }
   # Infinite loop for getting posts if it is successfully registered as the search runner
   req2Commit <- 0
+  # Consecutive failed requests, whatever the topic they were made for: a network that answers is
+  # a network that answers for every topic, so one counter for the worker rather than one per plan.
+  # Reset by any request that goes through, read by search_max_request_failures().
+  request_failures <- 0
   last_check <- Sys.time()
   last_save <- Sys.time()
   first_call <- Sys.time()
@@ -174,8 +209,9 @@ search_loop_worker <- function(
   # buried in req_perform() - lands here and becomes a clean exit with a log line, instead of an
   # error crashing the worker process (R/runners-lease.R).
   #
-  # The on.exit(release_runner_lease()) above still runs, and that is fine: it refuses to release
-  # a lease that is not ours anymore, which is exactly the situation here.
+  # The on.exit(unregister_runner()) above still runs, and that is fine: it refuses to release a
+  # lease that is not ours anymore, which is exactly the situation here, and only drops the local
+  # PID file, which does describe this process.
   outcome <- run_until_lease_lost({
     while (max_requests == 0 || requests_done <= max_requests) {
       loop_start <- Sys.time()
@@ -301,46 +337,51 @@ search_loop_worker <- function(
               requests_done <- requests_done + 1
               #if search is performed on the first plan and we get an too old error, we will retry without time limit
               #message(sprintf("This is plan %s, doing request %s out of %s", j, plan$requests + 1,length(conf$topics[[i]]$plan) ))
-              tryCatch(
-                {
-                  conf$topics[[i]]$plan[[j]] = search_topic(
-                    plan = plan,
-                    query = conf$topics[[i]]$query,
-                    topic = conf$topics[[i]]$topic,
-                    sandboxed = sandboxed
-                  )
-                },
-                error = function(e) {
-                  if (inherits(e, "episomer_lease_lost")) {
-                    # Re-raised *unchanged*, and tested before anything else. This handler ends with
-                    # stop(paste(e$message, e)), which rebuilds a plain error from the text of the
-                    # condition and so loses the episomer_lease_lost class the top of the loop matches
-                    # on: the worker would still stop, but with an unexplained error instead of the
-                    # clean exit of run_until_lease_lost(). stop(<condition>) re-signals the very same
-                    # object, class included.
-                    #
-                    # The path exists because a lost lease can now be raised from *inside*
-                    # search_topic(): by its own stop_if_lease_lost() before the upload, and by
-                    # heartbeat_before_retry() from within req_perform() during a rate-limit wait
-                    # (issue 5).
-                    stop(e)
-                  } else if (j == 1 && e$message == "too-old") {
-                    msg("Recovering from too-old request")
-                    plan$since_id <- NULL
-                    plan$since_target <- NULL
-                    conf$topics[[i]]$plan[[j]] = search_topic(
-                      plan = plan,
-                      query = conf$topics[[i]]$query,
-                      topic = conf$topics[[i]]$topic
-                    )
-                  } else if (e$message == "too-old") {
-                    msg("Canceling too-old request")
-                    conf$topics[[i]]$plan[[j]]$end_on <- Sys.time()
-                  } else {
-                    stop(paste(e$message, e))
-                  }
-                }
+              attempt <- try_search_topic(
+                plan = plan,
+                query = conf$topics[[i]]$query,
+                topic = conf$topics[[i]]$topic,
+                sandboxed = sandboxed,
+                is_first_plan = (j == 1)
               )
+              if (identical(attempt$status, "done")) {
+                conf$topics[[i]]$plan[[j]] <- attempt$plan
+                request_failures <- 0
+              } else if (identical(attempt$status, "too-old")) {
+                # Not a failure: the API simply has nothing left that old, so this plan is over.
+                msg("Canceling too-old request")
+                conf$topics[[i]]$plan[[j]]$end_on <- Sys.time()
+                request_failures <- 0
+              } else {
+                # A failed request used to end the worker on the spot, and with it the collection of
+                # this whole network - a single 500 from the social media API, or a DNS hiccup, was
+                # enough. It is now absorbed: the plan is left untouched (its `requests` counter has
+                # not moved either), so the round robin comes back to it after the backoff below.
+                #
+                # This is also the only place the error text is ever written down. The worker runs
+                # inside a PSOCK node, whose errors are handed back to the parent process and only
+                # read once *every* node has returned - which never happens, the other networks are
+                # still looping. Logging here is what turns "the log of this network stops mid-line"
+                # into something an operator can act on.
+                request_failures <- request_failures + 1
+                msg(sprintf(
+                  "Request failed for topic %s on %s (%s consecutive failure(s) out of %s allowed): %s",
+                  conf$topics[[i]]$topic,
+                  network,
+                  request_failures,
+                  search_max_request_failures(),
+                  conditionMessage(attempt$error)
+                ))
+                if (request_failures >= search_max_request_failures()) {
+                  stop(sprintf(
+                    "%s consecutive requests failed on %s, giving this network up. Last error: %s",
+                    request_failures,
+                    network,
+                    conditionMessage(attempt$error)
+                  ))
+                }
+                search_retry_wait(request_failures)
+              }
               req2Commit <- req2Commit + 1
               if (!sandboxed) {
                 if (req2Commit > 100) {
@@ -390,6 +431,88 @@ search_loop_worker <- function(
   })
   invisible(outcome)
 }
+
+# Runs one request of one plan and says what happened, without letting a failure end the collection
+# of the whole network.
+#
+# Three outcomes, all returned rather than raised:
+#
+#   list(status = "done",    plan  = <the plan updated by the request>)
+#   list(status = "too-old", error = <condition>)   the API has nothing that old left; plan is over
+#   list(status = "failed",  error = <condition>)   anything else; the caller retries it later
+#
+# episomer_lease_lost is deliberately *not* turned into a "failed": it does not say that a request
+# went wrong, it says that this instance is not the runner of this network anymore. It has to reach
+# run_until_lease_lost() at the top of the loop with its class intact - the historical handler here
+# rebuilt a plain error from its text, which made an orderly handover look like a crash
+# (R/runners-lease.R). A retried lost lease would be worse still: this process must stop writing,
+# not try again.
+try_search_topic <- function(plan, query, topic, sandboxed, is_first_plan) {
+  request <- function(plan) {
+    list(
+      status = "done",
+      plan = search_topic(
+        plan = plan,
+        query = query,
+        topic = topic,
+        sandboxed = sandboxed
+      )
+    )
+  }
+  classify <- function(e) {
+    if (inherits(e, "episomer_lease_lost")) {
+      stop(e)
+    }
+    if (identical(conditionMessage(e), "too-old")) {
+      list(status = "too-old", error = e)
+    } else {
+      list(status = "failed", error = e)
+    }
+  }
+  attempt <- tryCatch(request(plan), error = classify)
+  # The first plan of a topic is the one walking back in time: when the API tells it that its
+  # window is too old, dropping the lower bound and asking again is what lets it resume from what
+  # is still served, instead of ending the plan for good. The retry runs with the same `sandboxed`
+  # as the first attempt - it used to be left to its default, so a sandboxed run recovering from a
+  # too-old request wrote to the database after all.
+  if (!identical(attempt$status, "too-old") || !is_first_plan) {
+    return(attempt)
+  }
+  msg("Recovering from too-old request")
+  plan$since_id <- NULL
+  plan$since_target <- NULL
+  tryCatch(request(plan), error = classify)
+}
+
+# How many consecutive failed requests a search worker tolerates before giving its network up.
+#
+# "Retry for ever" is not the right answer: a wrong credential or a query the API rejects fails the
+# same way every time, and a worker that keeps retrying keeps renewing its lease - the service
+# would look perfectly healthy while collecting nothing. Giving up releases the lease, which is
+# precisely what makes the network appear in missing_search_jobs() and in the services status table
+# of the Shiny app.
+#
+# Ten failures with the backoff below means roughly twenty minutes of trying before that happens,
+# which is far more than any transient failure lasts and far less than a working day of silence.
+# A function rather than a constant so that a test can shorten it.
+search_max_request_failures <- function() {
+  10
+}
+
+# Waits before trying a failed request again: exponential, capped at five minutes.
+#
+# Two reasons for the cap and for the growth. An API that just answered 500 does not want to be
+# asked again immediately, and the wait must stay short enough for a collection to resume by itself
+# once the other end is back. The waiting is done by sleep_with_heartbeat(), so even the longest
+# backoff keeps proving the runner is alive and stops at once if another instance took over
+# (R/runners-lease.R).
+search_retry_wait <- function(failures) {
+  wait <- min(5 * 2^(failures - 1), 300)
+  msg(paste("Waiting", wait, "seconds before trying this request again"))
+  sleep_with_heartbeat(wait)
+  invisible(wait)
+}
+
 #printtime <- function(t) {}
 #' updates the modificatin date of a flag file indicating that messages have been sent to the embedded database.
 search_touch <- function() {

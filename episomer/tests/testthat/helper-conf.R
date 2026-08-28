@@ -78,3 +78,25 @@ local_heartbeats <- function(.local_envir = parent.frame()) {
   rm(list = ls(lease_last_renewal, all.names = TRUE), envir = lease_last_renewal)
   invisible(lease_last_renewal)
 }
+
+# Makes the lease of `name` belong to another machine, as if it had been taken over while this
+# process was busy collecting.
+steal_lease <- function(name) {
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease(name))
+}
+
+# The one-plan, one-topic configuration search_loop_worker() needs to reach its inner loop:
+# requests = 0 and an expected_end in the future keep update_plans_schedule() from rebuilding
+# anything, so the plan below is the plan the worker will work on.
+a_topic_with_one_plan <- function(network = "bluesky") {
+  list(list(
+    topic = "topic-1",
+    query = "something",
+    plan = list(list(
+      network = network,
+      requests = 0,
+      expected_end = Sys.time() + 3600,
+      end_on = NULL
+    ))
+  ))
+}

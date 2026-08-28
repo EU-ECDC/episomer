@@ -100,6 +100,32 @@ register_runner <- function(name) {
   invisible(name)
 }
 
+# Undoes register_runner(), one layer at a time. Meant to be the on.exit() of every loop.
+#
+# Both layers have to go, and they go for different reasons:
+#
+#   * the lease, so that another machine may take this runner over immediately instead of waiting
+#     out the TTL. release_runner_lease() refuses if we are not the holder anymore, which is what
+#     keeps a runner that was taken over from moving away the *new* holder's file;
+#   * the PID file, because it describes this very process, which is ending. Leaving it behind was
+#     the state observed after a search worker died: the lease said "free" while the PID file still
+#     named a live process (a PSOCK node idling in its parent's cluster), so the two layers
+#     answered differently about the same runner and a restart of that single runner was refused
+#     locally by a runner nobody was running.
+#
+# The PID file is only removed when it still names this process: if another local process took the
+# registration over, the file is its own and not ours to delete.
+unregister_runner <- function(name = conf$runner_name) {
+  if (is.null(name)) {
+    return(invisible(FALSE))
+  }
+  released <- release_runner_lease(name)
+  if (identical(read_running_task_pid_file(name), as.integer(Sys.getpid()))) {
+    remove_running_task_pid(name)
+  }
+  invisible(released)
+}
+
 #' @title Registers the social media message collection task
 #' @description registers the social media message collection task or stops if no configuration has been set or if it is already running
 #' @return Nothing

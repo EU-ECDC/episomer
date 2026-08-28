@@ -16,27 +16,8 @@
 # directory and nothing touches the network, and a "second instance" is another conf$instance_id
 # borrowed with with_instance().
 
-# Makes the lease of `name` belong to another machine, as if it had been taken over while this
-# process was busy collecting.
-steal_lease <- function(name) {
-  with_instance("instance-B", host = "machine-B", code = write_runner_lease(name))
-}
-
-# The one-plan, one-topic configuration search_loop_worker() needs to reach its inner loop:
-# requests = 0 and an expected_end in the future keep update_plans_schedule() from rebuilding
-# anything, so the plan below is the plan the worker will work on.
-a_topic_with_one_plan <- function(network = "bluesky") {
-  list(list(
-    topic = "topic-1",
-    query = "something",
-    plan = list(list(
-      network = network,
-      requests = 0,
-      expected_end = Sys.time() + 3600,
-      end_on = NULL
-    ))
-  ))
-}
+# steal_lease() and a_topic_with_one_plan() live in helper-conf.R: test-search_retry.R drives the
+# same worker with the same one-plan configuration.
 
 # run_until_lease_lost() -------------------------------------------------------------------------
 
@@ -184,6 +165,10 @@ test_that("search_loop_worker() still fails loudly on a real error", {
     search_topic = function(plan, query, topic, sandboxed = FALSE) {
       stop("the social media API is down")
     },
+    # A failed request is retried now (test-search_retry.R), so a single tolerated failure is what
+    # makes this test about what it has always been about: a genuine error must not be mistaken for
+    # an orderly handover, it must reach the caller with its text.
+    search_max_request_failures = function() 1,
     .package = "episomer"
   )
 
