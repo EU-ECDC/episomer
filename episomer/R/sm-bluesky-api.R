@@ -46,11 +46,20 @@ sm_api_get_token_bluesky <- function(network = NULL) {
 sm_api_translate_query_bluesky <- function(parsed) {
 # @function_def_end (do not delete)
   ret = list()
-  for(i in 1:length(parsed$ors)) {
-     comb = do.call(expand.grid, parsed$ors[[i]])
+  for(i in seq_along(parsed$ors)) {
+     terms <- parsed$ors[[i]]
+     # a subquery with no term at all (what an all-negative query parses to) has nothing to search
+     # for: it produces no native query rather than an empty one.
+     if (length(terms) == 0) next
+     # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
+     # factors: one column per term, the synonyms of a term being the values of its column.
+     # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
+     # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
+     # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
+     comb = expand.grid(terms, stringsAsFactors = FALSE)
      if (nrow(comb) > 0) {
-       r <- paste(lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ]))))
-       if(length(parsed$neg)>0) 
+       r <- paste(lapply(seq_len(nrow(comb)), function(i) do.call(paste, as.list(comb[i, ]))))
+       if(length(parsed$neg)>0)
           r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
        ret = c(ret, r)
      }
