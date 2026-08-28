@@ -202,108 +202,134 @@ detect_loop <- function(data_dir = NA) {
 
   # lass_sleeping_message set to ensure it will be shown if all is done
   last_sleeping_message <- Sys.time() - (conf$schedule_span * 60)
-  while (TRUE) {
-    # Proving the detect runner is still alive, once per turn of the loop (R/runners-lease.R).
-    # It only covers the loop itself: a single task (alerts, geolocation, aggregation) can run for
-    # a very long time without coming back here, which is exactly why the detect TTL is 30 minutes
-    # and not 5 (plan section 3.5).
-    renew_runner_lease_if_due()
-    # getting tasks to execute with one scheduled
-    tasks <- plan_tasks()
-    # seeing if there is something to do
-    # either there is a scheduled task
-    # or a task is in an inconsistency state (running) or failed (failed or aborted)
-    # aborted tasks are being taken into consideration since they should stop further taks from being executed
-    if (
-      length(tasks[sapply(
-        tasks,
-        function(t)
-          !is.na(t$status) &&
-            (t$status %in%
-              c("failed", "running", "aborted") ||
-              (t$status %in% c("scheduled") && t$scheduled_for <= Sys.time()))
-      )]) >
-        0
-    ) {
-      # getting the position of the task to execute (first in one of the active status)
-      i_next <- order(sapply(
-        tasks,
-        function(t)
-          if (
-            !is.na(t$status) &&
-              t$status %in% c("aborted", "scheduled", "failed", "running")
-          )
-            t$order else 999
-      ))[[1]]
-      # proceeding if task is not already aborted (otherwise keep looping)
-      if (tasks[[i_next]]$status != "aborted") {
-        # increasing number of failures if failed of running
-        if (tasks[[i_next]]$status %in% c("failed", "running")) {
-          tasks[[i_next]]$failures = (if (
-            !exists("failures", where = tasks[[i_next]])
-          )
-            1 else tasks[[i_next]]$failures + 1)
-        }
-        # setting to aborted if the max number of retries has been reached
-        if (
-          tasks[[i_next]]$status %in%
-            c("failed", "running") &&
-            tasks[[i_next]]$failures > 1
-        ) {
-          tasks[[i_next]]$status = "aborted"
-          tasks[[i_next]]$message = paste(
-            "Max number of retries reached",
-            tasks[[i_next]]$message,
-            sep = "\n"
-          )
-          save_tasks(tasks)
-          health_check(one_per_day = FALSE)
-        } else {
-          # if task is not aborted proceeding with execution
-          message(paste(Sys.time(), ": Executing task", tasks[[i_next]]$task))
-          if (tasks[[i_next]]$task == "alerts") {
-            tasks <- generate_alerts(tasks)
-          }
-          # resetting failures to zero if successfully executed
-          if (tasks[[i_next]]$status == "success") tasks[[i_next]]$failures = 0
-
-          # saving tasks
-          save_tasks(tasks)
-        }
-      }
-    } else if (
-      last_sleeping_message + (conf$schedule_span * 60) < Sys.time() &&
+  # Same handler as in search_loop_worker(): the guard points below raise episomer_lease_lost,
+  # and this turns it into a clean end of the detect service with an explicit log line rather
+  # than an error. The on.exit(release_runner_lease()) above refuses to release a lease that is
+  # not ours anymore, so it stays as it is (R/runners-lease.R).
+  run_until_lease_lost({
+    while (TRUE) {
+      # Proving the detect runner is still alive, once per turn of the loop (R/runners-lease.R).
+      # It only covers the loop itself: a single task (alerts, geolocation, aggregation) can run for
+      # a very long time without coming back here, which is exactly why the detect TTL is 30 minutes
+      # and not 5 (plan section 3.5).
+      renew_runner_lease_if_due()
+      # getting tasks to execute with one scheduled
+      # Guard point: plan_tasks() is a reader that also writes - it saves tasks.json as soon as it
+      # changes a schedule (R/scheduler.R, `if (change) save_tasks(tasks)`). Guarding here rather
+      # than inside save_tasks() itself, because the Shiny app calls save_tasks() too and holds no
+      # lease at all (plan section 6.4): a guard down there would abort the app.
+      stop_if_lease_lost()
+      tasks <- plan_tasks()
+      # seeing if there is something to do
+      # either there is a scheduled task
+      # or a task is in an inconsistency state (running) or failed (failed or aborted)
+      # aborted tasks are being taken into consideration since they should stop further taks from being executed
+      if (
         length(tasks[sapply(
           tasks,
           function(t)
             !is.na(t$status) &&
-              (t$status %in% c("scheduled") && t$scheduled_for >= Sys.time())
+              (t$status %in%
+                c("failed", "running", "aborted") ||
+                (t$status %in% c("scheduled") && t$scheduled_for <= Sys.time()))
         )]) >
           0
-    ) {
-      #nothing to do (and not aborted tasks and 'nothing to do' message has not yet been shown for current detect slot
-      i_next <- order(sapply(
-        tasks,
-        function(t)
-          if (!is.na(t$status) && t$status %in% c("scheduled")) t$order else 999
-      ))[[1]]
-      message(paste(
-        Sys.time(),
-        ": Nothing else todo. Going to sleep each 5 seconds until ",
-        format(tasks[[i_next]]$scheduled_for, tz = Sys.timezone(), usetz = TRUE)
-      ))
-      last_sleeping_message <- Sys.time()
+      ) {
+        # getting the position of the task to execute (first in one of the active status)
+        i_next <- order(sapply(
+          tasks,
+          function(t)
+            if (
+              !is.na(t$status) &&
+                t$status %in% c("aborted", "scheduled", "failed", "running")
+            )
+              t$order else 999
+        ))[[1]]
+        # proceeding if task is not already aborted (otherwise keep looping)
+        if (tasks[[i_next]]$status != "aborted") {
+          # increasing number of failures if failed of running
+          if (tasks[[i_next]]$status %in% c("failed", "running")) {
+            tasks[[i_next]]$failures = (if (
+              !exists("failures", where = tasks[[i_next]])
+            )
+              1 else tasks[[i_next]]$failures + 1)
+          }
+          # setting to aborted if the max number of retries has been reached
+          if (
+            tasks[[i_next]]$status %in%
+              c("failed", "running") &&
+              tasks[[i_next]]$failures > 1
+          ) {
+            tasks[[i_next]]$status = "aborted"
+            tasks[[i_next]]$message = paste(
+              "Max number of retries reached",
+              tasks[[i_next]]$message,
+              sep = "\n"
+            )
+            # Guard point: giving up on a task is recorded in tasks.json, and the Shiny app reads it
+            # to offer a manual relaunch. The new holder is running its own copy of this loop, so a
+            # write from here would fight with it over the same file.
+            stop_if_lease_lost()
+            save_tasks(tasks)
+            health_check(one_per_day = FALSE)
+          } else {
+            # if task is not aborted proceeding with execution
+            message(paste(Sys.time(), ": Executing task", tasks[[i_next]]$task))
+            # Guard point: the heaviest write of the detect loop. generate_alerts() detects the
+            # alerts, POSTs them to the fs and mails the subscribers - having two instances do that
+            # for the same period means duplicated alerts *and* duplicated emails. It is checked
+            # before starting rather than inside, because the task is one long block that reports its
+            # own progress through update_alerts_task(); the residual risk is a task started just
+            # before the takeover, which the long detect TTL (30 min) is meant to make rare.
+            stop_if_lease_lost()
+            if (tasks[[i_next]]$task == "alerts") {
+              tasks <- generate_alerts(tasks)
+            }
+            # resetting failures to zero if successfully executed
+            if (tasks[[i_next]]$status == "success") tasks[[i_next]]$failures = 0
+
+            # saving tasks
+            # Guard point again: the task above can run for a very long time, so holding the lease
+            # when it started says nothing about holding it now.
+            stop_if_lease_lost()
+            save_tasks(tasks)
+          }
+        }
+      } else if (
+        last_sleeping_message + (conf$schedule_span * 60) < Sys.time() &&
+          length(tasks[sapply(
+            tasks,
+            function(t)
+              !is.na(t$status) &&
+                (t$status %in% c("scheduled") && t$scheduled_for >= Sys.time())
+          )]) >
+            0
+      ) {
+        #nothing to do (and not aborted tasks and 'nothing to do' message has not yet been shown for current detect slot
+        i_next <- order(sapply(
+          tasks,
+          function(t)
+            if (!is.na(t$status) && t$status %in% c("scheduled")) t$order else 999
+        ))[[1]]
+        message(paste(
+          Sys.time(),
+          ": Nothing else todo. Going to sleep each 5 seconds until ",
+          format(tasks[[i_next]]$scheduled_for, tz = Sys.timezone(), usetz = TRUE)
+        ))
+        last_sleeping_message <- Sys.time()
+      }
+      # episomer sanity check and sending email in case of issues
+      health_check()
+      # updating config to capture changes coming from search loop or shiny app
+      setup_config(data_dir = conf$data_dir)
+      # sleep for 5 seconds, renewing the lease if the heartbeat span has passed. Five seconds is
+      # shorter than any heartbeat span, so this is really the renewal at the top of the loop above
+      # doing the work - what sleep_with_heartbeat() adds here is stop_if_lease_lost(), which makes
+      # the loop notice a stolen lease while it is idle instead of on its next write.
+      sleep_with_heartbeat(5)
     }
-    # episomer sanity check and sending email in case of issues
-    health_check()
-    # updating config to capture changes coming from search loop or shiny app
-    setup_config(data_dir = conf$data_dir)
-    # sleep for 5 seconds, renewing the lease if the heartbeat span has passed. Five seconds is
-    # shorter than any heartbeat span, so this is really the renewal at the top of the loop above
-    # doing the work - what sleep_with_heartbeat() adds here is stop_if_lease_lost(), which makes
-    # the loop notice a stolen lease while it is idle instead of on its next write.
-    sleep_with_heartbeat(5)
-  }
+  })
+  invisible(NULL)
 }
 
 # Check if provided task is in pending status which means that a user has requested a manual run and the task is not already running or scheduled

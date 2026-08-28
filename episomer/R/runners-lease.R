@@ -559,6 +559,37 @@ stop_if_lease_lost <- function(name = conf$runner_name) {
   invisible(NULL)
 }
 
+# Runs `expr` and turns the loss of the runner lease into a clean, explained exit.
+#
+# This is the other half of stop_if_lease_lost(): the guard points scattered before the meaningful
+# writes raise the condition, the top of each loop catches it here. Losing a lease is not a failure
+# of this process - another instance legitimately took over after this one stopped proving it was
+# alive - so the loop has to end the way it ends on a clean shutdown: one explicit log line, and no
+# error propagating to a supervisor that would read it as a crash worth restarting immediately.
+#
+# What this deliberately does NOT do is release the lease. The file under runners/ now belongs to
+# the new holder, and releasing would move *its* file away. The on.exit(release_runner_lease()) the
+# loops already carry is harmless for the same reason: it checks i_hold_runner_lease() first and
+# refuses (see release_runner_lease()), so there is nothing to undo here.
+#
+# Returns the value of `expr`, or the sentinel "lease-lost" when the lease was taken - which is how
+# search_loop() tells a worker that stepped aside from one that ended for an unknown reason.
+run_until_lease_lost <- function(expr) {
+  tryCatch(
+    # `expr` is evaluated here, inside the tryCatch(): the handler below is in place for the whole
+    # run of the loop, including the waits nested deep inside req_perform() (heartbeat_before_retry)
+    expr,
+    episomer_lease_lost = function(cnd) {
+      msg(conditionMessage(cnd))
+      msg(paste(
+        "Another instance is now in charge of this runner: exiting cleanly and leaving the lease",
+        "to its new holder."
+      ))
+      "lease-lost"
+    }
+  )
+}
+
 # Explains why a claim failed, naming the instance that holds the runner right now.
 #
 # This is what an operator reads in the logs of the container that refused to start, so it has to
