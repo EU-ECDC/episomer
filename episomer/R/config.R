@@ -303,6 +303,14 @@ get_instance_host <- function() {
 #'   \item{General properties of the Shiny app (stored in properties.json)}
 #'   \item{Download plans from the social media collection process (stored in topics.json merged with data from the topics.xlsx file}
 #'   \item{Credentials for social media APIs and SMTP stored in the defined keyring}
+#'   \item{The identity of the running instance: 'instance_id', a random identifier generated once
+#'     per R process, and 'instance_host', the name of the machine. Both describe the current
+#'     process rather than the shared configuration, so they are never written to properties.json.
+#'     'instance_host' is taken from the environment variable 'EPISOMER_INSTANCE' when it is set,
+#'     and falls back to the system host name otherwise. Setting 'EPISOMER_INSTANCE' is recommended
+#'     when running episomer in containers, whose host names are random, and when several machines
+#'     share the same data directory: it is the name the dashboard displays to tell which machine a
+#'     service is running on.}
 #' }
 #'
 #' When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
@@ -348,6 +356,20 @@ setup_config <- function(
   #setting the data_dir which is a read only property
   conf$data_dir <- data_dir
   conf$fs_remote <- fs_remote
+  # Identity of this process, see new_instance_id() above. It is deliberately set here, before
+  # anything is read from disk, so every code path going through setup_config() has it available.
+  #
+  # instance_id is generated *once per process*: setup_config() is called again on every
+  # configuration refresh (the Shiny app calls it on each change), and handing out a new identity
+  # each time would make a running loop look like a different instance, i.e. lose the runner lease
+  # it legitimately holds. inherits = FALSE keeps the lookup inside conf itself and does not walk
+  # up to the package namespace, where an unrelated `instance_id` binding could exist.
+  if (!exists("instance_id", envir = conf, inherits = FALSE)) {
+    conf$instance_id <- new_instance_id()
+  }
+  # instance_host, on the other hand, is refreshed on each call: it costs nothing and it lets a
+  # deployment fix a wrong EPISOMER_INSTANCE without restarting the process.
+  conf$instance_host <- get_instance_host()
   # paths contains two files storing configuration data:
   # props which contains properties set on the Shiny App is stored on data_dir/properties.json
   # and data_dir/topics.json which stores search progress and is updated by the search loop
@@ -380,6 +402,9 @@ setup_config <- function(
       ))
     }
     #Setting config  variables filled only from json file
+    # Symmetrically to save_config, the properties are copied one by one: an instance_id or an
+    # instance_host left in properties.json by an older version, or added by hand, must never
+    # overwrite the identity of the running process set at the top of this function.
     conf$keyring <- temp$keyring
     conf$collect_span <- temp$collect_span
     conf$schedule_span <- temp$schedule_span
@@ -647,7 +672,12 @@ save_config <- function(
   }
 
   if (properties) {
-    # saving properties to the properties.json file
+    # saving properties to the properties.json file.
+    # This list is built property by property on purpose: conf also holds session state describing
+    # *this* process - data_dir, fs_remote, and the instance_id / instance_host of the running
+    # instance - and properties.json is shared by every machine using the same data directory.
+    # Writing an identity there would hand it to every other instance. Do not replace this by a
+    # dump of conf.
     temp <- list()
     temp$collect_span <- conf$collect_span
     temp$schedule_span <- conf$schedule_span
