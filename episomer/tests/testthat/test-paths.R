@@ -113,6 +113,21 @@ test_that("to_remote_relative removes 'file' prefix from path", {
   expect_equal(result, "/nested/path/file.txt")
 })
 
+test_that("to_remote_dest gives the path the fs API expects in a move or a copy body", {
+  local_conf("fs_remote" = "http://example.com:8080")
+
+  # the API resolves the destination against its own epiHome and refuses anything absolute, so the
+  # leading slash left by to_remote_relative() has to go
+  expect_equal(
+    to_remote_dest("http://example.com:8080/file/runners/old/detect.abc.json"),
+    "runners/old/detect.abc.json"
+  )
+  expect_equal(
+    to_remote_dest("http://example.com:8080/file/data.json"),
+    "data.json"
+  )
+})
+
 test_that("to_remote_relative throws error for non-remote paths", {
   local_conf("fs_remote" = "http://example.com:8080")
 
