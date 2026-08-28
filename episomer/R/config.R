@@ -998,16 +998,28 @@ get_known_users <- function() {
 # The properties declaring the social media: the per family switches and, for federated families,
 # the list of instances to collect from. The list of networks is derived from them.
 sm_config_properties <- function(x) {
+  # x is either the conf environment or a plain list read from properties.json. For an environment,
+  # ls() rather than names(): names() follows the internal hash table order, which shifts as conf
+  # grows and never goes back (see social_media_families() for the full story). The consequence is
+  # milder here - it only shuffles the order of the sm_* keys written to properties.json, i.e.
+  # spurious diffs on the file from one save to the next - but there is no reason to accept it.
+  props <- if (is.environment(x)) ls(x, all.names = TRUE) else names(x)
   grep(
     "^sm_(activated|alerts)_|^[A-Za-z0-9]+_instances$",
-    names(x),
+    props,
     value = TRUE
   )
 }
 
 # the families declared in the configuration, i.e. those having activation switches
 social_media_families <- function() {
-  props <- names(conf)
+  # ls() and not names(): names() on an environment is *not* sorted, it returns the keys in the
+  # internal hash table order. That order depends on the size of the table, which grows as conf is
+  # filled and never shrinks when it is emptied - so the families would come out in one order in a
+  # fresh session and in another one after a setup_config(), and so would everything derived from
+  # them: active_social_media(), alerts_social_media(), the collection order of the search loop and
+  # the "known families are: ..." messages.
+  props <- ls(conf, all.names = TRUE)
   sub("^sm_activated_", "", props[grepl("^sm_activated_", props)])
 }
 
