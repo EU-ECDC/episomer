@@ -8,24 +8,7 @@
 # a running server, and is checked manually on docker compose - see the end of section 11 of
 # inst/schema/multi_services_plan.md.
 
-# Configuration of a local instance owning a fresh, empty data directory.
-local_lease_conf <- function(
-  instance_id = "instance-A",
-  instance_host = "machine-A",
-  ...,
-  .local_envir = parent.frame()
-) {
-  data_dir <- withr::local_tempdir(.local_envir = .local_envir)
-  local_conf(
-    data_dir = data_dir,
-    fs_remote = NULL,
-    instance_id = instance_id,
-    instance_host = instance_host,
-    ...,
-    .local_envir = .local_envir
-  )
-  data_dir
-}
+# local_lease_conf() lives in helper-conf.R: the registration tests use it too.
 
 # Paths and names ---------------------------------------------------------------------------------
 

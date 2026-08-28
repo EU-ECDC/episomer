@@ -231,6 +231,17 @@ claim_runner_lease <- function(name, guard = runner_claim_guard()) {
     # somebody else is alive and holding it: no write at all, so the holder is left undisturbed
     return(FALSE)
   }
+  if (!is.null(current) && identical(current$instance_id, conf$instance_id)) {
+    # The live lease already names me: this is a re-registration, not an acquisition. There is
+    # nothing to race against - a competing writer would have replaced my name in the read above -
+    # so we skip both the rewrite and the guard wait, and only prove we are still alive.
+    #
+    # This matters because register_runner() is not always called once: the fs monitor calls
+    # register_fs_monitor() on every iteration of its 2-second loop (R/fs.R), and paying a JSON
+    # write plus a `guard`-second sleep there would be absurd.
+    renew_runner_lease(name)
+    return(TRUE)
+  }
   write_runner_lease(name)
   runner_claim_wait(guard)
   i_hold_runner_lease(name)
@@ -365,4 +376,42 @@ stop_if_lease_lost <- function(name = conf$runner_name) {
     )
   }
   invisible(NULL)
+}
+
+# Explains why a claim failed, naming the instance that holds the runner right now.
+#
+# This is what an operator reads in the logs of the container that refused to start, so it has to
+# answer the only two questions worth asking at that moment: *where* is the runner already running
+# (`host`, so one knows which machine to look at), and *since when* (`claimed_at`, plus the age of
+# the last heartbeat, which tells a live holder from one that is about to expire).
+#
+# Called after claim_runner_lease() returned FALSE, so the lease is read a second time - it may
+# have changed in between, and both outcomes are worth wording differently.
+runner_lease_holder_message <- function(name) {
+  lease <- read_runner_lease(name)
+  if (is.null(lease)) {
+    # The holder released, or was moved away, between the failed claim and this read. Nothing is
+    # wrong with the cluster: starting again will succeed.
+    return(sprintf(
+      paste(
+        "Runner '%s' could not be claimed: another instance was holding the lease and has just",
+        "released it. Starting again should now succeed."
+      ),
+      name
+    ))
+  }
+  age <- as.numeric(difftime(Sys.time(), lease$seen_at, units = "secs"))
+  sprintf(
+    paste(
+      "Runner '%s' is already held by another instance (%s) running on host '%s'",
+      "since %s, last seen %.0f seconds ago (lease TTL: %.0f seconds).",
+      "This instance will not start it."
+    ),
+    name,
+    lease$instance_id,
+    lease$host,
+    lease$claimed_at,
+    age,
+    runner_lease_ttl(name)
+  )
 }

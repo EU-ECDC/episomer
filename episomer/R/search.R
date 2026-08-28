@@ -45,6 +45,10 @@ search_loop <- function(
   if (!sandboxed) {
     # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
     register_search_runner()
+    # Releasing the parent "search" lease on exit. Not strictly required by the plan (which only
+    # lists the three loops that do the work), but the reason is the same: without it, restarting
+    # the search service means waiting for the TTL before it may collect again.
+    on.exit(release_runner_lease(), add = TRUE)
   }
 
   if(log_to_file) {
@@ -56,7 +60,7 @@ search_loop <- function(
   sms <- active_social_media()
   cores <- as.numeric(length(sms))
   cl <- parallel::makePSOCKcluster(cores, outfile="")
-  on.exit(parallel::stopCluster(cl))
+  on.exit(parallel::stopCluster(cl), add = TRUE)
   data_dir <- conf$data_dir
   parallel::clusterExport(cl, list("log_to_file", "data_dir", "sandboxed"), envir=rlang::current_env())
   
@@ -104,6 +108,10 @@ search_loop_worker <- function(
   if (!sandboxed) {
     # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
     register_search_runner(network)
+    # This is the lease that really matters: exclusivity is per network ("search.bluesky",
+    # "search.mastodon.piaille.fr"), because that is where two machines would push the same posts
+    # twice. Releasing it lets the standby machine take this network over on its next restart.
+    on.exit(release_runner_lease(), add = TRUE)
   }
   # Infinite loop for getting posts if it is successfully registered as the search runner
   req2Commit <- 0

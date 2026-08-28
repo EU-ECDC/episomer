@@ -283,6 +283,12 @@ get_empty_config <- function(data_dir) {
 #
 # Both are *session state*, not configuration: they describe the current process, so they must
 # never end up in properties.json, which is shared by every machine (see save_config).
+#
+# A third piece of session state joins them once a loop has started: conf$runner_name, the name of
+# the runner this process holds the lease for. It is set by register_runner() (R/runners.R) rather
+# than here, because only a process that successfully claimed a lease may carry one, and it is what
+# lets renew_runner_lease() / stop_if_lease_lost() / release_runner_lease() be called with no
+# argument. It is absent in the Shiny app, which is a reader of the runner state and not a runner.
 
 # Random identifier for this R process, e.g. "7nn0ei1963ddf23a7".
 #

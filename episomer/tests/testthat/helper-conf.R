@@ -34,3 +34,26 @@ with_instance <- function(id, host = "other-host", code) {
   conf$instance_host <- host
   force(code)
 }
+
+# Configuration of a local episomer instance owning a fresh, empty data directory: fs_remote = NULL
+# so epipath() resolves to that directory and every fs call takes its local branch, no network.
+#
+# `guard = 0` is not set here on purpose - a test that goes through claim_runner_lease() has to say
+# so itself (runner_claim_guard = 0), which keeps the guard wait visible where it matters.
+local_lease_conf <- function(
+  instance_id = "instance-A",
+  instance_host = "machine-A",
+  ...,
+  .local_envir = parent.frame()
+) {
+  data_dir <- withr::local_tempdir(.local_envir = .local_envir)
+  local_conf(
+    data_dir = data_dir,
+    fs_remote = NULL,
+    instance_id = instance_id,
+    instance_host = instance_host,
+    ...,
+    .local_envir = .local_envir
+  )
+  data_dir
+}
