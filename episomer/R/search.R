@@ -76,11 +76,39 @@ search_loop <- function(
           outcon <- file(file.path(jobs_dir, sprintf("search.%s.log", sm)), open = "a")
           sink(outcon)
           sink(outcon, type = "message")
+          # Undoing the redirection is not cosmetic: a worker leaving without it hands its PSOCK
+          # node back to the cluster with both sinks still pointing at a network log file, so
+          # anything the node is asked to do next writes there instead of where it should.
+          on.exit(
+            {
+              sink(NULL, type = "message")
+              sink(NULL)
+              close(outcon)
+            },
+            add = TRUE
+          )
       }
       episomer::setup_config(data_dir)
       m <- paste("Running search agent for ",sm, Sys.time())
       message(m)
-      episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests)
+      # A worker that raises has its error carried back to this parent process by `parallel`, which
+      # only hands it over once *every* node has returned - and the other networks are still
+      # looping, so that is never. The error text was simply lost, and the log of the dead network
+      # stopped mid-collection with nothing to say why. Catching it here writes it down while the
+      # sinks above still point at that network's log, and turns it into an outcome
+      # report_search_loop_outcomes() can name.
+      tryCatch(
+        episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests),
+        error = function(e) {
+          message(sprintf(
+            "%s [ERROR]: the search worker for %s stopped: %s",
+            Sys.time(),
+            sm,
+            conditionMessage(e)
+          ))
+          paste("error:", conditionMessage(e))
+        }
+      )
   })
   report_search_loop_outcomes(sms, outcomes)
 }
