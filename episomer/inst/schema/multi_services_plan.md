@@ -737,11 +737,66 @@ Decided while implementing:
   `e$message`, which is what the other branches match on.
 
 ### Issue 7 — `is_*_running()` reads the lease
-- [ ] `is_search_running()`, `is_detect_running()`, `missing_search_jobs()` based on the lease
-- [ ] `is_fs_running()` keeps `/ping`
-- [ ] local cross-check on the PID when `lease$host == conf$instance_host` (§6.2), which also gives
+- [x] `is_search_running()`, `is_detect_running()`, `missing_search_jobs()` based on the lease
+- [x] `is_fs_running()` keeps `/ping`
+- [x] local cross-check on the PID when `lease$host == conf$instance_host` (§6.2), which also gives
       the fast reclaim of §3.6
-- [ ] review the call sites listed in §6.2 (`check.R`, `setup.R`, `shiny-app-utils.R`)
+- [x] review the call sites listed in §6.2 (`check.R`, `setup.R`, `shiny-app-utils.R`)
+- [x] tests: `tests/testthat/test-runners_running.R`
+
+Diagram updated: `inst/schema/runners_lease.excalidraw`, panel 8 (the two questions — cluster-wide
+and local — and who asks which).
+
+Decided while implementing:
+
+* **`is_search_running()` reads the parent lease *and* the per-network ones.** Reading `search`
+  alone would have been the obvious translation and it would have been wrong: issue 5 established
+  that `search_loop()` claims `search` and then blocks in `parLapply()` with no iteration left to
+  renew it, so that lease is knowingly stale on a *healthy* machine after `runner_ttl_search`
+  (§9.5). The Shiny app would therefore have shown "Stopped" five minutes after every start. The
+  service is running if any of `search` / `search.<active network>` is fresh: the workers really do
+  beat, and the just-claimed parent lease covers the startup window before they register. This is a
+  workaround for §9.5, not a replacement of it — settling the parent lease question there would
+  let this become a single `is_runner_running("search")`.
+* **The local cross-check needs two corroborating signals, not one.** §6.2 says "if the lease's
+  `host` is my host, cross-check the recorded `pid`"; the host alone is not safe enough. Two
+  containers of the same service share `EPISOMER_INSTANCE` (`docker/compose.yml` sets it per
+  service, so the standby of issue 9 inherits it) while having separate PID namespaces: "PID 42
+  does not exist here" would not mean "the holder is dead", and we would steal a live lease — the
+  one thing the whole mechanism exists to prevent. So `lease_holder_is_dead_locally()` also
+  requires **this machine's own PID file for that runner to name exactly the PID written in the
+  lease**. That file is written by the holder on the disk we are reading (`conf$data_dir` is
+  container-local, only `jobs/` is shared), so if it agrees, that PID really is ours to test.
+  Everything fails closed: anything missing, unreadable or merely different means "trust the
+  mtime".
+* **The cross-check lives in `lease_is_free()` and `runner_lease_status()`, not in the
+  `is_*_running()` functions.** One implementation then answers both questions at once — "is it
+  running?" (issue 7) and "may I claim it?" (the fast reclaim of §3.6) — and issue 8's status table
+  gets it for free. `runner_lease_status()` reports such a lease as `stale`, which is what it is
+  operationally, plus a `holder_dead_locally` flag so the table can word it "crashed here" rather
+  than "not renewed".
+* **`setup()`'s services menu now reads the *local* status.** Its two actions,
+  `register_*_runner_task()` and `stop_*_runner_task()`, start and kill processes on this machine
+  only, so labelling an entry "Stop search loop (currently running)" because another machine holds
+  the lease would offer to stop something that is not here. Same reasoning as
+  `stop_all_runner_tasks()` in issue 4, and `is_runner_running_locally()` was already there for it.
+  A local start that the lease refuses still says so, in the log of the process it spawns.
+* **Three small extractions in `R/runners.R`**, so that the lease code tests a PID exactly the way
+  the PID layer does: `get_running_task_pid_path(name)`, `read_running_task_pid_file(name)` (which
+  keeps "no PID file" and "the recorded process is gone" apart, unlike `get_running_task_pid()`'s
+  single `-1`), and `is_r_pid_running(pid)`. Behaviour is unchanged; the former `mac` branch of the
+  process test was character for character the same command as the unix one, so the two are now a
+  single branch.
+* **`check.R` and `shiny-app-utils.R`: reviewed, one wording change.** The app is a pure reader and
+  wants exactly the cluster-wide answer (§6.4), so its four fields are unchanged, with a comment
+  saying so. `check_all()` is also right to ask the cluster-wide question, but its warnings said
+  "the pipeline is not running", which now means something stronger: they say "not running on any
+  machine sharing this database". `loop_run_issues()` is deliberately left to issue 8, which owns
+  the "running on another host" wording. The Shiny start/stop buttons need nothing: they are always
+  both displayed, never gated on the status.
+* **Found on the way, unrelated:** `setup()`'s `launch` argument had lost its `@param` in
+  `R/setup.R` while `man/setup.Rd` still documented it, so regenerating the documentation silently
+  dropped it. Restored in the source.
 
 ### Issue 8 — Shiny app: distributed services status
 - [ ] `runner_leases()` listing everything under `runners/`
@@ -807,7 +862,14 @@ Cases worth covering, in `tests/testthat/test-runners_lease.R`:
       `tryCatch()` that used to flatten the condition, and still failing loudly on a real error;
       `report_search_loop_outcomes()` on both of its cases; and `save_tasks()` staying unguarded for
       the Shiny app.
-- [ ] (issue 7) `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE
+- [x] (issue 7) `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE. In
+      `tests/testthat/test-runners_running.R`, together with: a fresh *foreign* lease reading as
+      running with no PID file on this machine at all (the point of the issue), the split of §7 case
+      7 through `missing_search_jobs()`, the healthy-but-stale parent `search` lease, the crashed
+      local holder reading as stopped and reclaimable while its mtime is still fresh, the three
+      cases where the cross-check must *not* fire (live local process, no corroborating PID file,
+      another host), and `is_fs_running()` answering FALSE on `/ping` while holding a fresh `fs`
+      lease.
 
 Also covered, and the helper the plan suggested: `with_instance()` lives in
 `tests/testthat/helper-conf.R`, the claim race of §3.1 case 3 turned out to be unit-testable
