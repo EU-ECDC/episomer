@@ -2,6 +2,7 @@
 #' @description Perform configuration tasks needed for the proper work of episomer or change settings of these configuration
 #' @param data_dir Character the data directory where episomer will store all files. If not provided and already set in the current session it will reused, default: NULL
 #' @param silent Logical whether episomer should take default actions without asking the user default: FALSE
+#' @param launch Logical whether episomer should run automatically extra steps when selecting Option 1 or 2 in the wizard (setting credentials, running services and shiny app)
 #' @return NULL.
 #' @details Perform configuration tasks needed for the proper work of episomer or change settings of these configuration
 #' @examples
@@ -644,7 +645,14 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             actions["2"] <- "start"
             targets["2"] <- "fs"
         }
-        if(is_search_running()) {
+        # Deliberately the *local* status, not is_search_running() / is_detect_running(): the two
+        # actions this menu offers - register_*_runner_task() and stop_*_runner_task() - start and
+        # kill processes on this machine only. Labelling the entry "currently running" because
+        # another machine of the cluster holds the lease would offer to stop something that is not
+        # here. A local start refused by the lease still says so, in the log of the process it
+        # spawns (register_runner() -> runner_lease_holder_message()).
+        # fs keeps its /ping check below: it is not lease-based (plan section 6.2).
+        if(is_runner_running_locally("search")) {
             options["3"] <- "Stop search loop (currently running)"
             actions["3"] <- "stop"
             targets["3"] <- "search"
@@ -653,7 +661,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             actions["3"] <- "start"
             targets["3"] <- "search"
         }
-        if(is_detect_running()) {
+        if(is_runner_running_locally("detect")) {
             options["4"] <- "Stop detect loop (currently running)"
             actions["4"] <- "stop"
             targets["4"] <- "detect"

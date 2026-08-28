@@ -138,6 +138,11 @@ refresh_config_data <- function(
   if ("tasks" %in% limit) {
     # Updating the reactive value tasks_refresh to force dependencies invalidation
     update <- FALSE
+    # These four are cluster-wide answers, read from the runner leases for detect and search and
+    # from /ping for fs (plan section 6.2). That is what the app wants: it is a pure reader of the
+    # runner state and holds no lease itself (section 6.4), and a service running on another machine
+    # of the deployment must show as running here. What machine each of them runs on is what the
+    # status table of issue 8 will add.
     e$detect_running <- is_detect_running()
     e$fs_running <- is_fs_running()
     e$search_running <- is_search_running()

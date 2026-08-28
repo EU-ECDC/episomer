@@ -80,7 +80,7 @@ register_runner <- function(name) {
     stop(paste("Runner ", name, "PID:", last_pid, "is already running"))
   }
   # If here means that the current process has to register as the runner service
-  pid_path <- paste(conf$data_dir, "/", name, ".PID", sep = "")
+  pid_path <- get_running_task_pid_path(name)
   write(pid, file = pid_path, append = FALSE)
 
   # Second layer: claiming the lease. Failing here is a normal, expected situation - it is the
@@ -231,8 +231,8 @@ stop_all_runner_tasks <- function() {
   # Deliberately reading the *local* PID files and not is_detect_running() / is_search_running():
   # stopping a runner means killing a process on this machine (stop_runner_task() -> kill_task()),
   # so the question to ask is "is there something here to kill?", never "is this runner running
-  # somewhere in the cluster?". Once is_*_running() starts reading the lease (plan issue 7), a
-  # runner held by another machine would otherwise send us killing a process that does not exist.
+  # somewhere in the cluster?". Now that is_*_running() reads the lease (plan issue 7), a runner
+  # held by another machine would otherwise send us killing a process that does not exist here.
   if(is_runner_running_locally("detect")) {
     message("Detect loop is running, stopping it")
     stop_detect_runner_task()
@@ -472,7 +472,9 @@ kill_task <- function(pidfile, type = "R") {
 #' @title Missing search jobs if any
 #' @description check if search jobs for each activated social media are running and return the list names of social media with missing jobs
 #' @return char list of social media with no search job running
-#' @details returns a char vector with the name of missing social media
+#' @details returns a char vector with the name of missing social media.
+#' The answer is cluster-wide: it is read from the runner leases (`<data_dir>/runners/`), so a
+#' social media collected by another machine sharing the same database is not reported as missing.
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -487,9 +489,13 @@ missing_search_jobs <- function() {
     "Cannot check running status for search without configuration setup"
   ))
   active <- active_social_media()
+  # One lease per social media, exactly as there used to be one PID file per social media: the
+  # granularity of exclusivity is search.<network>, which is what lets machine B collect bluesky
+  # while machine C collects mastodon (plan section 2). Reading the leases rather than the local PID
+  # files is what makes this list right in that setup - a network collected elsewhere is not missing.
   not_running <- active[sapply(
     active,
-    function(sm) get_running_task_pid(sprintf("search.%s", sm)) < 0
+    function(sm) !is_runner_running(sprintf("search.%s", sm))
   )]
   not_running
 }
@@ -497,7 +503,11 @@ missing_search_jobs <- function() {
 #' @title Check whether the post collection task is running
 #' @description gets the post collection execution status
 #' @return logical Whether the post collection is running
-#' @details returns a logical value being TRUE if the post collection is running
+#' @details returns a logical value being TRUE if the post collection is running, on this machine
+#' *or on any other machine* sharing the same episomer database: the status is read from the runner
+#' leases and not from the local PID files. A service that stopped without releasing its lease is
+#' reported as running until its lease expires (`runner_ttl_search` seconds), unless it crashed on
+#' this very machine, which is detected at once.
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -511,13 +521,26 @@ is_search_running <- function() {
   stop_if_no_config(paste(
     "Cannot check running status for search without configuration setup"
   ))
-  get_running_task_pid("search") >= 0
+  # The parent "search" runner is claimed by search_loop(), which then blocks in
+  # parallel::parLapply() for the whole life of the service and has no iteration left to renew its
+  # lease on: on a perfectly healthy machine that lease goes stale after runner_ttl_search (plan
+  # section 9.5, and the issue 5 notes). Reading it alone would therefore report "stopped" five
+  # minutes after every start, so the per-network workers - which do renew, every
+  # runner_heartbeat_span - are asked as well. The service is running if any of those entries is
+  # fresh, which also covers the startup window where the workers have not registered yet and only
+  # the just-claimed parent lease exists.
+  runners <- c("search", sprintf("search.%s", active_social_media()))
+  any(vapply(runners, is_runner_running, logical(1)))
 }
 
 #' @title Check whether the database is running
 #' @description gets the database runner execution status
 #' @return logical Whether the database is running
-#' @details returns a logical value being TRUE if the database runner is actually running
+#' @details returns a logical value being TRUE if the database runner is actually running.
+#' Unlike the other services this one is not answered by the runner lease but by an HTTP call to
+#' the database `/ping` endpoint: it is instantaneous, it needs no TTL, and it tells whether the
+#' service *answers* rather than whether some process holds its lease. The `fs` runner does take a
+#' lease, for a different purpose - stopping a second database from opening the same storage.
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -553,7 +576,9 @@ stop_if_no_fs <- function(msg = NULL) {
 #' @title Check whether the alert detection task is running
 #' @description gets the alert detection runner execution status
 #' @return logical Whether the alert detection task is running
-#' @details returns a logical value being TRUE if the alert detection task is actually running
+#' @details returns a logical value being TRUE if the alert detection task is actually running, on
+#' this machine or on any other machine sharing the same episomer database - see
+#' \code{is_search_running} for what the runner leases can and cannot tell.
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -567,11 +592,14 @@ is_detect_running <- function() {
   stop_if_no_config(paste(
     "Cannot check detect batch status for search without configuration setup"
   ))
-  get_running_task_pid("detect") >= 0
+  # detect has a single runner name and renews it on every iteration of detect_loop(), so its lease
+  # answers directly. Its TTL is long on purpose (30 minutes): one task can run that long without
+  # writing anything, and looking dead while working would be far worse than answering late.
+  is_runner_running("detect")
 }
 
 remove_running_task_pid <- function(name) {
-  pid_path <- paste(conf$data_dir, "/", name, ".PID", sep = "")
+  pid_path <- get_running_task_pid_path(name)
   if(file.exists(pid_path))
     unlink(pid_path)
 }
@@ -588,33 +616,63 @@ is_runner_running_locally <- function(name) {
 
 # Get runner active PID this function will return -1 if no process was detected
 get_running_task_pid <- function(name) {
-  # Getting PID file name based on task name which stored the PID of last time this task was running
-  pid_path <- paste(conf$data_dir, "/", name, ".PID", sep = "")
-  if (file.exists(pid_path)) {
-    # Getting last runner pid from PID file if exists
-    last_pid <- as.integer(readChar(pid_path, file.info(pid_path)$size))
-    # Checking if last_pid is still running
-    # this check makes a system dependent call to get running processes launch by R* or rsession binaries
-    # if the last_pid is found on the list of processes returned then we assume is running
-    pid_running <- (if (.Platform$OS.type == "windows") {
-      length(grep(
-        "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe",
-        system(paste('tasklist /nh /fi "pid eq ', last_pid, '"'), intern = TRUE)
-      )) >
-        0
-    } else if (.Platform$OS.type == "mac")
-      system(
-        paste("ps -cax | grep 'R\\|rsession' | grep ", last_pid),
-        ignore.stdout = TRUE
-      ) ==
-        0 else
-      system(
-        paste("ps -cax | grep 'R\\|rsession' | grep ", last_pid),
-        ignore.stdout = TRUE
-      ) ==
-        0)
-    if (pid_running) last_pid else -1
-  } else -1
+  last_pid <- read_running_task_pid_file(name)
+  if (!is.na(last_pid) && is_r_pid_running(last_pid)) last_pid else -1
+}
+
+# The PID this machine wrote when it registered as `name`, or NA when it never did (no PID file).
+#
+# Kept apart from get_running_task_pid(), which folds "no PID file" and "the recorded process is
+# gone" into the same -1: telling those two apart is precisely what the local cross-check of
+# lease_holder_is_dead_locally() needs.
+read_running_task_pid_file <- function(name) {
+  pid_path <- get_running_task_pid_path(name)
+  if (!file.exists(pid_path)) {
+    return(NA_integer_)
+  }
+  tryCatch(
+    as.integer(readChar(pid_path, file.info(pid_path)$size)),
+    error = function(e) NA_integer_,
+    warning = function(w) NA_integer_
+  )
+}
+
+# Path of the PID file of a runner, on the *local* disk of this machine.
+#
+# Named rather than pasted in five places: the lease code needs to read it too (plan issue 7, the
+# local cross-check of is_runner_running()), and it must read exactly the same file the PID layer
+# writes.
+get_running_task_pid_path <- function(name) {
+  paste(conf$data_dir, "/", name, ".PID", sep = "")
+}
+
+# TRUE when `pid` is still a running R process *of this machine*.
+#
+# This check makes a system dependent call to get the processes launched by R* or rsession binaries:
+# if `pid` is found in that list then we assume it is running.
+#
+# Extracted from get_running_task_pid() so that the very same test can be applied to a PID that does
+# not come from a PID file - namely the one recorded inside a runner lease, which is what lets a
+# crashed runner be detected on its own host without waiting for the lease TTL (R/runners-lease.R,
+# lease_holder_is_dead_locally()). Behaviour is unchanged: the former "mac" branch was character for
+# character the same command as the unix one, so the two are now a single branch.
+is_r_pid_running <- function(pid) {
+  if (length(pid) != 1 || is.na(pid)) {
+    return(FALSE)
+  }
+  if (.Platform$OS.type == "windows") {
+    length(grep(
+      "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe",
+      system(paste('tasklist /nh /fi "pid eq ', pid, '"'), intern = TRUE)
+    )) >
+      0
+  } else {
+    system(
+      paste("ps -cax | grep 'R\\|rsession' | grep ", pid),
+      ignore.stdout = TRUE
+    ) ==
+      0
+  }
 }
 
 loop_run_issues <- function(loop_name) {
