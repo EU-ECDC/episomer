@@ -123,6 +123,28 @@ epifile.touch <- function(path) {
     httr2::request(sprintf("%s?action=touch",path)) %>% httr2::req_method("POST") %>% httr2::req_perform()
   }
 }
+# Moves a file, within the local disk or within the fs machine.
+#
+# Used by the runner leases to release a lease: the lease file is moved out of runners/ instead of
+# being deleted (the fs API has no delete action) so that "the file is absent" keeps its single
+# meaning of "this runner is free" - see inst/schema/multi_services_plan.md section 3.4.
+# A remote to remote move is one POST, so nothing travels through this process.
+epifile.move <- function(from, to) {
+    if(!is_remote(from) && !is_remote(to))
+        file.rename(from, to)
+    else if (is_remote(from) && is_remote(to))
+        httr2::request(sprintf("%s?action=move", from)) %>%
+            httr2::req_method("POST") %>%
+            # the API resolves the destination against its own epiHome and refuses anything
+            # absolute or containing "..", hence the relative form rather than the full URL
+            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+            httr2::req_perform()
+    else
+        # a move with one foot on each machine would be a download or an upload followed by a
+        # delete, and the fs API cannot delete: no caller needs it, so it is refused loudly
+        stop("epifile.move only supports moving within the same file system (both local or both remote)")
+}
+
 epifile.copy <- function(from, to, overwrite = TRUE) {
     if(!is_remote(from) && !is_remote(to))
         file.copy(from, to, overwrite = overwrite)
