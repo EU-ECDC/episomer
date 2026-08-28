@@ -223,6 +223,34 @@ get_empty_config <- function(data_dir) {
   ret$fs_port <- 8080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
+  # Runner leases (see R/runners-lease.R and inst/schema/multi_services_plan.md section 6.5).
+  # All in seconds. They tune the exclusion mechanism that stops two machines sharing the same
+  # data directory from acting as the same runner, so they belong to the *cluster*, not to one
+  # machine: they are stored in properties.json, which every instance reads, and they are
+  # deliberately absent from the Shiny configuration page. A TTL mistyped in the UI would silently
+  # break exclusivity for every machine at once, and these are deployment knobs, not analysis
+  # settings. Change them in properties.json, or through EPISOMER_OPTION_RUNNER_* on a first
+  # deployment (see coerce_env_props() and the precedence note in setup_config()).
+  #
+  # Seconds between two lease renewals. It is also the granularity of sleep_with_heartbeat():
+  # a loop sleeping for 40 minutes still proves it is alive every runner_heartbeat_span seconds.
+  # Must stay well below every TTL below - roughly one order of magnitude - so that a few lost
+  # renewals in a row (a slow fs, a network hiccup) do not expire a perfectly healthy lease.
+  ret$runner_heartbeat_span <- 30
+  # Time after which a lease that stopped being renewed is considered free, per service. Too short
+  # means false expiries, i.e. two runners collecting at once; too long only delays the takeover by
+  # a standby machine. Erring on the long side is therefore the safe direction.
+  #   search : the longest expected silence is a rate-limit wait, chunked by the heartbeat
+  #   detect : one single task (alerts, geolocation, aggregation) can legitimately run for ages
+  #   fs     : shortest, because a dead fs is also detected by /ping
+  ret$runner_ttl_search <- 300
+  ret$runner_ttl_detect <- 1800
+  ret$runner_ttl_fs <- 120
+  # Seconds between the optimistic write of a claim and the read that confirms it. The fs API has
+  # no compare-and-swap, so two instances claiming at the same moment both write and the later
+  # write wins; this pause has to be longer than the worst-case time for a write to land, so that
+  # the loser really sees the winner's identity when it reads back.
+  ret$runner_claim_guard <- 5
   ret$admin_email <- ""
   # Each social media family is switched on or off as a whole by its sm_activated_<family> /
   # sm_alerts_<family> pair. A federated family such as mastodon is made of independent instances
@@ -390,10 +418,16 @@ setup_config <- function(
   if (!ignore_properties) {
     # refreshing properties (if requested)
     if (epifile.exists(props_path) || !is.null(fs_remote)) {
-      #merging default values with those stored in the properties.json file
+      # Merging default values with those stored in the properties.json file. Precedence goes to
+      # the last source of the list, so: defaults < EPISOMER_OPTION_* environment < properties.json.
+      # An environment variable therefore only sets a property that properties.json does not
+      # already carry - which, since save_config() writes them all, in practice means the first
+      # start of a fresh data directory.
+      # coerce_env_props() gives the environment values the type of the matching default, so that
+      # a number stays a number whichever of the three sources it came from.
       temp = merge_configs(list(
         temp,
-        get_env_props(),
+        coerce_env_props(get_env_props(), temp),
         jsonlite::read_json(
           props_path,
           simplifyVector = FALSE,
@@ -451,6 +485,14 @@ setup_config <- function(
     conf$fs_port <- temp$fs_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
+    # Runner lease tuning. runner_lease_ttl() and runner_claim_guard() (R/runners-lease.R) read
+    # these from conf and fall back to their own hardcoded defaults when they are absent, so an
+    # older properties.json - or a conf built without going through setup_config() - keeps working.
+    conf$runner_heartbeat_span <- temp$runner_heartbeat_span
+    conf$runner_ttl_search <- temp$runner_ttl_search
+    conf$runner_ttl_detect <- temp$runner_ttl_detect
+    conf$runner_ttl_fs <- temp$runner_ttl_fs
+    conf$runner_claim_guard <- temp$runner_claim_guard
     conf$admin_email <- temp$admin_email
     conf$dismiss_past_request <- temp$dismiss_past_request
     conf$collect_history_days <- temp$collect_history_days
@@ -721,6 +763,14 @@ save_config <- function(
     temp$fs_port <- conf$fs_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
+    # Runner lease tuning. Unlike instance_id / instance_host just above, these five *are* shared
+    # configuration and belong here: every instance must agree on the same TTL, otherwise machine B
+    # could declare a lease expired while machine C still believes it is alive.
+    temp$runner_heartbeat_span <- conf$runner_heartbeat_span
+    temp$runner_ttl_search <- conf$runner_ttl_search
+    temp$runner_ttl_detect <- conf$runner_ttl_detect
+    temp$runner_ttl_fs <- conf$runner_ttl_fs
+    temp$runner_claim_guard <- conf$runner_claim_guard
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
     temp$dismiss_past_done <- conf$dismiss_past_done
@@ -1206,6 +1256,59 @@ get_env_props <- function() {
   envs <- as.list(Sys.getenv())
   envs <- envs[grepl("^EPISOMER_OPTION_.*", names(envs))]
   setNames(envs, tolower(gsub("^EPISOMER_OPTION_", "", names(envs))))
+}
+
+# Give the properties read from the environment the type they are expected to have.
+#
+# Everything coming out of Sys.getenv() is a character string, while the same property read from
+# properties.json comes back as a number or a boolean. Without this step,
+# EPISOMER_OPTION_RUNNER_TTL_SEARCH=600 would put the *string* "600" in conf and every arithmetic
+# comparison downstream would either be a silent string comparison ("600" < "90" is TRUE) or an
+# error. The same latent trap already existed for fs_port, smtp_port and the alert thresholds.
+#
+# The expected type is taken from `defaults`, i.e. the list built by get_empty_config(): a property
+# whose default is a number must be a number, one whose default is a boolean must be a boolean.
+# That keeps the knowledge of types in one single place, and any property added there later is
+# coerced for free.
+#
+# Left untouched on purpose:
+#  * properties with no default (unknown name, or a social media declared at runtime) - there is
+#    nothing to infer a type from;
+#  * defaults that are NA, because NA is a *logical* in R and half a dozen defaults are NA-valued
+#    dates (lang_updated_on and friends); coercing those to logical would destroy them;
+#  * defaults that are lists (languages, topics, known_users...), which an environment variable
+#    cannot express anyway.
+#
+# A value that cannot be converted is an error rather than a silent NA: an unusable
+# EPISOMER_OPTION_* must be visible at startup, not three hours later in the middle of a loop.
+coerce_env_props <- function(props, defaults) {
+  for (prop in names(props)) {
+    default <- defaults[[prop]]
+    if (is.null(default) || length(default) != 1 || is.na(default)) next
+    raw <- props[[prop]]
+    if (is.numeric(default)) {
+      value <- suppressWarnings(as.numeric(raw))
+    } else if (is.logical(default)) {
+      value <- as.logical(raw)
+      # "1" / "0" are a natural way of writing a boolean in a compose file, and as.logical() maps
+      # them to NA, so they get a second chance through the numeric route.
+      if (is.na(value) && grepl("^[01]$", trimws(raw))) {
+        value <- as.logical(as.numeric(raw))
+      }
+    } else {
+      next
+    }
+    if (is.na(value)) {
+      stop(sprintf(
+        "Invalid value '%s' for environment variable EPISOMER_OPTION_%s: expected a %s",
+        raw,
+        toupper(prop),
+        if (is.numeric(default)) "number" else "boolean"
+      ))
+    }
+    props[[prop]] <- value
+  }
+  props
 }
 
 
