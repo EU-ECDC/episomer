@@ -1208,6 +1208,59 @@ get_env_props <- function() {
   setNames(envs, tolower(gsub("^EPISOMER_OPTION_", "", names(envs))))
 }
 
+# Give the properties read from the environment the type they are expected to have.
+#
+# Everything coming out of Sys.getenv() is a character string, while the same property read from
+# properties.json comes back as a number or a boolean. Without this step,
+# EPISOMER_OPTION_RUNNER_TTL_SEARCH=600 would put the *string* "600" in conf and every arithmetic
+# comparison downstream would either be a silent string comparison ("600" < "90" is TRUE) or an
+# error. The same latent trap already existed for fs_port, smtp_port and the alert thresholds.
+#
+# The expected type is taken from `defaults`, i.e. the list built by get_empty_config(): a property
+# whose default is a number must be a number, one whose default is a boolean must be a boolean.
+# That keeps the knowledge of types in one single place, and any property added there later is
+# coerced for free.
+#
+# Left untouched on purpose:
+#  * properties with no default (unknown name, or a social media declared at runtime) - there is
+#    nothing to infer a type from;
+#  * defaults that are NA, because NA is a *logical* in R and half a dozen defaults are NA-valued
+#    dates (lang_updated_on and friends); coercing those to logical would destroy them;
+#  * defaults that are lists (languages, topics, known_users...), which an environment variable
+#    cannot express anyway.
+#
+# A value that cannot be converted is an error rather than a silent NA: an unusable
+# EPISOMER_OPTION_* must be visible at startup, not three hours later in the middle of a loop.
+coerce_env_props <- function(props, defaults) {
+  for (prop in names(props)) {
+    default <- defaults[[prop]]
+    if (is.null(default) || length(default) != 1 || is.na(default)) next
+    raw <- props[[prop]]
+    if (is.numeric(default)) {
+      value <- suppressWarnings(as.numeric(raw))
+    } else if (is.logical(default)) {
+      value <- as.logical(raw)
+      # "1" / "0" are a natural way of writing a boolean in a compose file, and as.logical() maps
+      # them to NA, so they get a second chance through the numeric route.
+      if (is.na(value) && grepl("^[01]$", trimws(raw))) {
+        value <- as.logical(as.numeric(raw))
+      }
+    } else {
+      next
+    }
+    if (is.na(value)) {
+      stop(sprintf(
+        "Invalid value '%s' for environment variable EPISOMER_OPTION_%s: expected a %s",
+        raw,
+        toupper(prop),
+        if (is.numeric(default)) "number" else "boolean"
+      ))
+    }
+    props[[prop]] <- value
+  }
+  props
+}
+
 
 
 get_env_secrets <- function() {
