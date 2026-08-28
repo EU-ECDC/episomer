@@ -149,7 +149,15 @@ epifile.copy <- function(from, to, overwrite = TRUE) {
     if(!is_remote(from) && !is_remote(to))
         file.copy(from, to, overwrite = overwrite)
     else if (is_remote(from) && is_remote(to))
-        httr2::request(sprintf("%s?action=copy",from)) %>% httr2::req_body_json(data = to) %>% httr2::req_perform()
+        # same destination format as epifile.move above: the API expects a path relative to its
+        # own epiHome, and used to be given the full URL of `to`, which it resolved to nonsense.
+        # This branch has no call site today (the Shiny download handlers copy to a local
+        # destination, alert.R and geo-tagging.R upload a local temp file), so the fix went
+        # untested against a real server until a caller shows up.
+        httr2::request(sprintf("%s?action=copy", from)) %>%
+            httr2::req_method("POST") %>%
+            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+            httr2::req_perform()
     else if (!is_remote(to)) {
         if(!file.exists(dirname(to))) 
             dir.create(dirname(to), recursive = TRUE)
