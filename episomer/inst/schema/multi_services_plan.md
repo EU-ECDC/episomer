@@ -366,15 +366,20 @@ behaviour, in order:
 Your two candidates are the right ones, plus one you did not list (which is the one that actually
 corrupts data):
 
-- [ ] `search_loop_worker()` before saving plans: `R/search.R:171-176` (`commit_posts()` +
-      `save_config(sm_topics = ...)`) and the periodic save at `R/search.R:265-267`.
-- [ ] `save_tasks()` in the detect loop: `R/scheduler.R:150`, called at lines 250, 262, 359.
+- [x] `search_loop_worker()` before saving plans (`commit_posts()` +
+      `save_config(sm_topics = ...)`) and before the periodic `commit_posts()`.
+- [x] `save_tasks()` in the detect loop.
       Guarding inside `save_tasks()` itself is tempting but it is also called from the Shiny app
       (which is not a lease holder) — so guard at the **call sites in `detect_loop()`**, not inside.
-- [ ] **`search_topic()` before POSTing posts to the fs — `R/search.R:320`.** Two search loops
+      Done at three of them: before `plan_tasks()` (which saves as soon as it reschedules), before
+      the save of an aborted task, and before the save that follows a task run — plus
+      `generate_alerts()` itself, which writes much more than `tasks.json`.
+- [x] **`search_topic()` before POSTing posts to the fs.** Two search loops
       running the same topic do not just fight over `topics.json`, they push the same posts twice.
       This is the guard that protects the data; the `topics.json` one only protects the bookkeeping.
-- [ ] `register_series()` and the geolocation/aggregation triggers fired from `detect_loop()`.
+      Placed *after* the social media request: the request writes nothing, everything after it does.
+- [x] `register_series()` (the aggregation trigger). The geolocation one turned out not to be a
+      call of its own — it is the `geolocate=true` of the post upload, guarded in `search_topic()`.
 
 Guarding costs one HTTP GET (mtime) + one GET (content). At these frequencies it is free; do not
 guard inside tight loops.
@@ -672,21 +677,64 @@ Decided while implementing:
   idle detect loop then notices a stolen lease while idle, instead of on its next write.
 
 ### Issue 6 — Guard the writes
-- [ ] `stop_if_lease_lost()` before `commit_posts()` / `save_config()` in `search_loop_worker()`
-      (`R/search.R:171`, `R/search.R:265`)
-- [ ] before POSTing posts in `search_topic()` (`R/search.R:320`)
-- [ ] before each `save_tasks()` **call site** in `detect_loop()` (not inside `save_tasks()`)
-- [ ] before `register_series()` and the geolocation/aggregation triggers
-- [ ] `episomer_lease_lost` caught at the top of each loop: log, exit cleanly, do not release
-- [ ] `search_loop()` cluster: one worker exiting on a lost lease must produce a clear log line,
-      not the current unexplained `stop()` at `R/search.R:74`
-- [ ] **found while doing issue 5:** the `tryCatch()` wrapping `search_topic()` in
+- [x] `stop_if_lease_lost()` before `commit_posts()` / `save_config()` in `search_loop_worker()`
+- [x] before POSTing posts in `search_topic()`
+- [x] before each `save_tasks()` **call site** in `detect_loop()` (not inside `save_tasks()`)
+- [x] before `register_series()` and the geolocation/aggregation triggers
+- [x] `episomer_lease_lost` caught at the top of each loop: log, exit cleanly, do not release
+- [x] `search_loop()` cluster: one worker exiting on a lost lease must produce a clear log line,
+      not the current unexplained `stop()`
+- [x] **found while doing issue 5:** the `tryCatch()` wrapping `search_topic()` in
       `search_loop_worker()` re-raises anything that is not `"too-old"` as
       `stop(paste(e$message, e))`, which flattens the condition into a plain error and loses the
       `episomer_lease_lost` class. That path is now reachable: `heartbeat_before_retry()` can
       raise it from inside `req_perform()` during a rate-limit wait. The worker still stops, so
       nothing is corrupted, but it stops with an unexplained error instead of a clean exit —
       re-raise conditions of that class unchanged.
+- [x] tests: `tests/testthat/test-runners_guard.R`
+
+Diagram updated: `inst/schema/runners_lease.excalidraw`, panel 7 (the guard points, and the two
+ways a runner can end).
+
+Decided while implementing:
+
+* **One helper carries the whole "catch" side: `run_until_lease_lost(expr)`.** It is the mirror of
+  `stop_if_lease_lost()`, and having it as a function rather than a `tryCatch()` copied into each
+  loop is what keeps the three rules in one place: log an explicit line, return the sentinel
+  `"lease-lost"`, and above all **release nothing**. It also documents why the existing
+  `on.exit(release_runner_lease())` of the loops did not have to be touched — `release_runner_lease()`
+  checks `i_hold_runner_lease()` first and refuses, so it is already a no-op once the lease is gone.
+* **The guard in `search_topic()` sits *after* the social media request, not before it.** The
+  request itself writes nothing; it only spends one call of somebody else's rate limit. Everything
+  after that line writes, and the takeover can perfectly well happen *during* the request, which
+  waits minutes on a 429 (`heartbeat_before_retry()`, issue 5). Checking as late as possible is
+  therefore both cheaper and stricter.
+* **The "geolocation trigger" of §6.3 is not a call of its own.** Geolocation is asked for by the
+  `geolocate=true` of the post upload in `search_topic()`, so it is covered by the guard above. The
+  aggregation trigger is real and separate: `register_series()` POSTs the series definitions
+  (`set_aggregated_posts()`, `R/fs.R`), and is guarded in `search_loop_worker()`.
+* **`generate_alerts()` is guarded before it starts, though the checklist only named
+  `save_tasks()`.** It is by far the heaviest write of the detect loop — it POSTs the alerts to the
+  fs *and* sends emails to the subscribers, so two instances detecting the same period means
+  duplicated emails, which no deduplication on the fs side can undo. It is one long block that
+  reports its own progress through `update_alerts_task()`, so the guard is at the entry rather than
+  sprinkled inside; the residual risk is a task started seconds before a takeover, which the long
+  detect TTL (30 min) is designed to make rare. A second guard after it covers the opposite case,
+  a task long enough for the lease to be lost while it ran.
+* **`search_loop_worker()` now returns a value, and `search_loop()` reads it.** A worker that lost
+  its lease returns `"lease-lost"` instead of raising, so `parLapply()` returns normally instead of
+  propagating an error, and `report_search_loop_outcomes()` says which of the two things happened:
+  every worker stepping aside is the standby mechanism working (log it, return, do not make a
+  supervisor restart against a healthy instance), anything else keeps the historical error — now
+  naming the networks and what each of them returned, instead of the bare "which is unexpected"
+  that sent an operator reading three separate log files.
+* **`save_tasks()` deliberately stays unguarded**, and there is a test saying so. The temptation to
+  guard the writer itself rather than its call sites comes back on every read of this code; the
+  reason it is wrong is that the Shiny app calls it too and holds no lease at all (§6.4), so the
+  guard would abort the app as soon as any service took one.
+* **The `episomer_lease_lost` re-raise in `search_loop_worker()` is tested first in its handler.**
+  Beyond restoring the class, putting it before the `"too-old"` branches keeps it independent of
+  `e$message`, which is what the other branches match on.
 
 ### Issue 7 — `is_*_running()` reads the lease
 - [ ] `is_search_running()`, `is_detect_running()`, `missing_search_jobs()` based on the lease
@@ -751,6 +799,14 @@ Cases worth covering, in `tests/testthat/test-runners_lease.R`:
       a "long" wait last 0.3 s, which keeps the real `Sys.sleep()` path — the thing being tested —
       instead of mocking a base function testthat refuses to mock. Same section covers
       `heartbeat_before_retry()` and `renew_fs_runner_lease()`.
+- [x] (issue 6) in `tests/testthat/test-runners_guard.R`: `run_until_lease_lost()` returning the
+      loop's own value, turning a lost lease into `"lease-lost"` with a log line and leaving the new
+      holder's file alone, and still letting a real error through; `search_topic()` refusing to
+      upload after a takeover that happens *during* the social media request, and uploading normally
+      while the lease is held; `search_loop_worker()` returning `"lease-lost"` across the
+      `tryCatch()` that used to flatten the condition, and still failing loudly on a real error;
+      `report_search_loop_outcomes()` on both of its cases; and `save_tasks()` staying unguarded for
+      the Shiny app.
 - [ ] (issue 7) `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE
 
 Also covered, and the helper the plan suggested: `with_instance()` lives in
