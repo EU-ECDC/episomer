@@ -28,7 +28,9 @@ search_loop_worker(network, data_dir = NA, sandboxed = FALSE, max_requests = 0)
 \value{
 Nothing
 
-Nothing
+Invisibly, why the worker stopped: \code{"lease-lost"} when another instance took this
+network over, \code{"ended"} when \code{max_requests} was reached. Read by \code{search_loop()}
+to tell an orderly handover from an unexpected end.
 }
 \description{
 Infinite loop ensuring the permanent collection of social media messages
