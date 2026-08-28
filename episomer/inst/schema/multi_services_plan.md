@@ -123,16 +123,50 @@ Two candidate solutions:
 
 Go with (A). Use (B) only for `detect`, and only if §3.5 turns out to be a real problem.
 
-### 3.4 Releasing the lease on exit — and the missing `delete` action
+### 3.4 Releasing the lease on exit — use the `move` action
 
 You did not mention release, and it matters for the operational story: without it, restarting a
 service means waiting for the full TTL before it can collect again (or, worse, tempts us into a very
 short TTL). Graceful release should be an `on.exit()` in each loop.
 
-Annoyance: the fs API has **no delete action** (post actions are `upload`, `createDir`, `touch`,
-`copy` — `API.scala:566`). So "release" cannot remove the file. Workaround, no Scala change needed:
-write the lease with `holder = null, released = true`. `read_runner_lease()` treats a released file
-as free regardless of its mtime. Costs one field and one condition.
+The fs API still has **no delete action**, but since `c499fbe` it has a `move` one (post actions are
+`upload`, `createDir`, `touch`, `move` — `API.scala:566`; note that `move` *replaced* `copy`, it was
+not added next to it — see the note at the end of this section). `Files.move` with
+`REPLACE_EXISTING` is enough for a clean release: **move the lease out of the way** instead of
+marking it.
+
+```
+release = move  <data_dir>/runners/search.bluesky.json
+             -> <data_dir>/runners/old/search.bluesky.<instance_id>.json
+```
+
+Why this is better than the `released = true` marker first considered here:
+
+* `read_runner_lease()` has one less case to handle — the file is simply absent, which is already
+  the "free" case;
+* `epilist.files(epipath("runners"))` then lists **live runners only**, which is exactly what the
+  Shiny status table of §8 wants to show;
+* the released files are kept, not lost: `runners/old/` is a trail an operator can read after the
+  fact ("who held this and until when", the mtime being the release time). The `<instance_id>` in
+  the name keeps successive releases from overwriting each other, and nothing lists that folder, so
+  the accumulation costs nothing but disk.
+
+Same precaution as with the marker, and it is the important one: **release only if we still hold
+the lease**. A move issued by an instance that silently lost its lease would take away the *new*
+holder's file. `release_runner_lease()` must therefore check `i_hold_runner_lease()` immediately
+before moving, and the `episomer_lease_lost` handler of §5 must not release at all.
+
+Two consequences on the R side, both belonging to issue 2:
+
+* `epifile.move(from, to)` has to be written in `R/fs.R` (local branch: `file.rename()`; remote
+  branch: `POST ?action=move` with the destination as JSON body, like the former `epifile.copy()`);
+* **`epifile.copy()` (`R/fs.R:126`) is now broken for the remote→remote case**: it still posts
+  `?action=copy`, an action the server no longer knows. No current call site hits that branch (the
+  Shiny download handlers copy to a local destination, `alert.R:2158` and `geo-tagging.R:898` upload
+  a local temp file), so this is latent rather than live. It cannot be fixed by simply swapping the
+  action name — `move` does not copy — so the call is either to restore `copy` in the Scala API next
+  to `move`, or to drop that branch of `epifile.copy()`. To be decided with whoever wrote `c499fbe`;
+  the lease code itself only needs `move`.
 
 ### 3.5 Long tasks in the detect loop deserve a longer TTL
 
@@ -177,6 +211,7 @@ One file per runner name, under a dedicated folder so listing them is trivial fo
 <data_dir>/runners/search.json
 <data_dir>/runners/search.bluesky.json
 <data_dir>/runners/search.mastodon.piaille.fr.json
+<data_dir>/runners/old/search.bluesky.<instance_id>.json   <- released, kept as a trail (§3.4)
 ```
 
 Accessed through `epipath("runners", paste0(name, ".json"))`, which means **the exact same code
@@ -195,16 +230,21 @@ Content:
   "pid": 12345,
   "episomer_version": "4.0.5",
   "claimed_at": "2026-08-27T09:14:03Z",
-  "renewed_at": "2026-08-27T09:41:33Z",
-  "released": false
+  "renewed_at": "2026-08-27T09:41:33Z"
 }
 ```
 
-* `instance_id`: `paste(format(as.hexmode(sample.int(2^31, 4)), width = 8), collapse = "")` or
-  simply `basename(tempfile(""))` — uniqueness within the cluster is what matters, not
-  cryptographic quality.
-* `host`: `Sys.getenv("EPISOMER_INSTANCE", Sys.info()[["nodename"]])`. Container hostnames are
-  random hex, so let deployments override it — worth adding to `docker/compose.yml`.
+There is no `released` field: a released lease is a file that has been *moved* to `runners/old/`
+(§3.4), so the presence of the file under `runners/` already means "somebody claims this runner".
+
+* `instance_id`: **implemented** (issue 1) as `conf$instance_id`, built by `new_instance_id()`
+  (`R/config.R`) from `tempdir()` / `tempfile()`. Uniqueness within the cluster is what matters,
+  not cryptographic quality — but note the reason `sample.int()` was *not* used: it consumes the R
+  random number generator, so a script calling `set.seed()` before `setup_config()` would get a
+  predictable, and therefore possibly colliding, identity.
+* `host`: **implemented** (issue 1) as `conf$instance_host`, built by `get_instance_host()` from
+  `EPISOMER_INSTANCE` with a fallback on `Sys.info()[["nodename"]]`, and set for the three services
+  in `docker/compose.yml`. Container hostnames are random hex, hence the override.
 * `claimed_at` / `renewed_at` / `pid` / `episomer_version`: diagnostics and Shiny display only
   (§3.2). `renewed_at` is only refreshed when the content is rewritten, so treat it as "since when
   is this instance the holder", and display mtime for "last seen".
@@ -241,9 +281,10 @@ claim_runner_lease <- function(name, guard = 5) {
   !is.null(confirmed) && identical(confirmed$instance_id, conf$instance_id)
 }
 
-# A lease is free if absent, explicitly released, expired, or already mine.
+# A lease is free if absent (never claimed, or released and moved to runners/old/ — §3.4),
+# expired, or already mine.
 lease_is_free <- function(lease, name) {
-  if (is.null(lease) || isTRUE(lease$released)) return(TRUE)
+  if (is.null(lease)) return(TRUE)
   if (identical(lease$instance_id, conf$instance_id)) return(TRUE)
   age <- as.numeric(difftime(Sys.time(), lease$seen_at, units = "secs"))
   age > runner_lease_ttl(name)       # seen_at comes from epifile.mtime(), never from the JSON
@@ -282,8 +323,8 @@ stop_if_lease_lost <- function(name = conf$runner_name) {
 
 `kill_task()` stays as is — it is the *local* tool. A runner that lost its lease should not need to
 be killed from outside: it raises `episomer_lease_lost`, the top of the loop catches that class,
-logs, releases nothing (the lease is not ours anymore — **do not** write a release, that would
-erase the new holder), and exits. For `search_loop()`, workers run inside a PSOCK cluster
+logs, releases nothing (the lease is not ours anymore — **do not** release, the move would take
+away the new holder's file), and exits. For `search_loop()`, workers run inside a PSOCK cluster
 (`R/search.R:57`): a worker raising the condition must be allowed to end without taking the whole
 cluster down in an unexplained way — that is where the current `stop("All search loop proccesses
 ended, which is unexpected")` at `R/search.R:74` needs a nuance.
@@ -338,14 +379,29 @@ corrupts data):
 Guarding costs one HTTP GET (mtime) + one GET (content). At these frequencies it is free; do not
 guard inside tight loops.
 
-### 6.4 The Shiny app is *not* an exclusive runner
+### 6.4 The Shiny app is *not* a runner at all — decided
 
-The brief says "Shiny app will follow the same workflow as services" — I would qualify that:
-several people must be able to open the app at once, so the app must never take an exclusive lease.
-Give it a **presence** entry instead (same file format, in `runners/app.<instance_id>.json`, no
-exclusivity, no `stop()`), useful to display "3 sessions connected, on 2 hosts". The app does write
-`properties.json` and the xlsx files, so if we ever want to serialise those writes it should be a
-separate, much shorter-lived lock (out of scope here — §9.3).
+The brief says "Shiny app will follow the same workflow as services". **It does not**, and this is
+settled: the app writes nothing under `runners/`, neither a lease nor a presence entry. It is a
+pure reader of the runner state.
+
+That is already how the code is built, and it is worth stating so nobody "completes" it later:
+`register_runner()` is called by `fs_loop()`, `search_loop()` / its workers, `detect_loop()` and
+`fs_mon` only (`R/fs.R:275`, `R/runners.R:2-49`, `R/scheduler.R:197`, `R/search.R:47`). The app
+merely *reads* the state (`is_*_running()`, §6.2) and *starts* services
+(`register_*_runner_task()`, `R/runners.R:270`), which spawn separate processes — those processes
+take the lease, not the app.
+
+Two reasons not to give it even a presence entry:
+
+* several people must be able to open the app at once, so anything exclusive is wrong by
+  construction, and a non-exclusive entry buys only the cosmetic "3 sessions connected on 2 hosts";
+* one file per session would accumulate under `runners/` with no natural moment to clean it up (a
+  browser tab closing is not an event the R process reliably sees), and it would pollute the very
+  listing the status table of §8 reads.
+
+The app does write `properties.json` and the xlsx files, so if we ever want to serialise *those*
+writes it should be a separate, much shorter-lived lock (out of scope here — §9.3).
 
 ### 6.5 New configuration properties
 
@@ -377,11 +433,11 @@ not be shared between machines).
 | 1 | B starts `search.bluesky`, lease absent | B writes, waits 5 s, re-reads, sees itself → collects |
 | 2 | C starts `search.bluesky` 1 min later | C reads the lease: fresh, foreign → `register_search_runner()` stops with "already held by machine-B since …". C's container restarts and retries — this is the intended standby behaviour |
 | 3 | B and C start simultaneously | both write; the later write wins; the loser's confirmation read shows a foreign id → it backs off (§3.1) |
-| 4 | B is stopped cleanly | `on.exit` writes `released = true` → C claims within one restart cycle, no TTL wait |
+| 4 | B is stopped cleanly | `on.exit` moves the lease to `runners/old/` → C sees a free runner and claims within one restart cycle, no TTL wait |
 | 5 | B's host dies | no renewal; after `runner_ttl_search` the lease is stale → C claims it |
 | 6 | B is frozen (network partition), C takes over, then B wakes up | B's next `stop_if_lease_lost()` — before its next post upload — raises `episomer_lease_lost`; B exits without writing. Worst case: B pushed posts during the partition window before its guard; deduplication on the fs side limits the damage, but this is the accepted residual risk (§9.1) |
 | 7 | B does bluesky, C does mastodon | different runner names, different leases, both work. This is the useful multi-machine setup and it works with no extra code |
-| 8 | Shiny app on machine D | reads `runners/*.json` through the fs API, displays service, host, last seen. No lease |
+| 8 | Shiny app on machine D | reads `runners/*.json` through the fs API, displays service, host, last seen. Writes nothing there — it is not a runner (§6.4) |
 
 ---
 
@@ -389,9 +445,12 @@ not be shared between machines).
 
 Worth doing at the same time, because it is what makes the whole thing debuggable: the services
 status block (`R/shiny-app.R:2224-2252`, fed by `R/shiny-app-utils.R:141-144`) should show, per
-runner: name, status (running / stale / released / free), **host**, and "last seen N s ago". One
-`epilist.files(epipath("runners"))` + one read per file. Without this, a lost lease is invisible
-and the operator has to read logs on three machines.
+runner: name, status (running / stale / free), **host**, and "last seen N s ago". One
+`epilist.files(epipath("runners"))` + one read per file — `runners/old/` is deliberately not
+listed, a released runner is simply one whose file is gone (§3.4). Without this, a lost lease is
+invisible and the operator has to read logs on three machines.
+
+The app itself does not appear in that table: it is not a runner (§6.4).
 
 ---
 
@@ -420,38 +479,138 @@ and the operator has to read logs on three machines.
 Sized so each is a reviewable PR, and ordered so each one is testable on its own.
 
 ### Issue 1 — Instance identity in `conf`
-- [ ] `conf$instance_id` generated once per process in `setup_config()`
-- [ ] `conf$instance_host` from `EPISOMER_INSTANCE`, falling back to `Sys.info()[["nodename"]]`
-- [ ] never persisted to `properties.json` (check both `setup_config()` and `save_config()`)
-- [ ] `EPISOMER_INSTANCE` documented and set in `docker/compose.yml` for the three services
-- [ ] unit test: two `setup_config()` calls in the same session keep the same `instance_id`
+- [x] `conf$instance_id` generated once per process in `setup_config()`
+- [x] `conf$instance_host` from `EPISOMER_INSTANCE`, falling back to `Sys.info()[["nodename"]]`
+- [x] never persisted to `properties.json` (check both `setup_config()` and `save_config()`)
+- [x] `EPISOMER_INSTANCE` documented and set in `docker/compose.yml` for the three services
+- [x] unit test: two `setup_config()` calls in the same session keep the same `instance_id`
 
 ### Issue 2 — Lease primitives (`R/runners-lease.R`)
-- [ ] `runner_lease_path(name)` on top of `epipath("runners", ...)`, folder created if missing
-- [ ] `read_runner_lease(name)` → `NULL` or a list including `seen_at` from `epifile.mtime()`
-- [ ] `runner_lease_ttl(name)` → per-service TTL from `conf`
-- [ ] `lease_is_free(lease, name)`
-- [ ] `write_runner_lease(name)` via `write_json_atomic()`
-- [ ] `claim_runner_lease(name, guard)` with the confirmation read of §3.1
-- [ ] `renew_runner_lease(name)` via `epifile.touch()`
-- [ ] `release_runner_lease(name)` writing `released = true` (§3.4)
-- [ ] `i_hold_runner_lease(name)`, `runner_lease_status(name)`
-- [ ] `stop_if_lease_lost(name)` raising the `episomer_lease_lost` condition
-- [ ] fix the `p`/`path` mix-up in `epifile.mtime()` (`R/fs.R:150`)
-- [ ] tests (see §11) — this issue is where the test effort belongs
+- [x] `runner_lease_path(name)` on top of `epipath("runners", ...)`, folder created if missing
+- [x] `read_runner_lease(name)` → `NULL` or a list including `seen_at` from `epifile.mtime()`
+- [x] `runner_lease_ttl(name)` → per-service TTL from `conf`
+- [x] `lease_is_free(lease, name)`
+- [x] `write_runner_lease(name)` via `write_json_atomic()`
+- [x] `claim_runner_lease(name, guard)` with the confirmation read of §3.1
+- [x] `renew_runner_lease(name)` via `epifile.touch()`
+- [x] `epifile.move()` in `R/fs.R` (`?action=move` remotely, `file.rename()` locally), and fix or
+      drop the now dead remote→remote branch of `epifile.copy()` (§3.4)
+- [x] `release_runner_lease(name)` moving the file to `runners/old/<name>.<instance_id>.json`,
+      **only if `i_hold_runner_lease()` is still true** (§3.4)
+- [x] `i_hold_runner_lease(name)`, `runner_lease_status(name)`
+- [x] `stop_if_lease_lost(name)` raising the `episomer_lease_lost` condition
+- [x] fix the `p`/`path` mix-up in `epifile.mtime()` (`R/fs.R:150`)
+- [x] tests (see §11) — this issue is where the test effort belongs
+
+Diagram of the implemented logic: `inst/schema/runners_lease.excalidraw` (the file, taking the
+lease with its confirmation read, the life of the holder, the per-service TTL).
+
+Decided while implementing, all four visible in `R/runners-lease.R` / `R/fs.R`:
+
+* **`epifile.copy()` remote→remote is kept, not dropped**, since `?action=copy` is being restored in
+  the Scala API. Its body was wrong on top of the action name: the API resolves the destination
+  against its own `epiHome` and rejects an absolute path, so both `move` and `copy` now send
+  `to_remote_dest(to)` (`R/paths.R`, e.g. `runners/old/detect.abc.json`) instead of the full URL.
+  **To confirm with the restored endpoint**: that it reads the destination as a relative
+  `epiHome` path from a JSON string body, exactly like `move` does.
+* **`runner_lease_path(name, create_dir = FALSE)`**: the `runners/` folder is created by the writers
+  (`write_runner_lease()`, `release_runner_lease()`) rather than by every call. Reading a lease is
+  far more frequent than writing one — every guard point does it — and a reader must not create
+  anything on the fs machine, remotely at the price of an extra HTTP request.
+* **TTL defaults live in `runner_lease_ttl_defaults()`** until issue 3 puts
+  `runner_ttl_search` & co. in `conf`. `runner_lease_ttl()` already reads `conf` first, so issue 3
+  is purely additive; same for `conf$runner_claim_guard` and `runner_claim_guard()`.
+* **`epifile.mtime()` had a second bug in the same `lapply`**: the missing-file branch returned a
+  bare (logical) `NA`, which turned the whole `c()`-ed result into numbers. It now returns
+  `as.POSIXct(NA)`, which the lease code needs since it feeds those values to `difftime()`.
+
+Not in this issue, on purpose: `sleep_with_heartbeat()` (issue 5) and everything wiring the
+primitives into `register_runner()` and the loops (issues 4 and 6).
 
 ### Issue 3 — New configuration properties
-- [ ] `runner_heartbeat_span`, `runner_ttl_search`, `runner_ttl_detect`, `runner_ttl_fs`,
+- [x] `runner_heartbeat_span`, `runner_ttl_search`, `runner_ttl_detect`, `runner_ttl_fs`,
       `runner_claim_guard` in `get_empty_config()` / `setup_config()` / `save_config()`
-- [ ] numeric coercion of the values coming from `get_env_props()`
-- [ ] exposed on the Shiny configuration page (or deliberately left env-only — decide)
+- [x] numeric coercion of the values coming from `get_env_props()`
+- [x] exposed on the Shiny configuration page (or deliberately left env-only — decide)
+- [x] tests: `tests/testthat/test-config_runner_props.R`
+
+Decided while implementing:
+
+* **Not on the Shiny configuration page, deliberately.** These five are deployment knobs, not
+  analysis settings, and the page is open to non-admin users: a TTL mistyped there breaks
+  exclusivity for the *whole cluster* at once, not just for the machine running the app. The
+  reason is written as a comment in `get_empty_config()` so this reads as a decision and not as an
+  oversight. If operators end up needing visibility, the read-only display belongs next to the
+  services status table of issue 8, not in the editable form.
+* **The coercion is generic, not five hand-written `as.numeric()`.** `coerce_env_props(props,
+  defaults)` (`R/config.R`, next to `get_env_props()`) gives each environment value the type of the
+  matching default in `get_empty_config()`. One place holds the knowledge of types, and the same
+  latent trap on `fs_port`, `smtp_port` and the alert thresholds is fixed on the way. Untypable
+  values are an error naming the variable rather than a silent `NA`: an unusable
+  `EPISOMER_OPTION_*` must fail at startup, not three hours into a loop. Defaults that are `NA`
+  (`lang_updated_on` and the other date properties) are skipped on purpose — `NA` is a *logical* in
+  R and coercing those would destroy them.
+* **`1` / `0` are accepted for a boolean property**, since that is a natural way to write one in a
+  compose file and `as.logical("1")` is `NA`.
+
+**Found on the way, not fixed here — worth its own issue.** `EPISOMER_OPTION_*` is much weaker than
+it looks, and this is pre-existing behaviour, unrelated to the lease work:
+
+1. `setup_config()` only reads the environment **inside** the `if (epifile.exists(props_path) ||
+   !is.null(fs_remote))` branch, so on a fresh local data directory with no `properties.json` the
+   environment is not read at all;
+2. the merge order is `defaults < environment < properties.json`, so a property already stored in
+   the file wins over the variable.
+
+Since `save_config()` writes every property, an `EPISOMER_OPTION_*` therefore stops having any
+effect as soon as the app has saved the configuration once. `EPISOMER_OPTION_FS_URL` in
+`docker/compose.yml` is already in that situation. Both tests documenting the current behaviour are
+in `test-config_runner_props.R`, so a future change of precedence will show up there. Fixing it
+means reading the environment unconditionally and putting it *after* `properties.json` in the
+merge — a behaviour change for every property (a value typed in the Shiny UI would then be ignored
+while the variable is set), which is why it is not done as part of this issue.
 
 ### Issue 4 — `register_runner()` claims a lease
-- [ ] `register_runner()` = PID file (unchanged) + `claim_runner_lease()`
-- [ ] failure message naming the current holder (`host`, since when)
-- [ ] `conf$runner_name` set
-- [ ] `release_runner_lease()` on exit in `fs_loop()`, `search_loop_worker()`, `detect_loop()`
-- [ ] `stop_all_runner_tasks()` still works locally (it must not depend on the lease)
+- [x] `register_runner()` = PID file (unchanged) + `claim_runner_lease()`
+- [x] failure message naming the current holder (`host`, since when)
+- [x] `conf$runner_name` set
+- [x] `release_runner_lease()` on exit in `fs_loop()`, `search_loop_worker()`, `detect_loop()`
+- [x] `stop_all_runner_tasks()` still works locally (it must not depend on the lease)
+- [x] tests: `tests/testthat/test-runners_register.R`
+
+Diagram updated: `inst/schema/runners_lease.excalidraw`, panel 5 (the two layers of
+`register_runner()` and where each of them refuses).
+
+Decided while implementing:
+
+* **The PID file is removed when the claim fails.** `register_runner()` writes it before going to
+  the network (the local check is cheaper and disturbs nobody), so a refused claim would otherwise
+  leave this machine looking like it hosts a running runner — exactly what `is_*_running()` and
+  `stop_all_runner_tasks()` read locally. Order is: PID check → PID write → claim → on failure,
+  `remove_running_task_pid()` + `stop()`.
+* **`claim_runner_lease()` gained a fast path when the live lease already names me.** It renews
+  instead of rewriting, and skips the guard wait: there is nothing to race against, since a
+  competing writer would already have replaced my name in the read. Without it,
+  `register_fs_monitor()` — called on *every* iteration of the fs monitor's 2-second loop
+  (`R/fs.R`) — would pay a JSON write plus a `runner_claim_guard`-second sleep every two seconds.
+* **`is_runner_running_locally(name)` added in `R/runners.R`**, and `stop_all_runner_tasks()` uses
+  it for `search` and `detect` instead of `is_search_running()` / `is_detect_running()`. Stopping a
+  runner means killing a process *here*, so the question is "is there something on this machine to
+  kill?", never "is this runner running somewhere in the cluster?". Freezing this now is what keeps
+  issue 7 from turning `stop_all_runner_tasks()` into an attempt to kill processes that live on
+  another machine. `fs` keeps its `/ping` check, which issue 7 does not touch either.
+* **`search_loop()` releases the parent `search` lease too**, though the checklist only named the
+  three loops that do the work. Same reason as everywhere else: without it, restarting the search
+  service waits a full TTL. This required adding `add = TRUE` to the existing
+  `on.exit(parallel::stopCluster(cl))`, which would otherwise have silently replaced it.
+* **`conf$runner_name` is set by `register_runner()`, not by `setup_config()`.** Only a process
+  that actually claimed a lease may carry one, and `setup_config()` is called again on every
+  configuration refresh. It is session state like `instance_id` / `instance_host`, so it is never
+  written to `properties.json` — `save_config()` builds its list property by property, so nothing
+  had to change there. It stays `NULL` in the Shiny app, which makes `release_runner_lease()` and
+  `stop_if_lease_lost()` no-ops there, matching §6.4.
+* **The test helper `local_lease_conf()` moved from `test-runners_lease.R` to `helper-conf.R`**, so
+  both test files can use it (testthat gives each test file its own environment).
 
 ### Issue 5 — Heartbeat during long waits
 - [ ] `sleep_with_heartbeat(seconds, name)`
@@ -480,7 +639,6 @@ Sized so each is a reviewable PR, and ordered so each one is testable on its own
 ### Issue 8 — Shiny app: distributed services status
 - [ ] `runner_leases()` listing everything under `runners/`
 - [ ] status table: runner, status, host, last seen, since
-- [ ] presence entry for the app itself (`runners/app.<instance_id>.json`, no exclusivity, §6.4)
 - [ ] `loop_run_issues()` (`R/runners.R:572`) messages updated for the remote case ("running on
       another host" is not the same thing as "not running")
 
@@ -492,7 +650,8 @@ Sized so each is a reviewable PR, and ordered so each one is testable on its own
 
 ### Issue 10 (optional, Scala) — Conditional write in the fs API
 - [ ] `POST /file/...?action=upload&ifMd5=<md5>` returning 409 on mismatch
-- [ ] `?action=delete` (removes the `released` marker workaround of §3.4)
+- [ ] `?action=delete`, if `runners/old/` ever turns out to be a nuisance — with `move` (§3.4) it
+      is no longer needed for the release path
 - [ ] `claim_runner_lease()` uses it when available, keeps the current path as a fallback
 
 **Recommended order:** 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9. Issues 1–4 give a working exclusion
@@ -516,18 +675,27 @@ with_instance <- function(id, host = "other-host", code) { ... }
 
 Cases worth covering, in `tests/testthat/test-runners_lease.R`:
 
-- [ ] free lease (absent file) → claim succeeds
-- [ ] fresh foreign lease → claim fails, the holder is reported
-- [ ] expired foreign lease → claim succeeds (mock `epifile.mtime()` to fake age, or
+- [x] free lease (absent file) → claim succeeds
+- [x] fresh foreign lease → claim fails, the holder is reported
+- [x] expired foreign lease → claim succeeds (mock `epifile.mtime()` to fake age, or
       `Sys.setFileTime()` in local mode — the latter is a real test of the mtime path)
-- [ ] released foreign lease → claim succeeds regardless of mtime
-- [ ] my own lease → `i_hold_runner_lease()` TRUE, `stop_if_lease_lost()` silent
-- [ ] stolen lease → `stop_if_lease_lost()` raises a condition of class `episomer_lease_lost`
-- [ ] `renew_runner_lease()` moves the mtime forward and does **not** change the content
-- [ ] per-service TTL: `runner_lease_ttl("search.bluesky")` → `conf$runner_ttl_search`
-- [ ] `sleep_with_heartbeat(2)` with `runner_heartbeat_span = 1` renews at least once (mock
+- [x] released foreign lease (file moved to `runners/old/`) → claim succeeds regardless of mtime,
+      and the released file is still readable under `runners/old/`
+- [x] `release_runner_lease()` on a lease stolen in the meantime → the holder's file is left alone
+- [x] my own lease → `i_hold_runner_lease()` TRUE, `stop_if_lease_lost()` silent
+- [x] stolen lease → `stop_if_lease_lost()` raises a condition of class `episomer_lease_lost`
+- [x] `renew_runner_lease()` moves the mtime forward and does **not** change the content
+- [x] per-service TTL: `runner_lease_ttl("search.bluesky")` → `conf$runner_ttl_search`
+- [ ] (issue 5) `sleep_with_heartbeat(2)` with `runner_heartbeat_span = 1` renews at least once (mock
       `renew_runner_lease()` and count calls — do not sleep for real in the suite)
-- [ ] `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE
+- [ ] (issue 7) `is_search_running()` on a stale lease → FALSE; on a fresh one → TRUE
 
-Not unit-testable, keep for a manual/integration check on `docker compose`: the simultaneous-claim
-race (§3.1, case 3) and the takeover after killing a container (case 5).
+Also covered, and the helper the plan suggested: `with_instance()` lives in
+`tests/testthat/helper-conf.R`, the claim race of §3.1 case 3 turned out to be unit-testable
+after all — `runner_claim_wait()` exists as a seam so a test can make a competing write land
+exactly during the guard wait — and `epifile.move()` / `to_remote_dest()` are covered in
+`test-fs.R` and `test-paths.R`.
+
+Kept for a manual/integration check on `docker compose`: everything going through the fs API
+over HTTP (only the `fs_remote = NULL` branch is unit-tested) and the takeover after killing a
+container (case 5).
