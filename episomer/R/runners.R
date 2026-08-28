@@ -545,6 +545,16 @@ remove_running_task_pid <- function(name) {
     unlink(pid_path)
 }
 
+# TRUE when a process of this machine is registered as `name` and still alive.
+#
+# This is the *local* answer, the one the PID file gives. Keep it apart from is_search_running() /
+# is_detect_running(), which answer the cluster-wide question ("is anybody, anywhere, running this
+# runner?") and are about to be backed by the lease. Everything that kills a process locally must
+# use this one.
+is_runner_running_locally <- function(name) {
+  get_running_task_pid(name) >= 0
+}
+
 # Get runner active PID this function will return -1 if no process was detected
 get_running_task_pid <- function(name) {
   # Getting PID file name based on task name which stored the PID of last time this task was running
