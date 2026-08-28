@@ -30,6 +30,13 @@ to_remote_relative <- function(path) {
    gsub("^file", "", p$path)
 }
 
+# Destination path as the fs API expects it in the body of a move or a copy: relative to the
+# epiHome of the fs machine, with no leading slash. The API rejects an absolute destination (and
+# any ".."), so "http://host/file/runners/a.json" has to become "runners/a.json".
+to_remote_dest <- function(path) {
+   sub("^/", "", to_remote_relative(path))
+}
+
 to_remote_if_needed <- function(path) {
    if(fs_remote() && !is_remote(path)) {
      gsub(conf$data_dir, sprintf("%s/file/", conf$fs_remote), path)

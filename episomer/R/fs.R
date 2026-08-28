@@ -123,11 +123,41 @@ epifile.touch <- function(path) {
     httr2::request(sprintf("%s?action=touch",path)) %>% httr2::req_method("POST") %>% httr2::req_perform()
   }
 }
+# Moves a file, within the local disk or within the fs machine.
+#
+# Used by the runner leases to release a lease: the lease file is moved out of runners/ instead of
+# being deleted (the fs API has no delete action) so that "the file is absent" keeps its single
+# meaning of "this runner is free" - see inst/schema/multi_services_plan.md section 3.4.
+# A remote to remote move is one POST, so nothing travels through this process.
+epifile.move <- function(from, to) {
+    if(!is_remote(from) && !is_remote(to))
+        file.rename(from, to)
+    else if (is_remote(from) && is_remote(to))
+        httr2::request(sprintf("%s?action=move", from)) %>%
+            httr2::req_method("POST") %>%
+            # the API resolves the destination against its own epiHome and refuses anything
+            # absolute or containing "..", hence the relative form rather than the full URL
+            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+            httr2::req_perform()
+    else
+        # a move with one foot on each machine would be a download or an upload followed by a
+        # delete, and the fs API cannot delete: no caller needs it, so it is refused loudly
+        stop("epifile.move only supports moving within the same file system (both local or both remote)")
+}
+
 epifile.copy <- function(from, to, overwrite = TRUE) {
     if(!is_remote(from) && !is_remote(to))
         file.copy(from, to, overwrite = overwrite)
     else if (is_remote(from) && is_remote(to))
-        httr2::request(sprintf("%s?action=copy",from)) %>% httr2::req_body_json(data = to) %>% httr2::req_perform()
+        # same destination format as epifile.move above: the API expects a path relative to its
+        # own epiHome, and used to be given the full URL of `to`, which it resolved to nonsense.
+        # This branch has no call site today (the Shiny download handlers copy to a local
+        # destination, alert.R and geo-tagging.R upload a local temp file), so the fix went
+        # untested against a real server until a caller shows up.
+        httr2::request(sprintf("%s?action=copy", from)) %>%
+            httr2::req_method("POST") %>%
+            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+            httr2::req_perform()
     else if (!is_remote(to)) {
         if(!file.exists(dirname(to))) 
             dir.create(dirname(to), recursive = TRUE)
@@ -147,13 +177,21 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
         files
     }
 }
+# Last modification time of one or several paths, as a POSIXct vector (NA for a missing path).
+# The runner leases rely on this function to decide whether a runner is still alive: the mtime is
+# produced by the single machine hosting the fs, so no clock skew between runners can make a lease
+# look fresh or expired when it is not (see inst/schema/multi_services_plan.md section 3.2).
 epifile.mtime <- function(path) {
     do.call(c, lapply(path, function(p) {
       if(!is_remote(p))
         file.mtime(p)
       else {
-        if(!epifile.exists(path))
-            NA
+        # `p`, not `path`: inside the lapply the existence test must be about the path being
+        # visited, otherwise a vector of paths gets the answer of its first element only.
+        if(!epifile.exists(p))
+            # a typed NA, so that c()-ing the results keeps a POSIXct vector. A bare NA is logical
+            # and would silently turn the whole vector into numbers.
+            as.POSIXct(NA)
         else
             lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
       }

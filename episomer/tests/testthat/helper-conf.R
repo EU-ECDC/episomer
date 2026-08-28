@@ -18,3 +18,19 @@ local_conf <- function(..., .local_envir = parent.frame()) {
   list2env(list(...), envir = conf)
   invisible(conf)
 }
+
+# Runs `code` as if it were another episomer instance, i.e. another R process on another machine
+# sharing the same data directory. That is all a "second instance" is, as far as the runner leases
+# are concerned: a different conf$instance_id (see R/runners-lease.R).
+#
+#   with_instance("instance-B", code = claim_runner_lease("search.bluesky", guard = 0))
+#
+# `code` is evaluated lazily, so it runs with the borrowed identity in place, and the identity of
+# the calling test is restored whatever happens.
+with_instance <- function(id, host = "other-host", code) {
+  saved <- list(instance_id = conf$instance_id, instance_host = conf$instance_host)
+  on.exit(list2env(saved, envir = conf), add = TRUE)
+  conf$instance_id <- id
+  conf$instance_host <- host
+  force(code)
+}

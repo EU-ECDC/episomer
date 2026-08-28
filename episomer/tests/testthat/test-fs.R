@@ -93,3 +93,48 @@ test_that("get_scala_xxx_url functions work", {
     paste(remote, "stopWords?code=123456", sep = "/")
   )
 })
+
+
+# epifile.move() and the mtime fix (multi-instance services, plan issue 2) ------------------------
+#
+# Only the local branch is covered: the remote one needs a running fs API. The destination format
+# it sends is tested through to_remote_dest() in test-paths.R.
+
+test_that("epifile.move renames a file locally", {
+  data_dir <- withr::local_tempdir()
+  local_conf(data_dir = data_dir, fs_remote = NULL)
+  from <- file.path(data_dir, "detect.json")
+  to <- file.path(data_dir, "detect.moved.json")
+  writeLines("payload", from)
+
+  expect_true(epifile.move(from, to))
+
+  expect_false(file.exists(from))
+  expect_identical(readLines(to), "payload")
+})
+
+test_that("epifile.move refuses to move across file systems", {
+  # it would be a download or an upload followed by a delete, and the fs API cannot delete
+  local_conf(data_dir = "/data", fs_remote = "http://example.com:8080")
+
+  expect_error(
+    epifile.move("/data/detect.json", "http://example.com:8080/file/detect.json"),
+    "same file system"
+  )
+})
+
+test_that("epifile.mtime answers about each path of a vector", {
+  data_dir <- withr::local_tempdir()
+  local_conf(data_dir = data_dir, fs_remote = NULL)
+  existing <- file.path(data_dir, "here.json")
+  missing <- file.path(data_dir, "gone.json")
+  writeLines("", existing)
+
+  times <- epifile.mtime(c(existing, missing))
+
+  # a POSIXct vector, not numbers: the runner leases compare these values with difftime()
+  expect_s3_class(times, "POSIXct")
+  expect_length(times, 2)
+  expect_false(is.na(times[[1]]))
+  expect_true(is.na(times[[2]]))
+})
