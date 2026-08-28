@@ -47,6 +47,7 @@ local_lease_conf <- function(
   .local_envir = parent.frame()
 ) {
   data_dir <- withr::local_tempdir(.local_envir = .local_envir)
+  local_heartbeats(.local_envir = .local_envir)
   local_conf(
     data_dir = data_dir,
     fs_remote = NULL,
@@ -56,4 +57,24 @@ local_lease_conf <- function(
     .local_envir = .local_envir
   )
   data_dir
+}
+
+# Empties the record of the last lease renewals (lease_last_renewal, R/runners-lease.R) and puts
+# it back when the calling test exits.
+#
+# That environment lives in the package namespace, so it survives from one test to the next: a
+# renewal noted while testing "detect" would otherwise make the next test believe no heartbeat is
+# due for that runner. It is session state belonging to the configuration, so local_lease_conf()
+# resets it too.
+local_heartbeats <- function(.local_envir = parent.frame()) {
+  saved <- as.list(lease_last_renewal, all.names = TRUE)
+  withr::defer(
+    {
+      rm(list = ls(lease_last_renewal, all.names = TRUE), envir = lease_last_renewal)
+      list2env(saved, envir = lease_last_renewal)
+    },
+    envir = .local_envir
+  )
+  rm(list = ls(lease_last_renewal, all.names = TRUE), envir = lease_last_renewal)
+  invisible(lease_last_renewal)
 }

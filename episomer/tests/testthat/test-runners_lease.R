@@ -350,3 +350,176 @@ test_that("runner_lease_status() reports my own runner as running", {
   expect_true(status$mine)
   expect_lt(status$age, 60)
 })
+
+# Heartbeat (plan issue 5) ------------------------------------------------------------------------
+#
+# What is tested here is the *cadence*: that a long wait keeps proving the runner is alive, that a
+# short one costs nothing, and that a stolen lease interrupts the wait instead of being discovered
+# forty minutes later. The wiring into the loops themselves (search_loop_worker(), detect_loop())
+# is not unit tested - they are infinite loops needing a social media API and a running fs - it is
+# checked manually on docker compose, like the rest of the remote branch.
+#
+# The waits below are tenths of seconds: the span is taken from the configuration, so a test can
+# make a "long" wait last 0.3 second.
+
+test_that("runner_heartbeat_span() reads the configuration", {
+  local_lease_conf(runner_heartbeat_span = 10)
+  expect_equal(runner_heartbeat_span(), 10)
+
+  # as an EPISOMER_OPTION_RUNNER_HEARTBEAT_SPAN variable would give it, before coercion
+  local_lease_conf(runner_heartbeat_span = "45")
+  expect_equal(runner_heartbeat_span(), 45)
+})
+
+test_that("runner_heartbeat_span() refuses a value that would make a busy loop", {
+  # zero, negative or unreadable: sleep_with_heartbeat() would spin instead of sleeping
+  local_lease_conf(runner_heartbeat_span = 0)
+  expect_equal(runner_heartbeat_span(), runner_heartbeat_span_default)
+
+  local_lease_conf(runner_heartbeat_span = -5)
+  expect_equal(runner_heartbeat_span(), runner_heartbeat_span_default)
+
+  local_lease_conf(runner_heartbeat_span = "every 30 seconds")
+  expect_equal(runner_heartbeat_span(), runner_heartbeat_span_default)
+
+  # and a process whose configuration predates plan issue 3
+  local_lease_conf()
+  expect_equal(runner_heartbeat_span(), runner_heartbeat_span_default)
+})
+
+test_that("renew_runner_lease_if_due() renews at most once per heartbeat span", {
+  local_lease_conf(instance_id = "instance-A", runner_heartbeat_span = 60)
+  claim_runner_lease("detect", guard = 0)
+
+  # nothing renewed yet in this process: the first call goes to the fs
+  expect_true(renew_runner_lease_if_due("detect"))
+  # the second one is what makes the helper callable from inside a loop
+  expect_false(renew_runner_lease_if_due("detect"))
+
+  # and it beats again once the span has passed
+  assign("detect", Sys.time() - 120, envir = lease_last_renewal)
+  expect_true(renew_runner_lease_if_due("detect"))
+})
+
+test_that("renew_runner_lease_if_due() does nothing when this process holds no lease", {
+  # the Shiny app, a sandboxed loop, a function called from the console
+  local_lease_conf(instance_id = "instance-A", runner_name = NULL)
+
+  expect_false(renew_runner_lease_if_due())
+  expect_false(heartbeat_is_due(NULL))
+})
+
+test_that("sleep_with_heartbeat() renews the lease while it waits", {
+  local_lease_conf(instance_id = "instance-A", runner_heartbeat_span = 0.05)
+  claim_runner_lease("detect", guard = 0)
+
+  renewals <- 0
+  local_mocked_bindings(
+    renew_runner_lease = function(name = conf$runner_name) {
+      renewals <<- renewals + 1
+      # the real one records the attempt, and renew_runner_lease_if_due() reads that record
+      assign(name, Sys.time(), envir = lease_last_renewal)
+      TRUE
+    }
+  )
+
+  sleep_with_heartbeat(0.3, name = "detect")
+
+  # 0.3 second in slices of 0.05: the exact count depends on the machine, the point is that a wait
+  # much longer than the span does not stay silent
+  expect_gte(renewals, 2)
+})
+
+test_that("sleep_with_heartbeat() waits for the whole duration it was given", {
+  local_lease_conf(runner_heartbeat_span = 0.05)
+
+  # name = NULL: no lease at all, so it degrades to a plain, chopped Sys.sleep()
+  elapsed <- system.time(sleep_with_heartbeat(0.3, name = NULL))[["elapsed"]]
+
+  expect_gte(elapsed, 0.3)
+})
+
+test_that("sleep_with_heartbeat() returns at once when there is nothing to wait for", {
+  local_lease_conf(runner_heartbeat_span = 0.05)
+
+  # do_next_alerts() calls it with wait_for = 0 on its first turn (R/alert.R)
+  expect_null(sleep_with_heartbeat(0, name = NULL))
+  expect_null(sleep_with_heartbeat(NA, name = NULL))
+})
+
+test_that("sleep_with_heartbeat() gives up as soon as the lease is taken by somebody else", {
+  local_lease_conf(instance_id = "instance-A", runner_heartbeat_span = 0.05)
+  claim_runner_lease("detect", guard = 0)
+
+  # another instance takes the runner over while this one is asleep
+  with_instance("instance-B", code = write_runner_lease("detect"))
+
+  # asked for 30 seconds, back after the first slice: waking up half an hour later to discover
+  # somebody else has been working is the outcome this prevents
+  expect_error(
+    sleep_with_heartbeat(30, name = "detect"),
+    class = "episomer_lease_lost"
+  )
+})
+
+test_that("heartbeat_before_retry() takes the long rate-limit waits over from httr2", {
+  local_lease_conf(instance_id = "instance-A", runner_heartbeat_span = 0.05)
+  claim_runner_lease("detect", guard = 0)
+  conf$runner_name <- "detect"
+
+  renewals <- 0
+  local_mocked_bindings(
+    renew_runner_lease = function(name = conf$runner_name) {
+      renewals <<- renewals + 1
+      assign(name, Sys.time(), envir = lease_last_renewal)
+      TRUE
+    }
+  )
+
+  elapsed <- system.time(waited <- heartbeat_before_retry(0.3))[["elapsed"]]
+
+  # the wait happened here, with renewals...
+  expect_gte(elapsed, 0.3)
+  expect_gte(renewals, 2)
+  # ...and httr2 is told it has nothing left to wait for
+  expect_identical(waited, 0)
+})
+
+test_that("heartbeat_before_retry() leaves the httr2 backoff alone", {
+  local_lease_conf(
+    instance_id = "instance-A",
+    runner_heartbeat_span = 30,
+    runner_name = "detect"
+  )
+  claim_runner_lease("detect", guard = 0)
+
+  # NA: a transient 500/502/503, httr2 backs off on its own (60 seconds per try at most)
+  expect_true(is.na(heartbeat_before_retry(NA)))
+  # a wait shorter than the span is not worth chopping either
+  expect_equal(heartbeat_before_retry(5), 5)
+  # both beat on the way, since nothing had been renewed yet in this process
+  expect_false(heartbeat_is_due("detect"))
+})
+
+test_that("renew_fs_runner_lease() beats for the fs while it answers /ping", {
+  local_lease_conf(instance_id = "instance-A")
+  claim_runner_lease("fs", guard = 0)
+
+  local_mocked_bindings(is_fs_running = function() TRUE)
+
+  expect_true(renew_fs_runner_lease())
+  # the /ping call and the renewal only happen when a beat is due, not on every 2-second
+  # iteration of the fs monitor loop
+  expect_false(renew_fs_runner_lease())
+})
+
+test_that("renew_fs_runner_lease() lets the lease expire when the fs stops answering", {
+  local_lease_conf(instance_id = "instance-A")
+  claim_runner_lease("fs", guard = 0)
+
+  # a dead or wedged fs must not be kept alive by its monitor: this is what tells the monitor
+  # apart from the background beater the plan rejects
+  local_mocked_bindings(is_fs_running = function() FALSE)
+
+  expect_false(renew_fs_runner_lease())
+})
