@@ -702,6 +702,45 @@ runner_lease_holder_message <- function(name) {
   )
 }
 
+# Explains why a runner must not be started on *this* machine right now, or "" when nothing stands
+# in the way.
+#
+# This is the distinction plan issue 8 is about: "not running here" and "not running at all" used to
+# be the same sentence, and they are not the same situation anymore. A service whose lease is held,
+# alive, by another machine sharing this database is running - starting a second one here would be
+# refused by register_runner() after the fact, so the app says so before spawning anything.
+#
+# Two cases deliberately do *not* produce a message:
+#
+#  * a stale lease held by another machine: taking over is exactly what the standby is for, and the
+#    claim is going to succeed;
+#  * a lease held by this very host: starting is a local matter then, and the local PID check of
+#    register_runner() already refuses a duplicate with a message naming the PID to kill.
+runner_running_elsewhere_message <- function(name) {
+  status <- runner_lease_status(name)
+  if (!identical(status$status, "running")) {
+    return("")
+  }
+  host <- if (length(status$host) != 1 || is.na(status$host)) NA_character_ else
+    as.character(status$host)
+  if (identical(host, as.character(conf$instance_host))) {
+    return("")
+  }
+  sprintf(
+    paste(
+      "Runner '%s' is already running on host '%s' (holding its lease since %s, last seen %s).",
+      "Only one machine sharing this episomer database may run it at a time, so it has not been",
+      "started here. Stop it on that machine, or wait for its lease to expire (TTL: %s), and try",
+      "again."
+    ),
+    name,
+    if (is.na(host)) "unknown" else host,
+    runner_lease_since_label(status),
+    runner_lease_last_seen_label(status),
+    format_lease_duration(status$ttl)
+  )
+}
+
 # The status table of the Shiny app --------------------------------------------------------------
 #
 # Everything below is read-only and is meant for a human: the Shiny status panel (plan section 8)
