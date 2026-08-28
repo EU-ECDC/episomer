@@ -106,6 +106,46 @@ test_that("runner_lease_holder_message() tells a live holder from one that just 
   expect_match(runner_lease_holder_message("detect"), "Starting again should now succeed")
 })
 
+# Unregistering ------------------------------------------------------------------------------------
+
+test_that("unregister_runner() gives back both layers", {
+  local_lease_conf(instance_id = "instance-A", runner_claim_guard = 0)
+  register_runner("detect")
+
+  unregister_runner("detect")
+
+  # the lease is gone from runners/, so another machine may claim it at once instead of waiting out
+  # the TTL, and it is kept as a trail under runners/old/
+  expect_null(read_runner_lease("detect"))
+  expect_true(epifile.exists(runner_lease_released_path("detect")))
+  # and the PID file goes with it: it describes a process that has stopped. Leaving it behind is
+  # the state observed after a search worker died - lease free, PID file naming a live process -
+  # where the two layers disagreed about the same runner
+  expect_false(file.exists(pid_path("detect")))
+})
+
+test_that("unregister_runner() leaves alone what is not ours", {
+  local_lease_conf(instance_id = "instance-A", runner_claim_guard = 0)
+  register_runner("detect")
+  # taken over while we were busy: the file under runners/ is the new holder's now
+  steal_lease("detect")
+  # and the PID file names another local process
+  write("1", file = pid_path("detect"))
+
+  expect_message(unregister_runner("detect"), "not held by this instance anymore")
+
+  expect_identical(read_runner_lease("detect")$instance_id, "instance-B")
+  expect_true(file.exists(pid_path("detect")))
+})
+
+test_that("unregister_runner() does nothing when this process registered nothing", {
+  local_lease_conf(instance_id = "instance-A")
+
+  # the sandboxed loops and the Shiny app hold no runner: conf$runner_name is NULL and the on.exit
+  # of every loop still calls this
+  expect_false(unregister_runner(NULL))
+})
+
 # Stopping ----------------------------------------------------------------------------------------
 
 test_that("stop_all_runner_tasks() ignores runners held by another machine", {
