@@ -2374,6 +2374,21 @@ episomer_app <- function(
 
         # registering the Requirements & alerts runner after button is clicked
         shiny::observeEvent(input$activate_detect, {
+          # Unlike the two buttons above, this one was never gated by loop_run_issues(): it was the
+          # last place able to spawn a detect loop while another machine legitimately holds the
+          # `detect` lease. The check comes before anything else because the rest of this handler
+          # *writes*: it dates the one-shot tasks and saves the configuration, which the loop
+          # already running on the other machine would then pick up. Nothing should be touched when
+          # the answer is "it is running elsewhere".
+          issues = loop_run_issues("detect")
+          if (issues != "") {
+            shiny::showModal(shiny::modalDialog(
+              title = "Warning",
+              issues,
+              footer = shiny::tagList(shiny::modalButton("OK"))
+            ))
+            return(invisible(NULL))
+          }
           # Setting values configuration to trigger one shot tasks for the first time
           if (is.na(conf$dep_updated_on))
             conf$dep_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
