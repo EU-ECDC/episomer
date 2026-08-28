@@ -231,6 +231,17 @@ claim_runner_lease <- function(name, guard = runner_claim_guard()) {
     # somebody else is alive and holding it: no write at all, so the holder is left undisturbed
     return(FALSE)
   }
+  if (!is.null(current) && identical(current$instance_id, conf$instance_id)) {
+    # The live lease already names me: this is a re-registration, not an acquisition. There is
+    # nothing to race against - a competing writer would have replaced my name in the read above -
+    # so we skip both the rewrite and the guard wait, and only prove we are still alive.
+    #
+    # This matters because register_runner() is not always called once: the fs monitor calls
+    # register_fs_monitor() on every iteration of its 2-second loop (R/fs.R), and paying a JSON
+    # write plus a `guard`-second sleep there would be absurd.
+    renew_runner_lease(name)
+    return(TRUE)
+  }
   write_runner_lease(name)
   runner_claim_wait(guard)
   i_hold_runner_lease(name)
