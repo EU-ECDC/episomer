@@ -123,11 +123,19 @@ search_loop_worker <- function(
   while (max_requests == 0 || requests_done <= max_requests) {
     loop_start <- Sys.time()
 
+    # Proving this runner is still alive, once per turn of the loop. This is the heartbeat of the
+    # normal case, when everything goes fast and the loop never sleeps: the renewals of the waits
+    # below only happen when there is a wait. if_due, so an iteration that takes a second costs
+    # nothing (R/runners-lease.R).
+    renew_runner_lease_if_due()
+
     # Waiting until database system will be running
     if (!sandboxed) {
       while (!is_fs_running()) {
+        # Unbounded wait: the fs may be down for much longer than the search TTL, and this runner
+        # must not lose its lease while it is simply waiting for the database to come back.
         msg("episomer database is not yet running waiting for 5 seconds")
-        Sys.sleep(5)
+        sleep_with_heartbeat(5)
       }
       # Dismissing history if required from shiny app
       if (conf$dismiss_past_request > conf$dismiss_past_done) {
@@ -182,7 +190,11 @@ search_loop_worker <- function(
           sm_topics = list(network),
           properties = FALSE
         )
-        Sys.sleep(wait_for)
+        # The longest silence of the whole loop, and the reason sleep_with_heartbeat() exists:
+        # wait_for is bounded only by collect_span (60 minutes by default) against a 300-second
+        # lease TTL, so a plain Sys.sleep() here would hand this network over to a standby machine
+        # while the collection is perfectly healthy (plan section 3.3).
+        sleep_with_heartbeat(wait_for)
       }
     }
 
@@ -213,6 +225,10 @@ search_loop_worker <- function(
               is.null(plan$end_on) &&
               plan$network == network
           ) {
+            # One turn of the outer loop is not one request: with many topics, a full round robin
+            # pass can take longer than the search TTL without ever sleeping. if_due makes this
+            # free (one lookup in an environment) except once every heartbeat span.
+            renew_runner_lease_if_due()
             requests_done <- requests_done + 1
             #if search is performed on the first plan and we get an too old error, we will retry without time limit
             #message(sprintf("This is plan %s, doing request %s out of %s", j, plan$requests + 1,length(conf$topics[[i]]$plan) ))
