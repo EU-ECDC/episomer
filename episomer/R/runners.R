@@ -197,14 +197,21 @@ register_fs_runner_task <- function(wait_until_response=FALSE) {
 #' @rdname runners
 #' @export
 stop_all_runner_tasks <- function() {
-  if(is_detect_running()) {
+  # Deliberately reading the *local* PID files and not is_detect_running() / is_search_running():
+  # stopping a runner means killing a process on this machine (stop_runner_task() -> kill_task()),
+  # so the question to ask is "is there something here to kill?", never "is this runner running
+  # somewhere in the cluster?". Once is_*_running() starts reading the lease (plan issue 7), a
+  # runner held by another machine would otherwise send us killing a process that does not exist.
+  if(is_runner_running_locally("detect")) {
     message("Detect loop is running, stopping it")
     stop_detect_runner_task()
   }
-  if(is_search_running()) {
+  if(is_runner_running_locally("search")) {
     message("Search loop is running, stopping it")
     stop_search_runner_task()
   }
+  # fs keeps its /ping check: it is not lease-based today and stays that way (plan section 6.2),
+  # and it is the only reliable way to know whether the Scala service itself has stopped.
   if(is_fs_running()) {
     message("Fs loop is running, stopping it")
     stop_fs_runner_task()
