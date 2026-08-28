@@ -149,6 +149,12 @@ refresh_config_data <- function(
     e$missing_search_jobs <- missing_search_jobs()
     e$search_diff <- round(Sys.time() - last_search_time())
 
+    # The status table of plan issue 8: one row per runner holding a lease, wherever it runs. It
+    # answers what the three booleans above cannot - *which machine* is collecting, and whether a
+    # runner that reads as stopped is free or held by a lease nobody renews anymore. Refreshed with
+    # the rest of the "tasks" block, i.e. every ten seconds while the configuration page is open.
+    e$runner_leases_df <- runner_leases_df()
+
     # Detecting if some change has happened since last evaluation
     if (!exists("tasks_refresh_flag", where = e)) {
       e$tasks_refresh_flag <- shiny::reactiveVal()

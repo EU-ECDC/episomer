@@ -471,6 +471,17 @@ episomer_app <- function(
                 shiny::column(2, shiny::actionButton("stop_detect", "stop"))
               ),
               ################################################
+              ######### RUNNERS DETAIL #######################
+              ################################################
+              # The three statuses above answer "is this service running somewhere?"; this table
+              # says *where*, and tells a free runner from one held by a lease nobody renews
+              # anymore (inst/schema/multi_services_plan.md section 8). One row per runner holding
+              # a lease, on this machine or on any other machine sharing this database - a runner
+              # nobody holds simply has no row. The app itself never appears here: it is a reader
+              # of the leases, not a runner (section 6.4).
+              shiny::h4("Runners"),
+              DT::dataTableOutput("runner_leases_table"),
+              ################################################
               ######### GENERAL PROPERTIES ###################
               ################################################
               shiny::h3("Signal detection"),
@@ -2266,6 +2277,34 @@ episomer_app <- function(
             if (cd$detect_running) "Running" else "Stopped",
             "</span>",
             sep = ""
+          )
+        })
+
+        # rendering the detail of the runners holding a lease, wherever they run
+        output$runner_leases_table <- DT::renderDataTable({
+          # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
+          cd$tasks_refresh_flag()
+          # Adding a dependency to process update (each 10 seconds)
+          cd$process_refresh_flag()
+
+          DT::datatable(
+            cd$runner_leases_df,
+            rownames = FALSE,
+            # A status block, not a data table: no search box, no pagination, no sorting - the rows
+            # come in the reading order of runner_leases_df(). scrollX keeps the five columns
+            # readable inside the narrow status panel.
+            options = list(
+              dom = "t",
+              paging = FALSE,
+              ordering = FALSE,
+              scrollX = TRUE,
+              language = list(
+                emptyTable = paste(
+                  "No runner holds a lease: no episomer service is running on any machine",
+                  "sharing this database."
+                )
+              )
+            )
           )
         })
 
