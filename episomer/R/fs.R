@@ -177,13 +177,21 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
         files
     }
 }
+# Last modification time of one or several paths, as a POSIXct vector (NA for a missing path).
+# The runner leases rely on this function to decide whether a runner is still alive: the mtime is
+# produced by the single machine hosting the fs, so no clock skew between runners can make a lease
+# look fresh or expired when it is not (see inst/schema/multi_services_plan.md section 3.2).
 epifile.mtime <- function(path) {
     do.call(c, lapply(path, function(p) {
       if(!is_remote(p))
         file.mtime(p)
       else {
-        if(!epifile.exists(path))
-            NA
+        # `p`, not `path`: inside the lapply the existence test must be about the path being
+        # visited, otherwise a vector of paths gets the answer of its first element only.
+        if(!epifile.exists(p))
+            # a typed NA, so that c()-ing the results keeps a POSIXct vector. A bare NA is logical
+            # and would silently turn the whole vector into numbers.
+            as.POSIXct(NA)
         else
             lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
       }
