@@ -268,12 +268,193 @@ renew_runner_lease <- function(name = conf$runner_name) {
   if (is.null(name)) {
     return(invisible(FALSE))
   }
+  # The attempt is recorded, not its success: it is what renew_runner_lease_if_due() reads to keep
+  # a heartbeat placed in a busy loop from costing one fs request per iteration. A lease that is
+  # gone will not come back by itself, so retrying the existence test below sooner would buy
+  # nothing - losing the lease is what stop_if_lease_lost() is for, at the guard points.
+  assign(name, Sys.time(), envir = lease_last_renewal)
   path <- runner_lease_path(name)
   if (!epifile.exists(path)) {
     return(invisible(FALSE))
   }
   epifile.touch(path)
   invisible(TRUE)
+}
+
+# Heartbeat ----------------------------------------------------------------------------------------
+#
+# Renewing is what proves a runner is alive, and it is the only thing standing between it and
+# another instance taking its place once the TTL has passed. The hard part is not the renewal
+# itself - one touch - it is *where* to put it: a loop spends most of its time doing something
+# other than looping, i.e. sleeping until the next collection slot, waiting for a rate limit to
+# reset, or running one long detect task.
+#
+# Two shapes, two helpers (plan section 3.3, issue 5):
+#
+#   sleep_with_heartbeat()      "I am about to do nothing for a while": the wait is chopped into
+#                               heartbeat-sized slices, with a renewal between two slices.
+#   renew_runner_lease_if_due() "I am busy but I pass here often": renews at most once per
+#                               heartbeat span, so it can be called liberally, even in a loop
+#                               iterating over every topic and every plan.
+#
+# What we deliberately do NOT do is beat from a background process (future, the way fs_loop() runs
+# fs_mon): a background beater keeps shouting "alive" while the main loop is deadlocked, which is
+# precisely the failure a lease is supposed to expose. Here, a renewal only ever happens because
+# the loop itself reached the line that renews.
+
+# Fallback when conf holds no runner_heartbeat_span (a process that never called setup_config(),
+# or a configuration written before plan issue 3). Same value as get_empty_config().
+runner_heartbeat_span_default <- 30
+
+# Seconds between two renewals. as.numeric() for the same reason as in runner_lease_ttl(): the
+# value is used in arithmetic and may come from an EPISOMER_OPTION_* environment variable.
+runner_heartbeat_span <- function() {
+  value <- conf$runner_heartbeat_span
+  if (is.null(value)) value <- runner_heartbeat_span_default
+  value <- suppressWarnings(as.numeric(value))
+  # A span of zero, negative or unreadable would turn sleep_with_heartbeat() into a busy loop
+  if (length(value) != 1 || is.na(value) || value <= 0) {
+    value <- runner_heartbeat_span_default
+  }
+  value
+}
+
+# When this process last tried to renew each of its leases, one entry per runner name.
+#
+# Purely local bookkeeping, and never an input to the expiry decision: whether a lease is alive is
+# decided by the mtime on the fs machine (see the header of this file), never by what a runner
+# believes about itself.
+lease_last_renewal <- new.env(parent = emptyenv())
+
+# Renews the lease of `name`, unless it has already been renewed less than `span` seconds ago.
+#
+# This is the version to call from inside a loop: what it costs, most of the time, is one lookup
+# in an environment. It returns TRUE only when it actually renewed, which is what the tests read.
+renew_runner_lease_if_due <- function(
+  name = conf$runner_name,
+  span = runner_heartbeat_span()
+) {
+  if (!heartbeat_is_due(name, span)) {
+    return(invisible(FALSE))
+  }
+  renew_runner_lease(name)
+}
+
+# TRUE when `name` has not been renewed by this process for at least `span` seconds.
+#
+# A runner name of NULL means this process holds no lease at all (the Shiny app, a sandboxed loop,
+# a function called from the console): nothing is ever due, and that is not an error.
+heartbeat_is_due <- function(name = conf$runner_name, span = runner_heartbeat_span()) {
+  if (is.null(name)) {
+    return(FALSE)
+  }
+  last <- lease_last_renewal[[name]]
+  is.null(last) ||
+    as.numeric(difftime(Sys.time(), last, units = "secs")) >= span
+}
+
+# Beats for the fs runner, from the fs monitor.
+#
+# fs is the one service that cannot beat for itself: fs_loop() claims the lease and then hands the
+# process over to the Scala service (spark_job(), R/fs.R), which never gives the control back to R
+# until it dies. Nothing renews the lease, so it goes stale after runner_ttl_fs seconds while the
+# service is perfectly healthy.
+#
+# fs is not the service several machines are meant to run - that is search, split per network. It
+# runs on exactly one machine by deployment, and its lease is there as a safety net for the day
+# somebody points a second machine at the same data directory: a stale lease would let that second
+# fs open the same Lucene storage. It is also what the services status table of plan issue 8 will
+# read, and showing a running fs as dead is not much better than the mistake itself.
+#
+# The monitor future started by fs_loop() is the only part of the fs service still running R code,
+# so it beats on its behalf. Two precautions make this an honest heartbeat rather than the
+# background beater the plan rejects (section 3.3):
+#
+#   * it beats only while the service really answers /ping, so a dead or wedged fs still lets its
+#     lease expire;
+#   * the /ping call itself only happens when a beat is due, not on every 2-second iteration of
+#     the monitor loop.
+renew_fs_runner_lease <- function() {
+  if (!heartbeat_is_due("fs")) {
+    return(invisible(FALSE))
+  }
+  if (!is_fs_running()) {
+    return(invisible(FALSE))
+  }
+  renew_runner_lease("fs")
+}
+
+# Sleeps for `seconds`, proving along the way that this runner is still alive, and gives up early
+# if the lease was taken in the meantime.
+#
+# Drop-in replacement for Sys.sleep() in the loops. The point is that `seconds` is regularly much
+# larger than the TTL: the search loop sleeps until its next collection slot, which is bounded only
+# by collect_span (60 minutes by default) against a 300-second TTL. A plain Sys.sleep() there makes
+# a perfectly healthy runner look dead, and hands its lease to the standby machine.
+#
+# stop_if_lease_lost() inside the loop matters as much as the renewal: waking up 40 minutes later
+# to discover that somebody else has been collecting for 35 of them is not a good outcome. Losing
+# the lease raises episomer_lease_lost, which the loops let through - the runner exits, it does not
+# release anything (the lease is not ours anymore).
+#
+# With no lease at all (conf$runner_name NULL, i.e. a sandboxed loop or the Shiny app) both calls
+# are no-ops and this degrades to a plain, slightly chopped, Sys.sleep().
+sleep_with_heartbeat <- function(
+  seconds,
+  name = conf$runner_name,
+  span = runner_heartbeat_span()
+) {
+  seconds <- suppressWarnings(as.numeric(seconds))
+  if (length(seconds) != 1 || is.na(seconds) || seconds <= 0) {
+    return(invisible(NULL))
+  }
+  # The deadline is computed once: the renewals happening between two slices take their own time,
+  # and accumulating them would make every long wait drift longer than it was asked to be.
+  deadline <- Sys.time() + seconds
+  repeat {
+    left <- as.numeric(difftime(deadline, Sys.time(), units = "secs"))
+    if (left <= 0) {
+      break
+    }
+    Sys.sleep(min(left, span))
+    # if_due rather than a plain renewal: a two-second sleep in the middle of an active loop has
+    # no reason to cost an extra request when the lease was renewed a moment ago.
+    renew_runner_lease_if_due(name, span = span)
+    stop_if_lease_lost(name)
+  }
+  invisible(NULL)
+}
+
+# Heartbeat hook for the retry callbacks of the social media APIs (the `after =` argument of
+# httr2::req_retry(), R/sm-bluesky-api.R and R/sm-mastodon-api.R).
+#
+# This is the one long wait sleep_with_heartbeat() cannot reach: when an API answers 429, httr2
+# sleeps *inside* req_perform(), and our loop only gets the control back once the request has
+# finally succeeded. A Mastodon rate-limit window is 5 minutes, i.e. exactly the search TTL, so
+# that silence alone is enough to lose the lease (plan section 3.3, issue 5).
+#
+# `after` is the only place httr2 hands us the control back before sleeping, so that is where the
+# heartbeat has to live. Two cases:
+#
+#   * a real rate-limit wait (`seconds` known and long): we sleep it ourselves, chopped and with
+#     renewals, and return 0 so that httr2 retries straight away. Doing the waiting in a callback
+#     is unusual enough to be worth this comment - the alternative would be to let httr2 sleep
+#     blindly for minutes;
+#   * anything else (`seconds` NA on a transient 500/502/503, or a short wait): httr2 falls back on
+#     its own exponential backoff, capped at 60 seconds per try - far below every TTL. One renewal
+#     before returning is enough, and the backoff is left untouched.
+#
+# Note for issue 6: losing the lease while waiting raises episomer_lease_lost from inside
+# req_perform(), so the handler that catches it must be above the tryCatch() of the search loop.
+heartbeat_before_retry <- function(seconds) {
+  span <- runner_heartbeat_span()
+  wait <- suppressWarnings(as.numeric(seconds))
+  if (length(wait) == 1 && !is.na(wait) && wait > span) {
+    sleep_with_heartbeat(wait, span = span)
+    return(0)
+  }
+  renew_runner_lease_if_due(span = span)
+  seconds
 }
 
 # Gives the lease back, so that another instance can take over immediately instead of waiting for
