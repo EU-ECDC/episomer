@@ -246,6 +246,41 @@ get_empty_config <- function(data_dir) {
   return(ret)
 }
 
+# Identity of the running episomer instance ------------------------------------------------------
+#
+# An "instance" is one R process (a search loop, a detect loop, the fs service or the Shiny app).
+# Once several machines share the same data directory through the fs API, they need a way to say
+# "this runner is me" versus "this runner is somebody else": that is what conf$instance_id and
+# conf$instance_host are for. See inst/schema/multi_services_plan.md (sections 2 and 4).
+#
+# Both are *session state*, not configuration: they describe the current process, so they must
+# never end up in properties.json, which is shared by every machine (see save_config).
+
+# Random identifier for this R process, e.g. "7nn0ei1963ddf23a7".
+#
+# What matters here is uniqueness inside the cluster, not cryptographic quality: the identifier is
+# public (anybody reaching the fs API can read it) and is only compared for equality.
+#
+# tempfile() is used rather than sample.int() because it does not consume the R random number
+# generator: a script calling set.seed() before setup_config() must not get a predictable, and
+# therefore possibly colliding, identity. The temp directory name (Rtmp<random>) is drawn once per
+# process and the file name adds a per-process random part, so the pair separates two processes
+# started at the same second, on the same machine or on two different ones.
+new_instance_id <- function() {
+  tolower(paste0(sub("^Rtmp", "", basename(tempdir())), basename(tempfile(""))))
+}
+
+# Name of the machine this process runs on.
+#
+# Informational only (the Shiny app displays "search.bluesky is running on machine-B"), so a
+# readable value is worth more than a unique one - the instance_id already carries uniqueness.
+# Container host names are random hex strings, hence the EPISOMER_INSTANCE override that
+# deployments are expected to set (see docker/compose.yml).
+get_instance_host <- function() {
+  host <- Sys.getenv("EPISOMER_INSTANCE")
+  if (host != "") host else Sys.info()[["nodename"]]
+}
+
 #' @title Load episomer application settings
 #' @description Load episomer application settings from the designated data directory
 #' @param data_dir Path to the directory containing the application settings (it must exist).
