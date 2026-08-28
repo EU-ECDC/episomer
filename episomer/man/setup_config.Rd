@@ -51,6 +51,14 @@ This call will fill (or refresh) a package scoped environment 'conf' that will s
   \item{General properties of the Shiny app (stored in properties.json)}
   \item{Download plans from the social media collection process (stored in topics.json merged with data from the topics.xlsx file}
   \item{Credentials for social media APIs and SMTP stored in the defined keyring}
+  \item{The identity of the running instance: 'instance_id', a random identifier generated once
+    per R process, and 'instance_host', the name of the machine. Both describe the current
+    process rather than the shared configuration, so they are never written to properties.json.
+    'instance_host' is taken from the environment variable 'EPISOMER_INSTANCE' when it is set,
+    and falls back to the system host name otherwise. Setting 'EPISOMER_INSTANCE' is recommended
+    when running episomer in containers, whose host names are random, and when several machines
+    share the same data directory: it is the name the dashboard displays to tell which machine a
+    service is running on.}
 }
 
 When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
