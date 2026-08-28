@@ -151,6 +151,50 @@ read_runner_lease <- function(name) {
   lease
 }
 
+# TRUE when the lease of `name` is held by a process of *this very machine* that is not running
+# anymore. In that case the lease is dead whatever its age, and it can be reclaimed at once.
+#
+# Why bother (plan sections 3.6 and 6.2): freshness alone makes a crashed runner look alive for up
+# to a whole TTL - 30 minutes for detect. In the single-machine deployment, which is how episomer
+# runs almost everywhere, that would be a plain regression compared to the PID file the lease is
+# taking over from: the Shiny app would keep showing "running" long after the loop died, and
+# restarting the service would have to wait the TTL out. When the holder is a process of our own
+# machine we can do much better than waiting: ask the operating system whether it still exists.
+#
+# Two corroborating signals are required, and the second one is what makes this safe:
+#
+#   1. the lease names our host (conf$instance_host), and
+#   2. our *local* PID file for that runner records exactly the PID written in the lease.
+#
+# Signal 1 alone would be enough between real machines, but not between containers:
+# EPISOMER_INSTANCE is set per service in docker/compose.yml, so two containers of the same service
+# (the standby of the multi-machine setup) share a host name while having separate PID namespaces.
+# "PID 42 does not exist here" would then not mean "the holder is dead", and we would steal a live
+# lease - the one thing this whole mechanism exists to prevent. Signal 2 closes that door: the PID
+# file is written by the holder on the disk we are reading (conf$data_dir is local to the container,
+# only jobs/ is shared), so a PID file naming the same PID means that PID really is ours to test.
+#
+# Both signals fail closed: anything missing, unreadable or merely different means "not my business,
+# trust the mtime", i.e. the lease is treated as alive until it expires.
+lease_holder_is_dead_locally <- function(lease, name) {
+  if (is.null(lease) || is.null(lease$host) || is.null(lease$pid)) {
+    return(FALSE)
+  }
+  # signal 1: the lease claims to be held here
+  if (!identical(as.character(lease$host), as.character(conf$instance_host))) {
+    return(FALSE)
+  }
+  lease_pid <- suppressWarnings(as.integer(lease$pid))
+  if (length(lease_pid) != 1 || is.na(lease_pid)) {
+    return(FALSE)
+  }
+  # signal 2: this machine's own PID file agrees on which process that is
+  if (!identical(read_running_task_pid_file(name), lease_pid)) {
+    return(FALSE)
+  }
+  !is_r_pid_running(lease_pid)
+}
+
 # TRUE when nothing stops this instance from claiming `name`.
 #
 # A lease is free if it is absent (never claimed, or released and moved to runners/old/), if it has
@@ -166,6 +210,12 @@ lease_is_free <- function(lease, name) {
   # seen_at comes from epifile.mtime(), never from the JSON (see the header of this file). NA means
   # the file disappeared while we were reading it, which is the free case too.
   if (length(lease$seen_at) != 1 || is.na(lease$seen_at)) {
+    return(TRUE)
+  }
+  # The fast reclaim of section 3.6: a holder that crashed on this very machine is dead now, there
+  # is nothing to wait for. This is what makes "crash, restart, collect again" immediate instead of
+  # TTL long, and it is the only shortcut allowed - it needs proof from the local OS, not a guess.
+  if (lease_holder_is_dead_locally(lease, name)) {
     return(TRUE)
   }
   age <- as.numeric(difftime(Sys.time(), lease$seen_at, units = "secs"))
@@ -504,7 +554,10 @@ i_hold_runner_lease <- function(name = conf$runner_name) {
 #   "free"    : no live lease, the runner can be started anywhere
 #   "running" : a lease renewed less than its TTL ago
 #   "stale"   : a lease nobody has renewed for longer than its TTL - the holder is presumed dead
-#               and the runner can be claimed again
+#               and the runner can be claimed again. A lease whose holder is a *dead process of this
+#               machine* is stale too, whatever its age (lease_holder_is_dead_locally()); the
+#               `holder_dead_locally` flag says which of the two happened, so that a status table
+#               can word it as "crashed here" rather than "not renewed".
 runner_lease_status <- function(name) {
   lease <- read_runner_lease(name)
   if (is.null(lease)) {
@@ -517,22 +570,38 @@ runner_lease_status <- function(name) {
       seen_at = as.POSIXct(NA),
       age = NA_real_,
       ttl = runner_lease_ttl(name),
-      mine = FALSE
+      mine = FALSE,
+      holder_dead_locally = FALSE
     ))
   }
   age <- as.numeric(difftime(Sys.time(), lease$seen_at, units = "secs"))
   ttl <- runner_lease_ttl(name)
+  dead_locally <- lease_holder_is_dead_locally(lease, name)
   list(
     runner = name,
-    status = if (!is.na(age) && age > ttl) "stale" else "running",
+    status = if (dead_locally || (!is.na(age) && age > ttl)) "stale" else "running",
     host = lease$host,
     instance_id = lease$instance_id,
     pid = lease$pid,
     seen_at = lease$seen_at,
     age = age,
     ttl = ttl,
-    mine = identical(lease$instance_id, conf$instance_id)
+    mine = identical(lease$instance_id, conf$instance_id),
+    holder_dead_locally = dead_locally
   )
+}
+
+# TRUE when somebody, anywhere in the cluster, is currently acting as runner `name`.
+#
+# This is the cluster-wide question, the one the Shiny app and the check_*() functions ask, and the
+# lease is the only thing that can answer it: the PID file only ever knew about this machine (plan
+# section 6.2). Its local counterpart is is_runner_running_locally() in R/runners.R - "is there
+# something *here* to kill?" - and everything that stops a process must keep using that one.
+#
+# "running" already folds in the local cross-check, so a runner whose process crashed on this very
+# machine reads as stopped immediately instead of for one TTL (see runner_lease_status()).
+is_runner_running <- function(name) {
+  identical(runner_lease_status(name)$status, "running")
 }
 
 # Aborts when this instance is not the holder of `name` anymore. Called before every meaningful

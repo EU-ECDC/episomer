@@ -347,7 +347,7 @@ check_tex <- function() {
 check_search_running <- function() {
   if (is_search_running()) TRUE else {
     warning(paste0(
-      "Data collection & processing pipeline is not running. On Windows, you can activate it by clicking on the 'activate' Data collection & processing button on the configuration page ",
+      "Data collection & processing pipeline is not running on any machine sharing this database. On Windows, you can activate it by clicking on the 'activate' Data collection & processing button on the configuration page ",
       "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. episomer::search_loop('",
       conf$data_dir,
       "')"
@@ -373,7 +373,7 @@ check_fs_running <- function() {
 check_detect_running <- function() {
   if (is_detect_running()) TRUE else {
     warning(paste0(
-      "Requirements & alerts pipeline is not running. On Windows, you can activate it by clicking on the 'activate' Requirements & alerts button on the configuration page ",
+      "Requirements & alerts pipeline is not running on any machine sharing this database. On Windows, you can activate it by clicking on the 'activate' Requirements & alerts button on the configuration page ",
       "You can also manually run the Requirements & alerts pipeline by executing the following command on a separate R session. episomer::detect_loop('",
       conf$data_dir,
       "')"
