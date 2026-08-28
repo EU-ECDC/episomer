@@ -782,7 +782,11 @@ merge_configs <- function(configs) {
         function(x, y) if (is.null(y)) x else y,
         first[keys],
         rest[keys],
-        simplify = FALSE
+        # SIMPLIFY, not simplify: arguments placed after `...` are matched by their exact full
+        # name, so a lowercase one would be swallowed into `...` and passed on to FUN instead.
+        # Without it mapply() coerces the merged config to a character vector as soon as every
+        # value is a length-1 scalar, turning numbers into strings.
+        SIMPLIFY = FALSE
       ),
       keys
     ))

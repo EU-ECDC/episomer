@@ -125,11 +125,7 @@ test_that("setup_config() ignores an instance identity found in properties.json"
     list(
       instance_id = "somebody-else",
       instance_host = "machine-C",
-      collect_span = 42,
-      # merge_configs() simplifies its result when every merged value is a length-1 scalar, which
-      # turns the numbers into strings. A real properties.json always holds list properties
-      # (languages, known_users), so keep one here to stay on the realistic path.
-      known_users = list("someone")
+      collect_span = 42
     ),
     get_properties_path(),
     auto_unbox = TRUE
