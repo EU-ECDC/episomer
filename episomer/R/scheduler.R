@@ -193,8 +193,12 @@ detect_loop <- function(data_dir = NA) {
   if (is.na(data_dir)) setup_config_if_not_already() else
     setup_config(data_dir = data_dir)
 
-  # registering the search runner (search.PID) or stopping if it is already running
+  # registering the detect runner (PID file + lease) or stopping if it is already running here or
+  # on another machine
   register_detect_runner()
+  # Same clean release as in fs_loop(): a detect lease has a long TTL (30 min, because a single
+  # task can run for very long), so not releasing it would make a simple restart wait half an hour.
+  on.exit(release_runner_lease(), add = TRUE)
 
   # lass_sleeping_message set to ensure it will be shown if all is done
   last_sleeping_message <- Sys.time() - (conf$schedule_span * 60)
