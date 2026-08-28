@@ -203,6 +203,11 @@ detect_loop <- function(data_dir = NA) {
   # lass_sleeping_message set to ensure it will be shown if all is done
   last_sleeping_message <- Sys.time() - (conf$schedule_span * 60)
   while (TRUE) {
+    # Proving the detect runner is still alive, once per turn of the loop (R/runners-lease.R).
+    # It only covers the loop itself: a single task (alerts, geolocation, aggregation) can run for
+    # a very long time without coming back here, which is exactly why the detect TTL is 30 minutes
+    # and not 5 (plan section 3.5).
+    renew_runner_lease_if_due()
     # getting tasks to execute with one scheduled
     tasks <- plan_tasks()
     # seeing if there is something to do
@@ -293,8 +298,11 @@ detect_loop <- function(data_dir = NA) {
     health_check()
     # updating config to capture changes coming from search loop or shiny app
     setup_config(data_dir = conf$data_dir)
-    # sleep for 5 seconds
-    Sys.sleep(5)
+    # sleep for 5 seconds, renewing the lease if the heartbeat span has passed. Five seconds is
+    # shorter than any heartbeat span, so this is really the renewal at the top of the loop above
+    # doing the work - what sleep_with_heartbeat() adds here is stop_if_lease_lost(), which makes
+    # the loop notice a stolen lease while it is idle instead of on its next write.
+    sleep_with_heartbeat(5)
   }
 }
 
