@@ -3,9 +3,10 @@
       image: episomer-dev
       pull_policy: never
       build: 
-        context: ./episomer-dev 
+        context: .
+        dockerfile: Dockerfile
         additional_contexts:
-          src: ".."
+          src: "."
       ports:
         - "${EPISOMER_FS_PORT}:8080"
       healthcheck:

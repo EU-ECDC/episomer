@@ -129,7 +129,7 @@ compose-up:
 	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
 	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
 	export EPISOMER_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
-	docker compose -f docker/compose.yml up --build -d
+	docker compose -f compose.yml up --build -d
 
 compose-down:
-	docker compose -f docker/compose.yml down
+	docker compose -f compose.yml down
