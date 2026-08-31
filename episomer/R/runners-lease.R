@@ -88,40 +88,6 @@ check_runner_name <- function(name) {
   invisible(name)
 }
 
-# Folder holding the live leases, one file per runner. Created on demand by the writers only:
-# reading a lease happens far more often than writing one, and a reader must not create anything
-# on the fs machine.
-runner_lease_dir <- function(create = FALSE) {
-  path <- epipath("runners")
-  if (create && !epifile.exists(path)) {
-    epidir.create(path, recursive = TRUE)
-  }
-  path
-}
-
-# Folder keeping the released leases (see release_runner_lease()). Nothing ever lists it: it is a
-# trail an operator can read after the fact.
-runner_lease_old_dir <- function(create = FALSE) {
-  path <- epipath("runners", "old")
-  if (create && !epifile.exists(path)) {
-    epidir.create(path, recursive = TRUE)
-  }
-  path
-}
-
-# Path of the lease file of a runner, e.g. <data_dir>/runners/search.bluesky.json
-runner_lease_path <- function(name, create_dir = FALSE) {
-  check_runner_name(name)
-  runner_lease_dir(create = create_dir)
-  epipath("runners", paste0(name, ".json"))
-}
-
-# Path a lease is moved to when this instance releases it. The instance_id is part of the name so
-# that successive releases of the same runner do not overwrite each other.
-runner_lease_released_path <- function(name) {
-  check_runner_name(name)
-  epipath("runners", "old", paste0(name, ".", conf$instance_id, ".json"))
-}
 
 # Reads the lease of a runner: NULL when no live lease exists, otherwise its content plus a
 # `seen_at` field holding the file mtime, i.e. the moment the holder last proved it was alive.

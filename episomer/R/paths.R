@@ -292,3 +292,40 @@ get_post_aggring_path <- function() {
 get_session_info_path <- function() {
   epipath("session-info.log")
 }
+
+# Runners-related paths
+
+# Folder holding the live leases, one file per runner. Created on demand by the writers only:
+# reading a lease happens far more often than writing one, and a reader must not create anything
+# on the fs machine.
+runner_lease_dir <- function(create = FALSE) {
+  path <- epipath("runners")
+  if (create && !epifile.exists(path)) {
+    epidir.create(path, recursive = TRUE)
+  }
+  path
+}
+
+# Folder keeping the released leases (see release_runner_lease()). Nothing ever lists it: it is a
+# trail an operator can read after the fact.
+runner_lease_old_dir <- function(create = FALSE) {
+  path <- epipath("runners", "old")
+  if (create && !epifile.exists(path)) {
+    epidir.create(path, recursive = TRUE)
+  }
+  path
+}
+
+# Path of the lease file of a runner, e.g. <data_dir>/runners/search.bluesky.json
+runner_lease_path <- function(name, create_dir = FALSE) {
+  check_runner_name(name)
+  runner_lease_dir(create = create_dir)
+  epipath("runners", paste0(name, ".json"))
+}
+
+# Path a lease is moved to when this instance releases it. The instance_id is part of the name so
+# that successive releases of the same runner do not overwrite each other.
+runner_lease_released_path <- function(name) {
+  check_runner_name(name)
+  epipath("runners", "old", paste0(name, ".", conf$instance_id, ".json"))
+}
