@@ -24,11 +24,13 @@
         EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
         EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
+        EPISOMER_OPTION_MASTODON_INSTANCES: "mastodon.social;mstdn.party"
         EPISOMER_OPTION_FS_URL: "http://fs"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
         EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
         EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
-        EPISOMER_SECRET_MASTODON_TOKEN_FILE: "/run/secrets/episomer_mastodon_token"
+        EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN_FILE: "/run/secrets/episomer_mastodon_mastodon_social_token"
+        EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN_FILE: "/run/secrets/episomer_mastodon_mstdn_party_token"
         OPENBLAS_NUM_THREADS: 1
         TMPDIR: "/episomer-data/tmp"
         _JAVA_OPTIONS=-Djava.io.tmpdir: "/episomer-data/tmp"
@@ -36,7 +38,8 @@
         - episomer_kr_password
         - episomer_bluesky_user
         - episomer_bluesky_password
-        - episomer_mastodon_token
+        - episomer_mastodon_mastodon_social_token
+        - episomer_mastodon_mstdn_party_token
       volumes:
         - ${EPI_HOME}:/episomer-data
     search:
@@ -143,6 +146,7 @@
       environment: EPISOMER_BLUESKY_USER  
     episomer_bluesky_password:
       environment: EPISOMER_BLUESKY_PASSWORD
-    episomer_mastodon_token:
-      environment: EPISOMER_MASTODON_TOKEN
-    
+    episomer_mastodon_mastodon_social_token:
+      environment: EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN
+    episomer_mastodon_mstdn_party_token:
+      environment: EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN   

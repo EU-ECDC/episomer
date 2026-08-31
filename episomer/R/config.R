@@ -422,25 +422,30 @@ setup_config <- function(
   #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing
   temp <- get_empty_config(data_dir)
   if (!ignore_properties) {
-    # refreshing properties (if requested)
-    if (epifile.exists(props_path) || !is.null(fs_remote)) {
-      # Merging default values with those stored in the properties.json file. Precedence goes to
-      # the last source of the list, so: defaults < EPISOMER_OPTION_* environment < properties.json.
-      # An environment variable therefore only sets a property that properties.json does not
-      # already carry - which, since save_config() writes them all, in practice means the first
-      # start of a fresh data directory.
-      # coerce_env_props() gives the environment values the type of the matching default, so that
-      # a number stays a number whichever of the three sources it came from.
-      temp = merge_configs(list(
-        temp,
-        coerce_env_props(get_env_props(), temp),
+    # Merging default values with those stored in the properties.json file. Precedence goes to
+    # the last source of the list, so: defaults < EPISOMER_OPTION_* environment < properties.json.
+    # An environment variable therefore only sets a property that properties.json does not
+    # already carry - which, since save_config() writes them all, in practice means the first
+    # start of a fresh data directory.
+    # coerce_env_props() gives the environment values the type of the matching default, so that
+    # a number stays a number whichever of the three sources it came from.
+    # The env-var merge must run unconditionally, even when properties.json does not exist yet
+    # (a brand new data directory) - that is precisely the case the paragraph above describes.
+    # Only the properties.json read itself is conditional, to avoid erroring on a file that is
+    # not there yet, locally or remotely (epifile.exists() is remote-aware, see R/fs.R).
+    temp = merge_configs(list(
+      temp,
+      coerce_env_props(get_env_props(), temp),
+      if (epifile.exists(props_path)) {
         jsonlite::read_json(
           props_path,
           simplifyVector = FALSE,
           auto_unbox = TRUE
         )
-      ))
-    }
+      } else {
+        list()
+      }
+    ))
     #Setting config  variables filled only from json file
     # Symmetrically to save_config, the properties are copied one by one: an instance_id or an
     # instance_host left in properties.json by an older version, or added by hand, must never
@@ -1260,8 +1265,35 @@ sm_set_without_alerts <- function(sm) {
 
 get_env_props <- function() {
   envs <- as.list(Sys.getenv())
-  envs <- envs[grepl("^EPISOMER_OPTION_.*", names(envs))]
-  setNames(envs, tolower(gsub("^EPISOMER_OPTION_", "", names(envs))))
+  # envs <- c(
+  #   envs,
+  #   list("EPISOMER_OPTION_MASTODON_INSTANCES" = "mastodon.social;mstdn.party")
+  # )
+  reframed_envs <- sapply(seq_along(1:length(envs)), function(i) {
+    current_env_var_name <- names(envs)[i]
+    if (!grepl("_INSTANCES", current_env_var_name)) {
+      return
+      envs[[i]]
+    }
+
+    sm_instances_remove_semicolon_and_make_vector <- strsplit(
+      envs[[i]],
+      split = ";"
+    )
+
+    return(sm_instances_remove_semicolon_and_make_vector)
+  })
+
+  names(reframed_envs) <- names(envs)
+
+  reframed_envs <- reframed_envs[grepl(
+    "^EPISOMER_OPTION_.*",
+    names(reframed_envs)
+  )]
+  setNames(
+    reframed_envs,
+    tolower(gsub("^EPISOMER_OPTION_", "", names(reframed_envs)))
+  )
 }
 
 # Give the properties read from the environment the type they are expected to have.
