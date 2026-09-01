@@ -216,6 +216,25 @@ search_loop_worker <- function(
     while (max_requests == 0 || requests_done <= max_requests) {
       loop_start <- Sys.time()
 
+      # The entries of conf$topics this worker collects, recomputed on every turn because the
+      # periodic setup_config() below reloads them - a topic added to the Excel file appears here.
+      #
+      # conf$topics holds every network's topics, so this is what keeps a worker to its own
+      # (R/config.R): without it each worker collected all of them, since the plan it creates for
+      # an entry with no plan yet carries its *own* network and then passes the plan$network test of
+      # the round robin below. Every loop over topics in this function goes through these indexes.
+      my_topics <- topics_of_network(network)
+      if (length(my_topics) == 0) {
+        # Nothing to collect: the network is activated but no topic has been translated for it yet.
+        # Sleeping rather than spinning, with a heartbeat so the lease survives it, and reloading
+        # the config before looping - this branch skips the periodic reload at the bottom, so
+        # without it a worker that started too early would never see the topics appear.
+        msg(paste("No topic to collect on", network, "- waiting 10 seconds"))
+        sleep_with_heartbeat(10)
+        setup_config(data_dir = conf$data_dir)
+        next
+      }
+
       # Proving this runner is still alive, once per turn of the loop. This is the heartbeat of the
       # normal case, when everything goes fast and the loop never sleeps: the renewals of the waits
       # below only happen when there is a wait. if_due, so an iteration that takes a second costs
@@ -233,9 +252,12 @@ search_loop_worker <- function(
         # Dismissing history if required from shiny app
         if (conf$dismiss_past_request > conf$dismiss_past_done) {
           if (
-            length(conf$topics[sapply(conf$topics, function(t) {
-              length(t$plan) == 0 || t$plan[[1]]$requests == 0
-            })]) >
+            length(conf$topics[my_topics][sapply(
+              conf$topics[my_topics],
+              function(t) {
+                length(t$plan) == 0 || t$plan[[1]]$requests == 0
+              }
+            )]) >
               0
           ) {
             msg(
@@ -244,7 +266,7 @@ search_loop_worker <- function(
           } else {
             msg("Dismissing history requested")
 
-            for (i in 1:length(conf$topics)) {
+            for (i in my_topics) {
               conf$topics[[i]]$plan <- finish_plans(plans = conf$topics[[i]]$plan)
             }
             conf$dismiss_past_done <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -254,7 +276,7 @@ search_loop_worker <- function(
 
       # On each iteration this loop will perform one request for each active plans having the minimum number of requests
       # Creating plans for each topic if collect span is expired and calculating next execution time for each olan.
-      for (i in 1:length(conf$topics)) {
+      for (i in my_topics) {
         conf$topics[[i]]$plan <- update_plans_schedule(
           network = network,
           plans = conf$topics[[i]]$plan,
@@ -265,7 +287,7 @@ search_loop_worker <- function(
       # Calculating how the time episomer should wait before executing each active plan. If bigger than zero then episomer will wait.
       # If waiting happens here, it means that episomer is able to collect all posts under current social media rate limits, so it could collect more topics or sooner.
       if (!sandboxed) {
-        wait_for <- min(unlist(lapply(1:length(conf$topics), function(i) {
+        wait_for <- min(unlist(lapply(my_topics, function(i) {
           can_wait_for(plans = conf$topics[[i]]$plan)
         })))
         if (wait_for > 0) {
@@ -300,8 +322,8 @@ search_loop_worker <- function(
 
       min_requests <- .Machine$integer.max
       #getting the min request on current non ended plans
-      for (i in 1:length(conf$topics)) {
-        for (j in 1:length(conf$topics[[i]]$plan)) {
+      for (i in my_topics) {
+        for (j in seq_along(conf$topics[[i]]$plan)) {
           p = conf$topics[[i]]$plan[[j]]
           if (is.null(p$end_on) && p$requests < min_requests)
             min_requests <- p$requests
@@ -320,9 +342,9 @@ search_loop_worker <- function(
 
       #msg(paste("iterating in topics", length(conf$topics), min_requests))
       #performing search only for plans with a minimum number of requests (round robin)
-      message(sprintf("--------------- SEARCH LOOP (%s)----------------------------------------------------", length(conf$topics)))
-      for (i in 1:length(conf$topics)) {
-        for (j in 1:length(conf$topics[[i]]$plan)) {
+      message(sprintf("--------------- SEARCH LOOP (%s topics on %s)----------------------------------------------------", length(my_topics), network))
+      for (i in my_topics) {
+        for (j in seq_along(conf$topics[[i]]$plan)) {
           if (max_requests == 0 || requests_done <= max_requests) {
             plan <- conf$topics[[i]]$plan[[j]]
             if (

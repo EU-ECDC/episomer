@@ -88,10 +88,16 @@ steal_lease <- function(name) {
 # The one-plan, one-topic configuration search_loop_worker() needs to reach its inner loop:
 # requests = 0 and an expected_end in the future keep update_plans_schedule() from rebuilding
 # anything, so the plan below is the plan the worker will work on.
+#
+# `network` appears twice on purpose, and both are needed. The one on the topic entry is what
+# topics_of_network() selects on (R/config.R) - conf$topics holds every network's topics, and a
+# worker with none of its own would just wait; the one on the plan is what the round robin of
+# search_loop_worker() tests before making a request.
 a_topic_with_one_plan <- function(network = "bluesky") {
   list(list(
     topic = "topic-1",
     query = "something",
+    network = network,
     plan = list(list(
       network = network,
       requests = 0,

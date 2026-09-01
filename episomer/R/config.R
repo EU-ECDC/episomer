@@ -683,6 +683,31 @@ copy_plans_from <- function(temp) {
   }
 }
 
+# The indexes of the conf$topics entries collected by one network.
+#
+# conf$topics is flat: one entry per (topic, query, network) triple, every network together, built
+# by the adjusted_topics loop of setup_config() above. A topic with several queries - "coronavirus
+# OR covid-19" split by translate_query() - contributes one entry per query per network, so five
+# topic entries per network is what three Excel topics look like, and fifteen is what they look
+# like with three networks activated.
+#
+# Anything acting on behalf of a single network therefore has to select its own entries first, and
+# the entry's own `network` field is the only authority on that. A *plan's* `network` is not: a
+# plan is created by whichever worker first saw the entry without one, carrying that worker's
+# network (update_plans_schedule(), R/plans.R). Filtering on the plan instead of the entry is what
+# used to make every search worker collect every network's topics on a fresh start - three
+# identical requests per topic with three networks activated - while the files on disk stayed
+# clean, because this function is also what decides what gets written.
+#
+# Returns indexes rather than the entries so that callers can write back into conf$topics.
+topics_of_network <- function(network) {
+  which(vapply(
+    conf$topics,
+    function(t) identical(t$network, network),
+    logical(1)
+  ))
+}
+
 #' @title Save the configuration changes
 #' @description Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
 #' @param data_dir Path to a directory to save configuration settings if fs_remote is provided this value is ignored, Default: conf$data_dir
@@ -805,10 +830,7 @@ save_config <- function(
     # saving topics to the topics.json file
     paths = get_plans_paths()
     for (sm in sm_topics) {
-      topics_in_sm = conf$topics[sapply(
-        1:length(conf$topics),
-        function(j) conf$topics[[j]]$network == sm
-      )]
+      topics_in_sm = conf$topics[topics_of_network(sm)]
       temp <- list()
       temp$topics <- format_topics(topics_in_sm)
       # writing plan files for each social media
