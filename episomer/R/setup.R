@@ -753,7 +753,21 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
         )
         # Performing requested action
         if(sh_ans != end_ans && !is_fs_running()) {
-            message(alert("Cannot launch the episomer app. The episomer database need to be running"))
+            # Naming the URL that did not answer is the whole point of this message: the database
+            # may very well be running and simply not be reachable *from here* under the address
+            # this machine resolved (see get_scala_api_endpoint()). Without the URL the wizard just
+            # goes quiet and returns no app, which is indistinguishable from a Shiny failure.
+            message(alert(sprintf(
+                paste(
+                    "Cannot launch the episomer app: the episomer database did not answer on %s.",
+                    "If it runs somewhere else - a container, another machine - say where with the",
+                    "EPI_HOST environment variable (e.g. EPI_HOST=http://localhost:%s) or by",
+                    "calling episomer_app(fs_remote = ...) directly.",
+                    sep = "\n"
+                ),
+                get_scala_ping_url(),
+                conf$fs_port
+            )))
         } else if (sh_ans == "1") {
            message("Opening the shiny app in full mode...")
             app <- episomer_app(data_dir = conf$data_dir)
