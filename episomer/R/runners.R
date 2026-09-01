@@ -1,6 +1,6 @@
 # registers the data collection task (PID file + runner lease) for the current process or stops if
 # no configuration has been set or if it is already running, here or on another machine
-register_search_runner <- function(network = NULL) {
+register_search_runner <- function(network = NULL, wait = FALSE) {
   stop_if_no_config(paste(
     "Cannot check running status for search without configuration setup"
   ))
@@ -8,26 +8,26 @@ register_search_runner <- function(network = NULL) {
   if (!is.null(network)) {
     name <- sprintf("search.%s", network)
   }
-  register_runner(name)
+  register_runner(name, wait = wait)
 }
 
 
 # registers the fs service (PID file + runner lease) for the current process or stops if no
 # configuration has been set or if it is already running, here or on another machine
-register_fs_runner <- function() {
+register_fs_runner <- function(wait = FALSE) {
   stop_if_no_config(paste(
     "Cannot check running status for fs without configuration setup"
   ))
-  register_runner("fs")
+  register_runner("fs", wait = wait)
 }
 
 # registers the detect runner (PID file + runner lease) for the current process or stops if no
 # configuration has been set or if it is already running, here or on another machine
-register_detect_runner <- function() {
+register_detect_runner <- function(wait = FALSE) {
   stop_if_no_config(paste(
     "Cannot check running status for fs without configuration setup"
   ))
-  register_runner("detect")
+  register_runner("detect", wait = wait)
 }
 
 #' @title Registers the fs_monitor for the current process or exits
@@ -58,15 +58,16 @@ register_fs_monitor <- function() {
 # Two independent layers have to agree before this process may act as `name`:
 #
 #   1. the PID file, on the local disk - "is there another process *on this machine* doing this?"
-#      It is also what gives kill_task() / stop_runner_task() something to work with, so it stays
-#      exactly as it was;
+#      It is also what gives kill_task() / stop_runner_task() something to kill, and what tells a
+#      lease left behind by a process of this machine that died from one a live machine still holds;
 #   2. the runner lease, on the fs machine - "am I allowed to be this runner in the whole cluster?"
 #      This is the layer that stops two machines sharing the same data directory from collecting
 #      the same posts twice (R/runners-lease.R, inst/schema/multi_services_plan.md section 6.1).
 #
 # The local check comes first on purpose: it is cheap, it needs no network, and failing on it does
-# not disturb the fs machine at all.
-register_runner <- function(name) {
+# not disturb the fs machine at all. The local *write*, on the other hand, comes last, after the
+# lease has been granted - see below.
+register_runner <- function(name, wait = FALSE) {
   stop_if_no_config(paste(
     "Cannot register ",
     name,
@@ -76,22 +77,52 @@ register_runner <- function(name) {
   pid <- Sys.getpid()
   # getting last running PID
   last_pid <- get_running_task_pid(name)
+  # This one is never waited for, whatever `wait` says. A live process of *this* machine already
+  # being the runner is an operator mistake - the same service started twice - not the standby
+  # situation the lease is about, and the answer to it is a PID to kill rather than a delay to sit
+  # through (plan issue 14).
   if (last_pid >= 0 && last_pid != pid) {
     stop(paste("Runner ", name, "PID:", last_pid, "is already running"))
   }
-  # If here means that the current process has to register as the runner service
-  pid_path <- get_running_task_pid_path(name)
-  write(pid, file = pid_path, append = FALSE)
 
   # Second layer: claiming the lease. Failing here is a normal, expected situation - it is the
   # standby machine of a two-machine deployment discovering that the other one already collects.
-  if (!claim_runner_lease(name)) {
-    # The PID file written a few lines above must not survive the refusal: it would make this
-    # machine look like it hosts a running runner, which is exactly what is_*_running() and
-    # stop_all_runner_tasks() read locally.
-    remove_running_task_pid(name)
+  #
+  # `wait` is what the three service loops pass (plan issue 14). A service is not a question asked
+  # once: the lease it finds held is, far more often than not, the one its own predecessor left
+  # behind on a `docker compose down`, which no R code was alive to release. Waiting turns "exit
+  # and let somebody restart me" into "start as soon as the runner is free", and it is the whole
+  # standby behaviour of issue 9 with no container churn. Everything else claims once and answers
+  # immediately: the Shiny app deciding whether to spawn a task must not block its session, and the
+  # fs monitor calls this on every iteration of a 2-second loop.
+  claimed <- if (isTRUE(wait)) {
+    wait_for_runner_lease(name)
+  } else {
+    claim_runner_lease(name)
+  }
+  if (!claimed) {
     stop(runner_lease_holder_message(name))
   }
+
+  # If here means that the current process has to register as the runner service.
+  #
+  # The PID file is written *after* the claim, and that order matters. The PID file left behind by
+  # the previous holder is the second of the two signals lease_holder_is_dead_locally()
+  # (R/runners-lease.R) needs to recognise a lease whose holder died on this very machine: the lease
+  # names a PID, and only our own PID file can prove that PID was ours to test. Writing our PID over
+  # it first destroyed exactly that proof, so the fast reclaim of a crashed - or killed - runner
+  # could never happen where it matters most, and starting a service again meant waiting out its
+  # whole TTL (two minutes for fs, thirty for detect) with an error naming a dead instance as the
+  # holder. For the same reason the refusal above leaves the file alone instead of removing it: it
+  # is not ours, it describes the process that ran before us, and the next attempt needs to read it.
+  #
+  # The price is that two processes of this machine starting the same runner within the guard wait
+  # are now separated by the lease rather than by the PID file. That is what the lease is for: the
+  # loser of the confirmation read exits before collecting anything (see claim_runner_lease()), and
+  # in exchange the far more common case - restarting a service whose previous process is gone -
+  # stops being refused.
+  pid_path <- get_running_task_pid_path(name)
+  write(pid, file = pid_path, append = FALSE)
 
   # Session state, not configuration: it lets renew_runner_lease(), stop_if_lease_lost() and
   # release_runner_lease() be called with no argument from anywhere in this process. It is set
@@ -267,6 +298,14 @@ stop_all_runner_tasks <- function() {
     message("Search loop is running, stopping it")
     stop_search_runner_task()
   }
+  # Not only what was stopped just above: a service that had already died on its own - killed by
+  # hand, or crashed - left its lease behind exactly the same way, and never went through
+  # stop_runner_task() to have it released. "Stop all services" is where an operator expects
+  # runners/ to be left clean, so what the two tests above found nothing to kill for is swept here.
+  #
+  # Before the fs and not at the very end, for the reason given in stop_runner_task(): a deployment
+  # reaching runners/ over HTTP cannot give a lease back once the fs has stopped answering.
+  release_dead_local_runner_leases()
   # fs keeps its /ping check: it is not lease-based today and stays that way (plan section 6.2),
   # and it is the only reliable way to know whether the Scala service itself has stopped.
   if(is_fs_running()) {
@@ -429,17 +468,52 @@ stop_runner_task <- function(task_name) {
   } else {
   
   }
-  # If processes are still running then forcing stop by killing the processes
+  # If processes are still running then forcing stop by killing the processes.
+  #
+  # A killed runner releases nothing by itself: R runs no exit handler on a signal, so the
+  # on.exit(unregister_runner()) of the loop never runs and the lease stays under runners/ until it
+  # expires. Giving it back here is what lets the service be started again straight away - and, in a
+  # multi-machine deployment, what lets the standby take the runner over without waiting out the TTL
+  # (inst/schema/multi_services_plan.md section 3.4).
   if (task_name == "fs") {
     kill_task("fs", "R")
-    kill_task("fs.java", "java")
     kill_task("fs_mon", "R")
+    # Before the Scala service, deliberately. Where the leases are reached over HTTP - conf$fs_remote
+    # set, which is what setup_config() does by default - runners/ lives behind the very API this
+    # java process serves, so the lease of the fs runner can only be handed back while it still
+    # answers. Killing the monitor first also spares us the health_check() alert it would send while
+    # watching the fs it is about to lose.
+    release_stopped_runner_leases(c("fs", "fs_mon"))
+    kill_task("fs.java", "java")
   } else if (task_name == "search") {
     kill_task("search", "R")
+    release_stopped_runner_leases("search")
   } else if (task_name == "detect") {
     kill_task("detect", "R")
     kill_task("detect.java", "java")
+    release_stopped_runner_leases("detect")
   }
+}
+
+# Gives back the leases of the runners this machine has just stopped.
+#
+# The decision to release is release_dead_local_runner_lease()'s (R/runners-lease.R) and needs the
+# holder PID to be gone from this machine. kill(1) returns as soon as the signal has been delivered,
+# not when the process has died, so the PIDs of the runners we killed are waited for first: sweeping
+# too early would release nothing and put us back to waiting out the TTL. The wait is bounded, and
+# a runner that outlives it simply keeps its lease - which is the safe outcome, it may still be
+# writing.
+#
+# The sweep itself is not restricted to `names`: it also picks up the leases of the per-network
+# search workers, of fs_mon, and whatever an earlier crash left behind. Each of them is released
+# under the same proof, so there is nothing to gain from being narrower here.
+release_stopped_runner_leases <- function(names, timeout = 10) {
+  deadline <- Sys.time() + timeout
+  while (length(names) > 0 && Sys.time() < deadline) {
+    names <- names[vapply(names, is_runner_running_locally, logical(1))]
+    if (length(names) > 0) Sys.sleep(1)
+  }
+  release_dead_local_runner_leases()
 }
 # Forcing the stop of a PID file by killing the underlying process
 kill_task <- function(pidfile, type = "R") {

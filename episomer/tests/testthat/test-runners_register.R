@@ -92,6 +92,51 @@ test_that("register_runner() takes over a runner whose holder died", {
   expect_true(i_hold_runner_lease("search.bluesky"))
 })
 
+test_that("register_runner() takes over the runner a killed local process still holds", {
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_fs = 120,
+    runner_claim_guard = 0
+  )
+  # The state stop_all_runner_tasks() used to leave behind: the fs was killed with SIGTERM, R ran no
+  # exit handler, so the lease is still there and still fresh - and the PID file still names the
+  # process that is gone. That PID file is the whole proof, and register_runner() used to overwrite
+  # it with its own PID *before* claiming, destroying it: the claim then saw a lease it could not
+  # recognise as dead, and starting the fs again was refused for a whole TTL.
+  with_instance("instance-old", host = "machine-A", code = write_runner_lease("fs"))
+  set_lease_pid("fs", dead_pid)
+  write_local_pid_file("fs", dead_pid)
+
+  expect_silent(register_runner("fs"))
+
+  expect_true(i_hold_runner_lease("fs"))
+  expect_identical(readLines(pid_path("fs")), as.character(Sys.getpid()))
+})
+
+test_that("register_runner() leaves the PID file of the previous holder alone when refused", {
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_search = 300,
+    runner_claim_guard = 0
+  )
+  # a fresh lease of another machine: this instance is refused, and it has to leave the local disk
+  # exactly as it found it. The PID file it finds belongs to the process that ran here before, and
+  # it is what the *next* attempt will read to recognise a holder that died here (see above), so
+  # deleting it - which the refusal used to do, because it had just written its own PID over it -
+  # would throw away the evidence for good.
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search"))
+  write_local_pid_file("search", dead_pid)
+
+  expect_error(register_runner("search"), "already held by another instance")
+
+  expect_identical(read_running_task_pid_file("search"), dead_pid)
+  # and a PID file naming a process that no longer runs does not make this machine look busy
+  expect_false(is_runner_running_locally("search"))
+  expect_null(conf$runner_name)
+})
+
 test_that("runner_lease_holder_message() tells a live holder from one that just released", {
   local_lease_conf(instance_id = "instance-A", runner_ttl_detect = 1800)
   with_instance("instance-B", host = "machine-B", code = write_runner_lease("detect"))

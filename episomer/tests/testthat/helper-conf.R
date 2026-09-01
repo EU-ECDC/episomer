@@ -79,6 +79,26 @@ local_heartbeats <- function(.local_envir = parent.frame()) {
   invisible(lease_last_renewal)
 }
 
+# Patches the pid recorded in a lease: write_runner_lease() can only record Sys.getpid(), so this is
+# the only way to describe a *dead* holder - which lease_holder_is_dead_locally() (R/runners-lease.R)
+# is all about - without spawning and killing a real process.
+set_lease_pid <- function(name, pid) {
+  path <- runner_lease_path(name)
+  lease <- jsonlite::read_json(path, simplifyVector = TRUE)
+  lease$pid <- pid
+  write_json_atomic(lease, path, auto_unbox = TRUE)
+  invisible(pid)
+}
+
+# The PID file register_runner() writes on the local disk when it starts a runner here.
+write_local_pid_file <- function(name, pid) {
+  write(pid, file = get_running_task_pid_path(name), append = FALSE)
+  invisible(pid)
+}
+
+# A PID no process can have: is_r_pid_running() must answer FALSE for it.
+dead_pid <- 4194303L
+
 # Makes the lease of `name` belong to another machine, as if it had been taken over while this
 # process was busy collecting.
 steal_lease <- function(name) {

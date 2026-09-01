@@ -271,6 +271,120 @@ runner_claim_wait <- function(guard) {
   invisible(NULL)
 }
 
+# Waiting for a busy lease -------------------------------------------------------------------------
+#
+# claim_runner_lease() answers "may I be this runner *right now*". For everything that starts a
+# service that question is asked too early, and issue 14 is what it costs: `docker compose down`
+# runs no R code at all - the entrypoint is a bash script that does not forward SIGTERM, and an
+# Rscript receiving one dies without running a single on.exit() (issue 13) - so a `down`
+# immediately followed by an `up` finds the previous leases still there, alive, held by containers
+# that no longer exist. The claim is refused, register_runner() raises, the service exits, and
+# nothing is left running to try again when the lease finally expires TTL seconds later. The
+# deployment stays down until somebody types `make compose-up` a second time.
+#
+# Waiting is what the plan already described as the standby behaviour (issue 9), only done inside
+# the process instead of by exiting and letting Docker restart the container:
+#
+#   * it costs the same as a restart loop - one read of one small JSON file per attempt - without
+#     the container churn, and it works identically outside Compose: the setup() wizard, a service
+#     started by hand on a laptop, a systemd unit;
+#   * it makes the wait readable. One log line naming the holder and the interval, repeated at most
+#     once a minute, instead of the same fatal error every few seconds in a container that keeps
+#     dying and taking its logs with it;
+#   * it does not weaken exclusivity by one bit. A wait only ever ends on a successful
+#     claim_runner_lease(), guard wait and confirmation read included.
+#
+# `restart: on-failure` stays in the Compose files as the net below this one: it catches what a
+# wait cannot, i.e. a service dying for a reason that has nothing to do with a lease.
+runner_wait_timeout_default <- Inf
+runner_wait_interval_default <- 15
+
+# How long a service waits for a busy lease before giving up, in seconds.
+#
+# Infinite by default, because "the lease is taken" is not an incident to report but a role to
+# hold: a second machine pointed at the same database is *meant* to sit there until the first one
+# stops, and a service that waits says so in its log and holds no lease in the status table of
+# issue 8. A finite value turns the wait back into the historical refusal once it runs out, for a
+# deployment that would rather have its supervisor notice.
+runner_wait_timeout <- function() {
+  value <- conf$runner_wait_timeout
+  if (is.null(value)) value <- runner_wait_timeout_default
+  value <- suppressWarnings(as.numeric(value))
+  # a negative or unreadable timeout would mean "give up before trying", which no caller wants
+  if (length(value) != 1 || is.na(value) || value < 0) {
+    value <- runner_wait_timeout_default
+  }
+  value
+}
+
+# Seconds between two attempts. Short enough that a service restarted right after its predecessor
+# was killed starts collecting within seconds of the TTL expiring, long enough that waiting costs
+# nothing measurable: one read of one lease file, i.e. one small GET on the fs machine.
+runner_wait_interval <- function() {
+  value <- conf$runner_wait_interval
+  if (is.null(value)) value <- runner_wait_interval_default
+  value <- suppressWarnings(as.numeric(value))
+  # zero or negative would turn the retry loop into a busy loop hammering the fs
+  if (length(value) != 1 || is.na(value) || value <= 0) {
+    value <- runner_wait_interval_default
+  }
+  value
+}
+
+# Seconds between two "still waiting" lines. Deliberately much larger than the retry interval: the
+# attempts are cheap and frequent, but the log has to stay readable over a 30-minute detect TTL.
+runner_wait_log_span <- 60
+
+# Claims `name`, waiting for it to become free. TRUE when this process is now the holder.
+#
+# FALSE only when `timeout` ran out, and the caller then refuses exactly as it always did. With
+# timeout = 0 this *is* claim_runner_lease(), which is what register_runner() does by default: only
+# the three service loops wait. Everything else has to answer at once - the Shiny app deciding
+# whether to spawn a task, and above all the fs monitor, which re-registers on every iteration of
+# its 2-second loop.
+#
+# No heartbeat here, unlike every other wait of this file: we hold no lease while waiting, so there
+# is nothing to renew and nothing to lose. A plain sleep is the honest thing to do.
+wait_for_runner_lease <- function(
+  name,
+  timeout = runner_wait_timeout(),
+  interval = runner_wait_interval()
+) {
+  if (claim_runner_lease(name)) {
+    return(TRUE)
+  }
+  started <- Sys.time()
+  waited <- function() {
+    as.numeric(difftime(Sys.time(), started, units = "secs"))
+  }
+  # Time of the last line written, not of the last attempt: NULL means one is due right now, so an
+  # operator opening the log finds out why the service has not started yet without waiting a minute
+  # for the first message.
+  last_log <- NULL
+  repeat {
+    left <- timeout - waited()
+    if (left <= 0) {
+      return(FALSE)
+    }
+    due <- is.null(last_log) ||
+      as.numeric(difftime(Sys.time(), last_log, units = "secs")) >=
+        runner_wait_log_span
+    if (due) {
+      msg(runner_lease_wait_message(name, timeout, interval))
+      last_log <- Sys.time()
+    }
+    Sys.sleep(min(interval, left))
+    if (claim_runner_lease(name)) {
+      msg(sprintf(
+        "Runner '%s' has been claimed after waiting %s for its previous holder.",
+        name,
+        format_lease_duration(waited())
+      ))
+      return(TRUE)
+    }
+  }
+}
+
 # Proves this instance is still alive, by bumping the mtime of its lease file.
 #
 # One tiny POST (Files.setLastModifiedTime on the fs side), no body: this is what the heartbeat
@@ -501,6 +615,64 @@ release_runner_lease <- function(name = conf$runner_name) {
   invisible(TRUE)
 }
 
+# Gives back the lease of a runner whose holder is a process of *this* machine that has stopped.
+#
+# release_runner_lease() above cannot do this job: it gives back the lease of the calling process,
+# and the whole point here is that the holder is somebody else - a process this machine has just
+# killed, or one that died on its own.
+#
+# It is needed because R runs no exit handler on a signal: an Rscript receiving SIGTERM dies without
+# its on.exit(unregister_runner()) ever running. Every service stopped through kill_task()
+# (R/runners.R), i.e. from the setup wizard and from the Shiny app, therefore left its lease under
+# runners/ until the TTL expired - up to 30 minutes for detect - and a restart in between was
+# refused by a runner nobody was running.
+#
+# Safety is entirely lease_holder_is_dead_locally()'s: the lease has to name this host *and* the PID
+# our own PID file records for that runner, and that PID has to be gone. A lease of another machine,
+# one of a container sharing our host name but not our PID namespace, or one of a holder still
+# alive, is left strictly alone - which is what lets the caller sweep the whole of runners/ without
+# knowing what it will find in there.
+release_dead_local_runner_lease <- function(name) {
+  lease <- read_runner_lease(name)
+  if (is.null(lease) || !lease_holder_is_dead_locally(lease, name)) {
+    return(invisible(FALSE))
+  }
+  runner_lease_old_dir(create = TRUE)
+  epifile.move(
+    runner_lease_path(name),
+    runner_lease_released_path(name, instance_id = lease$instance_id)
+  )
+  message(sprintf(
+    "Released the lease of runner %s: its holder (PID %s) is not running on this machine anymore",
+    name,
+    lease$pid
+  ))
+  invisible(TRUE)
+}
+
+# Sweeps runners/ and gives back every lease held by a stopped process of this machine. Returns the
+# names of the runners that were released.
+#
+# Called when stopping services (R/runners.R): the runner that was just killed is released, and so
+# is any lease a previous crash left behind - each of them under the same proof as the one above, so
+# there is nothing to gain from restricting the sweep to the runner being stopped. Listing runners/
+# rather than naming the runners also covers the ones this process cannot enumerate: the per-network
+# search leases of the workers, and fs_mon.
+#
+# Nothing here may raise: it runs while shutting services down, and a listing that fails (no
+# runners/ folder yet, fs unreachable in a remote deployment) must not turn a stop into an error.
+release_dead_local_runner_leases <- function() {
+  names <- tryCatch(runner_lease_names(), error = function(e) character(0))
+  released <- vapply(
+    names,
+    function(name) {
+      tryCatch(release_dead_local_runner_lease(name), error = function(e) FALSE)
+    },
+    logical(1)
+  )
+  invisible(unname(names[released]))
+}
+
 # TRUE when the live lease of `name` names this instance.
 #
 # Freshness is deliberately not tested here: if the lease is mine but stale, nobody has taken it
@@ -652,12 +824,24 @@ runner_lease_holder_message <- function(name) {
       name
     ))
   }
+  paste(
+    runner_lease_holder_sentence(lease, name),
+    "This instance will not start it."
+  )
+}
+
+# The sentence the refusal above and the wait below both open with: who holds the runner, on which
+# machine, since when, and how long ago it last proved it was alive.
+#
+# Shared rather than written twice so that a container that waits and a container that gives up
+# describe the same situation in the same words - an operator grepping the logs of two machines
+# reads one story, not two.
+runner_lease_holder_sentence <- function(lease, name) {
   age <- as.numeric(difftime(Sys.time(), lease$seen_at, units = "secs"))
   sprintf(
     paste(
       "Runner '%s' is already held by another instance (%s) running on host '%s'",
-      "since %s, last seen %.0f seconds ago (lease TTL: %.0f seconds).",
-      "This instance will not start it."
+      "since %s, last seen %.0f seconds ago (lease TTL: %.0f seconds)."
     ),
     name,
     lease$instance_id,
@@ -665,6 +849,47 @@ runner_lease_holder_message <- function(name) {
     lease$claimed_at,
     age,
     runner_lease_ttl(name)
+  )
+}
+
+# The same thing said by a service that is going to wait instead of giving up
+# (wait_for_runner_lease()).
+#
+# It has to answer one more question than the refusal does - "is anything going to happen, and
+# when?" - because the alternative is a container that looks hung. Naming the interval and, when
+# the wait is bounded, its deadline is what turns a silent process into an explained one. The age
+# of the last heartbeat in the shared sentence gives the rest: a holder last seen 200 seconds ago
+# against a 300-second TTL will be gone in about a hundred.
+runner_lease_wait_message <- function(
+  name,
+  timeout = runner_wait_timeout(),
+  interval = runner_wait_interval()
+) {
+  lease <- read_runner_lease(name)
+  if (is.null(lease)) {
+    # Released between the failed claim and this read, or taken over by a third instance whose
+    # write has not landed yet. Either way there is nothing to describe but the retry.
+    return(sprintf(
+      paste(
+        "Runner '%s' could not be claimed, and the lease is already gone. Trying again in",
+        "%.0f seconds."
+      ),
+      name,
+      interval
+    ))
+  }
+  deadline <- if (is.finite(timeout)) {
+    sprintf(", for at most %s", format_lease_duration(timeout))
+  } else {
+    ""
+  }
+  paste(
+    runner_lease_holder_sentence(lease, name),
+    sprintf(
+      "This instance is waiting for it to be released or to expire, trying again every %.0f seconds%s.",
+      interval,
+      deadline
+    )
   )
 }
 

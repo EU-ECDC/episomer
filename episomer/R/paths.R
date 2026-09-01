@@ -323,9 +323,19 @@ runner_lease_path <- function(name, create_dir = FALSE) {
   epipath("runners", paste0(name, ".json"))
 }
 
-# Path a lease is moved to when this instance releases it. The instance_id is part of the name so
-# that successive releases of the same runner do not overwrite each other.
-runner_lease_released_path <- function(name) {
+# Path a lease is moved to when it is released. The instance_id is part of the name so that
+# successive releases of the same runner do not overwrite each other.
+#
+# `instance_id` is a parameter rather than always conf$instance_id because a lease is not always
+# released by its own holder: release_dead_local_runner_lease() (R/runners-lease.R) gives back the
+# lease of a local process that has stopped, and the trail under runners/old/ has to keep naming
+# the instance the file describes, not the one that swept it away.
+#
+# The identifier ends up in a file name and, in that one case, comes from a file rather than from
+# new_instance_id(): anything outside the character set it generates is replaced instead of being
+# pasted into a path.
+runner_lease_released_path <- function(name, instance_id = conf$instance_id) {
   check_runner_name(name)
-  epipath("runners", "old", paste0(name, ".", conf$instance_id, ".json"))
+  instance_id <- gsub("[^A-Za-z0-9._-]", "_", paste(instance_id, collapse = ""))
+  epipath("runners", "old", paste0(name, ".", instance_id, ".json"))
 }

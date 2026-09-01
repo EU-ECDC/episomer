@@ -44,7 +44,13 @@ search_loop <- function(
   }
   if (!sandboxed) {
     # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-    register_search_runner()
+    #
+    # wait = TRUE: a service does not ask once and give up (plan issue 14). The lease this finds
+    # held is most often the one the previous container left behind on a `docker compose down`,
+    # which released nothing because no R code runs on the way down (issue 13); waiting means the
+    # service starts by itself as soon as that lease expires, instead of dying with an error that
+    # nothing is left to retry.
+    register_search_runner(wait = TRUE)
     # Releasing the parent "search" lease and the PID file on exit. Not strictly required by the
     # plan (which only lists the three loops that do the work), but the reason is the same: without
     # it, restarting the search service means waiting for the TTL before it may collect again.
@@ -186,7 +192,13 @@ search_loop_worker <- function(
 
   if (!sandboxed) {
     # Registering the search runner using current PID and ensuring no other instance of the search is actually running.
-    register_search_runner(network)
+    #
+    # wait = TRUE for the same reason as in search_loop(), and it matters more here: this is the
+    # lease a restarted `search` container really has to wait out, because its own PID file died
+    # with the container (only jobs/ is mounted) and the fast reclaim of section 3.6 therefore
+    # fails closed. The worker sits in wait_for_runner_lease() until the TTL runs out, then
+    # collects - no error, no dead container (plan issue 14).
+    register_search_runner(network, wait = TRUE)
     # This is the lease that really matters: exclusivity is per network ("search.bluesky",
     # "search.mastodon.piaille.fr"), because that is where two machines would push the same posts
     # twice. Releasing it lets the standby machine take this network over on its next restart, and
