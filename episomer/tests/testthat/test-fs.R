@@ -1,11 +1,105 @@
-test_that("get_scala_api_endpoint works when remote is null", {
+# get_scala_api_endpoint() answers "where is the fs API, seen from this process". conf$fs_url is
+# NOT that answer: the Scala API uses it as its bind interface and it travels in the shared
+# properties.json, so a containerised fs writes there a Docker-internal name ("http://fs"). The
+# tests below pin the four steps of the resolution order documented in R/fs.R.
+#
+# fs_url_resolves_here() is mocked rather than exercised: the real one does a DNS lookup, which
+# would make these tests depend on the resolver of the machine running them and cost half a second
+# per miss. Its own behaviour is tested separately at the end of this block.
+
+test_that("get_scala_api_endpoint prefers fs_remote over everything else", {
+  withr::local_envvar(EPI_HOST = "http://from-env:8080")
   local_conf(
-    "fs_remote" = NULL,
-    fs_url = "toto",
+    "fs_remote" = "http://explicit:1234/",
+    fs_url = "http://fs",
     fs_port = 8080
   )
-  api <- get_scala_api_endpoint()
-  expect_equal(api, "toto:8080")
+  # trailing slash dropped, and neither EPI_HOST nor fs_url gets a say
+  expect_equal(get_scala_api_endpoint(), "http://explicit:1234")
+})
+
+test_that("get_scala_api_endpoint falls back on EPI_HOST when fs_remote is NULL", {
+  # setup() passes fs_remote = NULL on purpose (it works on the local disk), so EPI_HOST has to be
+  # honoured here or the wizard would ignore it.
+  withr::local_envvar(EPI_HOST = "http://fs:8080/")
+  local_conf(
+    "fs_remote" = NULL,
+    fs_url = "http://fs",
+    fs_port = 8080
+  )
+  expect_equal(get_scala_api_endpoint(), "http://fs:8080")
+})
+
+test_that("get_scala_api_endpoint uses fs_url:fs_port when that host resolves here", {
+  # The fs machine itself: it is the only process that both binds and calls that address.
+  withr::local_envvar(EPI_HOST = "")
+  local_mocked_bindings(fs_url_resolves_here = function() TRUE, .package = "episomer")
+  local_conf(
+    "fs_remote" = NULL,
+    fs_url = "http://fs",
+    fs_port = 8080
+  )
+  expect_equal(get_scala_api_endpoint(), "http://fs:8080")
+})
+
+test_that("get_scala_api_endpoint falls back on localhost when fs_url does not resolve here", {
+  # The bug this fixes: docker/compose.yml sets EPISOMER_OPTION_FS_URL=http://fs on the fs
+  # service, which saves it in the shared properties.json; an R session on the *host* then read
+  # "http://fs" and concluded the database was down, while the port is published on localhost.
+  withr::local_envvar(EPI_HOST = "")
+  local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
+  local_conf(
+    "fs_remote" = NULL,
+    fs_url = "http://fs",
+    fs_port = 8080
+  )
+  expect_equal(get_scala_api_endpoint(), "http://localhost:8080")
+})
+
+test_that("get_scala_api_endpoint follows the temporary port shift of the retraining", {
+  # setup() shifts conf$fs_port by 1000 while it retrains the language models, so the endpoint
+  # must be read from conf on every call and never frozen with the host resolution.
+  withr::local_envvar(EPI_HOST = "")
+  local_conf(
+    "fs_remote" = NULL,
+    fs_url = "http://localhost",
+    fs_port = 9080
+  )
+  local_mocked_bindings(fs_url_resolves_here = function() TRUE, .package = "episomer")
+  expect_equal(get_scala_api_endpoint(), "http://localhost:9080")
+
+  local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
+  expect_equal(get_scala_api_endpoint(), "http://localhost:9080")
+})
+
+test_that("fs_url_resolves_here answers for a scheme-less name and an empty fs_url", {
+  local_conf("fs_remote" = NULL, fs_url = "localhost", fs_port = 8080)
+  expect_true(fs_url_resolves_here())
+
+  # Nothing to resolve: not an error, just "no, do not bother calling it".
+  local_conf("fs_remote" = NULL, fs_url = "", fs_port = 8080)
+  expect_false(fs_url_resolves_here())
+  local_conf("fs_remote" = NULL, fs_url = NA, fs_port = 8080)
+  expect_false(fs_url_resolves_here())
+  local_conf("fs_remote" = NULL, fs_url = NULL, fs_port = 8080)
+  expect_false(fs_url_resolves_here())
+})
+
+test_that("fs_url_resolves_here memoises its answer and invalidates it on a new fs_url", {
+  # A missed lookup costs about half a second and the resolver does not cache the miss, while
+  # get_scala_api_endpoint() runs on every API request.
+  local_conf("fs_remote" = NULL, fs_url = "http://localhost", fs_port = 8080)
+  expect_true(fs_url_resolves_here())
+  expect_equal(conf$fs_url_resolved_for, "http://localhost")
+
+  # Poisoning the memo is the only way to observe that it is read rather than recomputed.
+  conf$fs_url_resolves <- FALSE
+  expect_false(fs_url_resolves_here())
+
+  # A different fs_url is a different question, so the memo must not answer it.
+  conf$fs_url <- "http://127.0.0.1"
+  expect_true(fs_url_resolves_here())
+  expect_equal(conf$fs_url_resolved_for, "http://127.0.0.1")
 })
 
 

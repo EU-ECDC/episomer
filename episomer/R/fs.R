@@ -1,11 +1,66 @@
 # This script includes all dedicated logic for interacting with the Spark/Scala API via HTTP REST requests
 
+# The base URL of the fs API *as seen from this process*.
+#
+# conf$fs_url is deliberately not the last word here. The Scala API uses it as its **bind
+# interface** (scala/src/main/scala/API.scala: `Http().newServerAt(conf.fsUrl.replace("http://",
+# ""), conf.fsPort)`) and it is stored in properties.json, which every instance sharing the data
+# directory reads. A containerised fs therefore writes there the name it binds to *inside* the
+# Docker network ("http://fs", EPISOMER_OPTION_FS_URL in docker/compose.yml), and any other
+# machine reading that file - the host running setup() or the Shiny app - would call a name that
+# does not exist outside that network, silently concluding that the database is down.
+#
+# Resolution order, from the most explicit to the last resort:
+#
+#   1. conf$fs_remote           the caller said where the fs is: episomer_app(fs_remote = ...), or
+#                               EPI_HOST through the setup_config() default.
+#   2. EPI_HOST                 machine-local, and already how the search / detect containers are
+#                               told where the fs is. Needed on its own because setup() passes
+#                               fs_remote = NULL on purpose (it works on the local disk) and would
+#                               otherwise ignore it.
+#   3. conf$fs_url:conf$fs_port correct on the fs machine itself, the only process that both binds
+#                               and calls that address - and the only one for which the temporary
+#                               port shift of the language retraining in setup() must be honoured.
+#   4. http://localhost:fs_port when the host part of conf$fs_url does not resolve here. That is
+#                               exactly the "Docker service name read from outside the network"
+#                               case, and there the port is published on the host, so localhost
+#                               reaches it.
 get_scala_api_endpoint <- function() {
-  if(is.null(conf$fs_remote)) {
-    paste(conf$fs_url,":", conf$fs_port, sep = "")
-  } else {
-    gsub("/$", "", conf$fs_remote)
+  if (!is.null(conf$fs_remote)) {
+    return(gsub("/$", "", conf$fs_remote))
   }
+  epi_host <- Sys.getenv("EPI_HOST")
+  if (epi_host != "") {
+    return(gsub("/$", "", epi_host))
+  }
+  if (fs_url_resolves_here()) {
+    paste(conf$fs_url, ":", conf$fs_port, sep = "")
+  } else {
+    paste("http://localhost", ":", conf$fs_port, sep = "")
+  }
+}
+
+# TRUE when the host part of conf$fs_url can be resolved from this process, i.e. when calling it is
+# even worth trying. A bare name with no scheme is treated as the host, which is what
+# get_scala_api_endpoint() does with it anyway.
+#
+# Memoised in conf: a failed lookup costs about half a second, the resolver does not cache the
+# miss, and get_scala_api_endpoint() is called on every single API request. The memo is keyed on
+# the value it was computed for, so any change of fs_url invalidates it on its own; the port plays
+# no part in a name resolution, which is why the port shift of the retraining does not.
+fs_url_resolves_here <- function() {
+  if (is.null(conf$fs_url) || is.na(conf$fs_url) || conf$fs_url == "") {
+    return(FALSE)
+  }
+  if (identical(conf$fs_url_resolved_for, conf$fs_url)) {
+    return(conf$fs_url_resolves)
+  }
+  host <- urltools::url_parse(conf$fs_url)$domain
+  if (is.na(host) || host == "") host <- conf$fs_url
+  resolves <- !is.null(curl::nslookup(host, error = FALSE))
+  conf$fs_url_resolved_for <- conf$fs_url
+  conf$fs_url_resolves <- resolves
+  resolves
 }
 
 get_scala_geotraining_url <- function() {
