@@ -12,30 +12,38 @@ RUN if ! getent group "${EPISOMER_USER}" >/dev/null; then \
     mkdir -p /episomer/episomer/java /episomer-data /opt/episomer-library && \
     chown -R "${EPISOMER_USER}:${EPISOMER_USER}" /episomer /episomer-data /opt/episomer-library
 
-## Installing System dependencies
+## Runtime system dependencies (curl is used by the compose healthcheck)
 RUN apt-get update && \
-    apt-get install -y apt-transport-https curl gnupg git && \
+    apt-get install -y curl && \
     apt-get clean
 
-## Installing JAVA
+## Installing JAVA runtime (the JDK is only needed to compile Scala, see build stage)
 RUN apt-get update && \
-    apt-get install -y openjdk-21-jdk-headless && \
+    apt-get install -y openjdk-21-jre-headless && \
     apt-get clean
 
 ## deb dependencies
 RUN apt-get update && \
     apt-get install -y libfontconfig1-dev libcurl4-openssl-dev libuv1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev && \
-    apt-get install -y libjpeg-dev libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev cmake gdal-bin libsecret-1-dev && \
+    apt-get install -y libjpeg-dev libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev libsecret-1-dev && \
     apt-get clean
 
-## documentation dependencies
+## Runtime documentation dependencies: the dashboard exports a PDF via rmarkdown.
+## lmodern is required by the default rmarkdown pdf_document template.
+## texlive-fonts-extra is only needed to build the package manual, see build stage.
 RUN apt-get update && \
-    apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra pandoc && \
+    apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-latex-extra lmodern pandoc && \
     apt-get clean
 
 FROM base AS build
 
 ARG EPISOMER_USER=1000
+
+## Build-only system dependencies
+RUN apt-get update && \
+    apt-get install -y apt-transport-https gnupg git openjdk-21-jdk-headless \
+                       cmake gdal-bin texlive-fonts-extra && \
+    apt-get clean
 
 ## Installing SBT
 RUN mkdir -p /git
