@@ -929,7 +929,7 @@ create_snapshot <- function(
       ),
       episomer_files("fs/posts", posts_period[[1]], posts_period[[2]])
     )
-  if ("logs" %in% types)
+  if ("logs" %in% types) {
     jobs_dir <- epipath("jobs")
     items <- c(
       items,
@@ -939,6 +939,7 @@ create_snapshot <- function(
         "search.log" =  file.path(jobs_dir, "search.log")
       )
     )
+  }
   nb <- length(items)
   i <- 0
   progress(0, paste("Building archive for", nb, "files"))
