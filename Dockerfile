@@ -51,6 +51,7 @@ RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 ## dependant packages
 USER ${EPISOMER_USER}:${EPISOMER_USER}
 ENV PATH="$PATH:/git/sbt"
+ENV R_LIBS_USER=/opt/episomer-library
 WORKDIR /episomer
 RUN R -e 'dir.create(path = Sys.getenv("R_LIBS_USER"), showWarnings = FALSE, recursive = TRUE)'
 RUN R -e 'install.packages(c("devtools", "remotes"), lib = Sys.getenv("R_LIBS_USER"))'
@@ -84,6 +85,6 @@ COPY --from=build --chown=${EPISOMER_USER}:${EPISOMER_USER} /episomer/devscripts
 COPY --from=build --chown=${EPISOMER_USER}:${EPISOMER_USER} /episomer/devscripts/run.R /episomer/devscripts/run.R
 
 USER ${EPISOMER_USER}:${EPISOMER_USER}
-ENV R_LIBS_SITE=/opt/episomer-library
+ENV R_LIBS_USER=/opt/episomer-library
 WORKDIR /episomer
 ENTRYPOINT ["bash", "/episomer/devscripts/run.sh"]
