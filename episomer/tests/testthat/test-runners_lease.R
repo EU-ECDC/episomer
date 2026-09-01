@@ -263,6 +263,101 @@ test_that("release_runner_lease() leaves the lease alone when it was stolen mean
   expect_false(dir.exists(file.path(conf$data_dir, "runners", "old")))
 })
 
+# Releasing the lease of a stopped local process ---------------------------------------------------
+#
+# The reason this exists at all: R runs no exit handler on a signal, so a runner stopped by
+# kill_task() (R/runners.R) dies without its on.exit(unregister_runner()) ever running. Somebody else
+# has to give the lease back, otherwise starting the service again is refused until the TTL expires.
+
+test_that("release_dead_local_runner_lease() gives back the lease of a killed local runner", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_fs = 120)
+  # the fs that was running here until stop_all_runner_tasks() killed it: its lease is still fresh
+  # (it was renewed seconds ago), and its PID file still names the process that is now gone
+  with_instance("instance-old", host = "machine-A", code = write_runner_lease("fs"))
+  set_lease_pid("fs", dead_pid)
+  write_local_pid_file("fs", dead_pid)
+
+  expect_message(
+    expect_true(release_dead_local_runner_lease("fs")),
+    "not running on this machine anymore"
+  )
+
+  # gone from runners/, which is the single meaning of "this runner is free"...
+  expect_null(read_runner_lease("fs"))
+  # ... and kept as a trail under the name of the instance it describes, not of the one that swept
+  # it away: runners/old/ is what an operator reads after the fact
+  expect_true(epifile.exists(runner_lease_released_path("fs", instance_id = "instance-old")))
+  expect_false(epifile.exists(runner_lease_released_path("fs", instance_id = "instance-A")))
+})
+
+test_that("release_dead_local_runner_lease() refuses to touch a lease that is not this machine's", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_search = 300)
+  # another machine of the cluster, collecting right now. Its PID happens to be dead *here*, which
+  # is exactly the confusion the host signal exists to prevent
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search"))
+  set_lease_pid("search", dead_pid)
+  write_local_pid_file("search", dead_pid)
+
+  expect_false(release_dead_local_runner_lease("search"))
+  expect_identical(read_runner_lease("search")$instance_id, "instance-B")
+})
+
+test_that("release_dead_local_runner_lease() refuses without a local PID file to corroborate", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_search = 300)
+  # Two containers of the same service share EPISOMER_INSTANCE but not their PID namespace, so the
+  # host alone proves nothing: without our own PID file naming that PID, "it does not run here" does
+  # not mean "the holder is dead". No PID file, and one naming another process, both fail closed.
+  with_instance("instance-B", host = "machine-A", code = write_runner_lease("search"))
+  set_lease_pid("search", dead_pid)
+
+  expect_false(release_dead_local_runner_lease("search"))
+  write_local_pid_file("search", dead_pid + 1L)
+  expect_false(release_dead_local_runner_lease("search"))
+  expect_identical(read_runner_lease("search")$instance_id, "instance-B")
+})
+
+test_that("release_dead_local_runner_lease() refuses while the holder is still alive", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_detect = 1800)
+  # this process is the holder, and it is running: nothing to release
+  claim_runner_lease("detect", guard = 0)
+  write_local_pid_file("detect", Sys.getpid())
+
+  expect_false(release_dead_local_runner_lease("detect"))
+  expect_true(i_hold_runner_lease("detect"))
+})
+
+test_that("release_dead_local_runner_leases() sweeps runners/ and leaves the rest alone", {
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_fs = 120,
+    runner_ttl_search = 300,
+    runner_ttl_detect = 1800
+  )
+  # the whole point of sweeping rather than naming: "search.bluesky" is held by a worker whose name
+  # the process doing the stopping cannot enumerate, and "detect" is the lease of an older crash
+  # nobody ever released
+  for (name in c("fs", "search.bluesky", "detect")) {
+    with_instance("instance-old", host = "machine-A", code = write_runner_lease(name))
+    set_lease_pid(name, dead_pid)
+    write_local_pid_file(name, dead_pid)
+  }
+  # and one runner of another machine, which must come out of this untouched
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search.mastodon.social"))
+
+  released <- suppressMessages(release_dead_local_runner_leases())
+
+  expect_setequal(released, c("fs", "search.bluesky", "detect"))
+  expect_identical(runner_lease_names(), "search.mastodon.social")
+})
+
+test_that("release_dead_local_runner_leases() copes with a data directory holding no runners", {
+  local_lease_conf(instance_id = "instance-A")
+
+  # stopping services must not raise because nothing was ever started: runners/ does not exist yet
+  expect_identical(release_dead_local_runner_leases(), character(0))
+})
+
 # Guarding the writes -----------------------------------------------------------------------------
 
 test_that("stop_if_lease_lost() stays silent while the lease is mine", {

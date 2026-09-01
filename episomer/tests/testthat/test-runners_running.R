@@ -7,26 +7,6 @@
 # Same setup as test-runners_lease.R: fs_remote = NULL so epipath() resolves to a temp directory, and
 # a "second instance" is just another conf$instance_id borrowed with with_instance().
 
-# Writes the lease of `name` as if the holder's process had been `pid`. write_runner_lease() can only
-# record Sys.getpid(), so the pid is patched afterwards - that is the only way to describe a *dead*
-# holder without spawning and killing a real process.
-set_lease_pid <- function(name, pid) {
-  path <- runner_lease_path(name)
-  lease <- jsonlite::read_json(path, simplifyVector = TRUE)
-  lease$pid <- pid
-  write_json_atomic(lease, path, auto_unbox = TRUE)
-  invisible(pid)
-}
-
-# The PID file register_runner() writes on the local disk when it starts a runner here.
-write_local_pid_file <- function(name, pid) {
-  write(pid, file = get_running_task_pid_path(name), append = FALSE)
-  invisible(pid)
-}
-
-# A PID no process can have: is_r_pid_running() must answer FALSE for it.
-dead_pid <- 4194303L
-
 # Cluster-wide status ------------------------------------------------------------------------------
 
 test_that("is_detect_running() is FALSE when no instance holds the runner", {
