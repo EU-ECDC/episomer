@@ -125,9 +125,9 @@ After ~1 minute:
 ls $EPI_HOME/runners/
 ```
 
-- [ ] `fs.json`, `fs_mon.json`, `search.json`, `search.bluesky.json`,
+- [x] `fs.json`, `fs_mon.json`, `search.json`, `search.bluesky.json`,
       `search.mastodon.<host>.json`, `detect.json`.
-- [ ] The folder was created by the *writers*, not by every reader: `runners/old/` does **not**
+- [x] The folder was created by the *writers*, not by every reader: `runners/old/` does **not**
       exist yet at this point.
 
 ```bash

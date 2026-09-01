@@ -340,7 +340,15 @@ fs_loop <- function(data_dir = NA) {
   monitor <- future::future(
     {
       message("Monitoring episomer")
-      setup_config(data_dir = data_dir)
+      # fs_remote = NULL, exactly as the fs_loop() branch above: this worker runs on the fs machine
+      # itself, /episomer-data is its own local disk and the Scala API is not up yet when it starts.
+      # Letting setup_config() default fs_remote to "http://localhost:8080" (EPI_HOST is not set on
+      # the fs container) made it read properties.json over HTTP - against an address the API does
+      # not even bind to, since it binds conf$fs_url ("http://fs" in docker/compose.yml), i.e. the
+      # container interface and not the loopback. The read failed, the future died on its first
+      # line, and because fs_loop() never collects its value the error was never raised anywhere:
+      # no fs_mon lease was ever claimed and the fs lease was never renewed either.
+      setup_config(data_dir = data_dir, fs_remote = NULL)
       x = 60
       step = 2
       while (TRUE) {
