@@ -75,3 +75,4 @@ episomer/tests/testthat/fixtures/bluesky_page_covid.json
 episomer/tests/testthat/fixtures/bluesky_page_empty.json
 episomer/tests/testthat/fixtures/mastodon_page_covid.json
 episomer/tests/testthat/fixtures/mastodon_page_empty.json
+.vscode/settings.json
