@@ -1,13 +1,25 @@
-FROM docker.io/rocker/r-base:latest
+FROM docker.io/rocker/r-base:latest AS base
+
+ARG EPISOMER_USER=1000
+
+## Creating unprivilegied user for episomer and precreate directories
+RUN if ! getent group "${EPISOMER_USER}" >/dev/null; then \
+      groupadd --gid "${EPISOMER_USER}" epirunner; \
+    fi && \
+    if ! getent passwd "${EPISOMER_USER}" >/dev/null; then \
+      useradd --create-home --no-log-init --uid "${EPISOMER_USER}" --gid "${EPISOMER_USER}" epirunner; \
+    fi && \
+    mkdir -p /episomer/episomer/java /episomer-data /opt/episomer-library && \
+    chown -R "${EPISOMER_USER}:${EPISOMER_USER}" /episomer /episomer-data /opt/episomer-library
 
 ## Installing System dependencies
 RUN apt-get update && \
-    apt-get install -y apt-transport-https curl gnupg git&& \
+    apt-get install -y apt-transport-https curl gnupg git && \
     apt-get clean
 
 ## Installing JAVA
 RUN apt-get update && \
-    apt-get install -y openjdk-21-jdk && \
+    apt-get install -y openjdk-21-jdk-headless && \
     apt-get clean
 
 ## deb dependencies
@@ -16,37 +28,23 @@ RUN apt-get update && \
     apt-get install -y libjpeg-dev libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev cmake gdal-bin libsecret-1-dev && \
     apt-get clean
 
-## documentatin dependencies
+## documentation dependencies
 RUN apt-get update && \
     apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-fonts-extra texlive-latex-extra pandoc && \
     apt-get clean
 
-## Creating unprivilegied user for episomer
+FROM base AS build
+
 ARG EPISOMER_USER=1000
-RUN if id "${EPISOMER_USER}" >/dev/null 2>&1; then \
-    echo 'user exists already found, reusing it'; \
-else \
-    RUN groupadd -g "${EPISOMER_USER}" epirunner \
-      && useradd --create-home --no-log-init -u "${EPISOMER_USER}" -g "${EPISOMER_USER}" epirunner; \
-fi
 
 ## Installing SBT
-RUN mkdir /git
+RUN mkdir -p /git
 WORKDIR /git
 RUN git clone https://github.com/sbt/sbt.git
 WORKDIR /git/sbt
 RUN git fetch origin 1.12.x
 RUN git checkout origin/1.12.x
 RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
-
-
-## Creating episomer code folders 
-RUN mkdir -p /episomer/episomer/java
-RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer
-
-## Creating episomer data folder 
-RUN mkdir /episomer-data
-RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /episomer-data
 
 ## Installing R package dependencids
 
@@ -77,5 +75,15 @@ RUN PACK=1 make package-step
 ## Installing episomer
 RUN INSTALL=1 make package-step
 
-## Entry point
+FROM base AS final
+
+ARG EPISOMER_USER=1000
+
+COPY --from=build --chown=${EPISOMER_USER}:${EPISOMER_USER} /opt/episomer-library /opt/episomer-library
+COPY --from=build --chown=${EPISOMER_USER}:${EPISOMER_USER} /episomer/devscripts/run.sh /episomer/devscripts/run.sh
+COPY --from=build --chown=${EPISOMER_USER}:${EPISOMER_USER} /episomer/devscripts/run.R /episomer/devscripts/run.R
+
+USER ${EPISOMER_USER}:${EPISOMER_USER}
+ENV R_LIBS_SITE=/opt/episomer-library
+WORKDIR /episomer
 ENTRYPOINT ["bash", "/episomer/devscripts/run.sh"]
