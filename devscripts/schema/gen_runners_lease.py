@@ -21,7 +21,8 @@ T(L, Y, "Les leases de runner — comment episomer empêche deux machines de fai
 Y += 44
 T(L, Y,
   "Fichiers : R/runners-lease.R (le mécanisme) · R/runners.R (les deux couches, PID + lease) · R/fs.R, R/search.R, R/scheduler.R, R/alert.R (les points d'appel)\n"
-  "Conception : inst/schema/multi_services_plan.md — issues 1 à 9. Ce schéma est la version « on reprend tout depuis le début » de ce document.",
+  "Conception : inst/schema/multi_services_plan.md — issues 1 à 14. Ce schéma est la version « on reprend tout depuis le début » de ce document.\n"
+  "Ajouts après le premier jet : panneau 15 (attendre au lieu de mourir, issue 14) · 16 (le tueur rend pour le tué, issue 13) · 17 (le cas fs et son moniteur).",
   14, GREY)
 Y += 50
 
@@ -249,9 +250,9 @@ Y = table(L, Y, [340, 520, 720, 260, 620],
           [["fs", "fs_loop()", "renew_fs_runner_lease(), depuis le moniteur fs", "runner_ttl_fs — 120 s",
             "spark_job() ne rend jamais la main à R"],
            ["fs_mon", "register_fs_monitor(), à chaque tour de 2 s", "le même appel (chemin rapide du claim)", "défaut 120 s — pas de propriété",
-            "le seul runner ré-enregistré en boucle"],
+            "le seul ré-enregistré en boucle — panneau 17"],
            ["search  (parent)", "search_loop()", "PERSONNE → devient stale sur une machine saine", "runner_ttl_search — 300 s",
-            "connu et assumé, §9.5 du plan"],
+            "assumé §9.5 — dernier point ouvert de l'issue 14"],
            ["search.<réseau>", "search_loop_worker(), un par média actif", "chaque tour + sleep_with_heartbeat + retry 429", "runner_ttl_search — 300 s",
             "c'est LÀ qu'est la vraie exclusivité"],
            ["detect", "detect_loop()", "chaque tour + sleep_with_heartbeat", "runner_ttl_detect — 1800 s",
@@ -301,17 +302,20 @@ box(x + step_w + 130, y - 62, 480, "oui → stop()",
     ['"Runner <name> PID: 4123 is already running"',
      "Rien n'a été écrit, aucune requête réseau."], RED, RED_BG)
 y += 30
-y = step(x, y, "4 · écrire <name>.PID", ["write(pid, file = pid_path)", "La couche locale dit oui."], ORANGE, ORANGE_BG)
-A([(x + step_w / 2, y), (x + step_w / 2, y + 30)])
-y += 30
 y_claim = y
-y = step(x, y, "5 · claim_runner_lease(name)", ["→ panneau 6", "C'est le seul moment où l'on parle au fs."], GREEN, GREEN_BG)
+y = step(x, y, "4 · claim, wait = FALSE ou TRUE",
+         ["claim_runner_lease(name)          → panneau 6",
+          "wait_for_runner_lease(name)      → panneau 15",
+          "Le seul moment où l'on parle au fs."], GREEN, GREEN_BG)
 A([(x + step_w, y_claim + 40), (x + step_w + 120, y_claim + 40)], RED)
-box(x + step_w + 130, y_claim - 6, 700, "FALSE → refus, et il faut nettoyer",
-    ["remove_running_task_pid(name)   ← sinon cette machine aurait l'air d'héberger",
-     "                                  un runner : c'est ce que lisent localement",
-     "                                  is_*_running() et stop_all_runner_tasks()",
-     "stop(runner_lease_holder_message(name))",
+box(x + step_w + 130, y_claim - 6, 700, "FALSE → refus, et on ne nettoie RIEN",
+    ["stop(runner_lease_holder_message(name))",
+     "",
+     "Le disque local est laissé EXACTEMENT comme on l'a trouvé — pas de",
+     "remove_running_task_pid(). C'est un renversement de l'issue 13 : le",
+     "<name>.PID du titulaire précédent est le second des deux signaux dont",
+     "lease_holder_is_dead_locally() a besoin (panneaux 7 et 16). Le supprimer",
+     "détruisait la preuve pour TOUS les redémarrages suivants.",
      "",
      '   "Runner \'search.bluesky\' is already held by another instance (7f3a1c2e)',
      "    running on host 'machine-B' since 2026-08-28T07:05:11Z, last seen 12",
@@ -322,14 +326,25 @@ box(x + step_w + 130, y_claim - 6, 700, "FALSE → refus, et il faut nettoyer",
      "distingue un titulaire vivant d'un titulaire sur le point d'expirer)."], RED, RED_BG)
 A([(x + step_w / 2, y), (x + step_w / 2, y + 30)])
 y += 30
+y = step(x, y, "5 · écrire <name>.PID",
+         ["write(pid, file = pid_path)",
+          "APRÈS le claim, et c'est tout l'objet de l'issue 13."], ORANGE, ORANGE_BG)
+A([(x + step_w / 2, y), (x + step_w / 2, y + 30)])
+y += 30
 y = step(x, y, "6 · conf$runner_name <- name", ["Posé EN DERNIER : il ne nomme jamais", "qu'un runner réellement détenu."], GREEN, GREEN_BG)
 A([(x + step_w / 2, y), (x + step_w / 2, y + 30)])
 y += 30
 y = step(x, y, "7 · le runner travaille", ["Le nom sert de défaut partout :", "renew_runner_lease(), stop_if_lease_lost(),", "release_runner_lease() s'appellent sans argument."], GREEN, GREEN_BG)
 
-box(L + 1400, y0, 1060, "Trois décisions qui ne se devinent pas à la lecture",
-    ["· L'ordre local → réseau. Le contrôle local est gratuit et ne dérange personne ; le claim, lui, écrit sur la machine fs.",
-     "  Échouer le moins cher d'abord.",
+box(L + 1400, y0, 1060, "Quatre décisions qui ne se devinent pas à la lecture",
+    ["· L'ordre des LECTURES : local, puis réseau. Le contrôle local est gratuit et ne dérange personne ; le claim, lui,",
+     "  écrit sur la machine fs. Échouer le moins cher d'abord.",
+     "",
+     "· L'ordre des ÉCRITURES : le claim, PUIS le fichier PID — l'inverse de la première version. Le PID file laissé par",
+     "  le titulaire précédent est une PREUVE, pas un encombrement : écrire le nôtre par-dessus rendait impossible la",
+     "  reprise rapide d'un runner mort ici, depuis la seule fonction qui démarre un runner (panneau 16).",
+     "  Le prix, assumé : deux processus de cette machine démarrant le même runner dans la fenêtre du guard sont",
+     "  désormais séparés par le lease et non par le fichier PID. C'est le travail du lease.",
      "",
      "· conf$runner_name est posé par register_runner(), pas par setup_config(). Seul un processus qui a réellement pris un",
      "  lease peut en porter un, et setup_config() est rappelé à chaque rafraîchissement de configuration. C'est de l'état de",
@@ -337,8 +352,8 @@ box(L + 1400, y0, 1060, "Trois décisions qui ne se devinent pas à la lecture",
      "  Dans l'app Shiny il reste NULL — ce qui rend release_runner_lease() et stop_if_lease_lost() inoffensifs là-bas.",
      "",
      "· Un claim refusé est une situation NORMALE, pas une panne. C'est la machine de secours qui découvre que l'autre",
-     "  collecte déjà. Dans docker/compose.yml, `restart: on-failure` sur search-standby transforme ce refus en boucle de",
-     "  réessai : c'est ça, un standby.",
+     "  collecte déjà. Pour un SERVICE, la réponse n'est plus de sortir en espérant un redémarrage mais d'attendre sur",
+     "  place : wait = TRUE, panneau 15. `restart: on-failure` reste, mais dégradé au rang de filet.",
      "",
      "Cas particulier de register_fs_monitor() : appelé à CHAQUE tour de la boucle de 2 s du moniteur fs. Sans le chemin",
      "rapide de claim_runner_lease() (panneau 6), il paierait une écriture JSON + 5 s de guard toutes les deux secondes."],
@@ -657,10 +672,10 @@ ends = [
       "   → l'on.exit refuse de toute façon (i_hold_runner_lease() est faux)",
       "Le nouveau titulaire collecte déjà : il n'y a rien à faire."]),
     ("C · mort brutale (kill, machine coupée)", RED, RED_BG,
-     ["Rien n'est rendu, rien n'est nettoyé. Le fichier reste, son mtime se fige.",
-      "   → le successeur attend l'expiration : c'est le TTL, par construction",
-      "   → SAUF si c'est la même machine : lease_holder_is_dead_locally()",
-      "     donne alors une reprise immédiate (panneau 7)."]),
+     ["Le TUÉ ne rend rien : R n'a pas de gestionnaire de SIGTERM, aucun on.exit().",
+      "   → SI c'est nous qui avons tué : le TUEUR rend pour lui (panneau 16)",
+      "   → sinon, même machine : lease_holder_is_dead_locally() → immédiat (panneau 7)",
+      "   → sinon (machine coupée, `compose down`) : le TTL, par construction."]),
 ]
 for i, (t, col, bg, lines) in enumerate(ends):
     box(L + i * 820, y2, 780, t, lines, col, bg, h=130, title_size=14, line_size=12)
@@ -909,10 +924,284 @@ for tag, title, col, bg, lines in steps:
     y = box(L + 200, y, 2260, title, lines, col, bg, title_size=14, line_size=12) + 14
 Y = y + 30
 
+
 # =================================================================================================
-# 15 · limites
+# 15 · attendre au lieu de mourir (issue 14)
 # =================================================================================================
-Y = panel(L, Y, W, "15 · Les limites, assumées explicitement",
+Y = panel(L, Y, W, "15 · Un service ATTEND sa place, il n'en meurt pas — register_runner(name, wait = TRUE)",
+          "Trouvé en lançant le déploiement que l'issue 13 venait de déclarer hors périmètre : make compose-up · make compose-down · make compose-up. Le second démarrage ne collectait plus jamais rien.")
+
+y0 = Y
+y_a = box(L, y0, 820, "Le symptôme, et pourquoi RIEN ne réessayait",
+    ["jobs/search.bluesky.log, au second démarrage :",
+     "   [ERROR]: the search worker for bluesky stopped: Runner",
+     "   'search.bluesky' is already held by another instance",
+     "   (hzklet9244e724fe) … last seen 165 seconds ago (TTL: 300).",
+     "",
+     "Le refus lui-même est le comportement documenté de l'issue 13.",
+     "Ce qui n'était PAS voulu : après les 300 secondes, rien. Jamais.",
+     "",
+     "1 · register_runner() refuse par stop() — il demande UNE fois.",
+     "    Juste pour un appelant qui doit répondre maintenant (l'app",
+     "    Shiny, le moniteur fs) ; faux pour un service, dont le métier",
+     "    est justement d'être là.",
+     "2 · le raise remonte au tryCatch() du parLapply de search_loop(),",
+     "    le worker rend \"error: …\", et une fois tous les workers dans",
+     "    cet état report_search_loop_outcomes() lève à son tour :",
+     "    Rscript sort non-zéro, le conteneur s'arrête.",
+     "3 · docker/compose.yml ne portait AUCUNE politique restart:.",
+     "    La boucle de réessai que le plan décrit comme LE standby",
+     "    n'existait que sur search-standby, dans l'autre fichier",
+     "    Compose. Le déploiement que tout le monde utilise n'avait",
+     "    donc ni l'une ni l'autre des deux façons de réessayer."], RED, RED_BG)
+
+y_b = box(L + 850, y0, 790, "wait_for_runner_lease(name, timeout, interval)",
+    ["Claim ; sur un refus, re-claim toutes les `interval` secondes",
+     "jusqu'au succès ou à l'épuisement du `timeout`.",
+     "",
+     "Un read d'un petit JSON par tentative, un Sys.sleep() nu entre",
+     "deux : il n'y a AUCUN lease à renouveler pendant qu'on attend.",
+     "",
+     "runner_wait_timeout    Inf par défaut   (properties.json)",
+     "runner_wait_interval   15 s             (properties.json)",
+     "runner_wait_log_span   60 s             (constante du paquet)",
+     "",
+     "Messages partagés avec le refus :",
+     "   runner_lease_holder_sentence()   qui tient, depuis quand",
+     "   runner_lease_wait_message()      + l'intervalle, et la date",
+     "                                    limite quand l'attente est",
+     "                                    bornée — ce qu'un service",
+     "                                    qui attend doit à son",
+     "                                    opérateur.",
+     "",
+     "Tests : tests/testthat/test-runners_wait.R"], GREEN, GREEN_BG)
+
+y_c = box(L + 1660, y0, 880, "Qui attend, qui ne doit pas attendre",
+    ["wait = TRUE  — les trois boucles de service, et elles seules :",
+     "   search_loop() et search_loop_worker()   R/search.R",
+     "   fs_loop()                               R/fs.R",
+     "   detect_loop()                           R/scheduler.R",
+     "",
+     "wait = FALSE (le défaut) — tout le reste :",
+     "   l'app Shiny décidant si elle lance une tâche : bloquer sa",
+     "   session serait pire que refuser ;",
+     "   register_fs_monitor(), qui repasse de toute façon dans",
+     "   2 secondes (mais voir le panneau 17 : sur une machine de",
+     "   secours, cette non-attente lui coûte la vie).",
+     "",
+     "La couche PID locale n'est JAMAIS attendue, wait = TRUE ou pas.",
+     "Un processus vivant de CETTE machine tenant déjà le runner,",
+     "c'est le même service démarré deux fois : une erreur d'opérateur",
+     "dont la réponse est un PID à tuer, pas un délai à subir."], BLUE, BLUE_BG)
+
+y1 = max(y_a, y_b, y_c) + 30
+box(L, y1, 2460, "Décidé en implémentant",
+    ["· Inf est le timeout par DÉFAUT. « Le lease est pris » n'est pas un incident à signaler, c'est un rôle à tenir. La situation couverte est toujours l'une des deux : un prédécesseur tué sans",
+     "  rien rendre — la bonne réponse est de démarrer dès la fin du TTL — ou une autre machine vivante — la bonne réponse est d'être son standby. Les deux se répondent « attends ».",
+     "  Une valeur finie ramène l'attente au refus historique, pour un déploiement dont le superviseur préfère voir le service mourir ; et runner_wait_timeout = 0 EST exactement l'ancien comportement.",
+     "",
+     "· Les deux runner_wait_* sont de la politique LOCALE, pas un accord de cluster. Contrairement aux TTL du panneau 4, deux machines aux valeurs différentes ne cassent rien : combien de temps",
+     "  *je* veux bien attendre est mon affaire. Elles ne vivent dans properties.json que pour se régler comme tout le reste. Inf fait l'aller-retour JSON sous la forme de la chaîne \"Inf\" — jsonlite ne",
+     "  connaît pas l'infini — et revient nombre par le même as.numeric() que toutes les autres propriétés.",
+     "",
+     "· Attendre n'affaiblit l'exclusivité de RIEN. Une attente ne se termine que sur un claim_runner_lease() réussi, guard et relecture de confirmation comprises (panneau 6). Ce qui disparaît est un",
+     "  refus, pas un contrôle.",
+     "",
+     "· `restart: on-failure` reste, DÉGRADÉ. Ce n'est plus ce qui fait d'un standby un standby — l'attente l'est — mais c'est encore le filet sous tout ce qu'une attente ne rattrape pas : un fs qui",
+     "  plante, un worker search qui abandonne après search_max_request_failures() échecs consécutifs, un OOM kill. `on-failure` et pas `always`, pour qu'un conteneur sorti en 0 reste arrêté.",
+     "  Il est maintenant posé sur fs, search et detect dans les DEUX fichiers Compose, et le bloc standby de compose_with_search_standby.yml a été réécrit : il décrivait un `docker compose stop`",
+     "  comme libérant les leases via on.exit(), ce que l'issue 13 a établi qu'il ne fait pas."], VIOLET, VIOLET_BG)
+Y = y1 + 290
+
+# =================================================================================================
+# 16 · le tueur rend pour le tué (issue 13)
+# =================================================================================================
+Y = panel(L, Y, W, "16 · Le TUÉ ne rend rien — c'est le TUEUR qui rend pour lui",
+          "R n'installe aucun gestionnaire de SIGTERM : un Rscript qui en reçoit un meurt sans exécuter ni .Last ni un seul on.exit(). Or tout le §3.4 — toute la libération du panneau 11 — vit dans des on.exit().")
+
+y0 = Y
+y_a = box(L, y0, 1220, "Les deux défauts, trouvés en arrêtant puis relançant depuis le wizard",
+    ["Le second démarrage de fs n'avait jamais lieu, et jobs/fs.log disait pourquoi : les trois leases étaient encore là, aucun",
+     "déplacé vers runners/old/, nommant trois processus qui n'existaient plus. §3.4 et §3.6 avaient chacun été implémentés",
+     "exactement comme écrits — et c'est ce qui rend les deux défauts intéressants.",
+     "",
+     "1 · on.exit() ne tourne pas quand un runner est TUÉ.",
+     "    stop_all_runner_tasks() arrête un service par kill_task() → kill <pid>. La libération gracieuse couvrait donc les cas",
+     "    dont personne ne se plaint (une boucle qui rend la main, un worker qui abandonne son réseau) et AUCUN de celui",
+     "    pour lequel elle avait été écrite. Seul le TTL rendait ces leases : 2 min pour fs, 5 pour search, 30 POUR DETECT.",
+     "",
+     "2 · register_runner() détruisait la preuve dont la reprise rapide a besoin.",
+     "    Il écrivait le fichier PID local AVANT de claim. Or ce PID file, laissé par le titulaire précédent, est exactement le",
+     "    second des deux signaux que lease_holder_is_dead_locally() exige (panneau 7) : le lease nomme un PID, et seul",
+     "    notre propre PID file prouve que ce PID était le nôtre. L'écraser d'abord transformait la comparaison en échec",
+     "    garanti — le raccourci « le titulaire a planté ici, il est mort » ne pouvait JAMAIS partir depuis la seule fonction qui",
+     "    démarre un runner. Il marchait partout ailleurs (le tableau Shiny lisait « crashed here » correctement), ce qui",
+     "    explique qu'il ait eu l'air implémenté. Pire : le refus supprimait ensuite ce PID file, donc le premier redémarrage",
+     "    raté détruisait la preuve pour tous les suivants."], RED, RED_BG)
+
+y_b = box(L + 1240, y0, 1220, "Le correctif : déplacer la libération vers le seul processus encore vivant",
+    ["release_dead_local_runner_lease(name)",
+     "    Rend le lease d'un runner dont le titulaire est un processus de CETTE machine qui s'est arrêté. release_runner_lease()",
+     "    (panneau 11) ne peut pas faire ce travail : elle rend le lease de l'appelant, et ici tout l'enjeu est que le titulaire",
+     "    soit quelqu'un d'autre. Mêmes deux signaux, même lecture fail-closed : un lease d'une autre machine, d'un conteneur",
+     "    qui partage notre nom d'hôte mais pas notre espace de PID, ou d'un titulaire encore vivant, est laissé STRICTEMENT",
+     "    tranquille. C'est ce qui permet à l'appelant de balayer tout runners/ sans savoir ce qu'il va y trouver.",
+     "",
+     "release_dead_local_runner_leases()",
+     "    Le même, sur un LISTING de runners/ — pas sur une liste de noms. stop_runner_task(\"search\") sait qu'il a tué",
+     "    `search`, mais les leases qui comptent sont search.bluesky et search.mastodon.<hôte>, tenus par des nœuds PSOCK",
+     "    dont les noms dépendent de la configuration. Le listing ramasse aussi fs_mon, et les leases d'un plantage PLUS",
+     "    ANCIEN — ce que rien ne nettoyait jusque-là. Coût : un listing. Rien ici ne peut lever : cela tourne pendant un arrêt.",
+     "",
+     "release_stopped_runner_leases(names, timeout = 10)",
+     "    Attend d'abord que les PID tués soient réellement partis. kill(1) rend la main quand le signal est DÉLIVRÉ, pas",
+     "    quand le processus est mort : balayer trop tôt ne libérerait rien et remettrait tout le monde à attendre le TTL.",
+     "    L'attente est bornée, et un runner qui lui survit garde son lease — le bon côté du doute, il écrit peut-être encore.",
+     "",
+     "register_runner() claim AVANT d'écrire le PID, et un refus laisse le disque local exactement comme il l'a trouvé.",
+     "Tests : test-runners_lease.R (« Releasing the lease of a stopped local process ») et test-runners_register.R."], GREEN, GREEN_BG)
+
+y1 = max(y_a, y_b) + 30
+y2 = box(L, y1, 2460, "Et alors pourquoi `make compose-down` ne déplace-t-il RIEN dans runners/old/ ? Parce qu'aucune ligne de R ne tourne sur le chemin de la descente — et c'est assumé",
+    ["1 · `docker compose down` envoie SIGTERM au PID 1 du conteneur, qui est `bash /episomer/devscripts/run.sh`.",
+     "2 · run.sh lance `Rscript /episomer/devscripts/run.R` en ENFANT — pas en `exec` — et n'installe aucun `trap`. Un bash qui attend un enfant au premier plan ne relaie pas le signal : R ne le voit jamais.",
+     "3 · Après le délai de grâce (10 s par défaut), Docker envoie SIGKILL à tout le conteneur. R meurt sur le coup.",
+     "4 · Donc pas d'on.exit(unregister_runner()), donc pas de release_runner_lease(), donc aucun déplacement : les fichiers RESTENT dans runners/, leur mtime figé.",
+     "",
+     "Et corriger seulement l'étape 2 ne suffirait pas : même en recevant le SIGTERM, R n'a pas de gestionnaire pour lui. C'est le premier des deux défauts ci-contre, et il n'a pas de correctif « propre » côté paquet.",
+     "",
+     "Qui s'en remet comment, au `up` suivant :",
+     "   fs                son EPI_HOME est monté, donc fs.PID SURVIT au conteneur → lease_holder_is_dead_locally() reconnaît le prédécesseur → reprise immédiate, sans attendre le TTL.",
+     "   search · detect   ils ne montent que jobs/ : leur PID file meurt avec le conteneur, le second signal échoue fail-closed, et ils attendent leur TTL entier (300 s et 1800 s).",
+     "                     C'est correct et voulu — deux conteneurs du même service ne peuvent toujours pas se voler leur lease — et c'est le wait = TRUE du panneau 15 qui rend l'attente inoffensive.",
+     "",
+     "Le correctif possible, non fait : un `trap` dans run.sh qui, après avoir tué son enfant et attendu sa mort, lance un R NEUF sur release_dead_local_runner_leases(). C'est le principe même de ce",
+     "panneau — ce n'est pas le tué qui rend son lease, c'est un processus encore vivant. Deux réserves à lever avant : l'ordre d'arrêt de Compose (search et detect avant fs, donc leur runners/ derrière",
+     "l'API HTTP de fs qui répond encore — vrai aujourd'hui, mais par accident de dépendances plutôt que par contrat), et un stop_grace_period explicite plutôt que les 10 s par défaut."], ORANGE, ORANGE_BG)
+
+y3 = y2 + 30
+y_d = box(L, y3, 1220, "L'ordre dans stop_runner_task(\"fs\") : fs_mon, PUIS les leases, PUIS le service Scala",
+    ["Là où conf$fs_remote est posé — le défaut de setup_config(), donc toutes les boucles et l'app",
+     "Shiny — runners/ vit DERRIÈRE le processus java qu'on est en train de tuer. Rendre le lease de",
+     "fs après l'avoir tué est impossible : on le rend tant qu'il répond encore.",
+     "",
+     "Tuer le moniteur AVANT le fs qu'il surveille épargne en plus une alerte health_check() parasite,",
+     "envoyée sur un fs qu'on est justement en train d'arrêter.",
+     "",
+     "Même raison pour le balayage de stop_all_runner_tasks(), placé avant l'arrêt du fs et non à la fin."], BLUE, BLUE_BG)
+
+y_e = box(L + 1240, y3, 1220, "La trace sous runners/old/ garde le nom de l'instance qu'elle DÉCRIT",
+    ["runner_lease_released_path() prend l'instance_id en paramètre au lieu de lire conf$instance_id.",
+     "",
+     "Sans cela, un lease balayé par une autre instance serait classé sous l'identité de celle qui l'a",
+     "balayé, et non de celle qui le tenait : la seule chose pour laquelle ce dossier existe deviendrait",
+     "illisible.",
+     "",
+     "Rappel du panneau 11 : le mtime d'un fichier de runners/old/ est l'heure de la libération, et",
+     "l'instance_id dans le nom évite que deux libérations successives du même runner s'écrasent."], VIOLET, VIOLET_BG)
+Y = max(y_d, y_e) + 60
+
+# =================================================================================================
+# 17 · le cas fs et son moniteur
+# =================================================================================================
+Y = panel(L, Y, W, "17 · Le cas fs — pourquoi UN service a DEUX runners, et ce que ça a coûté",
+          "fs est le seul service dont le processus R disparaît de R. `fs_mon` n'est pas un doublon de `fs` : c'est l'autre processus.")
+
+y0 = Y
+y_a = box(L, y0, 1200, "fs — le service, qui cesse d'être du R",
+    ["fs_loop() (R/fs.R) :",
+     "   1 · lance le moniteur en future::future(multisession)",
+     "   2 · register_fs_runner(wait = TRUE)   → claim le lease `fs`",
+     "   3 · entre dans spark_job(), un system() qui lance le JVM",
+     "       Scala/Lucene et NE REND JAMAIS la main à R tant que",
+     "       le JVM vit.",
+     "",
+     "À partir de la ligne 3, le R principal du conteneur fs n'exécute",
+     "plus une seule instruction. Il ne peut donc ni renouveler son",
+     "propre lease, ni vérifier quoi que ce soit, ni rien rendre."], ORANGE, ORANGE_BG)
+
+y_b = box(L + 1230, y0, 1230, "fs_mon — le seul R encore vivant du côté fs",
+    ["Le future lancé à l'étape 1. Sa boucle de 2 secondes fait trois",
+     "choses, et une seule concerne son propre lease :",
+     "",
+     "   health_check()             toutes les 60 s (R/check.R) — les",
+     "                              alertes : posts non collectés depuis",
+     "                              plus d'une heure, etc.",
+     "   renew_fs_runner_lease()    il bat POUR le lease de `fs`",
+     "                              (panneaux 4 et 8)",
+     "   register_fs_monitor()      il claim SON PROPRE lease `fs_mon`",
+     "",
+     "Le claim repasse ici toutes les 2 s : c'est lui, et lui seul, qui",
+     "justifie le chemin rapide de claim_runner_lease() (panneau 6)."], GREEN, GREEN_BG)
+
+y1 = max(y_a, y_b) + 30
+y_c = box(L, y1, 1220, "Pourquoi fs_mon a besoin de sa PROPRE identité (PID + lease)",
+    ["Trois raisons, dont une non négociable.",
+     "",
+     "· Une CIBLE À TUER — la non négociable. stop_runner_task(\"fs\") fait kill_task(\"fs\", \"R\")",
+     "  PUIS kill_task(\"fs_mon\", \"R\") (panneau 16). Le moniteur est un processus PSOCK séparé :",
+     "  tuer le R principal ne le tue pas. Sans son propre fs_mon.PID il survivrait en ORPHELIN — et il",
+     "  continuerait à battre pour le lease d'un fs mort, c'est-à-dire exactement le batteur en tâche de",
+     "  fond que le panneau 8 rejette.",
+     "",
+     "· Exclusion mutuelle : deux moniteurs, c'est deux health_check() et deux sources de vérité sur",
+     "  la vitalité de fs.",
+     "",
+     "· Visibilité : `fs` et `fs_mon` sont deux LIGNES distinctes du tableau (sort_runner_names(),",
+     "  panneau 13). Cela sépare « le JVM répond » de « le batteur est vivant » — et voir ci-dessous",
+     "  à quel point cette distinction n'est pas de la décoration."], BLUE, BLUE_BG)
+
+y_d = box(L + 1240, y1, 1220, "Ce qui rend ce battement HONNÊTE malgré le panneau 8",
+    ["Le panneau 8 rejette le batteur en tâche de fond, et fs en est un. Deux précautions, et deux",
+     "seulement, en font une dérogation bornée plutôt qu'un mensonge :",
+     "",
+     "· il ne bat QUE si is_fs_running() répond 200 sur /ping — un fs mort ou bloqué laisse donc bien",
+     "  son lease expirer, ce qui est toute la raison d'être d'un lease ;",
+     "· l'appel /ping n'a lieu que quand un battement est DÛ, pas à chacun des tours de 2 secondes.",
+     "",
+     "Conséquence à savoir en lisant le tableau : le heartbeat de `fs` ne dit pas « mon processus R",
+     "tourne », il dit « le JVM répond ». C'est aussi pourquoi is_fs_running() est l'exception du",
+     "panneau 12 : un GET /ping, pas une lecture de lease.",
+     "",
+     "fs prend quand même un lease, mais pour une autre raison que la vitalité : empêcher une",
+     "deuxième base d'ouvrir le même stockage Lucene."], VIOLET, VIOLET_BG)
+
+y2 = max(y_c, y_d) + 30
+y3 = box(L, y2, 2460, "Le bug que cette distinction a permis de trouver — 2026-09-01, en lisant runners/ pendant un make compose-up",
+    ["Symptôme    pas de runners/fs_mon.json, pas de fs_mon.PID, et runners/fs.json avec renewed_at == claimed_at depuis 41 minutes — sur un fs parfaitement sain, /ping répondant, healthcheck vert.",
+     "",
+     "Cause       dans le future, setup_config(data_dir = data_dir) était appelé SANS fs_remote. Le défaut de setup_config() est EPI_HOST s'il est posé, sinon \"http://localhost:8080\" — et le conteneur fs",
+     "            n'a pas de EPI_HOST (seuls search et detect en ont, docker/compose.yml). Le worker lisait donc properties.json en HTTP sur localhost:8080, une adresse où l'API n'écoute PAS : elle bind",
+     "            conf$fs_url, soit \"http://fs\" via EPISOMER_OPTION_FS_URL, c'est-à-dire l'interface réseau du conteneur et pas la loopback. Le future mourait sur sa PREMIÈRE ligne.",
+     "",
+     "Invisible   fs_loop() ne collecte JAMAIS la valeur du future. Avec multisession, messages et erreurs sont capturés dans le worker et ne sont relayés qu'au value() — qui n'arrive jamais.",
+     "            Zéro ligne de log pendant 41 minutes, pendant que les DEUX rôles du moniteur étaient morts : aucun health_check(), et le lease `fs` non renouvelé sur un service vivant.",
+     "",
+     "Correctif   setup_config(data_dir = data_dir, fs_remote = NULL) — exactement ce que fait déjà la branche `data_dir` de fs_loop() juste au-dessus. Le worker tourne SUR la machine fs :",
+     "            /episomer-data est son propre disque, et l'API n'est de toute façon pas encore levée quand il démarre.",
+     "",
+     "À retenir   `fs` frais et `fs_mon` absent du tableau du panneau 13 était le SEUL endroit où ce bug se voyait. C'est ce que la troisième raison ci-dessus achète.",
+     "            Et la leçon plus générale : un future dont personne ne collecte la valeur est un processus qui peut mourir en silence. Le rendre observable (callr avec stdout redirigé, ou un",
+     "            resolved() non bloquant dans la boucle principale de fs_loop() pour le relancer) est un changement de conception, pas encore fait."], RED, RED_BG)
+
+y4 = y3 + 30
+box(L, y4, 2460, "Reste ouvert : sur une VRAIE machine de secours, le moniteur meurt pour de bon",
+    ["Dans fs_loop(), le future est créé AVANT register_fs_runner(wait = TRUE). Et register_fs_monitor() claim avec wait = FALSE, le défaut (panneau 15).",
+     "",
+     "Sur une machine B en attente pendant que A tient fs : le moniteur de B meurt immédiatement — le lease fs_mon est tenu, vivant, par A — et comme le while (TRUE) est DANS le future, il ne réessaie",
+     "jamais. B obtient le lease `fs` quand A meurt, lance le JVM, et tourne SANS moniteur : plus de health_check(), et plus personne pour renouveler le lease `fs`, qui expire au bout de 120 secondes",
+     "pendant que le service est en parfaite santé.",
+     "",
+     "Le cas `compose down` / `up` sur la même machine, lui, fonctionne : lease_holder_is_dead_locally() voit l'ancien fs_mon.PID mort (le disque est monté) et considère le lease libre.",
+     "",
+     "Deux correctifs possibles : wait = TRUE sur le claim de fs_mon, ou déplacer la création du future APRÈS register_fs_runner(). Le second est plus juste — le moniteur n'a rien à surveiller avant",
+     "qu'on soit devenu `fs` — mais il coûte le health_check() pendant toute l'attente du standby, qui peut être longue."], ORANGE, ORANGE_BG)
+Y = y4 + 240
+
+# =================================================================================================
+# 18 · limites
+# =================================================================================================
+Y = panel(L, Y, W, "18 · Les limites, assumées explicitement",
           "Aucune n'est un oubli. Les connaître évite de « corriger » un comportement voulu.")
 
 lims = [
@@ -930,19 +1219,29 @@ lims = [
     ("4 · Aucune authentification", GREY,
      ["Qui atteint l'API fs peut lire, voler ou libérer n'importe quel lease. C'est déjà vrai de tous",
       "les autres fichiers qu'elle sert : cela relève du réseau et du déploiement, pas de ce mécanisme."]),
-    ("5 · Le lease parent `search`", ORANGE,
-     ["Il empêche une machine de ne faire QUE certains réseaux pendant qu'une autre fait le reste,",
-      "puisque search_loop() le prend avant même de lancer ses workers.",
-      "À trancher (§9.5) : rendre l'entrée parente « de simple présence », ou la supprimer.",
-      "C'est aussi la cause du `search` stale des panneaux 9 et 13."]),
+    ("5 · Le lease parent `search` n'est jamais renouvelé", ORANGE,
+     ["search_loop() le prend puis se bloque dans parLapply() pour la vie du service : aucun tour sur",
+      "lequel battre, et rien de propre à prouver vivant — sa vitalité EST celle de ses workers.",
+      "Le vrai correctif est de ne plus lui donner de lease du tout (§9.5) ; c'est le dernier point",
+      "ouvert de l'issue 14. Cause du `search` stale des panneaux 9 et 13."]),
+    ("6 · `make compose-down` ne rend aucun lease", ORANGE,
+     ["Aucune ligne de R ne tourne sur le chemin de la descente : les fichiers restent dans runners/",
+      "et le TTL est le seul mécanisme — c'est à cela qu'il sert. Détail et remèdes : panneau 16.",
+      "Atténué par le wait = TRUE du panneau 15, qui a supprimé la conséquence réelle (un service",
+      "qui refusait de démarrer et que plus rien ne relançait)."]),
+    ("7 · Le moniteur fs d'une machine de secours", RED,
+     ["Il claim `fs_mon` sans attendre, AVANT que sa machine ait pris `fs` : sur un vrai standby il",
+      "meurt tout de suite et définitivement, et la machine qui reprend fs tourne sans health_check",
+      "ni renouvellement du lease `fs` (panneau 17).",
+      "Le seul point de cette liste qui soit un défaut plutôt qu'un arbitrage."]),
 ]
 y = Y
 for i, (t, col, lines) in enumerate(lims):
     r, c = divmod(i, 2)
     box(L + c * 1240, y + r * 130, 1220, t, lines, col, h=120, title_size=14, line_size=12)
-Y = y + 3 * 130 + 40
+Y = y + ((len(lims) + 1) // 2) * 130 + 40
 
-T(L, Y, "Fin. Pour la conception et les décisions prises en chemin : inst/schema/multi_services_plan.md, issues 1 à 9.", 14, GREY)
+T(L, Y, "Fin. Pour la conception et les décisions prises en chemin : inst/schema/multi_services_plan.md, issues 1 à 14.", 14, GREY)
 
 dump(os.path.join(SCHEMA_DIR, "runners_lease.excalidraw"))
 print("elements:", len(ELEMENTS))
