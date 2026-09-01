@@ -578,6 +578,70 @@ means reading the environment unconditionally and putting it *after* `properties
 merge — a behaviour change for every property (a value typed in the Shiny UI would then be ignored
 while the variable is set), which is why it is not done as part of this issue.
 
+#### `conf$fs_url` is a *bind* address, not a client URL — fixed
+
+The `EPISOMER_OPTION_FS_URL` case above turned out to be worse than "the variable stops having an
+effect": it made the Shiny app impossible to launch from the host of a `docker compose` deployment,
+silently.
+
+`fs_url` has two consumers with two incompatible needs:
+
+* **Scala** uses it as the **interface to bind to** — `API.scala`:
+  `Http().newServerAt(conf.fsUrl.replace("http://", ""), conf.fsPort)`. Inside a container it
+  *must* be the container's own name (`http://fs`), because binding `localhost` would make the
+  published port unreachable. Hence `EPISOMER_OPTION_FS_URL` in `docker/compose.yml`.
+* **R** used it as the **base URL to call** (`get_scala_api_endpoint()`, when `conf$fs_remote` is
+  `NULL`).
+
+And it lives in `properties.json`, i.e. in the data directory *shared by every instance*. So the fs
+container writes its own bind address there, and every other machine reading that file — first of
+all the host running `setup()` — tries to call `http://fs:8080`, a name that only exists inside the
+Docker network. `is_fs_running()` returns `FALSE`, `setup()` prints "Cannot launch the episomer app"
+and returns `invisible(NULL)`: no app, no error.
+
+Fixed R-side only, without touching Scala or the compose files. `get_scala_api_endpoint()`
+(`R/fs.R`) now resolves the endpoint *for the calling process*, in this order:
+
+| # | Source | When it wins |
+|---|---|---|
+| 1 | `conf$fs_remote` | the caller said where the fs is: `episomer_app(fs_remote = ...)`, or `EPI_HOST` through the `setup_config()` default |
+| 2 | `EPI_HOST` | machine-local. Needed on its own because `setup()` passes `fs_remote = NULL` on purpose (it works on the local disk) and would otherwise ignore it |
+| 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address, and the only one for which the temporary `fs_port + 1000` shift of the language retraining has to be honoured |
+| 4 | `http://localhost:conf$fs_port` | when the host part of `conf$fs_url` does **not** resolve here: exactly the "Docker service name read from outside the network" case, where the port is published on the host |
+
+Step 3 vs 4 is decided by a DNS lookup (`curl::nslookup`), memoised in `conf` and keyed on the
+`fs_url` it was computed for — a miss costs ~0.5 s, the resolver does not cache it, and
+`get_scala_api_endpoint()` runs on every API request. The port plays no part in a name resolution,
+which is why the retraining port shift does not invalidate the memo.
+
+`episomer_app()` was the second half of the bug: it built `fs_remote` as
+`sprintf("%s:%s", conf$fs_url, conf$fs_port)`, so it was broken in the same way even when called
+directly. It now asks `get_scala_api_endpoint()`. Its `data_dir` also gained the `NA` default the
+`dashboard_app()` / `admin_app()` wrappers were already passing it, so `episomer_app()` with no
+argument — how `devscripts/run.R` starts `EPISOMER_RUN=APP` — works instead of erroring on a
+missing argument.
+
+What this buys, with no configuration to write anywhere:
+
+| Deployment | `EPI_HOST` | `conf$fs_url` | Endpoint used |
+|---|---|---|---|
+| everything local, no Docker | unset | `http://localhost` (default) | `http://localhost:8080` (step 3) |
+| host session against `compose up` | unset | `http://fs` | `http://localhost:8080` (step 4) |
+| inside the `fs` container | unset | `http://fs` | `http://fs:8080` (step 3), shift included |
+| inside `search` / `detect` / `app` | `http://fs:8080` | `http://fs` | `http://fs:8080` (step 1 or 2) |
+| dashboard on another machine | either | anything | `fs_remote` argument or `EPI_HOST` |
+
+Finally, the wizard no longer goes quiet: the "Cannot launch the episomer app" message now names
+the URL that did not answer and points at `EPI_HOST` / `episomer_app(fs_remote = ...)`. A database
+that is up but unreachable *from here* was indistinguishable from a Shiny failure.
+
+Known limitation left alone: `register_fs_runner_task()` on a machine whose `properties.json`
+carries a Docker `fs_url` cannot start a *local* database, since the JVM would try to bind a name
+that does not resolve there. That is pre-existing and orthogonal — a host is not supposed to run a
+second fs against a data directory already served by a container.
+
+Tests: `test-fs.R` (roadmap item T2-7).
+
 ### Issue 4 — `register_runner()` claims a lease
 - [x] `register_runner()` = PID file (unchanged) + `claim_runner_lease()`
 - [x] failure message naming the current holder (`host`, since when)
@@ -1071,3 +1135,236 @@ Decided while implementing:
   parallelism model. What makes a dead network visible now is the log of that network, plus the
   released lease showing up in `missing_search_jobs()`. Worth revisiting if the search service ever
   gets a supervisor.
+
+---
+
+### Issue 12 — A search worker must only collect the topics of its own network
+
+Not planned either: found on the **first run with more than one Mastodon instance**, on 2026-08-31,
+from `docker compose` with `mastodon_instances = ["mastodon.social", "mstdn.party"]` and three
+topics in `topics.xlsx`.
+
+Symptom: the six first lines of `jobs/search.bluesky.log` announce **three requests on `trump`**,
+then three on `soccer`, with `plan_max_date`s differing by a few hundred microseconds. One was
+expected. Same in each Mastodon log. The files on disk were perfectly clean:
+`topics.bluesky.json` held its five entries — `trump`, `soccer`, and `covid-19` split into its three
+synonyms by `translate_query()` — each with one plan, one `network`, sane bookmarks.
+
+What actually happened:
+
+* `conf$topics` is **flat**: one entry per (topic, query, network) triple, every activated network
+  together (the `adjusted_topics` loop of `setup_config()`). Three Excel topics, one of them with
+  three synonyms, over three networks = **fifteen entries** — which is what `SEARCH LOOP (15)` in
+  the logs was saying all along;
+* the round robin of `search_loop_worker()` looped over all fifteen and filtered on
+  **`plan$network`**, never on the entry's `network`;
+* on a fresh start no entry has a plan yet, and `update_plans_schedule()` creates the missing one
+  with the network it is *called* with — the worker's own. So the bluesky worker gave a bluesky plan
+  to the ten Mastodon entries, and its own filter then accepted them. Each network collected every
+  network's topics: three identical requests per topic, three times the rate-limit budget spent, and
+  the same posts pushed three times (with `geolocate=true` each time);
+* nothing of it reached the disk, because `save_config()` has always filtered on the *entry's*
+  network. That asymmetry between the two filters is the whole bug, and it is also what hid it.
+
+- [x] `topics_of_network()` in `R/config.R`: the indexes of the `conf$topics` entries belonging to
+      one network, selecting on the entry — the single place that decision is now made, used by
+      `save_config()` as well
+- [x] every loop over topics in `search_loop_worker()` goes through those indexes: plan scheduling,
+      `can_wait_for()`, the `min_requests` of the round robin, the round robin itself, and the
+      dismiss-history branch
+- [x] a worker with no topic of its own waits and reloads the config instead of spinning — the state
+      an instance added to `mastodon_instances` is in until `topics.xlsx` is touched again
+- [x] `SEARCH LOOP (n)` now counts and names what this worker actually collects
+- [x] tests: `tests/testthat/test-search_scope.R`
+
+Decided while implementing:
+
+* **The entry's `network` is the authority, a plan's `network` is not.** A plan's is a copy made by
+  whichever worker first saw the entry without one; the entry's comes from
+  `active_social_media()` at translation time. The redundant `plan$network == network` test is left
+  in the round robin as a belt, but nothing depends on it anymore.
+* **`1:length(conf$topics[[i]]$plan)` had to become `seq_along()`.** Foreign entries now keep an
+  empty plan list in a worker's memory, and `1:0` would have walked into `plan[[0]]`. The old code
+  never hit it precisely *because* every worker filled every entry in.
+* **Found on the way, not fixed here:** a network activated *after* the last change to
+  `topics.xlsx` gets no topic entry at all, because the `adjusted_topics` loop only runs when
+  `topics_md5` moved. Adding a Mastodon instance therefore requires touching the Excel file. The
+  worker now says so in its log every ten seconds instead of failing obscurely; making
+  `setup_config()` re-translate when the set of activated networks changes is the real fix.
+
+### Issue 13 — A killed service must give its lease back
+
+Not planned either, and found the same way as issue 11: on a local run without `docker compose`, the
+three services started from the `setup()` wizard with `data_dir = EPI_HOME_LOCAL`, then stopped from
+the same wizard ("Stop all services"), then started again. The second start of the fs never
+happened, and `jobs/fs.log` said why:
+
+```
+Error in register_runner("fs") :
+  Runner 'fs' is already held by another instance (hgicwp3501313d302e9) running on host
+  'yohannmansiaux' since 2026-09-01T09:57:24Z, last seen 45 seconds ago (lease TTL: 120 seconds).
+```
+
+`runners/fs.json`, `runners/search.json` and `runners/detect.json` were all still there, none of
+them moved to `runners/old/`, naming three processes that no longer existed.
+
+Two independent defects, and the interesting part is that §3.4 and §3.6 had each been implemented as
+written:
+
+* **`on.exit()` does not run when a runner is killed.** R installs no handler for `SIGTERM`: an
+  `Rscript` receiving it dies immediately, `.Last` and every `on.exit()` skipped. Every release path
+  of §3.4 sits in an `on.exit()`, and `stop_all_runner_tasks()` stops a service by
+  `kill_task()` → `kill <pid>`. So the graceful release covered the cases nobody complains about
+  (a loop returning, a worker giving up its network) and none of the case it was written for. Only
+  the TTL was ever giving those leases back: two minutes for fs, five for search, **thirty for
+  detect**.
+* **`register_runner()` destroyed the evidence the fast reclaim of §3.6 needs.** It wrote the local
+  PID file *before* claiming the lease. But the PID file left behind by the previous holder is
+  exactly the second of the two corroborating signals `lease_holder_is_dead_locally()` requires —
+  the lease names a PID, and only our own PID file can prove that PID was ours to test. Overwriting
+  it with our own PID first turned the comparison into a guaranteed mismatch, so the shortcut
+  "the holder crashed on this very machine, it is dead now" could never fire *from the one function
+  that starts a runner*. It worked everywhere else (the Shiny status table reads "crashed here"
+  correctly), which is why it looked implemented. Worse, the refusal then deleted that PID file, so
+  the first failed restart destroyed the proof for every attempt after it — the state `fs.PID`
+  was in above.
+
+- [x] `release_dead_local_runner_lease(name)` (`R/runners-lease.R`): gives back the lease of a
+      runner whose holder is a process of *this* machine that has stopped. Same two signals and the
+      same fail-closed reading as `lease_holder_is_dead_locally()` — a lease of another machine, of
+      a container sharing our host name but not our PID namespace, or of a holder still alive is left
+      strictly alone
+- [x] `release_dead_local_runner_leases()`: the same over a listing of `runners/`, so the sweep also
+      covers the runners the process doing the stopping cannot enumerate (the per-network `search.*`
+      leases of the PSOCK workers, `fs_mon`) and whatever an earlier crash left behind
+- [x] `stop_runner_task()` (`R/runners.R`) sweeps after killing, and `release_stopped_runner_leases()`
+      waits for the PIDs it killed to actually be gone first — `kill(1)` returns when the signal is
+      delivered, not when the process is dead
+- [x] `stop_all_runner_tasks()` sweeps as well, for the services it found nothing to kill for
+- [x] `register_runner()` claims the lease **before** writing the PID file, and a refusal leaves the
+      local disk exactly as it found it
+- [x] tests: `tests/testthat/test-runners_lease.R` ("Releasing the lease of a stopped local
+      process") and `tests/testthat/test-runners_register.R` (the takeover after a kill, and the
+      refusal that must not delete the previous holder's PID file)
+
+Decided while implementing:
+
+* **The killer releases, the killed cannot.** There is no way to run R code on `SIGTERM` from inside
+  the package (no signal handler in base R, and the containers' `ENTRYPOINT` is a `bash` script that
+  does not forward signals to the `Rscript` it starts, so `docker stop` reaches R as `SIGKILL`
+  anyway). So the release is not made graceful — it is moved to the only process that is still
+  running when it has to happen: the one issuing the kill.
+* **The sweep is a listing, not a list of names.** `stop_runner_task("search")` knows it killed
+  `search`, but the leases that matter are `search.bluesky` and `search.mastodon.<host>`, held by
+  PSOCK nodes whose names depend on the configuration. Listing `runners/` and releasing whatever
+  passes the two signals is both shorter and more complete, and it costs one listing. It also
+  garbage-collects the leases of an *earlier* crash, which nothing else ever did.
+* **The order inside `stop_runner_task("fs")` changed: `fs_mon`, then the leases, then the Scala
+  service.** In a deployment where `conf$fs_remote` is set — the default of `setup_config()`, so
+  every loop and the Shiny app — `runners/` lives *behind* the java process being killed. Handing
+  the fs lease back after killing it is not possible, so it is handed back while it still answers.
+  Killing the monitor before the fs it watches also spares one spurious `health_check()` alert.
+  Same reason for the sweep of `stop_all_runner_tasks()` sitting before the fs stop rather than at
+  the end.
+* **`runner_lease_released_path()` takes the instance id as a parameter.** The trail under
+  `runners/old/` has to keep naming the instance the file describes; filing it under the instance
+  that swept it away would make it unreadable, which is the one thing that folder is for.
+* **What this deliberately does not fix: `docker compose down` && `up`.** No R code runs on the way
+  down, so the leases stay and the TTL is the only mechanism — which is what it is for. The fs
+  container recovers faster than before all the same, since its data directory is mounted and
+  `fs.PID` therefore survives the container: the reordering above lets the new container recognise
+  its predecessor. `search` and `detect` mount only `jobs/`, so their PID files die with the
+  container and the second signal correctly fails closed — a restarted `search` container still
+  waits out its TTL, and two containers of the same service still cannot steal each other's lease.
+* **The local layer's exclusion window widened by `runner_claim_guard` seconds.** Two processes of
+  this machine starting the same runner at the same moment are now separated by the lease instead of
+  by the PID file. That is the layer's job (§3.1): the loser of the confirmation read exits before
+  collecting anything. The trade is deliberate — the widened case is a double click, the case it
+  fixes is every restart.
+
+### Issue 14 — A service must wait for a busy lease, not die on it
+
+Found by running the very deployment issue 13 had just declared out of scope: `make compose-up`,
+`make compose-down`, `make compose-up`. The second start left `jobs/search.bluesky.log` on
+
+```
+2026-09-01 12:25:56 [ERROR]: the search worker for bluesky stopped: Runner 'search.bluesky' is
+already held by another instance (hzklet9244e724fe) running on host 'search' since
+2026-09-01T12:18:31Z, last seen 165 seconds ago (lease TTL: 300 seconds). This instance will not
+start it.
+```
+
+and never collected anything again. The refusal itself is the documented behaviour of issue 13 —
+nothing runs on the way down, so the leases stay and the TTL is the only mechanism, and the fast
+reclaim of §3.6 fails closed because the `search` container mounts only `jobs/` and its PID file
+died with it. What was *not* intended is the second half of the sentence: after the 300 seconds,
+nothing happened. Ever.
+
+Because nothing was left to try again:
+
+* `register_runner()` refuses with a `stop()`, i.e. it asks once. That is right for a caller that
+  has to answer now (the Shiny app deciding whether to spawn a task, the fs monitor re-registering
+  on every iteration of its 2-second loop) and wrong for a service, whose whole job is to be there;
+* the raise reaches the `tryCatch()` of `search_loop()`'s `parLapply`, the worker returns
+  `"error: ..."`, and once every worker has done so `report_search_loop_outcomes()` raises in turn.
+  `Rscript` exits non-zero, the container stops;
+* `docker/compose.yml` carried **no `restart:` policy at all**. The retry loop the plan describes
+  as the standby mechanism (issue 9) existed only on `search-standby`, in
+  `compose_with_search_standby.yml`. So the one deployment everybody uses had neither of the two
+  ways of trying again.
+
+The fix is to wait, inside the process, rather than to exit and hope somebody restarts us.
+
+- [x] `wait_for_runner_lease(name, timeout, interval)` (`R/runners-lease.R`): claims, and on a
+      refusal keeps claiming every `interval` seconds until it succeeds or `timeout` runs out.
+      One read of one small JSON file per attempt, a plain `Sys.sleep()` between two — there is no
+      lease to renew while waiting
+- [x] `runner_wait_timeout` / `runner_wait_interval` configuration properties (`R/config.R`),
+      defaulting to `Inf` and 15 seconds, plus `runner_wait_log_span` (60 s) as a package constant
+- [x] `register_runner(name, wait = FALSE)`: `wait = TRUE` goes through the waiting claim, the
+      default keeps the historical single attempt. The local PID check above it is **never** waited
+      for
+- [x] the three service loops pass `wait = TRUE`: `search_loop()` and `search_loop_worker()`
+      (`R/search.R`), `fs_loop()` (`R/fs.R`), `detect_loop()` (`R/scheduler.R`)
+- [x] `runner_lease_holder_sentence()` shared by the refusal and the wait, and
+      `runner_lease_wait_message()` adding what a waiting service owes its operator: the interval,
+      and the deadline when the wait is bounded
+- [x] `restart: on-failure` on `fs`, `search` and `detect` in both Compose files, and the standby
+      block of `compose_with_search_standby.yml` rewritten — it described a `docker compose stop`
+      as releasing the leases through `on.exit()`, which issue 13 established it does not
+- [x] tests: `tests/testthat/test-runners_wait.R`
+
+Decided while implementing:
+
+* **`Inf` is the default timeout.** "The lease is taken" is not an incident to report but a role to
+  hold. The situation it covers is always one of two: a predecessor killed without releasing
+  anything, where the right answer is to start as soon as the TTL runs out, or a live other machine,
+  where the right answer is to be its standby. Both are "wait". A finite value turns the wait back
+  into the historical refusal for a deployment whose supervisor would rather see the service die,
+  and `runner_wait_timeout = 0` is exactly the old behaviour.
+* **The two `runner_wait_*` properties are local policy, not cluster agreement.** Unlike the TTLs,
+  two machines holding different values break nothing: how long *I* am willing to wait is my
+  business. They live in `properties.json` only so a deployment sets them like everything else.
+  `Inf` survives the round trip as the string `"Inf"` — `jsonlite` has no infinity — and comes back
+  a number through the same `as.numeric()` every other property goes through.
+* **Waiting weakens exclusivity by nothing.** A wait only ever ends on a successful
+  `claim_runner_lease()`, guard wait and confirmation read included. What it removes is a refusal,
+  not a check.
+* **The local PID layer is not waited for.** A live process of *this* machine already holding the
+  runner is the same service started twice, an operator mistake whose answer is a PID to kill, not
+  a delay to sit through. It still fails immediately, `wait = TRUE` or not.
+* **`restart: on-failure` stays, demoted.** It is no longer what makes a standby a standby — the
+  wait is — but it is still the net under everything a wait cannot catch: an fs that crashes, a
+  search worker giving up after `search_max_request_failures()` consecutive failures, an OOM kill.
+  `on-failure` and not `always`, so a container that exited 0 stays down.
+* **Still not fixed, and now the last thing between us and a clean `down` && `up`: the parent
+  `search` lease is never renewed** (§9.5, `is_search_running()` already works around it).
+  `search_loop()` claims it and then blocks in `parallel::parLapply()` for the life of the service,
+  with no iteration left to beat on and no honest way to add one — a background beater is what §3.3
+  rejects, and the parent has nothing of its own to prove alive anyway. Its liveness genuinely *is*
+  its workers'. The real fix is therefore to stop giving the parent a lease at all and to let
+  `search.<network>` carry the whole exclusivity, which touches `is_search_running()`,
+  `stop_all_runner_tasks()` and the status table, and deserves its own issue. Consequence to know
+  in the meantime: five minutes after a healthy start, any other instance may take the `search`
+  lease — harmless, since its workers then wait on the per-network leases forever, but the Host
+  column of the status table can name the wrong machine for `search`.

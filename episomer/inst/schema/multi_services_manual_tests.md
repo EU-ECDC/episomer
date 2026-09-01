@@ -24,7 +24,7 @@ cd ~/projects/episomer
 Rscript -e 'devtools::test("episomer", filter = "runners|config_runner|fs|paths")'
 ```
 
-- [ ] 0 failures.
+- [x] 0 failures.
 
 **M0-2 — the observation toolkit.** Keep this running in a dedicated terminal for the whole
 session; it is the single most useful window of this plan.
@@ -79,19 +79,20 @@ EPISOMER_INSTANCE=machine-A Rscript -e '
   cat("same id:", identical(a, b), "| id:", a, "| host:", episomer:::conf$instance_host, "\n")'
 ```
 
-- [ ] `same id: TRUE` — a second `setup_config()` must not hand out a new identity, otherwise a
+- [x] `same id: TRUE` — a second `setup_config()` must not hand out a new identity, otherwise a
       running loop would lose the lease it legitimately holds.
-- [ ] `host: machine-A`.
-- [ ] Without `EPISOMER_INSTANCE`, the host falls back to `hostname`.
+- [x] `host: machine-A`.
+- [x] Without `EPISOMER_INSTANCE`, the host falls back to `hostname`.
 
 **M1-2 — the identity is never persisted.** This one is the whole point: an `instance_id` shared
-through `properties.json` would make two machines look like the same instance.
+through `properties.json` would make two machines look like the same instance. `instance_id|instance_host|runner_name` are absent from
+`properties.json`
 
 ```bash
 grep -E 'instance_id|instance_host|runner_name' $EPI_HOME/properties.json
 ```
 
-- [ ] no match. Re-run after the Shiny app has saved the configuration once (it calls
+- [x] no match. Re-run after the Shiny app has saved the configuration once (it calls
       `save_config()`), and check again — that is the path that could reintroduce it.
 
 **M1-3 — the containers are named.**
@@ -100,7 +101,7 @@ grep -E 'instance_id|instance_host|runner_name' $EPI_HOME/properties.json
 docker compose -f docker/compose.yml config | grep EPISOMER_INSTANCE
 ```
 
-- [ ] three distinct values: `fs`, `search`, `detect`.
+- [x] three distinct values: `fs`, `search`, `detect`.
 
 ---
 
@@ -109,6 +110,8 @@ docker compose -f docker/compose.yml config | grep EPISOMER_INSTANCE
 **M2-1 — a clean start creates one file per runner.**
 
 Start from an empty `runners/` (only when nothing is running):
+
+compose up ne marche pas
 
 ```bash
 make compose-down
@@ -219,10 +222,39 @@ docker compose -f docker/compose.yml stop detect
 ls $EPI_HOME/runners/detect.json $EPI_HOME/runners/old/
 ```
 
-- [ ] the file moved to `old/`.
-- [ ] **If it did not move**, the release path is not reached on `SIGTERM`: the lease then expires
-      by TTL instead (30 minutes for `detect`), so a restart waits. That is a real finding worth
-      its own issue — note it rather than working around it.
+- [x] **Answered, and the answer is no: it does not move.** R installs no `SIGTERM` handler, so an
+      `Rscript` receiving one dies with every `on.exit()` skipped (and the container `ENTRYPOINT` is
+      a `bash` script that does not forward the signal anyway, so `docker stop` reaches R as
+      `SIGKILL` ten seconds later). This became **issue 13** of the plan: whoever issues the kill
+      releases the lease, since the process being killed cannot. A `docker compose stop`/`down` runs
+      no R code at all, so **that** path still waits out the TTL, by design.
+- [ ] After a `docker compose stop detect`, `runners/detect.json` is therefore expected to stay.
+      What must hold is the *next* line: it is expired, not eternal.
+
+```bash
+# 30 minutes later, or with EPISOMER_OPTION_RUNNER_TTL_DETECT lowered for the test
+docker compose -f docker/compose.yml up -d detect
+```
+
+**M3-2b — a stop from the wizard, which is the path R controls.** This is where issue 13 has to be
+verified: `stop_all_runner_tasks()` kills the processes *and* sweeps `runners/`.
+
+```r
+library(episomer)
+setup(data_dir = "<EPI_HOME_LOCAL>")   # option 7 -> "Start all services", then again -> "Stop all"
+```
+
+- [ ] right after the stop, `<EPI_HOME_LOCAL>/runners/` holds **no `.json`** file...
+- [ ] ...and `runners/old/` holds one per stopped runner, named after the **instance that held it**,
+      not after the wizard's own instance:
+
+```bash
+for f in $EPI_HOME_LOCAL/runners/old/*.json; do echo "$f -> $(jq -r .instance_id $f)"; done
+```
+
+- [ ] starting the services again **immediately** works: `jobs/fs.log` says `Launching fs` and no
+      `already held by another instance`. This is the regression to watch — it used to fail for a
+      whole TTL, and with `fs.PID` deleted by that first failed attempt, for good.
 
 **M3-3 — a release means an immediate reclaim, no TTL wait** (§7 case 4).
 
@@ -574,6 +606,9 @@ Known and accepted before you start, so they do not get reported as bugs (§9):
 * the lease is **cooperative**, not a distributed lock: two runners can overlap for a few seconds
   around a claim race or a partition;
 * failover latency **is** the TTL, by design;
-* the parent `search` lease goes stale on a healthy machine (§9.5, still open);
+* the parent `search` lease goes stale on a healthy machine (§9.5, still open — see the last
+  note of issue 14);
+* a service started while its runner is held by a live instance **waits** instead of failing (issue
+  14): a container sitting on "waiting for it to be released or to expire" is working as intended;
 * the alerts *activate* button is not gated yet (issue 9);
 * `EPISOMER_OPTION_*` stops taking effect once the app has saved `properties.json`.
