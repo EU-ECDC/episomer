@@ -251,6 +251,15 @@ get_empty_config <- function(data_dir) {
   # write wins; this pause has to be longer than the worst-case time for a write to land, so that
   # the loser really sees the winner's identity when it reads back.
   ret$runner_claim_guard <- 5
+  # How a service reacts to a lease that is not free yet.
+  # Inf, i.e. "wait as long as it takes", is the default because the situation it covers is a
+  # service whose predecessor was killed without releasing anything - every `docker compose down`,
+  # every crash - and the right thing to do then is to start as soon as the lease expires. It also
+  # gives the standby machine of a two-machine deployment for free: it waits, and the day the
+  # primary stops, it collects. A finite number of seconds turns the wait back into the historical
+  # refusal once it runs out, for a deployment whose supervisor would rather see the service die.
+  ret$runner_wait_timeout <- Inf
+  ret$runner_wait_interval <- 15
   ret$admin_email <- ""
   # Each social media family is switched on or off as a whole by its sm_activated_<family> /
   # sm_alerts_<family> pair. A federated family such as mastodon is made of independent instances
@@ -504,6 +513,8 @@ setup_config <- function(
     conf$runner_ttl_detect <- temp$runner_ttl_detect
     conf$runner_ttl_fs <- temp$runner_ttl_fs
     conf$runner_claim_guard <- temp$runner_claim_guard
+    conf$runner_wait_timeout <- temp$runner_wait_timeout
+    conf$runner_wait_interval <- temp$runner_wait_interval
     conf$admin_email <- temp$admin_email
     conf$dismiss_past_request <- temp$dismiss_past_request
     conf$collect_history_days <- temp$collect_history_days
@@ -799,14 +810,13 @@ save_config <- function(
     temp$fs_port <- conf$fs_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
-    # Runner lease tuning. Unlike instance_id / instance_host just above, these five *are* shared
-    # configuration and belong here: every instance must agree on the same TTL, otherwise machine B
-    # could declare a lease expired while machine C still believes it is alive.
     temp$runner_heartbeat_span <- conf$runner_heartbeat_span
     temp$runner_ttl_search <- conf$runner_ttl_search
     temp$runner_ttl_detect <- conf$runner_ttl_detect
     temp$runner_ttl_fs <- conf$runner_ttl_fs
     temp$runner_claim_guard <- conf$runner_claim_guard
+    temp$runner_wait_timeout <- conf$runner_wait_timeout
+    temp$runner_wait_interval <- conf$runner_wait_interval
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
     temp$dismiss_past_done <- conf$dismiss_past_done

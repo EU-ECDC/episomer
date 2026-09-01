@@ -193,9 +193,11 @@ detect_loop <- function(data_dir = NA) {
   if (is.na(data_dir)) setup_config_if_not_already() else
     setup_config(data_dir = data_dir)
 
-  # registering the detect runner (PID file + lease) or stopping if it is already running here or
-  # on another machine
-  register_detect_runner()
+  # registering the detect runner (PID file + lease), waiting for the lease if another instance
+  # still holds it, or stopping if a process of this very machine is already the detect runner.
+  # The wait matters most for this service: its TTL is 30 minutes, so a restart that refuses
+  # instead of waiting leaves the alerts unbuilt for half an hour (plan issue 14).
+  register_detect_runner(wait = TRUE)
   # Same clean release as in fs_loop(): a detect lease has a long TTL (30 min, because a single
   # task can run for very long), so not releasing it would make a simple restart wait half an hour.
   on.exit(unregister_runner(), add = TRUE)
