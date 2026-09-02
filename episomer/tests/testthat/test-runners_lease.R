@@ -290,6 +290,26 @@ test_that("release_dead_local_runner_lease() gives back the lease of a killed lo
   expect_false(epifile.exists(runner_lease_released_path("fs", instance_id = "instance-A")))
 })
 
+test_that("release_dead_local_runner_lease() takes the PID file of the dead holder with it", {
+  local_lease_conf(instance_id = "instance-A", instance_host = "machine-A")
+  # the fs monitor of the previous run of a container: `docker compose down` killed it without
+  # releasing anything, so both its lease and its PID file are still there when the next run starts
+  with_instance("instance-old", host = "machine-A", code = write_runner_lease("fs_mon"))
+  set_lease_pid("fs_mon", dead_pid)
+  write_local_pid_file("fs_mon", dead_pid)
+
+  expect_true(suppressMessages(release_dead_local_runner_lease("fs_mon")))
+
+  # Both layers go, and the PID file is the one that mattered here: PIDs are handed out from the
+  # same small range at every start of a container, and `future::plan(multisession)` alone takes
+  # some twenty of them for its idle workers, so the number left in that file is very likely to
+  # belong to a live process of the new run. register_runner() would then read it, find it alive,
+  # and refuse to register a runner nobody is running.
+  expect_null(read_runner_lease("fs_mon"))
+  expect_false(file.exists(get_running_task_pid_path("fs_mon")))
+  expect_false(is_runner_running_locally("fs_mon"))
+})
+
 test_that("release_dead_local_runner_lease() refuses to touch a lease that is not this machine's", {
   local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_search = 300)
   # another machine of the cluster, collecting right now. Its PID happens to be dead *here*, which

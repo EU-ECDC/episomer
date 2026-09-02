@@ -79,6 +79,22 @@ local_heartbeats <- function(.local_envir = parent.frame()) {
   invisible(lease_last_renewal)
 }
 
+# Same thing for the record of what the fs monitor has already logged (fs_monitor_last_log, R/fs.R),
+# which fs_monitor_log_once() reads to drop the repetitions of a message. It lives in the package
+# namespace too, so a message logged by one test would be dropped by the next one.
+local_monitor_logs <- function(.local_envir = parent.frame()) {
+  saved <- as.list(fs_monitor_last_log, all.names = TRUE)
+  withr::defer(
+    {
+      rm(list = ls(fs_monitor_last_log, all.names = TRUE), envir = fs_monitor_last_log)
+      list2env(saved, envir = fs_monitor_last_log)
+    },
+    envir = .local_envir
+  )
+  rm(list = ls(fs_monitor_last_log, all.names = TRUE), envir = fs_monitor_last_log)
+  invisible(fs_monitor_last_log)
+}
+
 # Patches the pid recorded in a lease: write_runner_lease() can only record Sys.getpid(), so this is
 # the only way to describe a *dead* holder - which lease_holder_is_dead_locally() (R/runners-lease.R)
 # is all about - without spawning and killing a real process.

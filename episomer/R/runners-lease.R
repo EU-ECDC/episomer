@@ -642,6 +642,24 @@ release_dead_local_runner_lease <- function(name) {
     runner_lease_path(name),
     runner_lease_released_path(name, instance_id = lease$instance_id)
   )
+  # Both layers go, exactly as in unregister_runner(): the PID file names the very process we have
+  # just proved to be gone, and leaving it behind is what made the release useless where it was
+  # needed most - a container restart.
+  #
+  # PIDs are handed out from the same small range at every start of a container, so the number a
+  # dead PID file records is very likely to belong to a live, unrelated R process of the new run -
+  # `future::plan(multisession)` alone takes some twenty of them for its idle PSOCK workers. The
+  # local check of register_runner() then reads that file, finds the PID alive, and refuses to start
+  # a runner nobody is running, with an error naming a process that has nothing to do with episomer.
+  # That is what stopped the fs monitor from ever registering again after a `docker compose down`
+  # followed by a `docker compose up`: its lease was correctly released here, its PID file was not,
+  # and a PSOCK worker of the new run had been given PID 119 back.
+  #
+  # Guarded, because the release above frees the runner: a local process may claim it and write its
+  # own PID file between the two, and that file is not ours to delete.
+  if (identical(read_running_task_pid_file(name), as.integer(lease$pid))) {
+    remove_running_task_pid(name)
+  }
   message(sprintf(
     "Released the lease of runner %s: its holder (PID %s) is not running on this machine anymore",
     name,

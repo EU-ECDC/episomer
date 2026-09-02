@@ -266,6 +266,57 @@ jq -r '.claimed_at, .instance_id' $EPI_HOME/runners/detect.json
 - [ ] `claimed_at` is seconds old, `instance_id` is new. Restarting after a clean stop must not
       wait 30 minutes.
 
+**M3-4 — `compose down` then `compose up`: the sweep happens on the way *up*, and it takes the PID
+files with it.** A `down` runs no R code at all (M3-2), so both layers of every runner survive it
+untouched. What cleans up is the startup of the `fs` container: `devscripts/run.R` calls
+`setup(silent = TRUE)`, which picks option 1 and therefore `stop_all_runner_tasks()` →
+`release_dead_local_runner_leases()`.
+
+```bash
+make compose-down
+ls $EPI_HOME/runners/ $EPI_HOME/*.PID       # all still there, by design
+make compose-up
+docker compose -f docker/compose.yml logs fs | grep Released
+```
+
+- [ ] the log says `Released the lease of runner fs_mon: its holder (PID ...) is not running on this
+      machine anymore`, and `runners/old/fs_mon.<instance_id>.json` names the run that just ended.
+- [ ] `$EPI_HOME/fs_mon.PID` is **gone** right after that sweep — the release takes both layers, and
+      that is the whole point of the step.
+- [ ] a **new** `runners/fs_mon.json` appears within ~2 minutes, with a new `instance_id`, and
+      `fs_mon.PID` names a process of the new container.
+- [ ] `stat -c %y $EPI_HOME/runners/fs.json` keeps moving afterwards: the monitor is what beats for
+      `fs` (M2-2), so a monitor that failed to register is also an `fs` lease going stale on a
+      perfectly healthy service — and no `health_check()` either.
+
+This is the regression to watch, and it used to fail exactly here: the sweep moved the lease but
+left `fs_mon.PID` behind, PIDs are handed out from the same small range at every container start,
+and one of the twenty-odd idle PSOCK workers of `future::plan(multisession)` had been given the
+recorded PID back. `register_fs_monitor()` therefore refused ("is already running"), the monitor
+future died on its first iteration, and nothing anywhere said so.
+
+```bash
+tail $EPI_HOME/fs_mon.log
+```
+
+- [ ] `Monitoring episomer` at startup, plus one line per failure the monitor survived. This file is
+      the only place those can be read: `fs_loop()` never collects the value of the future, so
+      everything the worker writes to stdout or raises as a condition stays in it forever.
+
+**M3-4b — the same PID reuse, the other way round: `fs` is not released and waits its TTL out.**
+Known gap, worth re-reading the fs log for what it costs:
+
+```bash
+docker compose -f docker/compose.yml logs fs | grep "already held\|has been claimed"
+```
+
+- [ ] `Runner 'fs' is already held by another instance ... waiting`, then `has been claimed after
+      waiting 2 min`. The lease of the previous run names PID 9, and the main `Rscript` of the new
+      container is PID 9 again, so `lease_holder_is_dead_locally()` sees a live process and refuses
+      to release a lease whose holder is in fact long gone. Recording the *start time* of the holder
+      process next to its PID is what would close this one; until then, a `compose up` after a
+      `compose down` costs the fs one TTL.
+
 ---
 
 ## 4. Exclusivity (issue 4) — the core of the feature
