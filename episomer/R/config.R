@@ -1304,19 +1304,23 @@ sm_set_without_alerts <- function(sm) {
 
 get_env_props <- function() {
   envs <- as.list(Sys.getenv())
-  reframed_envs <- sapply(seq_along(1:length(envs)), function(i) {
-    current_env_var_name <- names(envs)[i]
-    if (!grepl("_INSTANCES", current_env_var_name)) {
-      return(envs[[i]])
-    }
+  reframed_envs <- sapply(
+    seq_along(1:length(envs)),
+    function(i) {
+      current_env_var_name <- names(envs)[i]
+      if (!grepl("_INSTANCES", current_env_var_name)) {
+        return(envs[[i]])
+      }
 
-    sm_instances_remove_semicolon_and_make_vector <- strsplit(
-      envs[[i]],
-      split = ";"
-    )
+      sm_instances_remove_semicolon_and_make_vector <- strsplit(
+        envs[[i]],
+        split = ";"
+      )
 
-    return(sm_instances_remove_semicolon_and_make_vector)
-  })
+      return(sm_instances_remove_semicolon_and_make_vector)
+    },
+    simplify = FALSE
+  )
 
   names(reframed_envs) <- names(envs)
 
