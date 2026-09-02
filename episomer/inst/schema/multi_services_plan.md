@@ -479,6 +479,19 @@ The app itself does not appear in that table: it is not a runner (§6.4).
    parent lease is dropped or made non-exclusive. Decide this explicitly — I would make the parent
    entry presence-only and keep exclusivity at `search.<network>` level, which is where the
    duplication risk actually is.
+6. **A PID is not an identity, and in a container it is barely a hint.** The fast reclaim of §3.6
+   recognises a holder that died here by two signals: the lease names our host, and our own PID
+   file records the PID the lease names. Both hold across a *container restart* — same
+   `EPISOMER_INSTANCE`, same data directory — while the PID they agree on has meanwhile been handed
+   out to an unrelated process of the new run, because a container starts from the same small PID
+   range every time. It cuts both ways: `fs`, whose lease named PID 9, is not released because the
+   new main `Rscript` is PID 9 again (so a `compose up` after a `compose down` waits out one TTL),
+   and `fs_mon`, correctly released, used to leave a PID file naming a PID one of the twenty-odd
+   idle PSOCK workers of `future::plan(multisession)` had been given back — which is what refused
+   the registration of the new monitor (M3-4). The PID file is now released together with the
+   lease, which fixes the second case; the first one needs the holder's **process start time**
+   (`/proc/<pid>/stat` field 22, `ps -o lstart=`) stored next to its PID and compared before
+   believing that a live PID is the holder. Not done.
 
 ---
 

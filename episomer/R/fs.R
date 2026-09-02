@@ -337,43 +337,7 @@ fs_loop <- function(data_dir = NA) {
   copy_secret_scripts()
   # calculating alerts per topic
   future::plan(future::multisession)
-  monitor <- future::future(
-    {
-      message("Monitoring episomer")
-      # fs_remote = NULL, exactly as the fs_loop() branch above: this worker runs on the fs machine
-      # itself, /episomer-data is its own local disk and the Scala API is not up yet when it starts.
-      # Letting setup_config() default fs_remote to "http://localhost:8080" (EPI_HOST is not set on
-      # the fs container) made it read properties.json over HTTP - against an address the API does
-      # not even bind to, since it binds conf$fs_url ("http://fs" in docker/compose.yml), i.e. the
-      # container interface and not the loopback. The read failed, the future died on its first
-      # line, and because fs_loop() never collects its value the error was never raised anywhere:
-      # no fs_mon lease was ever claimed and the fs lease was never renewed either.
-      setup_config(data_dir = data_dir, fs_remote = NULL)
-      x = 60
-      step = 2
-      while (TRUE) {
-        register_fs_monitor()
-        # Beating for the fs runner as well: the fs process itself is inside spark_job() and will
-        # not come back to renew anything (see renew_fs_runner_lease(), R/runners-lease.R).
-        renew_fs_runner_lease()
-        if (x == 0) {
-          health_check()
-          x = 60
-        }
-        x = x - step
-        Sys.sleep(step)
-      }
-      0
-    },
-    globals = c(
-      "data_dir",
-      "setup_config",
-      "health_check",
-      "register_fs_monitor",
-      "renew_fs_runner_lease"
-    ),
-    envir = rlang::current_env()
-  )
+  monitor <- start_fs_monitor(data_dir)
 
   message("Launching fs")
   # Registering the fs runner using current PID and ensuring no other instance of the search is actually running.
@@ -408,7 +372,155 @@ fs_loop <- function(data_dir = NA) {
         Sys.sleep(5)
       }
     )
+    # spark_job() only gives the control back when the Scala service has stopped, which makes this
+    # the one moment this process can look at anything else - hence the monitor check here rather
+    # than on a timer that would never fire.
+    monitor <- restart_fs_monitor_if_dead(monitor, data_dir)
   }
+}
+
+# Starts the fs monitor in a background worker and returns its future.
+#
+# The monitor is the only R code of the fs service still running once fs_loop() has handed its own
+# process over to spark_job(), and it carries two things the service cannot do without: the
+# heartbeat of the fs lease (renew_fs_runner_lease(), R/runners-lease.R) and health_check().
+#
+# It is also, from fs_loop()'s point of view, completely mute: future captures the worker's output
+# and conditions and replays them only when the value is collected, and fs_loop() never collects
+# anything. Twice already the future died on its first lines and took the heartbeat and the alerts
+# with it in total silence, the only visible symptom being a lease going stale on a service that was
+# running perfectly:
+#
+#   * setup_config() defaulting fs_remote to "http://localhost:8080" and reading properties.json
+#     over an address the Scala API does not bind to (it binds conf$fs_url, "http://fs" in
+#     docker/compose.yml) - hence the fs_remote = NULL below;
+#   * a leftover fs_mon.PID from the previous run naming a PID that a PSOCK worker of the new run
+#     had been given back, so register_fs_monitor() refused to register a runner nobody was running
+#     (fixed at the source in release_dead_local_runner_lease(), R/runners-lease.R).
+#
+# What follows is what makes a third one visible: the loop writes to <data_dir>/fs_mon.log, survives
+# what can be survived, and fs_loop() collects the value of a monitor that died anyway.
+start_fs_monitor <- function(data_dir) {
+  future::future(
+    fs_monitor_loop(data_dir),
+    globals = c("data_dir", "fs_monitor_loop"),
+    envir = rlang::current_env()
+  )
+}
+
+# The body of the fs monitor, running in the worker started above.
+fs_monitor_loop <- function(data_dir) {
+  fs_monitor_log("Monitoring episomer", data_dir = data_dir)
+  # fs_remote = NULL, exactly as the fs_loop() branch above: this worker runs on the fs machine
+  # itself, /episomer-data is its own local disk and the Scala API is not up yet when it starts.
+  # This one is fatal and stays fatal - a monitor with no configuration has nothing to monitor - so
+  # it is only logged on the way out.
+  tryCatch(
+    setup_config(data_dir = data_dir, fs_remote = NULL),
+    error = function(e) {
+      fs_monitor_log(
+        paste("stopping, the configuration could not be set up:", conditionMessage(e)),
+        data_dir = data_dir
+      )
+      stop(e)
+    }
+  )
+  x = 60
+  step = 2
+  while (TRUE) {
+    # Nothing in here may end the monitor. Every one of these three calls has a failure mode that
+    # is none of the monitor's business and that a later iteration may well see disappear - an
+    # fs_mon lease held by another live instance, an fs that has stopped answering /ping, an alert
+    # that cannot be sent - while stopping on any of them takes away the fs heartbeat, i.e. it
+    # makes a healthy service look dead to the whole cluster. They are logged and retried.
+    fs_monitor_try(register_fs_monitor(), "registering the fs monitor")
+    # Beating for the fs runner as well: the fs process itself is inside spark_job() and will
+    # not come back to renew anything (see renew_fs_runner_lease(), R/runners-lease.R).
+    fs_monitor_try(renew_fs_runner_lease(), "renewing the fs lease")
+    if (x == 0) {
+      fs_monitor_try(health_check(), "running the health check")
+      x = 60
+    }
+    x = x - step
+    Sys.sleep(step)
+  }
+  0
+}
+
+# Runs `expr`, and turns a failure into one line of fs_mon.log instead of the end of the monitor.
+#
+# `expr` is a promise forced inside the tryCatch(), so the error is caught wherever in the call it
+# happened. Rate limited: see fs_monitor_log_once().
+fs_monitor_try <- function(expr, what) {
+  tryCatch(
+    expr,
+    error = function(e) {
+      fs_monitor_log_once(paste0(what, " failed: ", conditionMessage(e)))
+      invisible(NULL)
+    }
+  )
+}
+
+# Last time each monitor message was written, for the rate limiting below. Lives in the worker
+# process, which is where the monitor loop runs.
+fs_monitor_last_log <- new.env(parent = emptyenv())
+
+# Logs `m`, at most once per `span` seconds for a given message.
+#
+# The monitor iterates every two seconds and the failures it survives are the lasting kind, so
+# logging each of them thirty times a minute would bury the line that matters and grow fs_mon.log
+# without bound. A repeated message is written once a minute, its repetitions are dropped.
+fs_monitor_log_once <- function(m, span = 60, data_dir = conf$data_dir) {
+  last <- fs_monitor_last_log[[m]]
+  if (
+    !is.null(last) && as.numeric(difftime(Sys.time(), last, units = "secs")) < span
+  ) {
+    return(invisible(FALSE))
+  }
+  fs_monitor_last_log[[m]] <- Sys.time()
+  fs_monitor_log(m, data_dir = data_dir)
+  invisible(TRUE)
+}
+
+# Appends one timestamped line to <data_dir>/fs_mon.log.
+#
+# A file, and deliberately not message(): the monitor runs in a future worker whose messages nobody
+# ever reads (see start_fs_monitor()) and which future accumulates in a buffer meant to be replayed
+# when the value is collected - for a loop that runs for weeks and never returns, writing to that
+# buffer is a slow leak, not a log.
+#
+# Never raises: a monitor that cannot write its log still has a lease to renew.
+fs_monitor_log <- function(m, data_dir = conf$data_dir) {
+  line <- paste0(strftime(Sys.time(), "%Y-%m-%d %H:%M:%S"), " [fs_mon]: ", m)
+  try(
+    write(line, file = file.path(data_dir, "fs_mon.log"), append = TRUE),
+    silent = TRUE
+  )
+  invisible(line)
+}
+
+# Restarts the monitor if it has died, and says in the logs of the fs process why it had to.
+#
+# The monitor loop never returns, so a resolved future is a monitor that ended on an error.
+# Collecting its value is the only way to get that error out of the worker: it is raised here,
+# caught, and turned into a message that reaches `docker logs` - fs_mon.log has it too, but an
+# operator looking at a service that stopped collecting should not have to know that.
+restart_fs_monitor_if_dead <- function(monitor, data_dir) {
+  if (!future::resolved(monitor)) {
+    return(monitor)
+  }
+  tryCatch(
+    future::value(monitor),
+    error = function(e) {
+      message(paste(
+        "The episomer fs monitor stopped with the following error",
+        conditionMessage(e),
+        "starting it again",
+        sep = "\n"
+      ))
+    }
+  )
+  start_fs_monitor(data_dir)
 }
 
 #' @title perform full text search on posts collected with episomer
