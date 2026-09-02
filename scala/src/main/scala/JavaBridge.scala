@@ -24,6 +24,7 @@ object JavaBridge {
     val spark = 
       SparkSession.builder()
         .master(s"local[${if(cores == 0) "*" else cores.toString}]")
+        .config("spark.hadoop.fs.file.impl", classOf[demy.storage.PermissionlessLocalFileSystem].getName)
         .config("spark.sql.files.ignoreCorruptFiles", true)
         .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
         .config("spark.default.parallelism", if(cores == 0) 8 else cores)
