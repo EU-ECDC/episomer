@@ -2542,7 +2542,6 @@ episomer_app <- function(
             conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
             conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
             conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
-            conf_mastodon_instance = input$mastodon_instance,
             conf_force_date_format = input$force_date_format
           )
     })
@@ -2559,11 +2558,8 @@ episomer_app <- function(
               shiny_input_list = input
             )
 
-            # Saving Mastodon properties
-            sm_api_set_auth(
-              network = "mastodon",
-              shiny_input_list = input
-            )
+            # Mastodon instances and their access tokens are managed via episomer::setup(),
+            # not from this form, so there is nothing to save here.
 
             # Saving properties.json
             save_config(
