@@ -535,7 +535,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             if (action == "activate") {
                 sm_activate(target)
                 # reloading so the networks now collected get their topics
-                setup_config(save_properties_first = TRUE)
+                setup_config(save_properties_first = TRUE, fs_remote = NULL)
                 save_config()
                 message(sprintf("Social media %s has been activated", target))
             } else if (action == "deactivate") {
@@ -586,7 +586,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                             network <- sm_add_instance(target, instance)
                             sm_api_set_auth(network)
                             # reloading so the new network gets its own topics, then saving them
-                            setup_config(save_properties_first = TRUE)
+                            setup_config(save_properties_first = TRUE, fs_remote = NULL)
                             save_config()
                             message(sprintf(
                                 "episomer will now collect posts from %s",
@@ -613,7 +613,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                                 instance
                             ))
                             # reloading so the new network gets its own topics, then saving them
-                            setup_config(save_properties_first = TRUE)
+                            setup_config(save_properties_first = TRUE, fs_remote = NULL)
                             save_config()
                             message(sprintf(
                                 "episomer stops collecting posts from %s",
