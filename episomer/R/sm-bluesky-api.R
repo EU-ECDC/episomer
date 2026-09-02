@@ -46,11 +46,20 @@ sm_api_get_token_bluesky <- function(network = NULL) {
 sm_api_translate_query_bluesky <- function(parsed) {
 # @function_def_end (do not delete)
   ret = list()
-  for(i in 1:length(parsed$ors)) {
-     comb = do.call(expand.grid, parsed$ors[[i]])
+  for(i in seq_along(parsed$ors)) {
+     terms <- parsed$ors[[i]]
+     # a subquery with no term at all (what an all-negative query parses to) has nothing to search
+     # for: it produces no native query rather than an empty one.
+     if (length(terms) == 0) next
+     # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
+     # factors: one column per term, the synonyms of a term being the values of its column.
+     # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
+     # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
+     # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
+     comb = expand.grid(terms, stringsAsFactors = FALSE)
      if (nrow(comb) > 0) {
-       r <- paste(lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ]))))
-       if(length(parsed$neg)>0) 
+       r <- paste(lapply(seq_len(nrow(comb)), function(i) do.call(paste, as.list(comb[i, ]))))
+       if(length(parsed$neg)>0)
           r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
        ret = c(ret, r)
      }
@@ -251,9 +260,13 @@ bluesky_rerun_after_rate_limit <- function(resp) {
     time <- as.numeric(httr2::resp_header(resp, "RateLimit-Reset"))
     reset_after <- time - unclass(Sys.time())
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # The wait itself is done by heartbeat_before_retry(): httr2 would sleep inside req_perform(),
+    # and a rate-limit reset can be longer than the search lease TTL (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 

@@ -223,6 +223,43 @@ get_empty_config <- function(data_dir) {
   ret$fs_port <- 8080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
+  # Runner leases (see R/runners-lease.R and inst/schema/multi_services_plan.md section 6.5).
+  # All in seconds. They tune the exclusion mechanism that stops two machines sharing the same
+  # data directory from acting as the same runner, so they belong to the *cluster*, not to one
+  # machine: they are stored in properties.json, which every instance reads, and they are
+  # deliberately absent from the Shiny configuration page. A TTL mistyped in the UI would silently
+  # break exclusivity for every machine at once, and these are deployment knobs, not analysis
+  # settings. Change them in properties.json, or through EPISOMER_OPTION_RUNNER_* on a first
+  # deployment (see coerce_env_props() and the precedence note in setup_config()).
+  #
+  # Seconds between two lease renewals. It is also the granularity of sleep_with_heartbeat():
+  # a loop sleeping for 40 minutes still proves it is alive every runner_heartbeat_span seconds.
+  # Must stay well below every TTL below - roughly one order of magnitude - so that a few lost
+  # renewals in a row (a slow fs, a network hiccup) do not expire a perfectly healthy lease.
+  ret$runner_heartbeat_span <- 30
+  # Time after which a lease that stopped being renewed is considered free, per service. Too short
+  # means false expiries, i.e. two runners collecting at once; too long only delays the takeover by
+  # a standby machine. Erring on the long side is therefore the safe direction.
+  #   search : the longest expected silence is a rate-limit wait, chunked by the heartbeat
+  #   detect : one single task (alerts, geolocation, aggregation) can legitimately run for ages
+  #   fs     : shortest, because a dead fs is also detected by /ping
+  ret$runner_ttl_search <- 300
+  ret$runner_ttl_detect <- 1800
+  ret$runner_ttl_fs <- 120
+  # Seconds between the optimistic write of a claim and the read that confirms it. The fs API has
+  # no compare-and-swap, so two instances claiming at the same moment both write and the later
+  # write wins; this pause has to be longer than the worst-case time for a write to land, so that
+  # the loser really sees the winner's identity when it reads back.
+  ret$runner_claim_guard <- 5
+  # How a service reacts to a lease that is not free yet.
+  # Inf, i.e. "wait as long as it takes", is the default because the situation it covers is a
+  # service whose predecessor was killed without releasing anything - every `docker compose down`,
+  # every crash - and the right thing to do then is to start as soon as the lease expires. It also
+  # gives the standby machine of a two-machine deployment for free: it waits, and the day the
+  # primary stops, it collects. A finite number of seconds turns the wait back into the historical
+  # refusal once it runs out, for a deployment whose supervisor would rather see the service die.
+  ret$runner_wait_timeout <- Inf
+  ret$runner_wait_interval <- 15
   ret$admin_email <- ""
   # Each social media family is switched on or off as a whole by its sm_activated_<family> /
   # sm_alerts_<family> pair. A federated family such as mastodon is made of independent instances
@@ -244,6 +281,47 @@ get_empty_config <- function(data_dir) {
   # "supposedly older" request can still surface more recent posts, see sm_api_search_mastodon).
   ret$mastodon_max_empty_requests <- 5
   return(ret)
+}
+
+# Identity of the running episomer instance ------------------------------------------------------
+#
+# An "instance" is one R process (a search loop, a detect loop, the fs service or the Shiny app).
+# Once several machines share the same data directory through the fs API, they need a way to say
+# "this runner is me" versus "this runner is somebody else": that is what conf$instance_id and
+# conf$instance_host are for. See inst/schema/multi_services_plan.md (sections 2 and 4).
+#
+# Both are *session state*, not configuration: they describe the current process, so they must
+# never end up in properties.json, which is shared by every machine (see save_config).
+#
+# A third piece of session state joins them once a loop has started: conf$runner_name, the name of
+# the runner this process holds the lease for. It is set by register_runner() (R/runners.R) rather
+# than here, because only a process that successfully claimed a lease may carry one, and it is what
+# lets renew_runner_lease() / stop_if_lease_lost() / release_runner_lease() be called with no
+# argument. It is absent in the Shiny app, which is a reader of the runner state and not a runner.
+
+# Random identifier for this R process, e.g. "7nn0ei1963ddf23a7".
+#
+# What matters here is uniqueness inside the cluster, not cryptographic quality: the identifier is
+# public (anybody reaching the fs API can read it) and is only compared for equality.
+#
+# tempfile() is used rather than sample.int() because it does not consume the R random number
+# generator: a script calling set.seed() before setup_config() must not get a predictable, and
+# therefore possibly colliding, identity. The temp directory name (Rtmp<random>) is drawn once per
+# process and the file name adds a per-process random part, so the pair separates two processes
+# started at the same second, on the same machine or on two different ones.
+new_instance_id <- function() {
+  tolower(paste0(sub("^Rtmp", "", basename(tempdir())), basename(tempfile(""))))
+}
+
+# Name of the machine this process runs on.
+#
+# Informational only (the Shiny app displays "search.bluesky is running on machine-B"), so a
+# readable value is worth more than a unique one - the instance_id already carries uniqueness.
+# Container host names are random hex strings, hence the EPISOMER_INSTANCE override that
+# deployments are expected to set (see docker/compose.yml).
+get_instance_host <- function() {
+  host <- Sys.getenv("EPISOMER_INSTANCE")
+  if (host != "") host else Sys.info()[["nodename"]]
 }
 
 #' @title Load episomer application settings
@@ -268,6 +346,14 @@ get_empty_config <- function(data_dir) {
 #'   \item{General properties of the Shiny app (stored in properties.json)}
 #'   \item{Download plans from the social media collection process (stored in topics.json merged with data from the topics.xlsx file}
 #'   \item{Credentials for social media APIs and SMTP stored in the defined keyring}
+#'   \item{The identity of the running instance: 'instance_id', a random identifier generated once
+#'     per R process, and 'instance_host', the name of the machine. Both describe the current
+#'     process rather than the shared configuration, so they are never written to properties.json.
+#'     'instance_host' is taken from the environment variable 'EPISOMER_INSTANCE' when it is set,
+#'     and falls back to the system host name otherwise. Setting 'EPISOMER_INSTANCE' is recommended
+#'     when running episomer in containers, whose host names are random, and when several machines
+#'     share the same data directory: it is the name the dashboard displays to tell which machine a
+#'     service is running on.}
 #' }
 #'
 #' When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
@@ -313,6 +399,20 @@ setup_config <- function(
   #setting the data_dir which is a read only property
   conf$data_dir <- data_dir
   conf$fs_remote <- fs_remote
+  # Identity of this process, see new_instance_id() above. It is deliberately set here, before
+  # anything is read from disk, so every code path going through setup_config() has it available.
+  #
+  # instance_id is generated *once per process*: setup_config() is called again on every
+  # configuration refresh (the Shiny app calls it on each change), and handing out a new identity
+  # each time would make a running loop look like a different instance, i.e. lose the runner lease
+  # it legitimately holds. inherits = FALSE keeps the lookup inside conf itself and does not walk
+  # up to the package namespace, where an unrelated `instance_id` binding could exist.
+  if (!exists("instance_id", envir = conf, inherits = FALSE)) {
+    conf$instance_id <- new_instance_id()
+  }
+  # instance_host, on the other hand, is refreshed on each call: it costs nothing and it lets a
+  # deployment fix a wrong EPISOMER_INSTANCE without restarting the process.
+  conf$instance_host <- get_instance_host()
   # paths contains two files storing configuration data:
   # props which contains properties set on the Shiny App is stored on data_dir/properties.json
   # and data_dir/topics.json which stores search progress and is updated by the search loop
@@ -331,20 +431,34 @@ setup_config <- function(
   #Loading last created configuration from json file on temp variable if exists or load default empty conf instead, this will ensure new settings are loaded with default values if missing
   temp <- get_empty_config(data_dir)
   if (!ignore_properties) {
-    # refreshing properties (if requested)
-    if (epifile.exists(props_path) || !is.null(fs_remote)) {
-      #merging default values with those stored in the properties.json file
-      temp = merge_configs(list(
-        temp,
-        get_env_props(),
+    # Merging default values with those stored in the properties.json file. Precedence goes to
+    # the last source of the list, so: defaults < EPISOMER_OPTION_* environment < properties.json.
+    # An environment variable therefore only sets a property that properties.json does not
+    # already carry - which, since save_config() writes them all, in practice means the first
+    # start of a fresh data directory.
+    # coerce_env_props() gives the environment values the type of the matching default, so that
+    # a number stays a number whichever of the three sources it came from.
+    # The env-var merge must run unconditionally, even when properties.json does not exist yet
+    # (a brand new data directory) - that is precisely the case the paragraph above describes.
+    # Only the properties.json read itself is conditional, to avoid erroring on a file that is
+    # not there yet, locally or remotely (epifile.exists() is remote-aware, see R/fs.R).
+    temp = merge_configs(list(
+      temp,
+      coerce_env_props(get_env_props(), temp),
+      if (epifile.exists(props_path)) {
         jsonlite::read_json(
           props_path,
           simplifyVector = FALSE,
           auto_unbox = TRUE
         )
-      ))
-    }
+      } else {
+        list()
+      }
+    ))
     #Setting config  variables filled only from json file
+    # Symmetrically to save_config, the properties are copied one by one: an instance_id or an
+    # instance_host left in properties.json by an older version, or added by hand, must never
+    # overwrite the identity of the running process set at the top of this function.
     conf$keyring <- temp$keyring
     conf$collect_span <- temp$collect_span
     conf$schedule_span <- temp$schedule_span
@@ -391,6 +505,16 @@ setup_config <- function(
     conf$fs_port <- temp$fs_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
+    # Runner lease tuning. runner_lease_ttl() and runner_claim_guard() (R/runners-lease.R) read
+    # these from conf and fall back to their own hardcoded defaults when they are absent, so an
+    # older properties.json - or a conf built without going through setup_config() - keeps working.
+    conf$runner_heartbeat_span <- temp$runner_heartbeat_span
+    conf$runner_ttl_search <- temp$runner_ttl_search
+    conf$runner_ttl_detect <- temp$runner_ttl_detect
+    conf$runner_ttl_fs <- temp$runner_ttl_fs
+    conf$runner_claim_guard <- temp$runner_claim_guard
+    conf$runner_wait_timeout <- temp$runner_wait_timeout
+    conf$runner_wait_interval <- temp$runner_wait_interval
     conf$admin_email <- temp$admin_email
     conf$dismiss_past_request <- temp$dismiss_past_request
     conf$collect_history_days <- temp$collect_history_days
@@ -570,6 +694,31 @@ copy_plans_from <- function(temp) {
   }
 }
 
+# The indexes of the conf$topics entries collected by one network.
+#
+# conf$topics is flat: one entry per (topic, query, network) triple, every network together, built
+# by the adjusted_topics loop of setup_config() above. A topic with several queries - "coronavirus
+# OR covid-19" split by translate_query() - contributes one entry per query per network, so five
+# topic entries per network is what three Excel topics look like, and fifteen is what they look
+# like with three networks activated.
+#
+# Anything acting on behalf of a single network therefore has to select its own entries first, and
+# the entry's own `network` field is the only authority on that. A *plan's* `network` is not: a
+# plan is created by whichever worker first saw the entry without one, carrying that worker's
+# network (update_plans_schedule(), R/plans.R). Filtering on the plan instead of the entry is what
+# used to make every search worker collect every network's topics on a fresh start - three
+# identical requests per topic with three networks activated - while the files on disk stayed
+# clean, because this function is also what decides what gets written.
+#
+# Returns indexes rather than the entries so that callers can write back into conf$topics.
+topics_of_network <- function(network) {
+  which(vapply(
+    conf$topics,
+    function(t) identical(t$network, network),
+    logical(1)
+  ))
+}
+
 #' @title Save the configuration changes
 #' @description Permanently saves configuration changes to the data folder (excluding social media credentials, but not SMTP credentials)
 #' @param data_dir Path to a directory to save configuration settings if fs_remote is provided this value is ignored, Default: conf$data_dir
@@ -612,7 +761,12 @@ save_config <- function(
   }
 
   if (properties) {
-    # saving properties to the properties.json file
+    # saving properties to the properties.json file.
+    # This list is built property by property on purpose: conf also holds session state describing
+    # *this* process - data_dir, fs_remote, and the instance_id / instance_host of the running
+    # instance - and properties.json is shared by every machine using the same data directory.
+    # Writing an identity there would hand it to every other instance. Do not replace this by a
+    # dump of conf.
     temp <- list()
     temp$collect_span <- conf$collect_span
     temp$schedule_span <- conf$schedule_span
@@ -656,6 +810,13 @@ save_config <- function(
     temp$fs_port <- conf$fs_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
+    temp$runner_heartbeat_span <- conf$runner_heartbeat_span
+    temp$runner_ttl_search <- conf$runner_ttl_search
+    temp$runner_ttl_detect <- conf$runner_ttl_detect
+    temp$runner_ttl_fs <- conf$runner_ttl_fs
+    temp$runner_claim_guard <- conf$runner_claim_guard
+    temp$runner_wait_timeout <- conf$runner_wait_timeout
+    temp$runner_wait_interval <- conf$runner_wait_interval
     temp$admin_email <- conf$admin_email
     temp$dismiss_past_request <- conf$dismiss_past_request
     temp$dismiss_past_done <- conf$dismiss_past_done
@@ -679,10 +840,7 @@ save_config <- function(
     # saving topics to the topics.json file
     paths = get_plans_paths()
     for (sm in sm_topics) {
-      topics_in_sm = conf$topics[sapply(
-        1:length(conf$topics),
-        function(j) conf$topics[[j]]$network == sm
-      )]
+      topics_in_sm = conf$topics[topics_of_network(sm)]
       temp <- list()
       temp$topics <- format_topics(topics_in_sm)
       # writing plan files for each social media
@@ -713,7 +871,16 @@ merge_configs <- function(configs) {
     rest <- merge_configs(configs[-1])
     keys <- unique(c(names(first), names(rest)))
     as.list(setNames(
-      mapply(function(x, y) if (is.null(y)) x else y, first[keys], rest[keys]),
+      mapply(
+        function(x, y) if (is.null(y)) x else y,
+        first[keys],
+        rest[keys],
+        # SIMPLIFY, not simplify: arguments placed after `...` are matched by their exact full
+        # name, so a lowercase one would be swallowed into `...` and passed on to FUN instead.
+        # Without it mapply() coerces the merged config to a character vector as soon as every
+        # value is a length-1 scalar, turning numbers into strings.
+        SIMPLIFY = FALSE
+      ),
       keys
     ))
   }
@@ -731,30 +898,39 @@ merge_config_lists <- function(configs, property) {
 # parse topic query and translate it to particular social media quert language
 translate_query <- function(sm, q) {
   r = list(neg=list(), ors=list())
-  q = gsub(" or ", "|", q) 
-  q = gsub(" OR ", "|", q) 
-  q = gsub(" AND ", "&", q) 
-  q = gsub(" and ", "&", q) 
-  q = gsub("^-| -|&-|\\|-", "+~", q) 
-  ors <- trimws(strsplit(q, "\\|")[[1]])
-  ors <- ors[ors != ""]
-  for(i in 1:length(ors)) {
-    r$ors[[i]] <- list()
-    ands <- trimws(strsplit(ors[[i]], "&")[[1]])
-    ands <- ands[ands != ""]
-    for(j in 1:length(ands)) {
-       parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
-       parts <- parts[parts != ""]
-       for(k in 1:length(parts)) {
-          part <- trimws(parts[[k]])
-          if(startsWith(part, "~") && nchar(part)>1) {
-             neg <- substr(part, 2, 1000)
-             r$neg <- c(r$neg,  neg)
-	  } else if(nchar(part)>0) {
-             pos <- as.list(trimws(strsplit(part, "/")[[1]]))
-             r$ors[[i]] <- c(r$ors[[i]], list(pos))
-          }
-       }
+  q = trimws(q)
+  q = gsub("^(or|and)\\s+", "", q, ignore.case = TRUE)
+  q = gsub("\\s+(or|and)\\s*$", "", q, ignore.case = TRUE)
+  q = gsub("\\s+or\\s+", "|", q, ignore.case = TRUE)
+  q = gsub("\\s+and\\s+", "&", q, ignore.case = TRUE)
+  q = gsub("^-| -|&-|\\|-", "+~", q)
+  if (q == "") {
+    r$ors[[1]] <- list()
+  } else {
+    ors <- trimws(strsplit(q, "\\|")[[1]])
+    ors <- ors[ors != ""]
+    if (length(ors) == 0) {
+      r$ors[[1]] <- list()
+    } else {
+      for(i in seq_along(ors)) {
+        r$ors[[i]] <- list()
+        ands <- trimws(strsplit(ors[[i]], "&")[[1]])
+        ands <- ands[ands != ""]
+        for(j in seq_along(ands)) {
+           parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
+           parts <- parts[parts != ""]
+           for(k in seq_along(parts)) {
+              part <- trimws(parts[[k]])
+              if(startsWith(part, "~") && nchar(part)>1) {
+                 neg <- trimws(substr(part, 2, 1000))
+                 r$neg <- c(r$neg,  neg)
+	      } else if(nchar(part)>0) {
+                 pos <- as.list(trimws(strsplit(part, "/")[[1]]))
+                 r$ors[[i]] <- c(r$ors[[i]], list(pos))
+              }
+           }
+        }
+      }
     }
   }
   sm_api_translate_query(network = sm, r)
@@ -764,18 +940,25 @@ translate_query <- function(sm, q) {
 # Get topics data frame as displayed on the Shiny configuration tab
 get_topics_df <- function() {
   df <- data.frame(
+    Network = sapply(conf$topics, function(t) t$network),
     Topics = sapply(conf$topics, function(t) t$topic),
     Label = sapply(conf$topics, function(t) t$label),
     Query = sapply(conf$topics, function(t) t$query),
     QueryLength = sapply(conf$topics, function(t) nchar(t$query)),
     ActivePlans = sapply(conf$topics, function(t) length(t$plan)),
     Progress = sapply(conf$topics, function(t) {
-      if (length(t$plan) > 0)
-        mean(unlist(lapply(t$plan, function(p) as.numeric(p$progress)))) else 0
+      if (length(t$plan) > 0) {
+        mean(unlist(lapply(t$plan, function(p) as.numeric(p$progress))))
+      } else {
+        0
+      }
     }),
     Requests = sapply(conf$topics, function(t) {
-      if (length(t$plan) > 0)
-        sum(unlist(lapply(t$plan, function(p) as.numeric(p$requests)))) else 0
+      if (length(t$plan) > 0) {
+        sum(unlist(lapply(t$plan, function(p) as.numeric(p$requests))))
+      } else {
+        0
+      }
     }),
     Alpha = sapply(conf$topics, function(t) t$alpha),
     OutliersAlpha = sapply(conf$topics, function(t) t$alpha_outlier),
@@ -915,16 +1098,28 @@ get_known_users <- function() {
 # The properties declaring the social media: the per family switches and, for federated families,
 # the list of instances to collect from. The list of networks is derived from them.
 sm_config_properties <- function(x) {
+  # x is either the conf environment or a plain list read from properties.json. For an environment,
+  # ls() rather than names(): names() follows the internal hash table order, which shifts as conf
+  # grows and never goes back (see social_media_families() for the full story). The consequence is
+  # milder here - it only shuffles the order of the sm_* keys written to properties.json, i.e.
+  # spurious diffs on the file from one save to the next - but there is no reason to accept it.
+  props <- if (is.environment(x)) ls(x, all.names = TRUE) else names(x)
   grep(
     "^sm_(activated|alerts)_|^[A-Za-z0-9]+_instances$",
-    names(x),
+    props,
     value = TRUE
   )
 }
 
 # the families declared in the configuration, i.e. those having activation switches
 social_media_families <- function() {
-  props <- names(conf)
+  # ls() and not names(): names() on an environment is *not* sorted, it returns the keys in the
+  # internal hash table order. That order depends on the size of the table, which grows as conf is
+  # filled and never shrinks when it is emptied - so the families would come out in one order in a
+  # fresh session and in another one after a setup_config(), and so would everything derived from
+  # them: active_social_media(), alerts_social_media(), the collection order of the search loop and
+  # the "known families are: ..." messages.
+  props <- ls(conf, all.names = TRUE)
   sub("^sm_activated_", "", props[grepl("^sm_activated_", props)])
 }
 
@@ -1109,8 +1304,87 @@ sm_set_without_alerts <- function(sm) {
 
 get_env_props <- function() {
   envs <- as.list(Sys.getenv())
-  envs <- envs[grepl("^EPISOMER_OPTION_.*", names(envs))]
-  setNames(envs, tolower(gsub("^EPISOMER_OPTION_", "", names(envs))))
+  reframed_envs <- sapply(
+    seq_along(1:length(envs)),
+    function(i) {
+      current_env_var_name <- names(envs)[i]
+      if (!grepl("_INSTANCES", current_env_var_name)) {
+        return(envs[[i]])
+      }
+
+      sm_instances_remove_semicolon_and_make_vector <- strsplit(
+        envs[[i]],
+        split = ";"
+      )
+
+      return(sm_instances_remove_semicolon_and_make_vector)
+    },
+    simplify = FALSE
+  )
+
+  names(reframed_envs) <- names(envs)
+
+  reframed_envs <- reframed_envs[grepl(
+    "^EPISOMER_OPTION_.*",
+    names(reframed_envs)
+  )]
+  setNames(
+    reframed_envs,
+    tolower(gsub("^EPISOMER_OPTION_", "", names(reframed_envs)))
+  )
+}
+
+# Give the properties read from the environment the type they are expected to have.
+#
+# Everything coming out of Sys.getenv() is a character string, while the same property read from
+# properties.json comes back as a number or a boolean. Without this step,
+# EPISOMER_OPTION_RUNNER_TTL_SEARCH=600 would put the *string* "600" in conf and every arithmetic
+# comparison downstream would either be a silent string comparison ("600" < "90" is TRUE) or an
+# error. The same latent trap already existed for fs_port, smtp_port and the alert thresholds.
+#
+# The expected type is taken from `defaults`, i.e. the list built by get_empty_config(): a property
+# whose default is a number must be a number, one whose default is a boolean must be a boolean.
+# That keeps the knowledge of types in one single place, and any property added there later is
+# coerced for free.
+#
+# Left untouched on purpose:
+#  * properties with no default (unknown name, or a social media declared at runtime) - there is
+#    nothing to infer a type from;
+#  * defaults that are NA, because NA is a *logical* in R and half a dozen defaults are NA-valued
+#    dates (lang_updated_on and friends); coercing those to logical would destroy them;
+#  * defaults that are lists (languages, topics, known_users...), which an environment variable
+#    cannot express anyway.
+#
+# A value that cannot be converted is an error rather than a silent NA: an unusable
+# EPISOMER_OPTION_* must be visible at startup, not three hours later in the middle of a loop.
+coerce_env_props <- function(props, defaults) {
+  for (prop in names(props)) {
+    default <- defaults[[prop]]
+    if (is.null(default) || length(default) != 1 || is.na(default)) next
+    raw <- props[[prop]]
+    if (is.numeric(default)) {
+      value <- suppressWarnings(as.numeric(raw))
+    } else if (is.logical(default)) {
+      value <- as.logical(raw)
+      # "1" / "0" are a natural way of writing a boolean in a compose file, and as.logical() maps
+      # them to NA, so they get a second chance through the numeric route.
+      if (is.na(value) && grepl("^[01]$", trimws(raw))) {
+        value <- as.logical(as.numeric(raw))
+      }
+    } else {
+      next
+    }
+    if (is.na(value)) {
+      stop(sprintf(
+        "Invalid value '%s' for environment variable EPISOMER_OPTION_%s: expected a %s",
+        raw,
+        toupper(prop),
+        if (is.numeric(default)) "number" else "boolean"
+      ))
+    }
+    props[[prop]] <- value
+  }
+  props
 }
 
 

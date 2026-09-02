@@ -1,11 +1,66 @@
 # This script includes all dedicated logic for interacting with the Spark/Scala API via HTTP REST requests
 
+# The base URL of the fs API *as seen from this process*.
+#
+# conf$fs_url is deliberately not the last word here. The Scala API uses it as its **bind
+# interface** (scala/src/main/scala/API.scala: `Http().newServerAt(conf.fsUrl.replace("http://",
+# ""), conf.fsPort)`) and it is stored in properties.json, which every instance sharing the data
+# directory reads. A containerised fs therefore writes there the name it binds to *inside* the
+# Docker network ("http://fs", EPISOMER_OPTION_FS_URL in docker/compose.yml), and any other
+# machine reading that file - the host running setup() or the Shiny app - would call a name that
+# does not exist outside that network, silently concluding that the database is down.
+#
+# Resolution order, from the most explicit to the last resort:
+#
+#   1. conf$fs_remote           the caller said where the fs is: episomer_app(fs_remote = ...), or
+#                               EPI_HOST through the setup_config() default.
+#   2. EPI_HOST                 machine-local, and already how the search / detect containers are
+#                               told where the fs is. Needed on its own because setup() passes
+#                               fs_remote = NULL on purpose (it works on the local disk) and would
+#                               otherwise ignore it.
+#   3. conf$fs_url:conf$fs_port correct on the fs machine itself, the only process that both binds
+#                               and calls that address - and the only one for which the temporary
+#                               port shift of the language retraining in setup() must be honoured.
+#   4. http://localhost:fs_port when the host part of conf$fs_url does not resolve here. That is
+#                               exactly the "Docker service name read from outside the network"
+#                               case, and there the port is published on the host, so localhost
+#                               reaches it.
 get_scala_api_endpoint <- function() {
-  if(is.null(conf$fs_remote)) {
-    paste(conf$fs_url,":", conf$fs_port, sep = "")
-  } else {
-    gsub("/$", "", conf$fs_remote)
+  if (!is.null(conf$fs_remote)) {
+    return(gsub("/$", "", conf$fs_remote))
   }
+  epi_host <- Sys.getenv("EPI_HOST")
+  if (epi_host != "") {
+    return(gsub("/$", "", epi_host))
+  }
+  if (fs_url_resolves_here()) {
+    paste(conf$fs_url, ":", conf$fs_port, sep = "")
+  } else {
+    paste("http://localhost", ":", conf$fs_port, sep = "")
+  }
+}
+
+# TRUE when the host part of conf$fs_url can be resolved from this process, i.e. when calling it is
+# even worth trying. A bare name with no scheme is treated as the host, which is what
+# get_scala_api_endpoint() does with it anyway.
+#
+# Memoised in conf: a failed lookup costs about half a second, the resolver does not cache the
+# miss, and get_scala_api_endpoint() is called on every single API request. The memo is keyed on
+# the value it was computed for, so any change of fs_url invalidates it on its own; the port plays
+# no part in a name resolution, which is why the port shift of the retraining does not.
+fs_url_resolves_here <- function() {
+  if (is.null(conf$fs_url) || is.na(conf$fs_url) || conf$fs_url == "") {
+    return(FALSE)
+  }
+  if (identical(conf$fs_url_resolved_for, conf$fs_url)) {
+    return(conf$fs_url_resolves)
+  }
+  host <- urltools::url_parse(conf$fs_url)$domain
+  if (is.na(host) || host == "") host <- conf$fs_url
+  resolves <- !is.null(curl::nslookup(host, error = FALSE))
+  conf$fs_url_resolved_for <- conf$fs_url
+  conf$fs_url_resolves <- resolves
+  resolves
 }
 
 get_scala_geotraining_url <- function() {
@@ -123,11 +178,41 @@ epifile.touch <- function(path) {
     httr2::request(sprintf("%s?action=touch",path)) %>% httr2::req_method("POST") %>% httr2::req_perform()
   }
 }
+# Moves a file, within the local disk or within the fs machine.
+#
+# Used by the runner leases to release a lease: the lease file is moved out of runners/ instead of
+# being deleted (the fs API has no delete action) so that "the file is absent" keeps its single
+# meaning of "this runner is free" - see inst/schema/multi_services_plan.md section 3.4.
+# A remote to remote move is one POST, so nothing travels through this process.
+epifile.move <- function(from, to) {
+    if(!is_remote(from) && !is_remote(to))
+        file.rename(from, to)
+    else if (is_remote(from) && is_remote(to))
+        httr2::request(sprintf("%s?action=move", from)) %>%
+            httr2::req_method("POST") %>%
+            # the API resolves the destination against its own epiHome and refuses anything
+            # absolute or containing "..", hence the relative form rather than the full URL
+            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+            httr2::req_perform()
+    else
+        # a move with one foot on each machine would be a download or an upload followed by a
+        # delete, and the fs API cannot delete: no caller needs it, so it is refused loudly
+        stop("epifile.move only supports moving within the same file system (both local or both remote)")
+}
+
 epifile.copy <- function(from, to, overwrite = TRUE) {
     if(!is_remote(from) && !is_remote(to))
         file.copy(from, to, overwrite = overwrite)
     else if (is_remote(from) && is_remote(to))
-        httr2::request(sprintf("%s?action=copy",from)) %>% httr2::req_body_json(data = to) %>% httr2::req_perform()
+        # same destination format as epifile.move above: the API expects a path relative to its
+        # own epiHome, and used to be given the full URL of `to`, which it resolved to nonsense.
+        # This branch has no call site today (the Shiny download handlers copy to a local
+        # destination, alert.R and geo-tagging.R upload a local temp file), so the fix went
+        # untested against a real server until a caller shows up.
+        httr2::request(sprintf("%s?action=copy", from)) %>%
+            httr2::req_method("POST") %>%
+            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+            httr2::req_perform()
     else if (!is_remote(to)) {
         if(!file.exists(dirname(to))) 
             dir.create(dirname(to), recursive = TRUE)
@@ -147,13 +232,21 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
         files
     }
 }
+# Last modification time of one or several paths, as a POSIXct vector (NA for a missing path).
+# The runner leases rely on this function to decide whether a runner is still alive: the mtime is
+# produced by the single machine hosting the fs, so no clock skew between runners can make a lease
+# look fresh or expired when it is not (see inst/schema/multi_services_plan.md section 3.2).
 epifile.mtime <- function(path) {
     do.call(c, lapply(path, function(p) {
       if(!is_remote(p))
         file.mtime(p)
       else {
-        if(!epifile.exists(path))
-            NA
+        # `p`, not `path`: inside the lapply the existence test must be about the path being
+        # visited, otherwise a vector of paths gets the answer of its first element only.
+        if(!epifile.exists(p))
+            # a typed NA, so that c()-ing the results keeps a POSIXct vector. A bare NA is logical
+            # and would silently turn the whole vector into numbers.
+            as.POSIXct(NA)
         else
             lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
       }
@@ -244,35 +337,18 @@ fs_loop <- function(data_dir = NA) {
   copy_secret_scripts()
   # calculating alerts per topic
   future::plan(future::multisession)
-  monitor <- future::future(
-    {
-      message("Monitoring episomer")
-      setup_config(data_dir = data_dir)
-      x = 60
-      step = 2
-      while (TRUE) {
-        register_fs_monitor()
-        if (x == 0) {
-          health_check()
-          x = 60
-        }
-        x = x - step
-        Sys.sleep(step)
-      }
-      0
-    },
-    globals = c(
-      "data_dir",
-      "setup_config",
-      "health_check",
-      "register_fs_monitor"
-    ),
-    envir = rlang::current_env()
-  )
+  monitor <- start_fs_monitor(data_dir)
 
   message("Launching fs")
   # Registering the fs runner using current PID and ensuring no other instance of the search is actually running.
-  register_fs_runner()
+  # wait = TRUE, as in the two other service loops: a lease left behind by a killed predecessor is
+  # waited out rather than turned into a service that exits and never comes back.
+  register_fs_runner(wait = TRUE)
+  # Giving the lease and the PID file back when this loop ends, so that another machine can take
+  # the fs over immediately instead of waiting for the whole TTL to expire (multi_services_plan.md
+  # 3.4). release_runner_lease() checks it is still the holder before moving anything, so an
+  # instance that silently lost its lease cannot take away the new holder's file.
+  on.exit(unregister_runner(), add = TRUE)
 
   # Infinite loop calling the fs runner
   while (TRUE) {
@@ -296,7 +372,155 @@ fs_loop <- function(data_dir = NA) {
         Sys.sleep(5)
       }
     )
+    # spark_job() only gives the control back when the Scala service has stopped, which makes this
+    # the one moment this process can look at anything else - hence the monitor check here rather
+    # than on a timer that would never fire.
+    monitor <- restart_fs_monitor_if_dead(monitor, data_dir)
   }
+}
+
+# Starts the fs monitor in a background worker and returns its future.
+#
+# The monitor is the only R code of the fs service still running once fs_loop() has handed its own
+# process over to spark_job(), and it carries two things the service cannot do without: the
+# heartbeat of the fs lease (renew_fs_runner_lease(), R/runners-lease.R) and health_check().
+#
+# It is also, from fs_loop()'s point of view, completely mute: future captures the worker's output
+# and conditions and replays them only when the value is collected, and fs_loop() never collects
+# anything. Twice already the future died on its first lines and took the heartbeat and the alerts
+# with it in total silence, the only visible symptom being a lease going stale on a service that was
+# running perfectly:
+#
+#   * setup_config() defaulting fs_remote to "http://localhost:8080" and reading properties.json
+#     over an address the Scala API does not bind to (it binds conf$fs_url, "http://fs" in
+#     docker/compose.yml) - hence the fs_remote = NULL below;
+#   * a leftover fs_mon.PID from the previous run naming a PID that a PSOCK worker of the new run
+#     had been given back, so register_fs_monitor() refused to register a runner nobody was running
+#     (fixed at the source in release_dead_local_runner_lease(), R/runners-lease.R).
+#
+# What follows is what makes a third one visible: the loop writes to <data_dir>/fs_mon.log, survives
+# what can be survived, and fs_loop() collects the value of a monitor that died anyway.
+start_fs_monitor <- function(data_dir) {
+  future::future(
+    fs_monitor_loop(data_dir),
+    globals = c("data_dir", "fs_monitor_loop"),
+    envir = rlang::current_env()
+  )
+}
+
+# The body of the fs monitor, running in the worker started above.
+fs_monitor_loop <- function(data_dir) {
+  fs_monitor_log("Monitoring episomer", data_dir = data_dir)
+  # fs_remote = NULL, exactly as the fs_loop() branch above: this worker runs on the fs machine
+  # itself, /episomer-data is its own local disk and the Scala API is not up yet when it starts.
+  # This one is fatal and stays fatal - a monitor with no configuration has nothing to monitor - so
+  # it is only logged on the way out.
+  tryCatch(
+    setup_config(data_dir = data_dir, fs_remote = NULL),
+    error = function(e) {
+      fs_monitor_log(
+        paste("stopping, the configuration could not be set up:", conditionMessage(e)),
+        data_dir = data_dir
+      )
+      stop(e)
+    }
+  )
+  x = 60
+  step = 2
+  while (TRUE) {
+    # Nothing in here may end the monitor. Every one of these three calls has a failure mode that
+    # is none of the monitor's business and that a later iteration may well see disappear - an
+    # fs_mon lease held by another live instance, an fs that has stopped answering /ping, an alert
+    # that cannot be sent - while stopping on any of them takes away the fs heartbeat, i.e. it
+    # makes a healthy service look dead to the whole cluster. They are logged and retried.
+    fs_monitor_try(register_fs_monitor(), "registering the fs monitor")
+    # Beating for the fs runner as well: the fs process itself is inside spark_job() and will
+    # not come back to renew anything (see renew_fs_runner_lease(), R/runners-lease.R).
+    fs_monitor_try(renew_fs_runner_lease(), "renewing the fs lease")
+    if (x == 0) {
+      fs_monitor_try(health_check(), "running the health check")
+      x = 60
+    }
+    x = x - step
+    Sys.sleep(step)
+  }
+  0
+}
+
+# Runs `expr`, and turns a failure into one line of fs_mon.log instead of the end of the monitor.
+#
+# `expr` is a promise forced inside the tryCatch(), so the error is caught wherever in the call it
+# happened. Rate limited: see fs_monitor_log_once().
+fs_monitor_try <- function(expr, what) {
+  tryCatch(
+    expr,
+    error = function(e) {
+      fs_monitor_log_once(paste0(what, " failed: ", conditionMessage(e)))
+      invisible(NULL)
+    }
+  )
+}
+
+# Last time each monitor message was written, for the rate limiting below. Lives in the worker
+# process, which is where the monitor loop runs.
+fs_monitor_last_log <- new.env(parent = emptyenv())
+
+# Logs `m`, at most once per `span` seconds for a given message.
+#
+# The monitor iterates every two seconds and the failures it survives are the lasting kind, so
+# logging each of them thirty times a minute would bury the line that matters and grow fs_mon.log
+# without bound. A repeated message is written once a minute, its repetitions are dropped.
+fs_monitor_log_once <- function(m, span = 60, data_dir = conf$data_dir) {
+  last <- fs_monitor_last_log[[m]]
+  if (
+    !is.null(last) && as.numeric(difftime(Sys.time(), last, units = "secs")) < span
+  ) {
+    return(invisible(FALSE))
+  }
+  fs_monitor_last_log[[m]] <- Sys.time()
+  fs_monitor_log(m, data_dir = data_dir)
+  invisible(TRUE)
+}
+
+# Appends one timestamped line to <data_dir>/fs_mon.log.
+#
+# A file, and deliberately not message(): the monitor runs in a future worker whose messages nobody
+# ever reads (see start_fs_monitor()) and which future accumulates in a buffer meant to be replayed
+# when the value is collected - for a loop that runs for weeks and never returns, writing to that
+# buffer is a slow leak, not a log.
+#
+# Never raises: a monitor that cannot write its log still has a lease to renew.
+fs_monitor_log <- function(m, data_dir = conf$data_dir) {
+  line <- paste0(strftime(Sys.time(), "%Y-%m-%d %H:%M:%S"), " [fs_mon]: ", m)
+  try(
+    write(line, file = file.path(data_dir, "fs_mon.log"), append = TRUE),
+    silent = TRUE
+  )
+  invisible(line)
+}
+
+# Restarts the monitor if it has died, and says in the logs of the fs process why it had to.
+#
+# The monitor loop never returns, so a resolved future is a monitor that ended on an error.
+# Collecting its value is the only way to get that error out of the worker: it is raised here,
+# caught, and turned into a message that reaches `docker logs` - fs_mon.log has it too, but an
+# operator looking at a service that stopped collecting should not have to know that.
+restart_fs_monitor_if_dead <- function(monitor, data_dir) {
+  if (!future::resolved(monitor)) {
+    return(monitor)
+  }
+  tryCatch(
+    future::value(monitor),
+    error = function(e) {
+      message(paste(
+        "The episomer fs monitor stopped with the following error",
+        conditionMessage(e),
+        "starting it again",
+        sep = "\n"
+      ))
+    }
+  )
+  start_fs_monitor(data_dir)
 }
 
 #' @title perform full text search on posts collected with episomer

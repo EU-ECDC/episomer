@@ -76,6 +76,55 @@ test_that("social_media_families lists the instances of families having an activ
   expect_identical(sm_instances_of(family = "mastodon"), character(0))
 })
 
+test_that("sm_networks_of works", {
+  expect_equal(sm_networks_of("bluesky"), "bluesky")
+
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE,
+    "mastodon_instances" = list(
+      "mastodon.social",
+      "mstdn.party"
+    )
+  )
+
+  expect_equal(
+    sm_networks_of("mastodon"),
+    c("mastodon.mastodon.social", "mastodon.mstdn.party")
+  )
+
+  local_mocked_bindings(
+    sm_is_federated_bluesky = function() TRUE,
+    .package = "episomer"
+  )
+
+  expect_identical(sm_networks_of("bluesky"), character(0))
+})
+
+test_that("sm_networks_where works", {
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE
+  )
+  expect_setequal(sm_networks_where("sm_activated_"), c("bluesky"))
+
+  local_conf(
+    sm_activated_bluesky = TRUE,
+    sm_activated_mastodon = TRUE,
+    "mastodon_instances" = list(
+      "mastodon.social",
+      "mstdn.party"
+    ),
+    sm_alerts_bluesky = TRUE,
+    sm_alerts_mastodon = TRUE
+  )
+
+  expect_setequal(
+    sm_networks_where("sm_alerts_"),
+    c("bluesky", "mastodon.mastodon.social", "mastodon.mstdn.party")
+  )
+})
+
 test_that("active_social_media works", {
   local_conf(
     sm_activated_bluesky = TRUE,
@@ -138,7 +187,6 @@ test_that("alerts_social_media works", {
 
   expect_identical(alerts_social_media(), character(0))
 })
-
 
 test_that("sm_add_instance fails with an unknown social media", {
   local_conf(

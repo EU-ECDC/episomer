@@ -1,0 +1,150 @@
+  services:
+    fs:
+      image: episomer-dev
+      pull_policy: never      
+      restart: on-failure
+      build: 
+        context: ./episomer-dev 
+        additional_contexts:
+          src: ".."
+      ports:
+        - "${EPISOMER_FS_PORT}:8080"
+      healthcheck:
+        test: curl --fail http://fs:8080/ping
+        interval: 30s
+        timeout: 5s
+        retries: 400
+        start_period: 10s
+      environment:
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "FS"  
+        EPISOMER_INSTANCE: "fs"
+        EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
+        EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
+        EPISOMER_OPTION_MASTODON_INSTANCES: "mastodon.social;mstdn.party"
+        EPISOMER_OPTION_FS_URL: "http://fs"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+        EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
+        EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
+        EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN_FILE: "/run/secrets/episomer_mastodon_mastodon_social_token"
+        EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN_FILE: "/run/secrets/episomer_mastodon_mstdn_party_token"
+        OPENBLAS_NUM_THREADS: 1
+        TMPDIR: "/episomer-data/tmp"
+        _JAVA_OPTIONS=-Djava.io.tmpdir: "/episomer-data/tmp"
+      secrets:
+        - episomer_kr_password
+        - episomer_bluesky_user
+        - episomer_bluesky_password
+        - episomer_mastodon_mastodon_social_token
+        - episomer_mastodon_mstdn_party_token
+      volumes:
+        - ${EPI_HOME}:/episomer-data
+    search:
+      image: episomer-dev
+      pull_policy: never      
+      restart: on-failure
+      depends_on:
+        fs:
+          condition: service_healthy
+      environment:
+        EPI_HOST: "http://fs:8080"
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "SEARCH"
+        EPISOMER_INSTANCE: "search"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+      secrets:
+        - episomer_kr_password
+      healthcheck:
+        test:  R -e "episomer::setup_config();tryCatch(episomer::check_sm_auth(), warning = function(m) stop(m))"
+        interval: 40s
+        timeout: 30s
+        retries: 3
+        start_period: 30s
+      volumes:
+        - ${EPI_HOME}/jobs:/episomer-data/jobs
+    # Second search instance, standby of the `search` service above.
+    #
+    # It is not started by `docker compose up`: it belongs to the "standby" profile, so the default
+    # deployment stays exactly what it was. Start it with
+    #
+    #     docker compose --profile standby up -d
+    #
+    # It exists to demonstrate - and to let one test on a single laptop - the runner leases of
+    # R/runners-lease.R: two machines sharing the same episomer database, only one of them
+    # collecting. What happens when both are up:
+    #
+    #   1. both containers run search_loop(), which calls register_search_runner(wait = TRUE);
+    #   2. the first one there claims the `search` lease on the fs machine, then each of its
+    #      workers claims `search.bluesky` / `search.mastodon.<host>`;
+    #   3. the second one reads those leases, finds them alive, and *waits* - one line in its log
+    #      naming the holder ("Runner 'search.bluesky' is already held by another instance (...)
+    #      running on host 'search' ... This instance is waiting for it to be released or to
+    #      expire"), then one read of one small JSON file every runner_wait_interval seconds. That
+    #      wait is the standby (plan issue 14). Before it, the refusal was a stop() and the standby
+    #      was the container dying and being restarted by Docker, which cost the same but buried
+    #      the explanation under one fatal error per attempt;
+    #   4. stop the primary with `docker compose stop search` and nothing is released - no R code
+    #      runs on the way down, the entrypoint does not forward SIGTERM and R has no handler for
+    #      it (plan issue 13). The standby takes over when the leases expire, i.e. after
+    #      runner_ttl_search seconds, 300 by default; same thing for a `docker compose kill`, a
+    #      crashed machine or a cut network. Failover latency is the TTL, by design. The one way to
+    #      hand the leases over at once is to stop the service from the episomer side - the Shiny
+    #      app, or stop_all_runner_tasks() - which kills the processes *and* sweeps the leases they
+    #      left behind (issue 13).
+    #
+    # The takeover is visible in the Shiny app, configuration page, services status table: the Host
+    # column goes from `search` to `search-standby`, and "Last seen" tells a live holder from one
+    # that is about to expire.
+    search-standby:
+      image: episomer-dev
+      pull_policy: never
+      profiles:
+        - standby
+      depends_on:
+        fs:
+          condition: service_healthy      
+      restart: on-failure
+      environment:
+        EPI_HOST: "http://fs:8080"
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "SEARCH"
+        # Deliberately different from the `search` service. Two containers sharing one value would
+        # still be *safe* - lease_holder_is_dead_locally() requires this machine's own PID file to
+        # name the same PID as the lease before declaring a holder dead, precisely because two
+        # containers have separate PID namespaces - but every message about a lease names this
+        # value ("running on host 'search'"), so a standby that cannot be told apart from the
+        # machine it replaces makes both the status table and the logs unreadable.
+        EPISOMER_INSTANCE: "search-standby"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+      secrets:
+        - episomer_kr_password      
+      volumes:        
+        - ${EPI_HOME}/jobs:/episomer-data/jobs
+    detect:
+      image: episomer-dev
+      pull_policy: never      
+      restart: on-failure
+      depends_on:
+        fs:
+          condition: service_healthy
+      environment:
+        EPI_HOST: "http://fs:8080"
+        EPI_HOME: "/episomer-data"
+        EPISOMER_RUN: "DETECT"
+        EPISOMER_INSTANCE: "detect"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+      secrets:
+        - episomer_kr_password
+      volumes:
+        - ${EPI_HOME}/jobs:/episomer-data/jobs
+  secrets:
+    episomer_kr_password:
+      environment: EPISOMER_KR_PASSWORD
+    episomer_bluesky_user:
+      environment: EPISOMER_BLUESKY_USER  
+    episomer_bluesky_password:
+      environment: EPISOMER_BLUESKY_PASSWORD
+    episomer_mastodon_mastodon_social_token:
+      environment: EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN
+    episomer_mastodon_mstdn_party_token:
+      environment: EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN   

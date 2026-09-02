@@ -535,7 +535,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             if (action == "activate") {
                 sm_activate(target)
                 # reloading so the networks now collected get their topics
-                setup_config(save_properties_first = TRUE)
+                setup_config(save_properties_first = TRUE, fs_remote = NULL)
                 save_config()
                 message(sprintf("Social media %s has been activated", target))
             } else if (action == "deactivate") {
@@ -586,7 +586,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                             network <- sm_add_instance(target, instance)
                             sm_api_set_auth(network)
                             # reloading so the new network gets its own topics, then saving them
-                            setup_config(save_properties_first = TRUE)
+                            setup_config(save_properties_first = TRUE, fs_remote = NULL)
                             save_config()
                             message(sprintf(
                                 "episomer will now collect posts from %s",
@@ -613,7 +613,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                                 instance
                             ))
                             # reloading so the new network gets its own topics, then saving them
-                            setup_config(save_properties_first = TRUE)
+                            setup_config(save_properties_first = TRUE, fs_remote = NULL)
                             save_config()
                             message(sprintf(
                                 "episomer stops collecting posts from %s",
@@ -645,7 +645,14 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             actions["2"] <- "start"
             targets["2"] <- "fs"
         }
-        if(is_search_running()) {
+        # Deliberately the *local* status, not is_search_running() / is_detect_running(): the two
+        # actions this menu offers - register_*_runner_task() and stop_*_runner_task() - start and
+        # kill processes on this machine only. Labelling the entry "currently running" because
+        # another machine of the cluster holds the lease would offer to stop something that is not
+        # here. A local start refused by the lease still says so, in the log of the process it
+        # spawns (register_runner() -> runner_lease_holder_message()).
+        # fs keeps its /ping check below: it is not lease-based (plan section 6.2).
+        if(is_runner_running_locally("search")) {
             options["3"] <- "Stop search loop (currently running)"
             actions["3"] <- "stop"
             targets["3"] <- "search"
@@ -654,7 +661,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             actions["3"] <- "start"
             targets["3"] <- "search"
         }
-        if(is_detect_running()) {
+        if(is_runner_running_locally("detect")) {
             options["4"] <- "Stop detect loop (currently running)"
             actions["4"] <- "stop"
             targets["4"] <- "detect"
@@ -746,7 +753,21 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
         )
         # Performing requested action
         if(sh_ans != end_ans && !is_fs_running()) {
-            message(alert("Cannot launch the episomer app. The episomer database need to be running"))
+            # Naming the URL that did not answer is the whole point of this message: the database
+            # may very well be running and simply not be reachable *from here* under the address
+            # this machine resolved (see get_scala_api_endpoint()). Without the URL the wizard just
+            # goes quiet and returns no app, which is indistinguishable from a Shiny failure.
+            message(alert(sprintf(
+                paste(
+                    "Cannot launch the episomer app: the episomer database did not answer on %s.",
+                    "If it runs somewhere else - a container, another machine - say where with the",
+                    "EPI_HOST environment variable (e.g. EPI_HOST=http://localhost:%s) or by",
+                    "calling episomer_app(fs_remote = ...) directly.",
+                    sep = "\n"
+                ),
+                get_scala_ping_url(),
+                conf$fs_port
+            )))
         } else if (sh_ans == "1") {
            message("Opening the shiny app in full mode...")
             app <- episomer_app(data_dir = conf$data_dir)

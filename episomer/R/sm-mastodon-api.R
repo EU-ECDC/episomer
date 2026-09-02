@@ -64,11 +64,20 @@ sm_api_translate_query_mastodon <- function(parsed) {
   # expand the OR subqueries into several native queries. Within a subquery, terms are joined
   # by a space (implicit AND) and negated terms are appended with a leading '-'.
   ret = list()
-  for (i in 1:length(parsed$ors)) {
-    comb = do.call(expand.grid, parsed$ors[[i]])
+  for (i in seq_along(parsed$ors)) {
+    terms <- parsed$ors[[i]]
+    # a subquery with no term at all (what an all-negative query parses to) has nothing to search
+    # for: it produces no native query rather than an empty one.
+    if (length(terms) == 0) next
+    # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
+    # factors: one column per term, the synonyms of a term being the values of its column.
+    # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
+    # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
+    # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
+    comb = expand.grid(terms, stringsAsFactors = FALSE)
     if (nrow(comb) > 0) {
       r <- paste(lapply(
-        1:nrow(comb),
+        seq_len(nrow(comb)),
         function(i) do.call(paste, as.list(comb[i, ]))
       ))
       if (length(parsed$neg) > 0)
@@ -409,7 +418,7 @@ mastodon_rerun_after_rate_limit <- function(resp) {
     message("Rate limit exceeded. Waiting for reset.")
     reset <- httr2::resp_header(resp, "X-RateLimit-Reset")
     if (is.null(reset)) {
-      return(60)
+      return(heartbeat_before_retry(60))
     }
     reset_after <- as.numeric(difftime(
       lubridate::as_datetime(reset),
@@ -418,9 +427,13 @@ mastodon_rerun_after_rate_limit <- function(resp) {
     ))
     reset_after <- max(reset_after, 1)
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # A Mastodon rate-limit window is 5 minutes, i.e. the whole search lease TTL: this wait has to
+    # be done with a heartbeat rather than left to httr2 (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 

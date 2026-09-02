@@ -8,6 +8,7 @@ define set_kr_pass
 	@export pa=`pass epitools/ecdc_kr_pwd` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_kr_pwd; fi
 endef
 
+# Add social media credentials below
 define set_bluesky_user
 	@export pa=`pass epitools/ecdc_bluesky_user` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_bluesky_user; fi
 endef
@@ -15,9 +16,11 @@ endef
 define set_bluesky_password
 	@export pa=`pass epitools/ecdc_bluesky_password` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_bluesky_password; fi
 endef
-define set_mastodon_token
-	@export pa=`pass epitools/ecdc_mastodon_token` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_mastodon_token; fi
+define set_mastodon_tokens
+	@export pa=`pass epitools/ecdc_mastodon_mastodon_social_token` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_mastodon_mastodon_social_token; fi
+	@export pa=`pass epitools/ecdc_mastodon_mstdn_party_token` && if [ -z `printenv pa` ]; then pass insert epitools/ecdc_mastodon_mstdn_party_token; fi
 endef
+# Add social media credentials above
 
 init:
 	rm -rf renv/
@@ -55,11 +58,12 @@ R:
 	$(call set_kr_pass)
 	$(call set_bluesky_user)
 	$(call set_bluesky_password)
-	$(call set_mastodon_token)
+	$(call set_mastodon_tokens)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	export EPISOMER_SECRET_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
 	export EPISOMER_SECRET_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
-	export EPISOMER_SECRET_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
+	export EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=`pass epitools/ecdc_mastodon_mastodon_social_token` && \
+	export EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=`pass epitools/ecdc_mastodon_mstdn_party_token` && \
 	devscripts/r-interpreter.sh
 
 check:
@@ -81,11 +85,12 @@ spark:
 	$(call set_kr_pass)
 	$(call set_bluesky_user)
 	$(call set_bluesky_password)
-	$(call set_mastodon_token)
+	$(call set_mastodon_tokens)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	export EPISOMER_SECRET_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
 	export EPISOMER_SECRET_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
-	export EPISOMER_SECRET_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
+	export EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=`pass epitools/ecdc_mastodon_mastodon_social_token` && \
+	export EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=`pass epitools/ecdc_mastodon_mstdn_party_token` && \
 	devscripts/spark-interpreter.sh
 
 scala:
@@ -105,11 +110,13 @@ run-fs:
 	$(call set_kr_pass)
 	$(call set_bluesky_user)
 	$(call set_bluesky_password)
-	$(call set_mastodon_token)
+	$(call set_mastodon_tokens)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
-	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
-	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
-	EPISOMER_RUN=FS Rscript devscripts/run.R  
+	export EPISOMER_SECRET_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
+	export EPISOMER_SECRET_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	export EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=`pass epitools/ecdc_mastodon_mastodon_social_token` && \
+	export EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=`pass epitools/ecdc_mastodon_mstdn_party_token` && \
+	EPISOMER_RUN=FS Rscript devscripts/run.R
 
 run-detect:
 	EPISOMER_RUN=DETECT Rscript devscripts/run.R  
@@ -124,12 +131,13 @@ compose-up:
 	$(call set_kr_pass)
 	$(call set_bluesky_user)
 	$(call set_bluesky_password)
-	$(call set_mastodon_token)
+	$(call set_mastodon_tokens)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
 	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
 	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
-	export EPISOMER_MASTODON_TOKEN=`pass epitools/ecdc_mastodon_token` && \
-	docker compose -f docker/compose.yml up --build -d
+	export EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=`pass epitools/ecdc_mastodon_mastodon_social_token` && \
+	export EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=`pass epitools/ecdc_mastodon_mstdn_party_token` && \
+	docker compose -f docker/compose.yml up --build -d	
 
 compose-down:
 	docker compose -f docker/compose.yml down

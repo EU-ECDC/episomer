@@ -30,6 +30,13 @@ to_remote_relative <- function(path) {
    gsub("^file", "", p$path)
 }
 
+# Destination path as the fs API expects it in the body of a move or a copy: relative to the
+# epiHome of the fs machine, with no leading slash. The API rejects an absolute destination (and
+# any ".."), so "http://host/file/runners/a.json" has to become "runners/a.json".
+to_remote_dest <- function(path) {
+   sub("^/", "", to_remote_relative(path))
+}
+
 to_remote_if_needed <- function(path) {
    if(fs_remote() && !is_remote(path)) {
      gsub(conf$data_dir, sprintf("%s/file/", conf$fs_remote), path)
@@ -284,4 +291,51 @@ get_post_aggring_path <- function() {
 # Get path of the session info log file
 get_session_info_path <- function() {
   epipath("session-info.log")
+}
+
+# Runners-related paths
+
+# Folder holding the live leases, one file per runner. Created on demand by the writers only:
+# reading a lease happens far more often than writing one, and a reader must not create anything
+# on the fs machine.
+runner_lease_dir <- function(create = FALSE) {
+  path <- epipath("runners")
+  if (create && !epifile.exists(path)) {
+    epidir.create(path, recursive = TRUE)
+  }
+  path
+}
+
+# Folder keeping the released leases (see release_runner_lease()). Nothing ever lists it: it is a
+# trail an operator can read after the fact.
+runner_lease_old_dir <- function(create = FALSE) {
+  path <- epipath("runners", "old")
+  if (create && !epifile.exists(path)) {
+    epidir.create(path, recursive = TRUE)
+  }
+  path
+}
+
+# Path of the lease file of a runner, e.g. <data_dir>/runners/search.bluesky.json
+runner_lease_path <- function(name, create_dir = FALSE) {
+  check_runner_name(name)
+  runner_lease_dir(create = create_dir)
+  epipath("runners", paste0(name, ".json"))
+}
+
+# Path a lease is moved to when it is released. The instance_id is part of the name so that
+# successive releases of the same runner do not overwrite each other.
+#
+# `instance_id` is a parameter rather than always conf$instance_id because a lease is not always
+# released by its own holder: release_dead_local_runner_lease() (R/runners-lease.R) gives back the
+# lease of a local process that has stopped, and the trail under runners/old/ has to keep naming
+# the instance the file describes, not the one that swept it away.
+#
+# The identifier ends up in a file name and, in that one case, comes from a file rather than from
+# new_instance_id(): anything outside the character set it generates is replaced instead of being
+# pasted into a path.
+runner_lease_released_path <- function(name, instance_id = conf$instance_id) {
+  check_runner_name(name)
+  instance_id <- gsub("[^A-Za-z0-9._-]", "_", paste(instance_id, collapse = ""))
+  epipath("runners", "old", paste0(name, ".", instance_id, ".json"))
 }
