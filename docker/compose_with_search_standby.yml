@@ -1,12 +1,7 @@
   services:
     fs:
       image: episomer-dev
-      pull_policy: never
-      # A service that dies has to come back. Losing a claim is not what this catches - since plan
-      # issue 14 a service *waits* for a busy lease instead of exiting - but everything else does:
-      # an fs that crashes, a search worker that gives up after too many failed requests, an OOM
-      # kill. `on-failure` rather than `always`, so a container that exited 0 - a clean shutdown,
-      # a machine replaced by its standby - stays down.
+      pull_policy: never      
       restart: on-failure
       build: 
         context: ./episomer-dev 
@@ -22,11 +17,7 @@
         start_period: 10s
       environment:
         EPI_HOME: "/episomer-data"
-        EPISOMER_RUN: "FS"
-        # Human readable name of this instance, reported by the services and displayed by the
-        # Shiny app ("search.bluesky is running on ..."). Without it episomer falls back to the
-        # host name, which is a random hex string inside a container. Give each machine of a
-        # multi-machine deployment a distinct value.
+        EPISOMER_RUN: "FS"  
         EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
         EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
@@ -50,12 +41,7 @@
         - ${EPI_HOME}:/episomer-data
     search:
       image: episomer-dev
-      pull_policy: never
-      # A service that dies has to come back. Losing a claim is not what this catches - since plan
-      # issue 14 a service *waits* for a busy lease instead of exiting - but everything else does:
-      # an fs that crashes, a search worker that gives up after too many failed requests, an OOM
-      # kill. `on-failure` rather than `always`, so a container that exited 0 - a clean shutdown,
-      # a machine replaced by its standby - stays down.
+      pull_policy: never      
       restart: on-failure
       depends_on:
         fs:
@@ -116,10 +102,7 @@
         - standby
       depends_on:
         fs:
-          condition: service_healthy
-      # Since plan issue 14 the standby does its waiting inside the process, so this is no longer
-      # what makes it a standby - it is the same net as on the three services above, for a
-      # container that dies of something other than a busy lease.
+          condition: service_healthy      
       restart: on-failure
       environment:
         EPI_HOST: "http://fs:8080"
@@ -134,21 +117,12 @@
         EPISOMER_INSTANCE: "search-standby"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
       secrets:
-        - episomer_kr_password
-      # No healthcheck here, unlike the primary: a standby spends its life waiting for a lease it
-      # may never get, and would be reported unhealthy while doing exactly what it is meant to do.
-      volumes:
-        # Same jobs/ folder as the primary, which is what makes jobs/search.<network>.log the
-        # single place to read the handover: the standby appends to it after the primary stopped.
+        - episomer_kr_password      
+      volumes:        
         - ${EPI_HOME}/jobs:/episomer-data/jobs
     detect:
       image: episomer-dev
-      pull_policy: never
-      # A service that dies has to come back. Losing a claim is not what this catches - since plan
-      # issue 14 a service *waits* for a busy lease instead of exiting - but everything else does:
-      # an fs that crashes, a search worker that gives up after too many failed requests, an OOM
-      # kill. `on-failure` rather than `always`, so a container that exited 0 - a clean shutdown,
-      # a machine replaced by its standby - stays down.
+      pull_policy: never      
       restart: on-failure
       depends_on:
         fs:
