@@ -341,6 +341,8 @@ start_all_runner_tasks <- function() {
 #' @return Nothing
 #' @details Stops the episomer database task if it is already running
 #' This function will try also deactivate the respective scheduled task on Windows.
+#' @param timeout Numeric how many seconds to wait for the database service to stop answering
+#'   before giving up, default: 60
 #' @examples
 #' \dontrun{
 #'    #getting tasks statuses
@@ -351,22 +353,81 @@ start_all_runner_tasks <- function() {
 #' }
 #' @rdname runners
 #' @export
-stop_fs_runner_task <- function() {
+stop_fs_runner_task <- function(timeout = 60) {
+  # Asked *before* the stop: once the PID files have been used and deleted, there is no telling
+  # apart a fs that refuses to die from one that was never ours to kill.
+  was_local <- fs_has_local_process()
   stop_runner_task("fs")
-  if(is_fs_running()) {
-      message("Waiting until the fs runner stops")
-      answered <- FALSE
-      while(!answered) {
-         if(!is_fs_running()) {
-             message("fs has stopped")
-             answered <- TRUE
-         } else {
-             cat(".")
-             Sys.sleep(2)
-         }
-     }
+  if (!is_fs_running()) {
+    return(invisible(NULL))
   }
-  
+  # Something answers /ping and this machine has no process to kill for it: the fs belongs to
+  # somebody else. On a development box that is nearly always a port forward - a WSL distribution
+  # or a container publishing 8080, which Windows then serves on its own localhost - and waiting
+  # for it to stop is waiting for something no episomer command here will ever stop. Say whose it
+  # is and let the caller carry on: an operator reading "Waiting until the fs runner stops" under a
+  # growing row of dots has no way to guess any of this (the wait used to be unbounded).
+  if (!was_local) {
+    message(sprintf(
+      "%s still answers but no episomer process of this machine is registered for it: it is not ours to stop. If a WSL distribution or a container publishes that port, stop the service there, or give this machine another fs_port.",
+      get_scala_ping_url()
+    ))
+    return(invisible(NULL))
+  }
+  message("Waiting until the fs runner stops")
+  deadline <- Sys.time() + timeout
+  while (Sys.time() < deadline) {
+    if (!is_fs_running()) {
+      message("fs has stopped")
+      return(invisible(NULL))
+    }
+    cat(".")
+    Sys.sleep(2)
+  }
+  # Bounded on purpose. This runs from stop_all_runner_tasks(), which the setup wizard calls before
+  # every step it takes: a fs that will not stop must not be able to hold the whole wizard.
+  message(sprintf(
+    "fs still answers on %s after %s seconds, giving up on waiting for it",
+    get_scala_ping_url(),
+    timeout
+  ))
+  invisible(NULL)
+}
+
+# TRUE when this machine holds a PID file for any of the processes making up the database service.
+#
+# The three of them are asked, and not just fs.PID: the R loop, the fs monitor and the JVM the loop
+# spawns (fs.java.PID, written by the Scala API itself, see scala/src/main/scala/API.scala) are
+# stopped together by stop_runner_task("fs"), and any one of them being recorded here means the
+# service answering /ping is this machine's.
+fs_has_local_process <- function() {
+  any(file.exists(file.path(
+    conf$data_dir,
+    c("fs.PID", "fs_mon.PID", "fs.java.PID")
+  )))
+}
+
+# Path of the Rscript executable to hand to taskscheduleR, in a form cmd.exe can parse.
+#
+# taskscheduler_create() builds the command line of the scheduled task with
+#   sprintf("cmd /c %s %s %s %s >> %s 2>&1", Rexe, ...)
+# i.e. it quotes the script and the log file but *not* Rexe, and its default value is
+# file.path(Sys.getenv("R_HOME"), "bin", "Rscript.exe"). When R is installed under
+# "C:/Program Files/R/...", which is the default of the Windows installer, R_HOME contains a space
+# and cmd.exe stops reading the program name at it: the task then writes nothing but
+# "'C:/Program' is not recognized as an internal or external command" into jobs/<task>.log.
+# R_HOME is not always in that form - a session started from Rscript.exe on the command line
+# reports the 8.3 short name, which has no space - so the failure only shows up for some ways of
+# starting the session, RStudio among them.
+#
+# The short name is asked for first because it removes the space instead of quoting around it, and
+# so does not depend on how the nested quotes of "schtasks /TR" are read. 8.3 name generation can
+# be disabled on a volume, in which case shortPathName() gives the long name back unchanged and
+# quoting is the only option left.
+rscript_exe_for_schtasks <- function() {
+  exe <- file.path(R.home("bin"), "Rscript.exe")
+  short <- utils::shortPathName(exe)
+  if (grepl(" ", short, fixed = TRUE)) shQuote(short, type = "cmd") else short
 }
 
 # This task is currently Windows only
@@ -408,6 +469,7 @@ register_runner_task <- function(task_name) {
         taskname,
         rscript = script,
         rscript_args = rscript_args,
+        Rexe = rscript_exe_for_schtasks(),
         schedule = "HOUR",
         startdate = if (conf$force_date_format == "")
           tail(strsplit(shell("echo %DATE%", intern = TRUE), " ")[[1]], 1) else
@@ -455,16 +517,30 @@ stop_runner_task <- function(task_name) {
   message(paste("Stopping", task_name))
   # Filtering by OS, currently only Windows is supported
   if (.Platform$OS.type == "windows") {
-    # Stopping the task if running
     taskname = paste("episomer", task_name, "loop", sep = "_")
-    cmd <- sprintf("schtasks /End /TN %s", shQuote(taskname, type = "cmd"))
-    system(cmd, intern = FALSE)
-    # Disabling the task
-    cmd <- sprintf(
-      "schtasks /Change /TN %s /Disable",
-      shQuote(taskname, type = "cmd")
-    )
-    system(cmd, intern = FALSE)
+    # Asked before /End and /Change: a runner started attached to a session - which is what happens
+    # whenever taskscheduleR is not installed, see register_runner_task() - has no scheduled task at
+    # all, and schtasks then writes "ERROR: The system cannot find the file specified." and
+    # "ERROR: The specified task name ... does not exist in the system." on the console. Nothing is
+    # wrong there, the process is still killed below, but those two lines read exactly like a
+    # failure of the stop and are the first thing the setup wizard shows on Windows.
+    if (windows_scheduled_task_exists(taskname)) {
+      # Stopping the task if running
+      cmd <- sprintf("schtasks /End /TN %s", shQuote(taskname, type = "cmd"))
+      system(cmd, intern = FALSE)
+      # Disabling the task
+      cmd <- sprintf(
+        "schtasks /Change /TN %s /Disable",
+        shQuote(taskname, type = "cmd")
+      )
+      system(cmd, intern = FALSE)
+    } else {
+      message(sprintf(
+        "No Windows scheduled task named %s, %s was started attached to a session",
+        taskname,
+        task_name
+      ))
+    }
   } else {
   
   }
@@ -515,6 +591,21 @@ release_stopped_runner_leases <- function(names, timeout = 10) {
   }
   release_dead_local_runner_leases()
 }
+
+# TRUE when a Windows scheduled task of that name is registered.
+#
+# /Query answers with a non zero exit status for an unknown task, which is all we need: its output
+# is dropped so that the "cannot find the file specified" of a runner that has no scheduled task
+# never reaches the console (see stop_runner_task()).
+windows_scheduled_task_exists <- function(taskname) {
+  cmd <- sprintf("schtasks /Query /TN %s", shQuote(taskname, type = "cmd"))
+  status <- suppressWarnings(tryCatch(
+    system(cmd, intern = FALSE, ignore.stdout = TRUE, ignore.stderr = TRUE),
+    error = function(e) 1L
+  ))
+  identical(as.integer(status), 0L)
+}
+
 # Forcing the stop of a PID file by killing the underlying process
 kill_task <- function(pidfile, type = "R") {
   path = file.path(conf$data_dir, paste0(pidfile, ".PID"))

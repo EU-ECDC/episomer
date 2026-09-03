@@ -101,8 +101,7 @@ get_episomer_kr_password <- function() {
         close(con)
         Sys.setenv(EPISOMER_KR_PASSWORD = val)
     } else {
-      Sys.setenv(
-        EPISOMER_KR_PASSWORD = askpass::askpass(
+      password <- askpass::askpass(
           paste(c(
 		"Please enter the encryption password for episomer secrets",
           	"(you can set the environment variable 'EPISOMER_KR_PASSWORD' to avoid this message)",
@@ -113,7 +112,24 @@ get_episomer_kr_password <- function() {
           ),
           collapse = "\n")
         )
-      )
+      # askpass() returns NULL when it has nobody to ask: no terminal and no graphical prompt. That
+      # is the normal situation for the runners, which are separate processes started by the
+      # Windows task scheduler or by system2() and inherit nothing from the session that registered
+      # them - in particular not a EPISOMER_KR_PASSWORD set there with Sys.setenv(). Passing that
+      # NULL on to Sys.setenv() fails with "'names' and 'val' are of different lengths", which says
+      # nothing about the missing password, so the case is named here instead.
+      if (is.null(password) || length(password) == 0 || is.na(password[[1]])) {
+        stop(paste(
+          "No encryption password available for the episomer secrets and no way to ask for one.",
+          "Set the environment variable 'EPISOMER_KR_PASSWORD' with the password, or",
+          "'EPISOMER_KR_PASSWORD_FILE' with the path of a file whose first line is the password.",
+          "A background runner does not inherit the environment of the session that registered it,",
+          "so setting them with Sys.setenv() in that session is not enough: put them in the user",
+          "'.Renviron' file, which every R process reads at start up.",
+          sep = "\n"
+        ))
+      }
+      Sys.setenv(EPISOMER_KR_PASSWORD = password)
     }
     return(Sys.getenv("EPISOMER_KR_PASSWORD"))
 }
@@ -397,8 +413,35 @@ setup_config <- function(
   fs_remote =  if(Sys.getenv("EPI_HOST") != "") Sys.getenv("EPI_HOST") else "http://localhost:8080"
 ) {
   #setting the data_dir which is a read only property
+  # The tilde is expanded here and not left to the callers: data_dir ends up inside the command
+  # lines built in R/spark-bridge.R, which are handed to system()/shell(). On Linux those go
+  # through a shell that expands "~" itself, but on Windows they go to cmd.exe, which does not:
+  # a data_dir of "~/EPI_HOME" would produce a "-cp" entry matching no file at all and the Java
+  # side would fail with a NoClassDefFoundError on a class coming from the downloaded jars.
+  # The local variable is reassigned too so that everything derived from it below (the default
+  # language vector paths, the properties written to disk) keeps a single, expanded form.
+  data_dir <- path.expand(data_dir)
+  # On Windows only, backslashes are turned into forward slashes: path.expand() returns the home
+  # directory with backslashes, and data_dir is used as a regex in to_remote_if_needed()
+  # (R/paths.R) as well as inside quoted command lines. Forward slashes are understood everywhere
+  # on Windows and keep a single separator style in the paths derived from it. The substitution is
+  # not done on the other platforms, where a backslash is a legal character in a file name.
+  if (.Platform$OS.type == "windows") {
+    data_dir <- gsub("\\\\", "/", data_dir)
+  }
   conf$data_dir <- data_dir
-  conf$fs_remote <- fs_remote
+  # Normalised the same way as everything get_scala_api_endpoint() hands out (see
+  # prefer_loopback_ipv4() in R/fs.R). Not only for the speed it buys on Windows: is_remote()
+  # (R/paths.R) decides whether a path is an API URL by comparing its host with the host of
+  # conf$fs_remote, and the URLs it is compared against are built from
+  # get_scala_api_endpoint(). Leaving "localhost" here while that function answers 127.0.0.1 would
+  # make every remote path look local and send the file access back to a disk that, on an app-only
+  # machine, holds nothing.
+  conf$fs_remote <- if (is.null(fs_remote)) {
+    fs_remote
+  } else {
+    prefer_loopback_ipv4(fs_remote)
+  }
   # Identity of this process, see new_instance_id() above. It is deliberately set here, before
   # anything is read from disk, so every code path going through setup_config() has it available.
   #

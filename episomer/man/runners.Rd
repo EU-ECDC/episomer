@@ -32,7 +32,7 @@ stop_all_runner_tasks()
 
 start_all_runner_tasks()
 
-stop_fs_runner_task()
+stop_fs_runner_task(timeout = 60)
 
 missing_search_jobs()
 
@@ -44,6 +44,9 @@ is_detect_running()
 }
 \arguments{
 \item{wait_until_response}{Logical, whether to wait until the fs runner answers, default FALSE}
+
+\item{timeout}{Numeric how many seconds to wait for the database service to stop answering
+before giving up, default: 60}
 }
 \value{
 Nothing
