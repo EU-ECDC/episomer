@@ -314,3 +314,100 @@ test_that("the parse / format round-trip preserves the instant from a local time
 
   expect_equal(as.numeric(back), as.numeric(local_time))
 })
+
+
+# ---- sm_api_has_credentials_mastodon --------------------------------------
+#
+# Purely local: it must never call the Mastodon API, unlike sm_api_get_token_mastodon.
+
+test_that("sm_api_has_credentials_mastodon is TRUE when a token is stored for this instance", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "mastodon_mstdn_party_token")
+  )
+
+  expect_true(sm_api_has_credentials_mastodon("mastodon.mstdn.party"))
+})
+
+test_that("sm_api_has_credentials_mastodon is FALSE when no token is stored for this instance", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) FALSE
+  )
+
+  expect_false(sm_api_has_credentials_mastodon("mastodon.mstdn.party"))
+})
+
+test_that("sm_api_has_credentials_mastodon does not mix up the token of another instance", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "mastodon_other_instance_token")
+  )
+
+  expect_false(sm_api_has_credentials_mastodon("mastodon.mstdn.party"))
+})
+
+# ---- mastodon_rerun_after_rate_limit -----------------------------------------
+#
+# Same shape as bluesky_rerun_after_rate_limit() (test-bluesky_utils.R): heartbeat_before_retry()
+# is mocked to return its argument unchanged, so the wait it was handed can be asserted directly
+# without actually sleeping. Mastodon's reset header is an ISO 8601 date, unlike bluesky's epoch
+# timestamp, hence lubridate::as_datetime() below instead of as.character() on a Sys.time() offset.
+
+test_that("mastodon_rerun_after_rate_limit waits for the header's reset time", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+  reset_in_30s <- format(Sys.time() + 30, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")
+  resp <- httr2::response(
+    status_code = 429,
+    headers = list("X-RateLimit-Reset" = reset_in_30s)
+  )
+
+  expect_message(
+    wait <- mastodon_rerun_after_rate_limit(resp),
+    "Rate limit exceeded"
+  )
+  expect_equal(wait, 30, tolerance = 1)
+})
+
+test_that("mastodon_rerun_after_rate_limit falls back to a 60s wait without a reset header", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+  resp <- httr2::response(status_code = 429)
+
+  expect_equal(mastodon_rerun_after_rate_limit(resp), 60)
+})
+
+test_that("mastodon_rerun_after_rate_limit clamps a reset time already in the past to 1s", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+  reset_10s_ago <- format(Sys.time() - 10, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")
+  resp <- httr2::response(
+    status_code = 429,
+    headers = list("X-RateLimit-Reset" = reset_10s_ago)
+  )
+
+  expect_equal(mastodon_rerun_after_rate_limit(resp), 1)
+})
+
+test_that("mastodon_rerun_after_rate_limit aborts instead of waiting more than 1h", {
+  reset_in_2h <- format(Sys.time() + 7200, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")
+  resp <- httr2::response(
+    status_code = 429,
+    headers = list("X-RateLimit-Reset" = reset_in_2h)
+  )
+
+  expect_error(mastodon_rerun_after_rate_limit(resp), "aborting instead of waiting")
+})
+
+test_that("mastodon_rerun_after_rate_limit heartbeats without waiting on a non-429 response", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+
+  expect_true(is.na(mastodon_rerun_after_rate_limit(httr2::response(status_code = 503))))
+})

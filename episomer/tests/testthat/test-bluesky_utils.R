@@ -81,6 +81,73 @@ test_that("bluesky_rate_limited_check does not retry a 429 without the quota hea
   expect_false(bluesky_rate_limited_check(httr2::response(status_code = 429)))
 })
 
+# ---- bluesky_rerun_after_rate_limit -----------------------------------------
+#
+# Same shape as mastodon_rerun_after_rate_limit() (test-mastodon_utils.R): heartbeat_before_retry()
+# is mocked to return its argument unchanged, so the wait it was handed can be asserted directly
+# without actually sleeping.
+
+test_that("bluesky_rerun_after_rate_limit waits for the header's reset time", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+  reset_in_30s <- unclass(Sys.time()) + 30
+  resp <- httr2::response(
+    status_code = 429,
+    headers = list("RateLimit-Reset" = as.character(reset_in_30s))
+  )
+
+  expect_message(
+    wait <- bluesky_rerun_after_rate_limit(resp),
+    "Rate limit exceeded"
+  )
+  expect_equal(wait, 30, tolerance = 1)
+})
+
+test_that("bluesky_rerun_after_rate_limit falls back to a 60s wait without a reset header", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+  resp <- httr2::response(status_code = 429)
+
+  expect_equal(bluesky_rerun_after_rate_limit(resp), 60)
+})
+
+test_that("bluesky_rerun_after_rate_limit clamps a reset time already in the past to 1s", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+  reset_10s_ago <- unclass(Sys.time()) - 10
+  resp <- httr2::response(
+    status_code = 429,
+    headers = list("RateLimit-Reset" = as.character(reset_10s_ago))
+  )
+
+  expect_equal(bluesky_rerun_after_rate_limit(resp), 1)
+})
+
+test_that("bluesky_rerun_after_rate_limit aborts instead of waiting more than 1h", {
+  reset_in_2h <- unclass(Sys.time()) + 7200
+  resp <- httr2::response(
+    status_code = 429,
+    headers = list("RateLimit-Reset" = as.character(reset_in_2h))
+  )
+
+  expect_error(bluesky_rerun_after_rate_limit(resp), "aborting instead of waiting")
+})
+
+test_that("bluesky_rerun_after_rate_limit heartbeats without waiting on a non-429 response", {
+  local_mocked_bindings(
+    heartbeat_before_retry = function(seconds) seconds,
+    .package = "episomer"
+  )
+
+  expect_true(is.na(bluesky_rerun_after_rate_limit(httr2::response(status_code = 503))))
+})
+
 test_that("bluesky_rate_limited_check does not retry a 504", {
   # KNOWN QUIRK, behaviour frozen here on purpose (roadmap T1-5).
   # 420, 500, 502 and 503 are listed as transient but 504 (gateway timeout) is not, although it is
@@ -385,4 +452,41 @@ test_that("the parse / format round-trip preserves the instant from a local time
   back <- bluesky_parse_date(bluesky_format_date(local_time))
 
   expect_equal(as.numeric(back), as.numeric(local_time))
+})
+
+
+# ---- sm_api_has_credentials_bluesky -------------------------------------------
+#
+# Purely local: it must never call the Bluesky API, unlike sm_api_get_token_bluesky.
+
+test_that("sm_api_has_credentials_bluesky is TRUE when a session is already stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "bluesky_session")
+  )
+
+  expect_true(sm_api_has_credentials_bluesky())
+})
+
+test_that("sm_api_has_credentials_bluesky is TRUE when handle and password are stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) secret %in% c("bluesky_user", "bluesky_password")
+  )
+
+  expect_true(sm_api_has_credentials_bluesky())
+})
+
+test_that("sm_api_has_credentials_bluesky is FALSE when only the handle is stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "bluesky_user")
+  )
+
+  expect_false(sm_api_has_credentials_bluesky())
+})
+
+test_that("sm_api_has_credentials_bluesky is FALSE when nothing is stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) FALSE
+  )
+
+  expect_false(sm_api_has_credentials_bluesky())
 })

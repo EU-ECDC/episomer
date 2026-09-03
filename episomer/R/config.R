@@ -1263,8 +1263,7 @@ sm_remove_instance <- function(family, instance) {
 is_sm_authenticated <- function(sm) {
     tryCatch(
       if(sm %in% supported_social_media()) {
-        token <- sm_api_get_token(sm)
-        return(is.character(token) && length(token)  > 0)
+        return(isTRUE(sm_api_has_credentials(sm)))
       },
       warning = function(m) {},
       error = function(e) {}
