@@ -26,7 +26,7 @@ ARG EPISOMER_USER=1000
 RUN if id "${EPISOMER_USER}" >/dev/null 2>&1; then \
     echo 'user exists already found, reusing it'; \
 else \
-    RUN groupadd -g "${EPISOMER_USER}" epirunner \
+    groupadd -g "${EPISOMER_USER}" epirunner \
       && useradd --create-home --no-log-init -u "${EPISOMER_USER}" -g "${EPISOMER_USER}" epirunner; \
 fi
 
@@ -55,10 +55,11 @@ USER ${EPISOMER_USER}:${EPISOMER_USER}
 ENV PATH="$PATH:/git/sbt"
 WORKDIR /episomer
 RUN R -e 'dir.create(path = Sys.getenv("R_LIBS_USER"), showWarnings = FALSE, recursive = TRUE)'
-RUN R -e 'install.packages(c("devtools", "remotes"), lib = Sys.getenv("R_LIBS_USER"))'
+RUN R -e 'install.packages("pak", lib = Sys.getenv("R_LIBS_USER"), repos = sprintf("https://r-lib.github.io/p/pak/stable/%s/%s/%s", .Platform$pkgType, R.Version()$os, R.Version()$arch))'
+RUN R -e 'pak::pkg_install(c("devtools","remotes"), lib = Sys.getenv("R_LIBS_USER"))'
 
 COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} --from=src ./episomer/DESCRIPTION /episomer/episomer
-RUN R -e 'devtools::install_deps("episomer")'
+RUN R -e 'pak::local_install_deps("episomer", lib = Sys.getenv("R_LIBS_USER"))'
 
 ## Compiling scala code and producing JAR
 COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} --from=src ./scala /episomer/scala
