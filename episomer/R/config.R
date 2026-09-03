@@ -397,6 +397,22 @@ setup_config <- function(
   fs_remote =  if(Sys.getenv("EPI_HOST") != "") Sys.getenv("EPI_HOST") else "http://localhost:8080"
 ) {
   #setting the data_dir which is a read only property
+  # The tilde is expanded here and not left to the callers: data_dir ends up inside the command
+  # lines built in R/spark-bridge.R, which are handed to system()/shell(). On Linux those go
+  # through a shell that expands "~" itself, but on Windows they go to cmd.exe, which does not:
+  # a data_dir of "~/EPI_HOME" would produce a "-cp" entry matching no file at all and the Java
+  # side would fail with a NoClassDefFoundError on a class coming from the downloaded jars.
+  # The local variable is reassigned too so that everything derived from it below (the default
+  # language vector paths, the properties written to disk) keeps a single, expanded form.
+  data_dir <- path.expand(data_dir)
+  # On Windows only, backslashes are turned into forward slashes: path.expand() returns the home
+  # directory with backslashes, and data_dir is used as a regex in to_remote_if_needed()
+  # (R/paths.R) as well as inside quoted command lines. Forward slashes are understood everywhere
+  # on Windows and keep a single separator style in the paths derived from it. The substitution is
+  # not done on the other platforms, where a backslash is a legal character in a file name.
+  if (.Platform$OS.type == "windows") {
+    data_dir <- gsub("\\\\", "/", data_dir)
+  }
   conf$data_dir <- data_dir
   conf$fs_remote <- fs_remote
   # Identity of this process, see new_instance_id() above. It is deliberately set here, before
