@@ -386,3 +386,40 @@ test_that("the parse / format round-trip preserves the instant from a local time
 
   expect_equal(as.numeric(back), as.numeric(local_time))
 })
+
+
+# ---- sm_api_has_credentials_bluesky -------------------------------------------
+#
+# Purely local: it must never call the Bluesky API, unlike sm_api_get_token_bluesky.
+
+test_that("sm_api_has_credentials_bluesky is TRUE when a session is already stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "bluesky_session")
+  )
+
+  expect_true(sm_api_has_credentials_bluesky())
+})
+
+test_that("sm_api_has_credentials_bluesky is TRUE when handle and password are stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) secret %in% c("bluesky_user", "bluesky_password")
+  )
+
+  expect_true(sm_api_has_credentials_bluesky())
+})
+
+test_that("sm_api_has_credentials_bluesky is FALSE when only the handle is stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "bluesky_user")
+  )
+
+  expect_false(sm_api_has_credentials_bluesky())
+})
+
+test_that("sm_api_has_credentials_bluesky is FALSE when nothing is stored", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) FALSE
+  )
+
+  expect_false(sm_api_has_credentials_bluesky())
+})

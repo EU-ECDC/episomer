@@ -32,6 +32,22 @@ sm_api_get_token_bluesky <- function(network = NULL) {
   return(bluesky_create_session()$access_jwt)
 }
 
+# @function_def_start (do not delete)
+
+#' Whether the credentials needed to authenticate on Bluesky are configured
+#' @details purely local: checks that a stored session or a handle+password pair is present,
+#' without calling the Bluesky API. See sm_api_get_token_bluesky for the live token validity check
+#' performed right before a search.
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
+#' @return logical
+#' @export
+sm_api_has_credentials_bluesky <- function(network = NULL) {
+# @function_def_end (do not delete)
+  is_secret_set("bluesky_session") ||
+    (is_secret_set("bluesky_user") && is_secret_set("bluesky_password"))
+}
+
 
 # @function_def_start (do not delete)
 
@@ -580,17 +596,17 @@ bluesky_parse_features <- function(post) {
 #'
 bluesky_create_session <- function(handle = NULL, password = NULL) {
   if (is.null(handle) && is_secret_set("bluesky_user")) {
-    handle = get_secret("bluesky_user")
+    handle <- get_secret("bluesky_user")
   } else {
     stop("You have to provide a user_name to collect Bluesky posts")
   }
 
   if (is.null(password) && is_secret_set("bluesky_password")) {
-    password = get_secret("bluesky_password")
+    password <- get_secret("bluesky_password")
   } else {
     stop("You have to provide a password to collect Bluesky posts")
   }
-  login_url = "https://bsky.social/xrpc/com.atproto.server.createSession"
+  login_url <- "https://bsky.social/xrpc/com.atproto.server.createSession"
 
   if (!httr2::is_online()) {
     stop("No internet connection")
@@ -606,6 +622,12 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     ) %>%
     httr2::req_perform()
 
+  httr2::request(
+    "https://bsky.social/xrpc/com.atproto.server.createSession"
+  ) %>%
+    httr2::req_body_json(list(identifier = handle, password = password)) %>%
+    httr2::req_perform()
+
   httr2::resp_check_status(resp)
 
   session <- httr2::resp_body_json(resp)
@@ -616,7 +638,7 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     refreshJwt = session$refreshJwt,
     created = strptime(Sys.time(), "%Y-%m-%d %H:%M:%S")
   )
-  json_session = jsonlite::toJSON(session)
+  json_session <- jsonlite::toJSON(session)
   set_secret("bluesky_session", json_session)
   return(jsonlite::fromJSON(json_session))
 }

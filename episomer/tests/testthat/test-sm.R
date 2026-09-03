@@ -80,6 +80,27 @@ test_that("sm_api_get_token calls the bluesky implementation", {
   expect_equal(result, "mock_token_bluesky")
 })
 
+test_that("sm_api_has_credentials calls the bluesky implementation", {
+  local_mocked_bindings(
+    sm_api_has_credentials_bluesky = function(network) {
+      TRUE
+    }
+  )
+
+  result <- sm_api_has_credentials("bluesky")
+  expect_true(result)
+})
+
+test_that("sm_api_has_credentials calls the mastodon implementation for a federated network", {
+  local_mocked_bindings(
+    sm_api_has_credentials_mastodon = function(network) {
+      identical(network, "mastodon.mstdn.party")
+    }
+  )
+
+  expect_true(sm_api_has_credentials("mastodon.mstdn.party"))
+})
+
 test_that("sm_api_translate_query calls the bluesky implementation", {
   local_mocked_bindings(
     sm_api_translate_query_bluesky = function(parsed) {

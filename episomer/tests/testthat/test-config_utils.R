@@ -278,3 +278,42 @@ test_that("sm_config_properties works", {
     c("mastodon_instances", "sm_activated_mastodon")
   )
 })
+
+test_that("is_sm_authenticated defers to sm_api_has_credentials, not sm_api_get_token", {
+  local_conf(sm_activated_bluesky = TRUE)
+  local_mocked_bindings(
+    sm_api_has_credentials = function(network) TRUE,
+    sm_api_get_token = function(network) stop("should not be called")
+  )
+
+  expect_true(is_sm_authenticated("bluesky"))
+})
+
+test_that("is_sm_authenticated is FALSE when credentials are not configured", {
+  local_conf(sm_activated_bluesky = TRUE)
+  local_mocked_bindings(
+    sm_api_has_credentials = function(network) FALSE
+  )
+
+  expect_false(is_sm_authenticated("bluesky"))
+})
+
+test_that("is_sm_authenticated is FALSE for a network outside supported_social_media()", {
+  local_conf(sm_activated_bluesky = FALSE, sm_activated_mastodon = FALSE)
+
+  expect_false(is_sm_authenticated("bluesky"))
+})
+
+test_that("is_sm_authenticated is FALSE when sm_api_has_credentials errors or warns", {
+  local_conf(sm_activated_bluesky = TRUE)
+
+  local_mocked_bindings(
+    sm_api_has_credentials = function(network) stop("boom")
+  )
+  expect_false(is_sm_authenticated("bluesky"))
+
+  local_mocked_bindings(
+    sm_api_has_credentials = function(network) warning("careful")
+  )
+  expect_false(is_sm_authenticated("bluesky"))
+})

@@ -100,6 +100,16 @@ sm_api_get_token <- function(network) {
   get(sprintf("sm_api_get_token_%s", sm_family(network)))(network = network)
 }
 
+#' Whether the credentials needed to authenticate on a social media are configured
+#' @details this is a purely local check: it looks for stored secrets and never calls the
+#' underlying social media API, unlike sm_api_get_token which may perform a live token validity
+#' check as part of fetching a token. It is used to report or poll authentication status (setup()
+#' menu, check_sm_auth) without the cost of a network round-trip.
+#' @param network char, network the name of the social media
+sm_api_has_credentials <- function(network) {
+  get(sprintf("sm_api_has_credentials_%s", sm_family(network)))(network = network)
+}
+
 #' Translate a parsed query to the social media query format
 #' @details This function receive as a parameter a parsed query from the a topic in the list of topics.
 #' It can return one or many queries that matches the expected results using the underlying social media API

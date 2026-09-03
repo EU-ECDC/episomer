@@ -24,6 +24,20 @@ sm_api_get_token_mastodon <- function(network) {
 
 # @function_def_start (do not delete)
 
+#' Whether the credentials needed to authenticate on this Mastodon instance are configured
+#' @details purely local: checks that an access token is stored for this network, without calling
+#' the Mastodon API.
+#' @param network char, the network to check the token for, its instance is the one the token was
+#' issued by
+#' @return logical
+#' @export
+sm_api_has_credentials_mastodon <- function(network) {
+  # @function_def_end (do not delete)
+  is_secret_set(sm_secret_name(network, "token"))
+}
+
+# @function_def_start (do not delete)
+
 #' Whether this social media is made of independent instances
 #' @details Mastodon is federated: every instance is a separate server with its own API endpoint
 #' and its own access tokens, so each instance listed in the mastodon_instances configuration

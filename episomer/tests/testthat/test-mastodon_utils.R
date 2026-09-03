@@ -314,3 +314,32 @@ test_that("the parse / format round-trip preserves the instant from a local time
 
   expect_equal(as.numeric(back), as.numeric(local_time))
 })
+
+
+# ---- sm_api_has_credentials_mastodon --------------------------------------
+#
+# Purely local: it must never call the Mastodon API, unlike sm_api_get_token_mastodon.
+
+test_that("sm_api_has_credentials_mastodon is TRUE when a token is stored for this instance", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "mastodon_mstdn_party_token")
+  )
+
+  expect_true(sm_api_has_credentials_mastodon("mastodon.mstdn.party"))
+})
+
+test_that("sm_api_has_credentials_mastodon is FALSE when no token is stored for this instance", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) FALSE
+  )
+
+  expect_false(sm_api_has_credentials_mastodon("mastodon.mstdn.party"))
+})
+
+test_that("sm_api_has_credentials_mastodon does not mix up the token of another instance", {
+  local_mocked_bindings(
+    is_secret_set = function(secret) identical(secret, "mastodon_other_instance_token")
+  )
+
+  expect_false(sm_api_has_credentials_mastodon("mastodon.mstdn.party"))
+})
