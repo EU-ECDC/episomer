@@ -101,8 +101,7 @@ get_episomer_kr_password <- function() {
         close(con)
         Sys.setenv(EPISOMER_KR_PASSWORD = val)
     } else {
-      Sys.setenv(
-        EPISOMER_KR_PASSWORD = askpass::askpass(
+      password <- askpass::askpass(
           paste(c(
 		"Please enter the encryption password for episomer secrets",
           	"(you can set the environment variable 'EPISOMER_KR_PASSWORD' to avoid this message)",
@@ -113,7 +112,24 @@ get_episomer_kr_password <- function() {
           ),
           collapse = "\n")
         )
-      )
+      # askpass() returns NULL when it has nobody to ask: no terminal and no graphical prompt. That
+      # is the normal situation for the runners, which are separate processes started by the
+      # Windows task scheduler or by system2() and inherit nothing from the session that registered
+      # them - in particular not a EPISOMER_KR_PASSWORD set there with Sys.setenv(). Passing that
+      # NULL on to Sys.setenv() fails with "'names' and 'val' are of different lengths", which says
+      # nothing about the missing password, so the case is named here instead.
+      if (is.null(password) || length(password) == 0 || is.na(password[[1]])) {
+        stop(paste(
+          "No encryption password available for the episomer secrets and no way to ask for one.",
+          "Set the environment variable 'EPISOMER_KR_PASSWORD' with the password, or",
+          "'EPISOMER_KR_PASSWORD_FILE' with the path of a file whose first line is the password.",
+          "A background runner does not inherit the environment of the session that registered it,",
+          "so setting them with Sys.setenv() in that session is not enough: put them in the user",
+          "'.Renviron' file, which every R process reads at start up.",
+          sep = "\n"
+        ))
+      }
+      Sys.setenv(EPISOMER_KR_PASSWORD = password)
     }
     return(Sys.getenv("EPISOMER_KR_PASSWORD"))
 }
