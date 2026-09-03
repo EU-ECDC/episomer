@@ -53,7 +53,8 @@ test_that("get_scala_api_endpoint falls back on localhost when fs_url does not r
     fs_url = "http://fs",
     fs_port = 8080
   )
-  expect_equal(get_scala_api_endpoint(), "http://localhost:8080")
+  # "localhost" comes back as 127.0.0.1: see prefer_loopback_ipv4() in R/fs.R.
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
 })
 
 test_that("get_scala_api_endpoint follows the temporary port shift of the retraining", {
@@ -66,10 +67,23 @@ test_that("get_scala_api_endpoint follows the temporary port shift of the retrai
     fs_port = 9080
   )
   local_mocked_bindings(fs_url_resolves_here = function() TRUE, .package = "episomer")
-  expect_equal(get_scala_api_endpoint(), "http://localhost:9080")
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
 
   local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
-  expect_equal(get_scala_api_endpoint(), "http://localhost:9080")
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
+})
+
+test_that("prefer_loopback_ipv4 rewrites only the exact host localhost", {
+  # Windows resolves "localhost" to ::1 only, where the Scala API does not listen; every request
+  # then pays a failed connection before falling back to IPv4.
+  expect_equal(prefer_loopback_ipv4("http://localhost:8080"), "http://127.0.0.1:8080")
+  expect_equal(prefer_loopback_ipv4("https://localhost/ping"), "https://127.0.0.1/ping")
+  expect_equal(prefer_loopback_ipv4("http://localhost"), "http://127.0.0.1")
+
+  # Anything that is not that host is left to the resolver.
+  expect_equal(prefer_loopback_ipv4("http://fs:8080"), "http://fs:8080")
+  expect_equal(prefer_loopback_ipv4("http://localhost.example:8080"), "http://localhost.example:8080")
+  expect_equal(prefer_loopback_ipv4("http://my-localhost:8080"), "http://my-localhost:8080")
 })
 
 test_that("fs_url_resolves_here answers for a scheme-less name and an empty fs_url", {
