@@ -430,7 +430,18 @@ setup_config <- function(
     data_dir <- gsub("\\\\", "/", data_dir)
   }
   conf$data_dir <- data_dir
-  conf$fs_remote <- fs_remote
+  # Normalised the same way as everything get_scala_api_endpoint() hands out (see
+  # prefer_loopback_ipv4() in R/fs.R). Not only for the speed it buys on Windows: is_remote()
+  # (R/paths.R) decides whether a path is an API URL by comparing its host with the host of
+  # conf$fs_remote, and the URLs it is compared against are built from
+  # get_scala_api_endpoint(). Leaving "localhost" here while that function answers 127.0.0.1 would
+  # make every remote path look local and send the file access back to a disk that, on an app-only
+  # machine, holds nothing.
+  conf$fs_remote <- if (is.null(fs_remote)) {
+    fs_remote
+  } else {
+    prefer_loopback_ipv4(fs_remote)
+  }
   # Identity of this process, see new_instance_id() above. It is deliberately set here, before
   # anything is read from disk, so every code path going through setup_config() has it available.
   #

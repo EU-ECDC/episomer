@@ -27,17 +27,44 @@
 #                               reaches it.
 get_scala_api_endpoint <- function() {
   if (!is.null(conf$fs_remote)) {
-    return(gsub("/$", "", conf$fs_remote))
+    return(prefer_loopback_ipv4(gsub("/$", "", conf$fs_remote)))
   }
   epi_host <- Sys.getenv("EPI_HOST")
   if (epi_host != "") {
-    return(gsub("/$", "", epi_host))
+    return(prefer_loopback_ipv4(gsub("/$", "", epi_host)))
   }
-  if (fs_url_resolves_here()) {
+  prefer_loopback_ipv4(if (fs_url_resolves_here()) {
     paste(conf$fs_url, ":", conf$fs_port, sep = "")
   } else {
     paste("http://localhost", ":", conf$fs_port, sep = "")
-  }
+  })
+}
+
+# Rewrites a "localhost" host part into 127.0.0.1, leaving every other address alone.
+#
+# The Scala API binds conf$fs_url, "http://localhost" by default, and the JVM turns that into the
+# IPv4 loopback: the listening socket is 127.0.0.1:8080 and nothing answers on [::1]:8080. On Linux
+# both families are in /etc/hosts, so a client asking for "localhost" is handed 127.0.0.1 and the
+# first connection works. On Windows, "localhost" resolves to ::1 *only* - the DNS client answers
+# it, there is no hosts entry - so libcurl tries the address nothing listens on, waits for it to
+# fail, and only then falls back to IPv4. It pays that on every request, and the API is called once
+# per file existence test or modification time: measured on this code path, epifile.mtime() went
+# from 10ms to 442ms a call, which is what made the Shiny app take minutes to open.
+#
+# Done here rather than by changing the defaults because the address reaches this function from
+# four different places (conf$fs_remote, EPI_HOST, conf$fs_url, the fallback above) and any of them
+# can carry "localhost". Only the exact host "localhost" is touched: a real name is left to the
+# resolver, which is the only thing that knows what it should answer.
+# The scheme is matched by a look-behind and not by a capturing group on purpose: the replacement
+# starts with a digit, and "\\1127.0.0.1" would be read as the eleventh back-reference followed by
+# "7.0.0.1".
+prefer_loopback_ipv4 <- function(endpoint) {
+  sub(
+    "(?<=^http://|^https://)localhost(?=$|[:/])",
+    "127.0.0.1",
+    endpoint,
+    perl = TRUE
+  )
 }
 
 # TRUE when the host part of conf$fs_url can be resolved from this process, i.e. when calling it is
@@ -358,7 +385,12 @@ fs_loop <- function(data_dir = NA) {
           paste(
             "fsService",
             "epiHome",
-            conf$data_dir
+            # Quoted like every other path handed to the Scala side (see conf_geonames_as_arg() in
+            # R/spark-bridge.R): the arguments end up in a command line, and Episomer.main() reads
+            # what follows the command as 'key' 'value' pairs. A data_dir holding a space - which
+            # is what the default of a Windows installation looks like - would be split into two
+            # arguments and the service would refuse to start on an odd argument count.
+            paste("\"", conf$data_dir, "\"", sep = "")
           )
         )
       },
