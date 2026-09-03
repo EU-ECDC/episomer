@@ -440,6 +440,12 @@ mastodon_rerun_after_rate_limit <- function(resp) {
       units = "secs"
     ))
     reset_after <- max(reset_after, 1)
+    if (reset_after > 3600) {
+      stop(sprintf(
+        "Mastodon rate limit reset is %s seconds away, aborting instead of waiting.",
+        reset_after
+      ))
+    }
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
     # A Mastodon rate-limit window is 5 minutes, i.e. the whole search lease TTL: this wait has to
     # be done with a heartbeat rather than left to httr2 (R/runners-lease.R).
