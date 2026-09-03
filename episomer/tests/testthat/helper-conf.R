@@ -115,6 +115,24 @@ write_local_pid_file <- function(name, pid) {
 # A PID no process can have: is_r_pid_running() must answer FALSE for it.
 dead_pid <- 4194303L
 
+# Says "this very process is alive, and no other PID is", for the tests that need a *live* holder.
+#
+# The live holder cannot be described the way dead_pid describes a dead one: only a real running
+# process will do, and the only one a test is sure to have is itself. Sys.getpid() alone is not
+# enough though, because is_r_pid_running() (R/runners.R) asks the operating system for the *name*
+# of the process and accepts R, Rscript, Rterm and rsession: an R session hosted under a name of its
+# own - ark for Positron, python for radian - is not recognised, so those tests would pass or fail
+# depending on what started them. Mocking the probe is what test-runners_wait.R already does for
+# the same reason; what is under test here is what lease_holder_is_dead_locally() concludes from a
+# live PID, not how liveness is established.
+local_live_this_process <- function(.local_envir = parent.frame()) {
+  testthat::local_mocked_bindings(
+    is_r_pid_running = function(pid) identical(as.integer(pid), Sys.getpid()),
+    .package = "episomer",
+    .env = .local_envir
+  )
+}
+
 # Makes the lease of `name` belong to another machine, as if it had been taken over while this
 # process was busy collecting.
 steal_lease <- function(name) {

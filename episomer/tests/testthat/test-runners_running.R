@@ -168,8 +168,9 @@ test_that("the cross-check does not fire on a live process of this machine", {
     instance_host = "machine-A",
     runner_ttl_detect = 1800
   )
-  # another R process of this machine holds it - the testthat process itself stands in for it, since
-  # its PID is by construction that of a running R process
+  # another R process of this machine holds it, and the testthat process stands in for it: its PID
+  # is the only one a test can be sure names a live process (see local_live_this_process())
+  local_live_this_process()
   with_instance("instance-B", host = "machine-A", code = write_runner_lease("detect"))
   write_local_pid_file("detect", Sys.getpid())
 
@@ -207,6 +208,22 @@ test_that("the cross-check ignores a lease held by another host", {
 
   expect_true(is_detect_running())
   expect_false(lease_is_free(read_runner_lease("detect"), "detect"))
+})
+
+# is_r_pid_running(), the check both cross-checks rest on ------------------------------------------
+
+test_that("is_r_pid_running() is FALSE for a PID no process has, and for a missing one", {
+  # The other half of the contract - "TRUE for a live R process" - is deliberately not asserted
+  # here: is_r_pid_running() recognises a process by *name* (R, Rscript, Rterm, rsession), so it
+  # answers FALSE for the R session of an IDE running under a name of its own, ark for Positron or
+  # python for radian, and a test of the live case would then say more about what started it than
+  # about the code. That is also why the tests above go through local_live_this_process().
+  expect_false(is_r_pid_running(dead_pid))
+  expect_false(is_r_pid_running(NA_integer_))
+  # what read_running_task_pid_file() returns for an empty or unreadable PID file, and a vector of
+  # PIDs, which is neither a process nor an answerable question
+  expect_false(is_r_pid_running(integer(0)))
+  expect_false(is_r_pid_running(c(Sys.getpid(), dead_pid)))
 })
 
 # fs is the exception ------------------------------------------------------------------------------

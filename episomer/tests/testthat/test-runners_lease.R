@@ -339,6 +339,7 @@ test_that("release_dead_local_runner_lease() refuses without a local PID file to
 test_that("release_dead_local_runner_lease() refuses while the holder is still alive", {
   local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_detect = 1800)
   # this process is the holder, and it is running: nothing to release
+  local_live_this_process()
   claim_runner_lease("detect", guard = 0)
   write_local_pid_file("detect", Sys.getpid())
 

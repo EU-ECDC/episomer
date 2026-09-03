@@ -299,7 +299,16 @@ test_that("is_sm_authenticated is FALSE when credentials are not configured", {
 })
 
 test_that("is_sm_authenticated is FALSE for a network outside supported_social_media()", {
-  local_conf(sm_activated_bluesky = FALSE, sm_activated_mastodon = FALSE)
+  # `sm_activated_bluesky = FALSE` would *not* leave bluesky outside supported_social_media():
+  # social_media_families() reads the names of the activation properties, not their values, so
+  # declaring the switch is what makes the family known - deactivated is still supported. The
+  # network has to be one no property mentions at all, hence a configuration knowing mastodon only.
+  local_conf(sm_activated_mastodon = TRUE)
+  # credentials that would answer TRUE if they were consulted: the network being unsupported is what
+  # has to make the answer FALSE, and it has to do so before anything reads a secret. Without this
+  # the test passes or fails depending on whether the machine running it happens to hold bluesky
+  # credentials in its keyring.
+  local_mocked_bindings(sm_api_has_credentials = function(network) TRUE)
 
   expect_false(is_sm_authenticated("bluesky"))
 })
