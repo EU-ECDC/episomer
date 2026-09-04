@@ -468,18 +468,22 @@ object GeoTraining {
                //reuse = false
              }.cache
            val model = new LinearSVC().setFeaturesCol("vector").setLabelCol(s"${t}Label")
-           val ret = if(trainData.count > 0) {
-             //trainData.select(sum("BLabel"), sum("ILabel"), sum("OLabel")).show
-             l.msg(s"Training model for $path")
-             val trained = model.fit(trainData)
-             trained.write.overwrite().save(path)
-             //Setting update timestamp
-             storage.isUnchanged(path = Some(path), checkPath = Some(s"${path}.txt"), updateStamp = true)  
-             Some(s"$t.${lang.code}", trained)
-           } else {
-             None
+           val ret = try {
+             if(trainData.count > 0) {
+               //trainData.select(sum("BLabel"), sum("ILabel"), sum("OLabel")).show
+               l.msg(s"Training model for $path")
+               val trained = model.fit(trainData)
+               trained.write.overwrite().save(path)
+               //Setting update timestamp
+               storage.isUnchanged(path = Some(path), checkPath = Some(s"${path}.txt"), updateStamp = true)
+               Some(s"$t.${lang.code}", trained)
+             } else {
+               None
+             }
+           } finally {
+             // Avoid overlapping cached feature data between sequential language fits.
+             trainData.unpersist(blocking = true)
            }
-           trainData.unpersist
            //storage.removeMarkedFiles()
            ret
         }

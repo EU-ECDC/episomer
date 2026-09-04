@@ -166,7 +166,11 @@ class GeonamesActor(conf:Settings) extends Actor with ActorLogging {
         import s.implicits._
         //ret.groupByKey(_._1).reduceGroups((a, b) => (a._1, a._2, a._3, a._4, a._5.sum(b._5))).map(p => (p._2._1, p._2._5)).toDF("test", "metric").select(col("test"), col("metric.*")).show
         //!((!t.forcedLocationName.isEmpty || !t.forcedLocationCode.isEmpty) && t.isLocation == Some(false))
-        val ret = results.toJSON.collect
+        val ret = try {
+          results.toJSON.collect
+        } finally {
+          results.unpersist(blocking = true)
+        }
         l.msg(s"Evaluation finished")
         
         l.msg(s"Training models with full data now")
