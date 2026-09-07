@@ -55,12 +55,16 @@ test_that("stop_fs_runner_task() does not wait for a fs no process of this machi
 
 test_that("stop_fs_runner_task() gives up waiting for a fs of this machine that will not stop", {
   data_dir <- local_lease_conf()
-  # what makes the fs ours: the JVM the loop spawned recorded itself here (Scala API.scala)
+  # What makes the fs ours: the JVM the loop spawned recorded itself here (Scala API.scala), in the
+  # bare form that side writes when EPISOMER_INSTANCE is unset - no host, no start time.
   writeLines("4242", file.path(data_dir, "fs.java.PID"))
   local_mocked_bindings(
     stop_runner_task = function(...) invisible(NULL),
     is_fs_running = function() TRUE,
     get_scala_ping_url = function() "http://localhost:8080/ping",
+    # The recorded JVM has to be *running* for the fs to be ours, and a test has no java process to
+    # point at - the same reason local_live_this_process() mocks the R probe (helper-conf.R).
+    is_java_pid_running = function(pid) identical(as.integer(pid), 4242L),
     .package = "episomer"
   )
 

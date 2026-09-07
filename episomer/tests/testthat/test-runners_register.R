@@ -22,9 +22,23 @@ test_that("register_runner() writes the PID file, takes the lease and names the 
 
   register_runner("detect")
 
-  # layer 1: the local PID file, unchanged behaviour
+  # layer 1: the local PID file. The PID is alone on the first line - the Scala side writes
+  # fs.java.PID in that form and kill_task() has to keep reading both - and the host and start time
+  # below it are what make the file describe a process rather than a number (see
+  # write_running_task_pid(), R/runners.R).
   expect_true(file.exists(pid_path("detect")))
-  expect_identical(readLines(pid_path("detect")), as.character(Sys.getpid()))
+  expect_identical(
+    readLines(pid_path("detect"))[[1]],
+    as.character(Sys.getpid())
+  )
+  expect_identical(
+    read_running_task_pid_record("detect"),
+    list(
+      pid = Sys.getpid(),
+      host = "machine-A",
+      start_time = pid_start_time(Sys.getpid())
+    )
+  )
   # layer 2: the cluster-wide lease
   expect_true(i_hold_runner_lease("detect"))
   # session state, so the heartbeat helpers can be called with no argument
@@ -111,7 +125,7 @@ test_that("register_runner() takes over the runner a killed local process still 
   expect_silent(register_runner("fs"))
 
   expect_true(i_hold_runner_lease("fs"))
-  expect_identical(readLines(pid_path("fs")), as.character(Sys.getpid()))
+  expect_identical(read_running_task_pid_file("fs"), Sys.getpid())
 })
 
 test_that("register_runner() leaves the PID file of the previous holder alone when refused", {

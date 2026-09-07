@@ -647,7 +647,9 @@ object API {
       }
     
 
-    Http().newServerAt(conf.fsUrl.replace("http://", ""), conf.fsPort).bind(route)
+    // conf.fsBindHost, not conf.fsUrl: see Settings.fsBindHost for why the configured host cannot be
+    // trusted to exist on the machine that reads it.
+    Http().newServerAt(conf.fsBindHost, conf.fsPort).bind(route)
   }
   def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
     if(!Files.exists(path))

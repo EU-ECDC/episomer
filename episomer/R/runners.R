@@ -121,8 +121,7 @@ register_runner <- function(name, wait = FALSE) {
   # loser of the confirmation read exits before collecting anything (see claim_runner_lease()), and
   # in exchange the far more common case - restarting a service whose previous process is gone -
   # stops being refused.
-  pid_path <- get_running_task_pid_path(name)
-  write(pid, file = pid_path, append = FALSE)
+  write_running_task_pid(name, pid)
 
   # Session state, not configuration: it lets renew_runner_lease(), stop_if_lease_lost() and
   # release_runner_lease() be called with no argument from anywhere in this process. It is set
@@ -401,10 +400,18 @@ stop_fs_runner_task <- function(timeout = 60) {
 # stopped together by stop_runner_task("fs"), and any one of them being recorded here means the
 # service answering /ping is this machine's.
 fs_has_local_process <- function() {
-  any(file.exists(file.path(
-    conf$data_dir,
-    c("fs.PID", "fs_mon.PID", "fs.java.PID")
-  )))
+  # The *record*, not the mere presence of the file. This is the one caller for which the difference
+  # is the whole point: the case it exists to catch is a fs published on this port by somebody else,
+  # and the commonest "somebody else" is a container of this very machine - which mounts the data
+  # directory and therefore leaves its own fs.PID sitting right where we look. Believing the file
+  # made every `make compose-down` leftover read as "the containerised fs is ours to stop", i.e. the
+  # exact opposite of what the message below says.
+  any(vapply(
+    c("fs", "fs_mon"),
+    function(name) recorded_pid_is_running(read_running_task_pid_record(name)),
+    logical(1)
+  )) ||
+    recorded_pid_is_running(read_running_task_pid_record("fs.java"), "java")
 }
 
 # Path of the Rscript executable to hand to taskscheduleR, in a form cmd.exe can parse.
@@ -606,57 +613,34 @@ windows_scheduled_task_exists <- function(taskname) {
   identical(as.integer(status), 0L)
 }
 
-# Forcing the stop of a PID file by killing the underlying process
+# Forcing the stop of a PID file by killing the underlying process.
+#
+# The record has to be believed before a signal is sent, not just read: kill(1) takes a number, and
+# a PID file written in another PID namespace holds a number that belongs to somebody else here. A
+# leftover container fs.PID naming PID 9 used to be enough for a local stop to signal whatever
+# process of this host had been given PID 9 - recorded_pid_is_running() is what refuses that, on
+# exactly the same grounds as the local check of register_runner().
 kill_task <- function(pidfile, type = "R") {
-  path = file.path(conf$data_dir, paste0(pidfile, ".PID"))
-  if (file.exists(path)) {
-    f = file(description = path, open = "r")
-    last_pid = readLines(f)
-    close(f)
-
-    if (.Platform$OS.type == "windows") {
-      if (type == "R")
-        image = "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe" else if (
-        type == "java"
-      )
-        image = "java.exe" else stop("Unsupported type of process")
-      if (
-        length(grep(
-          image,
-          system(
-            paste('tasklist /nh /fi "pid eq ', last_pid, '"'),
-            intern = TRUE
-          )
-        )) >
-          0
-      ) {
-        message(paste("Forcing process", last_pid, "to stop"))
-        system(paste('taskkill /F /pid', last_pid), intern = TRUE)
-      } else {
-        message(paste("registered pid ", last_pid, "not running anymore"))
-      }
-    } else {
-      if (type == "R") image = "R\\|rsession" else if (type == "java")
-        image = "java" else stop("Unsupported type of process")
-      if (
-        system(
-          paste(
-            "ps -cax | grep ",
-            paste0("'", image, "'"),
-            " | grep ",
-            last_pid
-          ),
-          ignore.stdout = TRUE
-        ) ==
-          0
-      ) {
-        message(paste("Forcing process", last_pid, "to stop"))
-        system(paste('kill ', last_pid), intern = TRUE)
-      } else {
-        message(paste("registered pid ", last_pid, "not running anymore"))
-      }
-    }
+  path <- file.path(conf$data_dir, paste0(pidfile, ".PID"))
+  if (!file.exists(path)) {
+    return(invisible(FALSE))
   }
+  rec <- read_running_task_pid_record(pidfile)
+  if (is.na(rec$pid)) {
+    message(paste("PID file", path, "does not hold a usable PID"))
+    return(invisible(FALSE))
+  }
+  if (!recorded_pid_is_running(rec, type)) {
+    message(paste("registered pid ", rec$pid, "not running anymore"))
+    return(invisible(FALSE))
+  }
+  message(paste("Forcing process", rec$pid, "to stop"))
+  if (.Platform$OS.type == "windows") {
+    system(paste("taskkill /F /pid", rec$pid), intern = TRUE)
+  } else {
+    system(paste("kill ", rec$pid), intern = TRUE)
+  }
+  invisible(TRUE)
 }
 
 
@@ -807,8 +791,70 @@ is_runner_running_locally <- function(name) {
 
 # Get runner active PID this function will return -1 if no process was detected
 get_running_task_pid <- function(name) {
-  last_pid <- read_running_task_pid_file(name)
-  if (!is.na(last_pid) && is_r_pid_running(last_pid)) last_pid else -1
+  rec <- read_running_task_pid_record(name)
+  if (recorded_pid_is_running(rec)) rec$pid else -1
+}
+
+# Contents of a runner PID file: one field per line, PID first.
+#
+# The PID *has* to stay alone on the first line, because we are not the only writer of these files:
+# the Scala side writes fs.java.PID and detect.java.PID itself, as a bare number
+# (ProcessID.writePID, scala/src/main/scala/ProcessId.scala). The two fields below are ours, and
+# they are what makes a PID file describe a *process* instead of just a number:
+#
+#   * `host` is conf$instance_host, the same value the lease records. A PID only means something in
+#     the namespace it was handed out in, and the fs container writes its PID file into a data
+#     directory the host reads too: $EPI_HOME/fs.PID naming PID 9 describes the container's main
+#     Rscript, while on the host that number belongs to whatever started ninth at boot. This field
+#     is what tells the two apart, and without it every `make compose-down` left behind a file that
+#     refused the next local start with "Runner fs PID: 9 is already running";
+#   * `start_time` closes the same hole *within* one host, where the host name cannot help: a
+#     container restarted under the same EPISOMER_INSTANCE hands out its PIDs from the same small
+#     range, so the new run's PID 9 is a different process wearing the same number. This is the
+#     signal inst/schema/multi_services_plan.md section 9 item 6 asks for.
+#
+# Both are optional on read: a file holding nothing but a number is either the Scala side's or one
+# written by an older version, and it falls back to the previous behaviour - believe the number.
+write_running_task_pid <- function(name, pid = Sys.getpid()) {
+  writeLines(
+    c(
+      as.character(pid),
+      pid_field_or_blank(conf$instance_host),
+      pid_field_or_blank(pid_start_time(pid))
+    ),
+    con = get_running_task_pid_path(name)
+  )
+  invisible(pid)
+}
+
+# An unknown field is written as an empty line rather than as "NA", which is a plausible host name.
+pid_field_or_blank <- function(value) {
+  if (length(value) != 1 || is.na(value)) "" else as.character(value)
+}
+
+# The three fields of the PID file of `name`, each NA when the file does not carry it.
+read_running_task_pid_record <- function(name) {
+  path <- get_running_task_pid_path(name)
+  record <- function(pid = NA_integer_, host = NA_character_, start = NA_character_) {
+    list(pid = pid, host = host, start_time = start)
+  }
+  if (!file.exists(path)) {
+    return(record())
+  }
+  lines <- trimws(tryCatch(
+    readLines(path, warn = FALSE),
+    error = function(e) character(0),
+    warning = function(w) character(0)
+  ))
+  field <- function(i) {
+    if (length(lines) >= i && nzchar(lines[[i]])) lines[[i]] else NA_character_
+  }
+  pid <- suppressWarnings(as.integer(field(1)))
+  record(
+    pid = if (length(pid) == 1) pid else NA_integer_,
+    host = field(2),
+    start = field(3)
+  )
 }
 
 # The PID this machine wrote when it registered as `name`, or NA when it never did (no PID file).
@@ -817,15 +863,87 @@ get_running_task_pid <- function(name) {
 # gone" into the same -1: telling those two apart is precisely what the local cross-check of
 # lease_holder_is_dead_locally() needs.
 read_running_task_pid_file <- function(name) {
-  pid_path <- get_running_task_pid_path(name)
-  if (!file.exists(pid_path)) {
-    return(NA_integer_)
+  read_running_task_pid_record(name)$pid
+}
+
+# TRUE when the process a PID file record describes is still running here, as a process of `type`.
+#
+# This is the question every caller of the PID layer actually asks, and it is not "is that number
+# in the process table": a PID file is only evidence about a process if it was written in the same
+# PID namespace, by the run we are still in. The two extra fields of write_running_task_pid() are
+# checked before the process table is even looked at, and each one fails *open* when absent, so a
+# bare number - the Scala side's, or an older version's - behaves exactly as it used to.
+recorded_pid_is_running <- function(rec, type = "R") {
+  if (length(rec$pid) != 1 || is.na(rec$pid)) {
+    return(FALSE)
   }
-  tryCatch(
-    as.integer(readChar(pid_path, file.info(pid_path)$size)),
-    error = function(e) NA_integer_,
-    warning = function(w) NA_integer_
-  )
+  # Written somewhere else: another machine, or a container of this one. Its numbering says nothing
+  # about our process table, so this record is stale by construction - not "alive", not "unknown".
+  if (
+    !is.na(rec$host) &&
+      !identical(rec$host, as.character(conf$instance_host))
+  ) {
+    return(FALSE)
+  }
+  # Same number, different process: the PID has been recycled since the record was written. Only a
+  # start time we can actually read now disproves the record; when the OS will not tell us (see
+  # pid_start_time()), the signal is dropped rather than guessed at.
+  if (!is.na(rec$start_time)) {
+    started <- pid_start_time(rec$pid)
+    if (!is.na(started) && !identical(started, rec$start_time)) {
+      return(FALSE)
+    }
+  }
+  # Through the named probes rather than pid_is_running_of_type() directly, so that the seam the
+  # tests already mock stays the seam every path goes through (see helper-conf.R: liveness cannot be
+  # established for real in a test, an R session hosted under a name of its own - ark for Positron -
+  # not being recognised by name).
+  if (identical(type, "java")) {
+    is_java_pid_running(rec$pid)
+  } else {
+    is_r_pid_running(rec$pid)
+  }
+}
+
+# Start time of `pid`, as an opaque string only ever compared with another value of this function
+# taken on this machine. NA when the OS will not say, in which case the caller drops the signal.
+pid_start_time <- function(pid) {
+  if (length(pid) != 1 || is.na(pid)) {
+    return(NA_character_)
+  }
+  if (.Platform$OS.type == "windows") {
+    # There is no cheap, non deprecated way to ask for it: wmic is gone from recent Windows and
+    # shelling out to PowerShell costs about a second, on a function the fs monitor calls every two
+    # seconds. Windows is not a container host in this deployment, so the `host` field already
+    # covers what this signal is here for, and returning NA keeps the previous behaviour.
+    return(NA_character_)
+  }
+  # Linux: field 22 of /proc/<pid>/stat, the start time in clock ticks since boot. Read from the
+  # file rather than through ps, so it costs no process. Field 2 is the command name, which may
+  # itself contain spaces and parentheses, so the fields are counted from the last ")" - after
+  # which the first one is field 3, and field 22 is therefore the 20th.
+  stat_path <- file.path("/proc", pid, "stat")
+  if (file.exists(stat_path)) {
+    line <- tryCatch(
+      readLines(stat_path, warn = FALSE)[[1]],
+      error = function(e) NA_character_,
+      warning = function(w) NA_character_
+    )
+    if (is.na(line)) {
+      return(NA_character_)
+    }
+    fields <- strsplit(trimws(sub("^.*\\)", "", line)), "[[:space:]]+")[[1]]
+    return(if (length(fields) >= 20) fields[[20]] else NA_character_)
+  }
+  # macOS and the other unices: ps knows it, to the second. That resolution is plenty - what is
+  # being told apart is two processes, and a PID is not recycled within the second it was freed.
+  out <- suppressWarnings(tryCatch(
+    system(paste("ps -o lstart= -p", pid), intern = TRUE, ignore.stderr = TRUE),
+    error = function(e) character(0)
+  ))
+  out <- trimws(out)
+  out <- out[nzchar(out)]
+  if (length(out) == 1) out else NA_character_
 }
 
 # Path of the PID file of a runner, on the *local* disk of this machine.
@@ -845,25 +963,76 @@ get_running_task_pid_path <- function(name) {
 # Extracted from get_running_task_pid() so that the very same test can be applied to a PID that does
 # not come from a PID file - namely the one recorded inside a runner lease, which is what lets a
 # crashed runner be detected on its own host without waiting for the lease TTL (R/runners-lease.R,
-# lease_holder_is_dead_locally()). Behaviour is unchanged: the former "mac" branch was character for
-# character the same command as the unix one, so the two are now a single branch.
+# lease_holder_is_dead_locally()).
 is_r_pid_running <- function(pid) {
+  pid_is_running_of_type(pid, "R")
+}
+
+# TRUE when `pid` is still a running JVM *of this machine* - the database service the fs loop spawns,
+# recorded in fs.java.PID / detect.java.PID by the Scala side itself.
+#
+# Named next to is_r_pid_running() for the same reason: it is the single seam through which every
+# liveness question about a java runner passes, and therefore the one a test can mock.
+is_java_pid_running <- function(pid) {
+  pid_is_running_of_type(pid, "java")
+}
+
+# TRUE when `pid` is a running process of this machine whose command *name* matches `type`.
+#
+# Exact on the PID, which the pipeline this replaced was not. It used to be
+#   ps -cax | grep 'R\|rsession' | grep <pid>
+# i.e. "some line mentioning R also contains these digits somewhere", so any R process whose ps line
+# happened to contain the digits of `pid` answered yes on its behalf: PID 9 reads as alive as soon
+# as an unrelated R session holds PID 2990. Together with a PID file carrying no host, that is what
+# made a leftover container fs.PID refuse the start of a local fs with
+# "Runner fs PID: 9 is already running", and what could have had kill_task() signal a host process
+# that had nothing to do with episomer.
+pid_is_running_of_type <- function(pid, type = "R") {
   if (length(pid) != 1 || is.na(pid)) {
     return(FALSE)
   }
+  image <- runner_process_image(type)
   if (.Platform$OS.type == "windows") {
-    length(grep(
-      "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe",
-      system(paste('tasklist /nh /fi "pid eq ', pid, '"'), intern = TRUE)
-    )) >
-      0
+    # tasklist filters on the PID itself, so only the image name is left to match here.
+    out <- suppressWarnings(tryCatch(
+      system(sprintf('tasklist /nh /fi "pid eq %s"', pid), intern = TRUE),
+      error = function(e) character(0)
+    ))
+    any(grepl(image, out))
   } else {
-    system(
-      paste("ps -cax | grep 'R\\|rsession' | grep ", pid),
-      ignore.stdout = TRUE
-    ) ==
-      0
+    any(grepl(image, pid_command_name(pid)))
   }
+}
+
+# The command names a runner process of that type is allowed to have. The former "mac" branch was
+# character for character the same as the unix one, so the two are a single branch.
+runner_process_image <- function(type) {
+  if (.Platform$OS.type == "windows") {
+    switch(
+      type,
+      R = "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe",
+      java = "java\\.exe",
+      stop("Unsupported type of process")
+    )
+  } else {
+    switch(
+      type,
+      R = "R|rsession",
+      java = "java",
+      stop("Unsupported type of process")
+    )
+  }
+}
+
+# Command name of `pid` on a unix, character(0) when there is no such process. Rscript execs the R
+# binary, so a runner started by `Rscript run.R` reports "R" here.
+pid_command_name <- function(pid) {
+  out <- suppressWarnings(tryCatch(
+    system(paste("ps -p", pid, "-o comm="), intern = TRUE, ignore.stderr = TRUE),
+    error = function(e) character(0)
+  ))
+  out <- trimws(out)
+  out[nzchar(out)]
 }
 
 loop_run_issues <- function(loop_name) {
