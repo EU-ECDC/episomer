@@ -1,6 +1,7 @@
   services:
     fs:
-      image: episomer-dev
+      image: episomer-dev      
+      dns_search: "."
       pull_policy: never
       restart: on-failure
       build: 
@@ -21,8 +22,8 @@
         EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
         EPISOMER_OPTION_SM_ALERTS_BLUESKY: "TRUE"
-        EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
-        EPISOMER_OPTION_SM_ALERTS_MASTODON: "TRUE"
+        EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "FALSE"
+        EPISOMER_OPTION_SM_ALERTS_MASTODON: "FALSE"
         EPISOMER_OPTION_MASTODON_INSTANCES: "mastodon.social;mstdn.party"
         EPISOMER_OPTION_FS_URL: "http://fs"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
@@ -43,6 +44,7 @@
         - ${EPI_HOME}:/episomer-data
     search:
       image: episomer-dev
+      dns_search: "."
       pull_policy: never
       restart: on-failure
       depends_on:
@@ -66,6 +68,7 @@
         - ${EPI_HOME}/jobs:/episomer-data/jobs
     detect:
       image: episomer-dev
+      dns_search: "."
       pull_policy: never
       restart: on-failure
       depends_on:
