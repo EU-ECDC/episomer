@@ -54,7 +54,7 @@ RUN git fetch origin 1.12.x
 RUN git checkout origin/1.12.x
 RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 
-## Installing R package dependencids
+## Installing R package dependencies
 
 ## dependant packages
 USER ${EPISOMER_USER}:${EPISOMER_USER}
@@ -62,10 +62,11 @@ ENV PATH="$PATH:/git/sbt"
 ENV R_LIBS_USER=/opt/episomer-library
 WORKDIR /episomer
 RUN R -e 'dir.create(path = Sys.getenv("R_LIBS_USER"), showWarnings = FALSE, recursive = TRUE)'
-RUN R -e 'install.packages(c("devtools", "remotes"), lib = Sys.getenv("R_LIBS_USER"))'
+RUN R -e 'install.packages("pak", lib = Sys.getenv("R_LIBS_USER"), repos = sprintf("https://r-lib.github.io/p/pak/stable/%s/%s/%s", .Platform$pkgType, R.Version()$os, R.Version()$arch))'
+RUN R -e 'pak::pkg_install(c("devtools","remotes"), lib = Sys.getenv("R_LIBS_USER"))'
 
 COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} ./episomer/DESCRIPTION /episomer/episomer
-RUN R -e 'devtools::install_deps("episomer")'
+RUN R -e 'pak::local_install_deps("episomer", lib = Sys.getenv("R_LIBS_USER"))'
 
 ## Compiling scala code and producing JAR
 COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} ./scala /episomer/scala
