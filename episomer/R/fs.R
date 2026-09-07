@@ -90,6 +90,28 @@ fs_url_resolves_here <- function() {
   resolves
 }
 
+# Says so when conf$fs_url names a host this machine cannot resolve, i.e. when the address the Scala
+# API is about to bind to does not exist here.
+#
+# The API falls back to localhost in that case (Settings.fsBindHost, scala/src/main/scala/Settings.scala),
+# so this is a diagnosis and not a guard - but it is a diagnosis worth having. fs_url is a bind
+# address kept in properties.json, which every instance sharing the data directory reads: a
+# containerised fs writes the name it binds inside the Docker network ("http://fs",
+# EPISOMER_OPTION_FS_URL in docker/compose.yml) and the host machine then reads it back. Before the
+# fallback existed, the only thing jobs/fs.log had to say about it was a Pekko stack trace ending in
+# "java.net.SocketException: Unresolved address", from a service that had already taken the lease.
+warn_if_fs_url_not_bindable <- function() {
+  if (fs_url_resolves_here()) {
+    return(invisible(FALSE))
+  }
+  message(sprintf(
+    "conf$fs_url is '%s', a host this machine cannot resolve: the database will bind localhost:%s instead. That value comes from properties.json, where another instance wrote the address it binds to - a container binds its Docker service name, which means nothing outside that network. Set fs_url on the configuration page if this machine should bind something else.",
+    conf$fs_url,
+    conf$fs_port
+  ))
+  invisible(TRUE)
+}
+
 get_scala_geotraining_url <- function() {
   paste(get_scala_api_endpoint(), "geotraining-set", sep = "/")
 }
@@ -376,6 +398,10 @@ fs_loop <- function(data_dir = NA) {
   # 3.4). release_runner_lease() checks it is still the holder before moving anything, so an
   # instance that silently lost its lease cannot take away the new holder's file.
   on.exit(unregister_runner(), add = TRUE)
+
+  # Said once, here: from the next line on this process is the JVM's, and whatever it has to say
+  # about the address it binds arrives as a stack trace.
+  warn_if_fs_url_not_bindable()
 
   # Infinite loop calling the fs runner
   while (TRUE) {

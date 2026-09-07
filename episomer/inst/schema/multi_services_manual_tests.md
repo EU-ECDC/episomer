@@ -303,19 +303,53 @@ tail $EPI_HOME/fs_mon.log
       the only place those can be read: `fs_loop()` never collects the value of the future, so
       everything the worker writes to stdout or raises as a condition stays in it forever.
 
-**M3-4b — the same PID reuse, the other way round: `fs` is not released and waits its TTL out.**
-Known gap, worth re-reading the fs log for what it costs:
+**M3-4b — the same PID reuse, the other way round: `fs` reclaims its own lease at once (issue 15).**
+This used to be a known gap costing one TTL. Run `compose-up` / `compose-down` / `compose-up` — the
+first `up` is what writes a PID file in the record format, so the check is on the *second* one:
 
 ```bash
-docker compose -f docker/compose.yml logs fs | grep "already held\|has been claimed"
+docker compose -f docker/compose.yml logs fs | grep "already held\|has been claimed\|Released"
 ```
 
-- [ ] `Runner 'fs' is already held by another instance ... waiting`, then `has been claimed after
-      waiting 2 min`. The lease of the previous run names PID 9, and the main `Rscript` of the new
-      container is PID 9 again, so `lease_holder_is_dead_locally()` sees a live process and refuses
-      to release a lease whose holder is in fact long gone. Recording the *start time* of the holder
-      process next to its PID is what would close this one; until then, a `compose up` after a
-      `compose down` costs the fs one TTL.
+- [ ] the log says `Released the lease of runner fs: its holder (PID ...) is not running on this
+      machine anymore`, and **not** `already held by another instance ... waiting`. The lease of the
+      previous run names PID 9 and the main `Rscript` of the new container is PID 9 again, so
+      neither the host name nor the number tells the two apart — the *start time* recorded next to
+      the PID does.
+- [ ] `head -3 $EPI_HOME/fs.PID` shows the three lines of the record: the PID, then `fs`
+      (`EPISOMER_INSTANCE`), then a number of clock ticks. A file holding nothing but a number was
+      written by a version before issue 15, and falls back to the old behaviour.
+
+**M3-4c — `compose down`, then restart the fs from the R wizard on the host.** The scenario issue 15
+was found on. The container writes `$EPI_HOME/fs.PID` into the mounted data directory, `compose down`
+runs no R code to remove it, and the host then reads a PID that belongs to its own process table.
+
+```bash
+make compose-up
+make compose-down
+cat $EPI_HOME/fs.PID          # still there, naming a PID of the container - by design
+R -e "episomer::setup()"      # option 1, or start the fs from the Shiny app
+tail $EPI_HOME/jobs/fs.log
+```
+
+- [ ] `fs.log` does **not** say `Runner  fs PID: 9 is already running`. That was the whole bug: the
+      refusal came from the PID layer, which has no TTL, so waiting never helped.
+- [ ] `head -2 $EPI_HOME/fs.PID` now names *this* machine (`Sys.info()[["nodename"]]`, or
+      `EPISOMER_INSTANCE` if the host sets it), not `fs`.
+- [ ] nothing had to be deleted by hand. If you want to check the other direction too, start the fs
+      on the host, then `make compose-up`: the container must refuse or wait on the *lease*, never
+      believe the host's `fs.PID` describes one of its own processes.
+- [ ] the fs then actually **serves**, and `fs.log` shows neither `Unresolved address` nor a Pekko
+      stack trace. `properties.json` is shared, so it still holds `"fs_url": "http://fs"` — the
+      name the container binds — and the host cannot resolve it. `Settings.fsBindHost` binds
+      `localhost` there instead (issue 16), which is where `get_scala_api_endpoint()` rule 4
+      already looks. R says so first:
+      `conf$fs_url is 'http://fs', a host this machine cannot resolve`.
+- [ ] `make compose-up` afterwards still binds `fs` inside the container, from that same unchanged
+      `properties.json`: `docker compose -f docker/compose.yml logs fs | grep "cannot be resolved"`
+      must print **nothing**, and `search` must keep collecting. Do not "fix" `fs_url` to
+      `http://localhost` to make the host work — that would break the other two containers, which
+      reach the database by service name.
 
 ---
 

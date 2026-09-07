@@ -76,6 +76,42 @@ case class Settings(epiHome:String) {
   def fsLongBatchTimeout = properties.fields.get("fs_long_batch_timeout").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(60*60*24)
   def fsPort = properties.fields.get("fs_port").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(8080)
   def fsUrl = properties.fields.get("fs_url").map(v => v.asInstanceOf[JsString].value).getOrElse("http://localhost")
+
+  // The interface the API actually binds to (API.scala, Http().newServerAt).
+  //
+  // fs_url is a *bind* address, and it is stored in properties.json - a file every instance sharing
+  // the data directory reads. R/fs.R carries the same paragraph at its top for the client half of
+  // this problem: a containerised fs writes there the name it binds to *inside* the Docker network
+  // ("http://fs", EPISOMER_OPTION_FS_URL in docker/compose.yml), and that name exists nowhere else.
+  // Any other process starting the database from that same directory - the R wizard on the host is
+  // the one that actually happened - then bound a name nothing could resolve and died with
+  //     java.net.SocketException: Unresolved address
+  // before serving a single request, having already taken the fs lease and written its PID file.
+  //
+  // So the host is checked before it is used, and localhost stands in when it does not resolve
+  // here. That is the mirror of rule 4 of get_scala_api_endpoint() (R/fs.R), which falls back to
+  // localhost:fs_port for exactly the same reason - so both ends land on the same address, and in
+  // the container case the port is published on the host anyway.
+  //
+  // Only *resolvability* is tested, deliberately. A name that resolves to an address this machine
+  // does not hold is a different mistake with a diagnosis of its own (BindException: cannot assign
+  // requested address), and silently binding localhost instead of an interface the operator named
+  // on purpose would hide it.
+  def fsBindHost = {
+    val configured = fsUrl.replaceAll("^https?://", "").replaceAll("/+$", "")
+    if(hostResolvesHere(configured))
+      configured
+    else {
+      println(s"fs_url host '$configured' cannot be resolved on this machine: binding 'localhost' instead. It was most likely written in properties.json by another instance - a container binds its Docker service name, which means nothing outside that network.")
+      "localhost"
+    }
+  }
+
+  def hostResolvesHere(host:String) =
+    host.nonEmpty && (
+      try { java.net.InetAddress.getByName(host); true }
+      catch { case _:Throwable => false }
+    )
   
   def splitter = properties.fields.get("postSplitterRegex").map(v => v.asInstanceOf[JsString].value).getOrElse(Settings.defaultSplitter)
   def forcedGeo = this.loadJson("geo/forced-geo.json").map(json => EpiSerialisation.forcedGeoFormat.read(json)) 

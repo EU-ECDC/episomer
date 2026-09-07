@@ -106,9 +106,30 @@ set_lease_pid <- function(name, pid) {
   invisible(pid)
 }
 
-# The PID file register_runner() writes on the local disk when it starts a runner here.
+# A PID file holding nothing but the number, which is what the Scala side writes for the JVMs when
+# EPISOMER_INSTANCE is unset (ProcessID.writePID) and what every version before the record format
+# wrote. Kept as the default in the tests that only care about the number: the fields it does not
+# carry read as "unknown" and fail open, so this is the previous behaviour exactly.
 write_local_pid_file <- function(name, pid) {
   write(pid, file = get_running_task_pid_path(name), append = FALSE)
+  invisible(pid)
+}
+
+# A PID file as another PID namespace would have left it in a directory we also read: the same path
+# and a plausible number, but a `host` or a `start_time` of its own. This is the state a
+# `make compose-down` leaves in $EPI_HOME - the fs container mounts the data directory, so its
+# fs.PID is written there and read back by the host, where the number means something else
+# entirely (see write_running_task_pid(), R/runners.R).
+write_foreign_pid_file <- function(
+  name,
+  pid,
+  host = "fs",
+  start_time = "0"
+) {
+  writeLines(
+    c(as.character(pid), host, start_time),
+    con = get_running_task_pid_path(name)
+  )
   invisible(pid)
 }
 

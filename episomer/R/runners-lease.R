@@ -130,7 +130,8 @@ read_runner_lease <- function(name) {
 # Two corroborating signals are required, and the second one is what makes this safe:
 #
 #   1. the lease names our host (conf$instance_host), and
-#   2. our *local* PID file for that runner records exactly the PID written in the lease.
+#   2. our *local* PID file for that runner records exactly the PID written in the lease, and that
+#      record still describes a live process of this namespace (recorded_pid_is_running()).
 #
 # Signal 1 alone would be enough between real machines, but not between containers:
 # EPISOMER_INSTANCE is set per service in docker/compose.yml, so two containers of the same service
@@ -138,7 +139,9 @@ read_runner_lease <- function(name) {
 # "PID 42 does not exist here" would then not mean "the holder is dead", and we would steal a live
 # lease - the one thing this whole mechanism exists to prevent. Signal 2 closes that door: the PID
 # file is written by the holder on the disk we are reading (conf$data_dir is local to the container,
-# only jobs/ is shared), so a PID file naming the same PID means that PID really is ours to test.
+# only jobs/ is shared), so a PID file naming the same PID means that PID really is ours to test -
+# and the host and start time the record carries alongside the PID say whether it still does, which
+# is what tells a restarted container from a live one.
 #
 # Both signals fail closed: anything missing, unreadable or merely different means "not my business,
 # trust the mtime", i.e. the lease is treated as alive until it expires.
@@ -155,10 +158,17 @@ lease_holder_is_dead_locally <- function(lease, name) {
     return(FALSE)
   }
   # signal 2: this machine's own PID file agrees on which process that is
-  if (!identical(read_running_task_pid_file(name), lease_pid)) {
+  rec <- read_running_task_pid_record(name)
+  if (!identical(rec$pid, lease_pid)) {
     return(FALSE)
   }
-  !is_r_pid_running(lease_pid)
+  # recorded_pid_is_running() rather than is_r_pid_running(): the record carries the host and the
+  # start time of the process it describes, and both are needed here. The host tells a PID file
+  # written in this namespace from one a container of ours left in the same mounted directory, and
+  # the start time tells the holder from a *different* process that has since been handed its
+  # number - which is exactly what kept a restarted fs container from reclaiming its own lease, its
+  # new main Rscript being PID 9 again (inst/schema/multi_services_plan.md, section 9 item 6).
+  !recorded_pid_is_running(rec)
 }
 
 # TRUE when nothing stops this instance from claiming `name`.

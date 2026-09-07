@@ -246,3 +246,32 @@ test_that("epifile.mtime answers about each path of a vector", {
   expect_false(is.na(times[[1]]))
   expect_true(is.na(times[[2]]))
 })
+
+# The bind half of the same problem ---------------------------------------------------------------
+
+# get_scala_api_endpoint() above is the *client* half: where do I call the fs. The bind half is the
+# Scala API's, which reads fs_url out of properties.json itself and binds it verbatim - so the host
+# running setup() on a data directory a container has written to used to bind "fs", a name that
+# exists only inside the Docker network, and die on java.net.SocketException: Unresolved address
+# before serving a request. The fallback lives in Settings.fsBindHost; what R owes the operator is
+# saying so in jobs/fs.log, where the only trace of it used to be a Pekko stack trace.
+
+test_that("warn_if_fs_url_not_bindable() says so when fs_url does not resolve here", {
+  local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
+  local_conf(fs_url = "http://fs", fs_port = 8080)
+
+  expect_message(
+    expect_true(warn_if_fs_url_not_bindable()),
+    "a host this machine cannot resolve"
+  )
+  # the operator needs both halves: what was configured, and what will be bound instead
+  expect_message(warn_if_fs_url_not_bindable(), "http://fs")
+  expect_message(warn_if_fs_url_not_bindable(), "localhost:8080")
+})
+
+test_that("warn_if_fs_url_not_bindable() is silent on the machine fs_url belongs to", {
+  local_mocked_bindings(fs_url_resolves_here = function() TRUE, .package = "episomer")
+  local_conf(fs_url = "http://fs", fs_port = 8080)
+
+  expect_silent(expect_false(warn_if_fs_url_not_bindable()))
+})
