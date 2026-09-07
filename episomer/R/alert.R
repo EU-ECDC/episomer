@@ -598,7 +598,11 @@ do_next_alerts <- function(tasks = get_tasks()) {
         wait_for,
         " seconds"
       ))
-      Sys.sleep(wait_for)
+      # Short waits (10, 20, 30 seconds) inside a detect task, so far below the 30-minute detect
+      # TTL. Going through the heartbeat anyway keeps a single way of waiting in the loops, and
+      # gives this one stop_if_lease_lost() for free: no point in waiting for an aggregation we
+      # are not allowed to turn into alerts anymore.
+      sleep_with_heartbeat(wait_for)
       wait_for <- wait_for + 10
     }
     if (wait_for > 30)

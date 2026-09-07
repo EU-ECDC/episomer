@@ -598,6 +598,19 @@ object API {
                         case dest => 
                             complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
                       }
+                    } else if(action == "move") {
+                      entity(as[JsValue]) { 
+                        case JsString(dest)  =>
+                            if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
+                                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                            else { 
+                                val localDest = Paths.get(conf.epiHome, dest.toString)
+                                Files.move(localPath, localDest, StandardCopyOption.REPLACE_EXISTING )
+                                complete("ok") 
+                            }
+                        case dest => 
+                            complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                      }
                     } else { //upload
                       val tempPath = Paths.get(conf.epiHome, f"${path.toString}.part")
                       if(!Files.exists(localPath.getParent) && createDirs)

@@ -10,7 +10,7 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
     setNames(1:length(regions), sapply(regions, function(r) r$name))
   }
   e$sms <- {
-    sms <- active_social_media()
+    sms <- active_social_media() %>% sm_family() %>% unique()
     setNames(sms, paste0(toupper(substr(sms, 1, 1)), substr(sms, 2, nchar(sms))))
   }
   agg_dates <- get_aggregated_period()
@@ -138,11 +138,22 @@ refresh_config_data <- function(
   if ("tasks" %in% limit) {
     # Updating the reactive value tasks_refresh to force dependencies invalidation
     update <- FALSE
+    # These four are cluster-wide answers, read from the runner leases for detect and search and
+    # from /ping for fs (plan section 6.2). That is what the app wants: it is a pure reader of the
+    # runner state and holds no lease itself (section 6.4), and a service running on another machine
+    # of the deployment must show as running here. What machine each of them runs on is what the
+    # status table of issue 8 will add.
     e$detect_running <- is_detect_running()
     e$fs_running <- is_fs_running()
     e$search_running <- is_search_running()
     e$missing_search_jobs <- missing_search_jobs()
     e$search_diff <- round(Sys.time() - last_search_time())
+
+    # The status table of plan issue 8: one row per runner holding a lease, wherever it runs. It
+    # answers what the three booleans above cannot - *which machine* is collecting, and whether a
+    # runner that reads as stopped is free or held by a lease nobody renews anymore. Refreshed with
+    # the rest of the "tasks" block, i.e. every ten seconds while the configuration page is open.
+    e$runner_leases_df <- runner_leases_df()
 
     # Detecting if some change has happened since last evaluation
     if (!exists("tasks_refresh_flag", where = e)) {

@@ -13,6 +13,6 @@ sm_api_get_token(network)
 Get social media token
 }
 \details{
-this function implements the authethication on the respective social media and stores it securely. 
+this function implements the authethication on the respective social media and stores it securely.
 It is called by the search loop before starting message collection
 }

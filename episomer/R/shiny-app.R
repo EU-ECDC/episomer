@@ -6,7 +6,12 @@
 #' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @param profile The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
-#' @param fs_remote address of the central instance of episomer for accessing
+#' @param fs_remote address of the central instance of episomer for accessing. When not
+#' provided it is resolved for this machine, in this order: the EPI_HOST environment
+#' variable, then conf$fs_url:conf$fs_port if that host resolves here, then
+#' http://localhost:conf$fs_port. conf$fs_url is the address the database *binds* to and
+#' is shared through properties.json, so on a containerised deployment it names a
+#' Docker-internal host, default: NULL
 #' @return The Shiny server object containing the launched application
 #' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
@@ -37,18 +42,45 @@
 #' @importFrom dplyr select
 #' @importFrom stats setNames
 #' @importFrom utils write.csv head
-episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host = NULL, port = NULL, fs_remote = NULL) {
+episomer_app <- function(
+  data_dir = NA,
+  profile = c("dashboard", "admin"),
+  host = NULL,
+  port = NULL,
+  fs_remote = NULL
+) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
   match.arg(profile, c("dashboard", "admin"))
-  if(!is.null(fs_remote) || !is.null(conf$fs_remote)) {
-    setup_config(fs_remote = fs_remote)
-  } else {
-    setup_config(data_dir)
-    fs_remote <- sprintf("%s:%s", conf$fs_url, conf$fs_port)
-    setup_config(fs_remote = fs_remote)
+
+  # The app always talks to the fs through the API and never through the disk: it is meant to be
+  # able to run on a machine that has no data directory of its own (EPISOMER_RUN=APP in a
+  # container, a dashboard on a laptop). So fs_remote is never left NULL here.
+  #
+  # It is deliberately no longer sprintf("%s:%s", conf$fs_url, conf$fs_port): conf$fs_url is the
+  # address the Scala API *binds* to and it comes from the shared properties.json, so on any
+  # machine other than the fs one it is a name that does not resolve - a containerised fs writes
+  # "http://fs" there. get_scala_api_endpoint() knows that, and answers EPI_HOST or
+  # localhost:fs_port instead (see the resolution order in R/fs.R).
+  if (is.null(fs_remote)) {
+    # A first, local read of the configuration, only to learn fs_port and let the resolution of
+    # get_scala_api_endpoint() run. fs_remote = NULL is what makes it run: with a value it would
+    # short-circuit on conf$fs_remote and hand back what we are trying to compute. The secrets are
+    # skipped: this pass reads two properties and must not be a reason to ask for the encryption
+    # password, the real load below does that.
+    if (is.null(data_dir) || is.na(data_dir)) {
+      setup_config_if_not_already()
+    } else {
+      setup_config(data_dir = data_dir, fs_remote = NULL, ignore_keyring = TRUE)
+    }
+    fs_remote <- get_scala_api_endpoint()
   }
+  setup_config(
+    data_dir = if (is.null(data_dir) || is.na(data_dir)) conf$data_dir else data_dir,
+    fs_remote = fs_remote
+  )
+
   # Loading data for dashboard and configuration
   d <- refresh_dashboard_data()
   if("admin" %in% profile) {
@@ -465,6 +497,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 ),
                 shiny::column(2, shiny::actionButton("stop_detect", "stop"))
               ),
+              ################################################
+              ######### RUNNERS DETAIL #######################
+              ################################################
+              # The three statuses above answer "is this service running somewhere?"; this table
+              # says *where*, and tells a free runner from one held by a lease nobody renews
+              # anymore (inst/schema/multi_services_plan.md section 8). One row per runner holding
+              # a lease, on this machine or on any other machine sharing this database - a runner
+              # nobody holds simply has no row. The app itself never appears here: it is a reader
+              # of the leases, not a runner (section 6.4).
+              shiny::h4("Runners"),
+              DT::dataTableOutput("runner_leases_table"),
               ################################################
               ######### GENERAL PROPERTIES ###################
               ################################################
@@ -885,6 +928,9 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               ##################
               # Mastodon logic #
               ##################
+              # The checkboxes below switch the whole of Mastodon on or off. The instances to
+              # collect from and their access tokens are not editable here: they are added from
+              # the social media menu of episomer::setup(), which stores each token in the keyring.
               shiny::fluidRow(
                 shiny::column(
                   4,
@@ -904,28 +950,12 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                       value = conf$sm_alerts_mastodon
                     ),
                     shiny::fluidRow(
-                      shiny::column(3, "User token"),
+                      shiny::column(3, "Instances"),
                       shiny::column(
                         9,
-                        shiny::passwordInput(
-                          "mastodon_token",
-                          label = NULL,
-                          value = if (is_secret_set("mastodon_token")) {
-                            get_secret("mastodon_token")
-                          } else {
-                            NULL
-                          }
-                        )
-                      )
-                    ),
-                    shiny::fluidRow(
-                      shiny::column(3, "Mastodon instance"),
-                      shiny::column(
-                        9,
-                        shiny::textInput(
-                          "mastodon_instance",
-                          label = NULL,
-                          value = conf$mastodon_instance
+                        shiny::textOutput("conf_mastodon_instances"),
+                        shiny::helpText(
+                          "Mastodon instances and their access tokens are added by running episomer::setup() and choosing the social media authentication step."
                         )
                       )
                     )
@@ -2277,6 +2307,34 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           )
         })
 
+        # rendering the detail of the runners holding a lease, wherever they run
+        output$runner_leases_table <- DT::renderDataTable({
+          # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
+          cd$tasks_refresh_flag()
+          # Adding a dependency to process update (each 10 seconds)
+          cd$process_refresh_flag()
+
+          DT::datatable(
+            cd$runner_leases_df,
+            rownames = FALSE,
+            # A status block, not a data table: no search box, no pagination, no sorting - the rows
+            # come in the reading order of runner_leases_df(). scrollX keeps the five columns
+            # readable inside the narrow status panel.
+            options = list(
+              dom = "t",
+              paging = FALSE,
+              ordering = FALSE,
+              scrollX = TRUE,
+              language = list(
+                emptyTable = paste(
+                  "No runner holds a lease: no episomer service is running on any machine",
+                  "sharing this database."
+                )
+              )
+            )
+          )
+        })
+
         # rendering the slots each time properties are changed
         output$conf_schedule_slots <- shiny::renderText({
           # Adding a dependency to config refresh
@@ -2343,6 +2401,21 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
         # registering the Requirements & alerts runner after button is clicked
         shiny::observeEvent(input$activate_detect, {
+          # Unlike the two buttons above, this one was never gated by loop_run_issues(): it was the
+          # last place able to spawn a detect loop while another machine legitimately holds the
+          # `detect` lease. The check comes before anything else because the rest of this handler
+          # *writes*: it dates the one-shot tasks and saves the configuration, which the loop
+          # already running on the other machine would then pick up. Nothing should be touched when
+          # the answer is "it is running elsewhere".
+          issues = loop_run_issues("detect")
+          if (issues != "") {
+            shiny::showModal(shiny::modalDialog(
+              title = "Warning",
+              issues,
+              footer = shiny::tagList(shiny::modalButton("OK"))
+            ))
+            return(invisible(NULL))
+          }
           # Setting values configuration to trigger one shot tasks for the first time
           if (is.na(conf$dep_updated_on))
             conf$dep_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
@@ -2485,11 +2558,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny_input_list = input
             )
 
-            # Saving Bluesky properties
-            sm_api_set_auth(
-              network = "mastodon",
-              shiny_input_list = input
-            )
+            # Mastodon instances and their access tokens are managed via episomer::setup(),
+            # not from this form, so there is nothing to save here.
 
             # Saving properties.json
             save_config(
@@ -2501,6 +2571,17 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           },
           ignoreInit = TRUE
         )
+
+      # the instances collected from, added with episomer::setup()
+      output$conf_mastodon_instances <- shiny::renderText({
+        cd$properties_refresh_flag()
+        instances <- sm_instances_of("mastodon")
+        if (length(instances) == 0) {
+          "No instance configured yet, no Mastodon post will be collected."
+        } else {
+          paste(instances, collapse = ", ")
+        }
+      })
 
         ######### IMPORTANT USERS LOGIC ###########
         # downloading current important users file

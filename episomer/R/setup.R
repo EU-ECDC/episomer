@@ -2,6 +2,7 @@
 #' @description Perform configuration tasks needed for the proper work of episomer or change settings of these configuration
 #' @param data_dir Character the data directory where episomer will store all files. If not provided and already set in the current session it will reused, default: NULL
 #' @param silent Logical whether episomer should take default actions without asking the user default: FALSE
+#' @param launch Logical whether episomer should run automatically extra steps when selecting Option 1 or 2 in the wizard (setting credentials, running services and shiny app)
 #' @return NULL.
 #' @details Perform configuration tasks needed for the proper work of episomer or change settings of these configuration
 #' @examples
@@ -410,90 +411,217 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     ####################################################################################
     ### Option 6. Social media authentication  #########################################
     ####################################################################################
-    if(main_ans == "6" || (main_ans %in% list("1", "2")) && launch) {
-        sms <- supported_social_media()
-        sms <- sms[sms!="mastodon"]
-        end_answer <- as.character(3* length(sms) + 1)
-        sm_ans <- "0"
-        while(sm_ans != end_answer) {
+    if (main_ans == "6" || ((main_ans %in% list("1", "2")) && launch)) {
+        repeat {
             pause(silent)
-            # Building options
-            default_sm_answer <- end_answer
-            options = list()
-            actions = list()
-            targets = list()
-            for(i in 1:length(sms)) {
-                sm <- sms[[i]]
-                # dealing with activation of sm
-                ie = as.character(3*(i-1)+1)
-                targets[[ie]] = sm
-                if(is_sm_activated(sm)) {
-                    options[[ie]] <- sprintf("Deactivate %s (currently active)", sm)
-                    actions[[ie]] <- "deactivate"
+            # Building the options, three per social media. The menu is rebuilt at each iteration
+            # because adding an instance changes the labels.
+            options <- list()
+            actions <- list()
+            targets <- list()
+            default_sm_answer <- NULL
+            add_option <- function(action, target, label, is_default = FALSE) {
+                ie <- as.character(length(options) + 1)
+                options[[ie]] <<- label
+                actions[[ie]] <<- action
+                targets[[ie]] <<- target
+                if (is_default && is.null(default_sm_answer)) {
+                    default_sm_answer <<- ie
+                }
+            }
+            for (sm in social_media_families()) {
+                instances <- sm_instances_of(sm)
+                # dealing with activation of sm, which for a federated one gates all its instances
+                if (is_sm_activated(sm)) {
+                    add_option(
+                        "deactivate",
+                        sm,
+                        sprintf("Deactivate %s (currently active)", sm)
+                    )
                 } else {
-                    options[[ie]] <- sprintf("Activate %s (currently active)", sm)
-                    actions[[ie]] <- "activate"
-                    if(default_sm_answer == end_answer)
-                        default_sm_answer <- ie
+                    add_option(
+                        "activate",
+                        sm,
+                        sprintf("Activate %s (currently inactive)", sm),
+                        TRUE
+                    )
                 }
                 # dealing with alerts of sm
-                ie = as.character(3*(i-1)+2)
-                targets[[ie]] = sm
-                if(is_sm_with_alerts(sm)) {
-                    options[[ie]] <- sprintf("Exclude %s in alerts (currently included)", sm)
-                    actions[[ie]] <- "exclude"
+                if (is_sm_with_alerts(sm)) {
+                    add_option(
+                        "exclude",
+                        sm,
+                        sprintf("Exclude %s in alerts (currently included)", sm)
+                    )
                 } else {
-                    options[[ie]] <- sprintf("Include %s in alerts (currently excluded)", sm)
-                    actions[[ie]] <- "include"
-                    if(default_sm_answer == end_answer)
-                        default_sm_answer <- ie
+                    add_option(
+                        "include",
+                        sm,
+                        sprintf(
+                            "Include %s in alerts (currently excluded)",
+                            sm
+                        ),
+                        TRUE
+                    )
                 }
-                # dealing with authentication of sm
-                ie = as.character(3*(i-1)+3)
-                targets[[ie]] = sm
-                if(is_sm_authenticated(sm)) {
-                    options[[ie]] <- sprintf("Update %s credentials (currently set)", sm)
-                    actions[[ie]] <- "credentials"
+                # dealing with authentication of sm: a federated social media is authenticated one
+                # instance at a time, each with the access token it issued
+                if (!sm_is_federated(sm)) {
+                    authenticated <- is_sm_authenticated(sm)
+                    add_option(
+                        "credentials",
+                        sm,
+                        sprintf(
+                            "Update %s credentials (%s)",
+                            sm,
+                            if (authenticated) {
+                                "currently set"
+                            } else {
+                                "not properly set up"
+                            }
+                        ),
+                        !authenticated
+                    )
                 } else {
-                    options[[ie]] <- sprintf("Update %s credentials (not properly set up)", sm)
-                    actions[[ie]] <- "credentials"
-                    if(default_sm_answer == end_answer)
-                        default_sm_answer <- ie
+                    add_option(
+                        "add_instance",
+                        sm,
+                        sprintf(
+                            "Add a %s instance or update its token (currently collecting from: %s)",
+                            sm,
+                            if (length(instances) > 0) {
+                                paste(instances, collapse = ", ")
+                            } else {
+                                "none"
+                            }
+                        ),
+                        is_sm_activated(sm) && length(instances) == 0
+                    )
+                    add_option(
+                        "remove_instance",
+                        sm,
+                        sprintf(
+                            "Remove a %s instance (currently collecting from: %s)",
+                            sm,
+                            if (length(instances) > 0) {
+                                paste(instances, collapse = ", ")
+                            } else {
+                                "none"
+                            }
+                        ),
+                        is_sm_activated(sm) && length(instances) == 0
+                    )
                 }
-            } 
+            }
+            end_answer <- as.character(length(options) + 1)
             options[[end_answer]] <- "Do no changes in sm authentication"
- 
+            if (is.null(default_sm_answer)) {
+                default_sm_answer <- end_answer
+            }
+
             is_silent <- silent | (auto && default_sm_answer == end_answer)
-            sm_ans <- choose_between("Do you want to perform changes in social media activation / authentication", 
+            sm_ans <- choose_between(
+                "Do you want to perform changes in social media activation / authentication",
                 options,
-                is_silent,  
+                is_silent,
                 default_sm_answer
             )
             # Performing requested action
-            if(sm_ans != end_answer) {
-                if(actions[[sm_ans]] == "activate") {
-                    sm_activate(targets[[sm_ans]])
+            if (sm_ans == end_answer) {
+                break
+            }
+            action <- actions[[sm_ans]]
+            target <- targets[[sm_ans]]
+            if (action == "activate") {
+                sm_activate(target)
+                # reloading so the networks now collected get their topics
+                setup_config(save_properties_first = TRUE, fs_remote = NULL)
+                save_config()
+                message(sprintf("Social media %s has been activated", target))
+            } else if (action == "deactivate") {
+                sm_deactivate(target)
+                if (length(active_social_media()) == 0) {
+                    sm_activate(target)
+                    message(alert(sprintf(
+                        "At least one social media need to be active. Cannot deactivate %s",
+                        target
+                    )))
+                } else {
                     save_config()
-                    message("Social media %s has bee activated", targets[[sm_ans]])
-                } else if(actions[[sm_ans]] == "deactivate") {
-                    if(length(active_social_media())>1) {
-                        sm_deactivate(targets[[sm_ans]])
-                        save_config()
-                        message(sprintf("Social media %s has bee deactivated", targets[[sm_ans]]))
-                    } else {
-                        message(sprintf("At least one social media need to be active. Cannot deactivate %s", targets[[sm_ans]]))
-                    }
-                } else if(actions[[sm_ans]] == "include") {
-                    sm_set_with_alerts(targets[[sm_ans]])
-                    save_config()
-                    message(sprintf("Social media %s has been included in alert detection", targets[[sm_ans]]))
-                } else if(actions[[sm_ans]] == "exclude") {
-                    sm_set_without_alerts(targets[[sm_ans]])
-                    save_config()
-                    message(sprintf("Social media %s has been excluded of alert detection", targets[[sm_ans]]))
-                } else if(actions[[sm_ans]] == "credentials") {
-                    sm_api_set_auth(targets[[sm_ans]])
-                    message(sprintf("Credentials for social media %s has been updated", targets[[sm_ans]]))
+                    message(sprintf(
+                        "Social media %s has been deactivated",
+                        target
+                    ))
+                }
+            } else if (action == "include") {
+                sm_set_with_alerts(target)
+                save_config()
+                message(sprintf(
+                    "Social media %s has been included in alert detection",
+                    target
+                ))
+            } else if (action == "exclude") {
+                sm_set_without_alerts(target)
+                save_config()
+                message(sprintf(
+                    "Social media %s has been excluded of alert detection",
+                    target
+                ))
+            } else if (action == "credentials") {
+                sm_api_set_auth(target)
+                message(sprintf(
+                    "Credentials for social media %s has been updated",
+                    target
+                ))
+            } else if (action == "add_instance") {
+                instance <- trimws(readline(sprintf(
+                    "Domain of the %s instance to collect from (e.g. mastodon.social):",
+                    target
+                )))
+                if (nchar(instance) > 0) {
+                    tryCatch(
+                        {
+                            # asks for the access token issued by that instance and stores it in
+                            # the keyring, the instance itself goes to the configuration file
+                            network <- sm_add_instance(target, instance)
+                            sm_api_set_auth(network)
+                            # reloading so the new network gets its own topics, then saving them
+                            setup_config(save_properties_first = TRUE, fs_remote = NULL)
+                            save_config()
+                            message(sprintf(
+                                "episomer will now collect posts from %s",
+                                instance
+                            ))
+                        },
+                        error = function(e) message(alert(conditionMessage(e)))
+                    )
+                }
+            } else if (action == "remove_instance") {
+                instance <- trimws(readline(sprintf(
+                    "Domain of the %s instance to stop collecting from (e.g. mastodon.social):",
+                    target
+                )))
+                if (nchar(instance) > 0) {
+                    tryCatch(
+                        {
+                            sm_remove_instance(target, instance)
+                            network <- paste(target, instance, sep = ".")
+                            secret <- sm_secret_name(network, "token")
+                            set_secret(secret = secret, value = "")
+                            message(sprintf(
+                                "Removing token for %s",
+                                instance
+                            ))
+                            # reloading so the new network gets its own topics, then saving them
+                            setup_config(save_properties_first = TRUE, fs_remote = NULL)
+                            save_config()
+                            message(sprintf(
+                                "episomer stops collecting posts from %s",
+                                instance
+                            ))
+                        },
+                        error = function(e) message(alert(conditionMessage(e)))
+                    )
                 }
             }
         }
@@ -501,7 +629,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     ####################################################################################
     ### Option 7. Runnin episomer services  ############################################
     ####################################################################################
-    if(main_ans == "7" || (main_ans %in% list("1", "2")) && launch) {
+    if (main_ans == "7" || ((main_ans %in% list("1", "2")) && launch)) {
         pause(silent)
         # Building options
         default_s_answer <- 1
@@ -517,7 +645,14 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             actions["2"] <- "start"
             targets["2"] <- "fs"
         }
-        if(is_search_running()) {
+        # Deliberately the *local* status, not is_search_running() / is_detect_running(): the two
+        # actions this menu offers - register_*_runner_task() and stop_*_runner_task() - start and
+        # kill processes on this machine only. Labelling the entry "currently running" because
+        # another machine of the cluster holds the lease would offer to stop something that is not
+        # here. A local start refused by the lease still says so, in the log of the process it
+        # spawns (register_runner() -> runner_lease_holder_message()).
+        # fs keeps its /ping check below: it is not lease-based (plan section 6.2).
+        if(is_runner_running_locally("search")) {
             options["3"] <- "Stop search loop (currently running)"
             actions["3"] <- "stop"
             targets["3"] <- "search"
@@ -526,7 +661,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             actions["3"] <- "start"
             targets["3"] <- "search"
         }
-        if(is_detect_running()) {
+        if(is_runner_running_locally("detect")) {
             options["4"] <- "Stop detect loop (currently running)"
             actions["4"] <- "stop"
             targets["4"] <- "detect"
@@ -601,7 +736,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
     ### Option 8. Runnin the shiny app  ################################################
     ####################################################################################
     app <- NULL
-    if(main_ans == "8" || (main_ans %in% list("1", "2")) && launch) {
+    if (main_ans == "8" || ((main_ans %in% list("1", "2")) && launch)) {
         pause(silent)
         # Building options
         default_sh_answer <- "1"
@@ -618,16 +753,33 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
         )
         # Performing requested action
         if(sh_ans != end_ans && !is_fs_running()) {
-            message(alert("Cannot launch the episomer app. The episomer database need to be running"))
+            # Naming the URL that did not answer is the whole point of this message: the database
+            # may very well be running and simply not be reachable *from here* under the address
+            # this machine resolved (see get_scala_api_endpoint()). Without the URL the wizard just
+            # goes quiet and returns no app, which is indistinguishable from a Shiny failure.
+            message(alert(sprintf(
+                paste(
+                    "Cannot launch the episomer app: the episomer database did not answer on %s.",
+                    "If it runs somewhere else - a container, another machine - say where with the",
+                    "EPI_HOST environment variable (e.g. EPI_HOST=http://localhost:%s) or by",
+                    "calling episomer_app(fs_remote = ...) directly.",
+                    sep = "\n"
+                ),
+                get_scala_ping_url(),
+                conf$fs_port
+            )))
         } else if (sh_ans == "1") {
            message("Opening the shiny app in full mode...")
-           app <- episomer_app()
+            app <- episomer_app(data_dir = conf$data_dir)
         } else if (sh_ans == "2") {
            message("Opening the shiny app in dashboard...")
-           app <- episomer_app(profile = c("dashboard"))
+            app <- episomer_app(
+                data_dir = conf$data_dir,
+                profile = c("dashboard")
+            )
         } else if (sh_ans == "3") {
            message("Opening the shiny app in admin...")
-           app <- episomer_app(profile = c("admin"))
+            app <- episomer_app(data_dir = conf$data_dir, profile = c("admin"))
         }
     }
     save_config()    

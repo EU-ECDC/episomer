@@ -1,6 +1,6 @@
 Package: episomer
 Title: Early Detection of Public Health Threats from Social Media Data
-Version: 4.0.4
+Version: 4.0.5
 Authors@R: c( 
      person(given = "Laura",
             family = "Espinosa",
@@ -103,7 +103,8 @@ Imports:
 Suggests: 
     knitr,
     taskscheduleR,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0

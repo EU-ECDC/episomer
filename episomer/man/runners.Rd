@@ -32,7 +32,7 @@ stop_all_runner_tasks()
 
 start_all_runner_tasks()
 
-stop_fs_runner_task()
+stop_fs_runner_task(timeout = 60)
 
 missing_search_jobs()
 
@@ -44,6 +44,9 @@ is_detect_running()
 }
 \arguments{
 \item{wait_until_response}{Logical, whether to wait until the fs runner answers, default FALSE}
+
+\item{timeout}{Numeric how many seconds to wait for the database service to stop answering
+before giving up, default: 60}
 }
 \value{
 Nothing
@@ -131,13 +134,25 @@ This function will try also register the respective scheduled task on Windows.
 Stops the episomer database task if it is already running
 This function will try also deactivate the respective scheduled task on Windows.
 
-returns a char vector with the name of missing social media
+returns a char vector with the name of missing social media.
+The answer is cluster-wide: it is read from the runner leases (`<data_dir>/runners/`), so a
+social media collected by another machine sharing the same database is not reported as missing.
 
-returns a logical value being TRUE if the post collection is running
+returns a logical value being TRUE if the post collection is running, on this machine
+*or on any other machine* sharing the same episomer database: the status is read from the runner
+leases and not from the local PID files. A service that stopped without releasing its lease is
+reported as running until its lease expires (`runner_ttl_search` seconds), unless it crashed on
+this very machine, which is detected at once.
 
-returns a logical value being TRUE if the database runner is actually running
+returns a logical value being TRUE if the database runner is actually running.
+Unlike the other services this one is not answered by the runner lease but by an HTTP call to
+the database `/ping` endpoint: it is instantaneous, it needs no TTL, and it tells whether the
+service *answers* rather than whether some process holds its lease. The `fs` runner does take a
+lease, for a different purpose - stopping a second database from opening the same storage.
 
-returns a logical value being TRUE if the alert detection task is actually running
+returns a logical value being TRUE if the alert detection task is actually running, on
+this machine or on any other machine sharing the same episomer database - see
+\code{is_search_running} for what the runner leases can and cannot tell.
 }
 \examples{
 \dontrun{

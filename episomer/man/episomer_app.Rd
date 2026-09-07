@@ -28,7 +28,12 @@ If not provided the system will try to reuse the existing one from last session 
 
 \item{port}{The port to run the Shiny app on, default: NULL (will run on a random port)}
 
-\item{fs_remote}{address of the central instance of episomer for accessing}
+\item{fs_remote}{address of the central instance of episomer for accessing. When not
+provided it is resolved for this machine, in this order: the EPI_HOST environment
+variable, then conf$fs_url:conf$fs_port if that host resolves here, then
+http://localhost:conf$fs_port. conf$fs_url is the address the database *binds* to and
+is shared through properties.json, so on a containerised deployment it names a
+Docker-internal host, default: NULL}
 }
 \value{
 The Shiny server object containing the launched application

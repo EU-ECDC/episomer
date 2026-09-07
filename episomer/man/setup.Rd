@@ -10,6 +10,8 @@ setup(data_dir = NULL, silent = FALSE, launch = TRUE)
 \item{data_dir}{Character the data directory where episomer will store all files. If not provided and already set in the current session it will reused, default: NULL}
 
 \item{silent}{Logical whether episomer should take default actions without asking the user default: FALSE}
+
+\item{launch}{Logical whether episomer should run automatically extra steps when selecting Option 1 or 2 in the wizard (setting credentials, running services and shiny app)}
 }
 \value{
 NULL.

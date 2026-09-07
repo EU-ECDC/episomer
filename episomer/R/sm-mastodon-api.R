@@ -3,15 +3,63 @@
 #' Get social media token
 #' @details this function implements the authethication on the respective social media and stores it securely.
 #' It is called by the search loop before starting message collection
+#' @param network char, the network to get the token for, its instance is the one the token was
+#' issued by
 #' @return Token
 #' @export
-sm_api_get_token_mastodon <- function() {
+sm_api_get_token_mastodon <- function(network) {
   # @function_def_end (do not delete)
   # Mastodon uses a personal access token (Preferences > Development > New application).
-  if (is_secret_set("mastodon_token")) {
-    return(get_secret("mastodon_token"))
+  # A token is issued by one instance and is only valid on it, so it is stored per network.
+  instance <- mastodon_instance_of(network)
+  secret <- sm_secret_name(network, "token")
+  if (is_secret_set(secret)) {
+    return(get_secret(secret))
   }
-  stop("You have to provide a Mastodon access token to collect Mastodon posts")
+  stop(sprintf(
+    "You have to provide the Mastodon access token issued by %s to collect its posts, add it with the social media menu of episomer::setup()",
+    instance
+  ))
+}
+
+# @function_def_start (do not delete)
+
+#' Whether the credentials needed to authenticate on this Mastodon instance are configured
+#' @details purely local: checks that an access token is stored for this network, without calling
+#' the Mastodon API.
+#' @param network char, the network to check the token for, its instance is the one the token was
+#' issued by
+#' @return logical
+#' @export
+sm_api_has_credentials_mastodon <- function(network) {
+  # @function_def_end (do not delete)
+  is_secret_set(sm_secret_name(network, "token"))
+}
+
+# @function_def_start (do not delete)
+
+#' Whether this social media is made of independent instances
+#' @details Mastodon is federated: every instance is a separate server with its own API endpoint
+#' and its own access tokens, so each instance listed in the mastodon_instances configuration
+#' property is collected as a network of its own.
+#' @return TRUE
+#' @export
+sm_is_federated_mastodon <- function() {
+  # @function_def_end (do not delete)
+  TRUE
+}
+
+#' returns the domain of the mastodon instance a network collects from
+#' @param network char, the name of the network
+mastodon_instance_of <- function(network) {
+  instance <- sm_instance(network)
+  if (is.null(instance)) {
+    stop(sprintf(
+      "The network '%s' does not designate any Mastodon instance. Each instance is collected as a network named after it e.g. 'mastodon.mstdn.party', add one with the social media menu of episomer::setup()",
+      network
+    ))
+  }
+  instance
 }
 
 # @function_def_start (do not delete)
@@ -30,11 +78,20 @@ sm_api_translate_query_mastodon <- function(parsed) {
   # expand the OR subqueries into several native queries. Within a subquery, terms are joined
   # by a space (implicit AND) and negated terms are appended with a leading '-'.
   ret = list()
-  for (i in 1:length(parsed$ors)) {
-    comb = do.call(expand.grid, parsed$ors[[i]])
+  for (i in seq_along(parsed$ors)) {
+    terms <- parsed$ors[[i]]
+    # a subquery with no term at all (what an all-negative query parses to) has nothing to search
+    # for: it produces no native query rather than an empty one.
+    if (length(terms) == 0) next
+    # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
+    # factors: one column per term, the synonyms of a term being the values of its column.
+    # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
+    # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
+    # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
+    comb = expand.grid(terms, stringsAsFactors = FALSE)
     if (nrow(comb) > 0) {
       r <- paste(lapply(
-        1:nrow(comb),
+        seq_len(nrow(comb)),
         function(i) do.call(paste, as.list(comb[i, ]))
       ))
       if (length(parsed$neg) > 0)
@@ -139,13 +196,8 @@ sm_api_search_mastodon <- function(
   verbose = TRUE
 ) {
   # @function_def_end (do not delete)
-  instance <- if (
-    !is.null(conf$mastodon_instance) && nchar(conf$mastodon_instance) > 0
-  ) {
-    conf$mastodon_instance
-  } else {
-    "mastodon.social"
-  }
+  instance <- mastodon_instance_of(plan$network)
+  cat(instance)
   search_url <- sprintf("https://%s/api/v2/search", instance)
 
   req <- httr2::request(search_url) %>%
@@ -191,47 +243,46 @@ sm_api_search_mastodon <- function(
 
 # @function_def_start (do not delete)
 
-#' @title Save mastodon credentials (access token and instance) and store them securely
-#' @description Update configuration object and underlying storage with given mastodon access token and instance. The token is encrypted.
+#' @title Save mastodon credentials and store them securely
+#' @description Update the underlying storage with the mastodon access token of a network. The token is encrypted.
 #' @param shiny_input_list List of shiny input values containing the mastodon specific credentials if not provided the input will be requested interactively
-#' @details Update authentication tokens in configuration object
+#' @param network char, the network the token belongs to. The instance the token has to be issued
+#' by is the one the network is named after.
+#' @details Update the authentication token of the network. The instance is not asked for: it is
+#' part of the network identifier, set once when registering it with
+#' \code{\link{sm_add_instance}}.
 #' @examples
 #' \dontrun{
 #'  #Setting the configuration values
 #'    sm_api_set_auth_mastodon(
 #'      shiny_input_list = list(
-#'            mastodon_token = "your token here",
-#'            mastodon_instance = "mastodon.social"
-#'    ),
+#'            mastodon_mstdn_party_token = "your token here"
+#'      ),
+#'      network = "mastodon.mstdn.party"
 #'    )
 #' }
 #' @seealso
 #' \code{\link{save_config}}
 #' @return Nothing. Called for side effects (saving credentials)
 #' @export
-sm_api_set_auth_mastodon <- function(shiny_input_list=NULL) {
-# @function_def_end (do not delete)
+sm_api_set_auth_mastodon <- function(shiny_input_list = NULL, network) {
+  # @function_def_end (do not delete)
+  # fails early if the network does not designate an instance, so we never store a token that
+  # could not be used against any endpoint
+  instance <- mastodon_instance_of(network)
+  secret <- sm_secret_name(network, "token")
   if (!is.null(shiny_input_list)) {
-    if (!"mastodon_token" %in% names(shiny_input_list)) {
-      stop("mastodon_token is not in the shiny_input_list")
+    if (!secret %in% names(shiny_input_list)) {
+      stop(sprintf("%s is not in the shiny_input_list", secret))
     }
-    mastodon_token <- shiny_input_list$mastodon_token
-    # instance is optional: keep the currently configured one if not provided
-    mastodon_instance <- if ("mastodon_instance" %in% names(shiny_input_list)) {
-      shiny_input_list$mastodon_instance
-    } else {
-      conf$mastodon_instance
-    }
+    mastodon_token <- shiny_input_list[[secret]]
   } else {
-    mastodon_instance <- readline("Mastodon instance (e.g. mastodon.social):")
-    mastodon_token <- askpass::askpass("Mastodon access token:")
+    mastodon_token <- askpass::askpass(sprintf(
+      "Mastodon access token issued by %s:",
+      instance
+    ))
   }
-  set_secret("mastodon_token", mastodon_token)
-  # the instance is not sensitive: store it as a normal configuration property
-  if (!is.null(mastodon_instance) && nchar(mastodon_instance) > 0) {
-    conf$mastodon_instance <- mastodon_instance
-    save_config(data_dir = conf$data_dir, sm_topics = list())
-  }
+  set_secret(secret, mastodon_token)
 }
 
 # @function_def_start (do not delete)
@@ -381,7 +432,7 @@ mastodon_rerun_after_rate_limit <- function(resp) {
     message("Rate limit exceeded. Waiting for reset.")
     reset <- httr2::resp_header(resp, "X-RateLimit-Reset")
     if (is.null(reset)) {
-      return(60)
+      return(heartbeat_before_retry(60))
     }
     reset_after <- as.numeric(difftime(
       lubridate::as_datetime(reset),
@@ -389,10 +440,20 @@ mastodon_rerun_after_rate_limit <- function(resp) {
       units = "secs"
     ))
     reset_after <- max(reset_after, 1)
+    if (reset_after > 3600) {
+      stop(sprintf(
+        "Mastodon rate limit reset is %s seconds away, aborting instead of waiting.",
+        reset_after
+      ))
+    }
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # A Mastodon rate-limit window is 5 minutes, i.e. the whole search lease TTL: this wait has to
+    # be done with a heartbeat rather than left to httr2 (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 
@@ -604,7 +665,7 @@ mastodon_parse_quoted <- function(status) {
 #' @param plan list, the current plan, used to discard posts out of the targeted window
 mastodon_parse_response <- function(response, plan) {
   res <- list(
-    network = "mastodon",
+    network = plan$network,
     # pagination info used by sm_api_update_plan_after_request_mastodon to advance the
     # max_id + offset cursor. Everything here is computed on the RAW statuses (before any
     # client-side filtering) because it must reflect the API's own result positions/ordering.
@@ -644,7 +705,12 @@ mastodon_parse_response <- function(response, plan) {
     ))
 
     ret <- list(
-      id = unlist(status$id),
+      # For mastodon, we need to pass the uri instead of the id to avoid same messages with different ids between Mastodon instances
+      id = if (!is.null(status$uri)) {
+        unlist(status$uri)
+      } else {
+        unlist(status$id)
+      },
       uri = if (!is.null(status$url)) {
         unlist(status$url)
       } else {

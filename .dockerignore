@@ -29,4 +29,5 @@ prerequisites
 .RData
 .Rhistory
 .Rprofile
+.Renviron
 scala/.Rprofile

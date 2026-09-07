@@ -4,7 +4,11 @@
 \alias{sm_api_get_token_mastodon}
 \title{Get social media token}
 \usage{
-sm_api_get_token_mastodon()
+sm_api_get_token_mastodon(network)
+}
+\arguments{
+\item{network}{char, the network to get the token for, its instance is the one the token was
+issued by}
 }
 \value{
 Token

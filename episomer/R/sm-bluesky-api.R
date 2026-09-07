@@ -1,11 +1,24 @@
 # @function_def_start (do not delete)
 
+#' Whether this social media is made of independent instances
+#' @details Bluesky is served by a single API endpoint, so it is collected as one network.
+#' @return FALSE
+#' @export
+sm_is_federated_bluesky <- function() {
+# @function_def_end (do not delete)
+  FALSE
+}
+
+# @function_def_start (do not delete)
+
 #' Get social media token
-#' @details this function implements the authethication on the respective social media and stores it securely. 
+#' @details this function implements the authethication on the respective social media and stores it securely.
 #' It is called by the search loop before starting message collection
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
 #' @return Token
 #' @export
-sm_api_get_token_bluesky <- function() {
+sm_api_get_token_bluesky <- function(network = NULL) {
 # @function_def_end (do not delete)
   if (is_secret_set("bluesky_session")) {
     session <- jsonlite::fromJSON(get_secret("bluesky_session"))
@@ -17,6 +30,22 @@ sm_api_get_token_bluesky <- function() {
     return(access_jwt)
   }
   return(bluesky_create_session()$access_jwt)
+}
+
+# @function_def_start (do not delete)
+
+#' Whether the credentials needed to authenticate on Bluesky are configured
+#' @details purely local: checks that a stored session or a handle+password pair is present,
+#' without calling the Bluesky API. See sm_api_get_token_bluesky for the live token validity check
+#' performed right before a search.
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
+#' @return logical
+#' @export
+sm_api_has_credentials_bluesky <- function(network = NULL) {
+# @function_def_end (do not delete)
+  is_secret_set("bluesky_session") ||
+    (is_secret_set("bluesky_user") && is_secret_set("bluesky_password"))
 }
 
 
@@ -33,11 +62,20 @@ sm_api_get_token_bluesky <- function() {
 sm_api_translate_query_bluesky <- function(parsed) {
 # @function_def_end (do not delete)
   ret = list()
-  for(i in 1:length(parsed$ors)) {
-     comb = do.call(expand.grid, parsed$ors[[i]])
+  for(i in seq_along(parsed$ors)) {
+     terms <- parsed$ors[[i]]
+     # a subquery with no term at all (what an all-negative query parses to) has nothing to search
+     # for: it produces no native query rather than an empty one.
+     if (length(terms) == 0) next
+     # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
+     # factors: one column per term, the synonyms of a term being the values of its column.
+     # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
+     # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
+     # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
+     comb = expand.grid(terms, stringsAsFactors = FALSE)
      if (nrow(comb) > 0) {
-       r <- paste(lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ]))))
-       if(length(parsed$neg)>0) 
+       r <- paste(lapply(seq_len(nrow(comb)), function(i) do.call(paste, as.list(comb[i, ]))))
+       if(length(parsed$neg)>0)
           r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
        ret = c(ret, r)
      }
@@ -143,6 +181,8 @@ sm_api_search_bluesky <- function(
 #' @title Save bluesky credentials (login and password) and store them securely
 #' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
 #' @param shiny_input_list List of shiny input values containing the bluesky specific credentials if not provided the input will be requested interactively
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
 #' @details Update authentication tokens in configuration object
 #' @examples
 #' \dontrun{
@@ -155,7 +195,7 @@ sm_api_search_bluesky <- function(
 #' \code{\link{save_config}}
 #' @return Nothing. Called for side effects (saving credentials)
 #' @export
-sm_api_set_auth_bluesky <- function(shiny_input_list=NULL) {
+sm_api_set_auth_bluesky <- function(shiny_input_list=NULL, network = NULL) {
 # @function_def_end (do not delete)
   if(!is.null(shiny_input_list)) {
     if(!"bluesky_user" %in% names(shiny_input_list)) {
@@ -233,12 +273,26 @@ bluesky_rate_limited_check <- function(resp) {
 bluesky_rerun_after_rate_limit <- function(resp) {
   if (httr2::resp_status(resp) == 429) {
     message("Rate limit exceeded. Waiting for reset.")
-    time <- as.numeric(httr2::resp_header(resp, "RateLimit-Reset"))
-    reset_after <- time - unclass(Sys.time())
+    reset <- httr2::resp_header(resp, "RateLimit-Reset")
+    if (is.null(reset)) {
+      return(heartbeat_before_retry(60))
+    }
+    reset_after <- as.numeric(reset) - unclass(Sys.time())
+    reset_after <- max(reset_after, 1)
+    if (reset_after > 3600) {
+      stop(sprintf(
+        "Bluesky rate limit reset is %s seconds away, aborting instead of waiting.",
+        reset_after
+      ))
+    }
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # The wait itself is done by heartbeat_before_retry(): httr2 would sleep inside req_perform(),
+    # and a rate-limit reset can be longer than the search lease TTL (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 
@@ -552,17 +606,17 @@ bluesky_parse_features <- function(post) {
 #'
 bluesky_create_session <- function(handle = NULL, password = NULL) {
   if (is.null(handle) && is_secret_set("bluesky_user")) {
-    handle = get_secret("bluesky_user")
+    handle <- get_secret("bluesky_user")
   } else {
     stop("You have to provide a user_name to collect Bluesky posts")
   }
 
   if (is.null(password) && is_secret_set("bluesky_password")) {
-    password = get_secret("bluesky_password")
+    password <- get_secret("bluesky_password")
   } else {
     stop("You have to provide a password to collect Bluesky posts")
   }
-  login_url = "https://bsky.social/xrpc/com.atproto.server.createSession"
+  login_url <- "https://bsky.social/xrpc/com.atproto.server.createSession"
 
   if (!httr2::is_online()) {
     stop("No internet connection")
@@ -578,6 +632,12 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     ) %>%
     httr2::req_perform()
 
+  httr2::request(
+    "https://bsky.social/xrpc/com.atproto.server.createSession"
+  ) %>%
+    httr2::req_body_json(list(identifier = handle, password = password)) %>%
+    httr2::req_perform()
+
   httr2::resp_check_status(resp)
 
   session <- httr2::resp_body_json(resp)
@@ -588,7 +648,7 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     refreshJwt = session$refreshJwt,
     created = strptime(Sys.time(), "%Y-%m-%d %H:%M:%S")
   )
-  json_session = jsonlite::toJSON(session)
+  json_session <- jsonlite::toJSON(session)
   set_secret("bluesky_session", json_session)
   return(jsonlite::fromJSON(json_session))
 }
@@ -615,7 +675,7 @@ bluesky_check_token_validity <- function(
     httr2::req_perform()
   )
   if (httr2::resp_status(last_response()) %in% c(400, 401)) {
-    message("Invalid token. Creating a new session.")
+    message("Invalid token. Creating a new session for Bluesky.")
     access_jwt <- bluesky_create_session()$access_jwt
   }
   return(access_jwt)
