@@ -51,7 +51,7 @@ object API {
   var oLuceneRunner:Option[ActorRef] = None
   var oConf:Option[Settings] = None
   val secrets = MMap[String, String]()
-  def run(epiHome:String) {
+  def run(epiHome:String, fsPortOverride:Option[Int] = None) {
     import fs.EpiSerialisation._
     Logger.getLogger("pekko").setLevel(Level.DEBUG)
     Logger.getLogger("pekko.http").setLevel(Level.DEBUG)
