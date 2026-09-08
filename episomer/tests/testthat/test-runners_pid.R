@@ -135,6 +135,7 @@ test_that("a record whose start time is not that of the live PID is not believed
     start_time = "a previous run"
   )
   local_live_this_process()
+  local_pid_start_time()
 
   expect_false(recorded_pid_is_running(read_running_task_pid_record("detect")))
   expect_identical(get_running_task_pid("detect"), -1)
@@ -143,6 +144,7 @@ test_that("a record whose start time is not that of the live PID is not believed
 test_that("a record of a live process of this host is believed", {
   # The other side of the same test: nothing above may be read as "a record is never trusted".
   local_lease_conf(instance_host = "machine-A")
+  local_pid_start_time()
   write_running_task_pid("detect")
   local_live_this_process()
 
@@ -169,6 +171,7 @@ test_that("a lease whose holder's PID has been recycled here is free again", {
     start_time = "a previous run"
   )
   local_live_this_process()
+  local_pid_start_time()
 
   expect_true(lease_holder_is_dead_locally(read_runner_lease("fs"), "fs"))
   expect_true(lease_is_free(read_runner_lease("fs"), "fs"))

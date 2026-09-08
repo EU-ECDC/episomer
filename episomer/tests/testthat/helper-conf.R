@@ -154,6 +154,28 @@ local_live_this_process <- function(.local_envir = parent.frame()) {
   )
 }
 
+# Says "the OS knows when this process started", for the tests of the recycled-PID signal.
+#
+# pid_start_time() (R/runners.R) answers NA on Windows on purpose - there is no cheap, non
+# deprecated way to ask - and recorded_pid_is_running() then drops the signal and fails open, so a
+# record naming a start time of a previous run is believed there. That is the intended behaviour of
+# the *probe*, but it is not what those tests are about: what is under test is what
+# recorded_pid_is_running() concludes from a start time that disagrees with the record, so the probe
+# is mocked exactly as liveness already is above (see local_live_this_process()), and the decision
+# is then tested on every platform.
+local_pid_start_time <- function(
+  value = "this run",
+  .local_envir = parent.frame()
+) {
+  testthat::local_mocked_bindings(
+    pid_start_time = function(pid) {
+      if (identical(as.integer(pid), Sys.getpid())) value else NA_character_
+    },
+    .package = "episomer",
+    .env = .local_envir
+  )
+}
+
 # What is_r_pid_running() / is_java_pid_running() conclude from a process whose `ps -o comm=` name
 # is `name`, whatever PID it is asked about.
 #
