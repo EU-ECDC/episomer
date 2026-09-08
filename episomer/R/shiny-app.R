@@ -2198,14 +2198,14 @@ episomer_app <- function(
         ################################################
         ######### CONFIGURATION LOGIC ##################
         ################################################
-        
+
         ######### STATUS PANEL LOGIC ##################
         # Timer for updating task statuses
-        # each ten seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
-        # each ten seconds a process refresh flag will be invalidated to trigger process status recalculation
+        # each thirty seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
+        # each thirty seconds a process refresh flag will be invalidated to trigger process status recalculation
         shiny::observe({
           # Setting the timer
-          shiny::invalidateLater(10000)
+          shiny::invalidateLater(30000)
 
           # updating config data
           refresh_config_data(cd, list("tasks", "topics", "langs"))
