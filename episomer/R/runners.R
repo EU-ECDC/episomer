@@ -1063,19 +1063,39 @@ pid_is_running_of_type <- function(pid, type = "R") {
 
 # The command names a runner process of that type is allowed to have. The former "mac" branch was
 # character for character the same as the unix one, so the two are a single branch.
+#
+# The unix patterns are matched against `ps -o comm=`, which is a bare name on Linux ("R", "java")
+# but the *full path* of the executable on macOS ("/.../Resources/bin/exec/R"). The `(^|/)...$`
+# frame is what accepts both while still matching a whole name: a plain "R|rsession" matched
+# anywhere in the string, so any command whose name merely *contains* an upper case R answered yes
+# on a runner's behalf - the same class of accident on the process name that
+# pid_is_running_of_type() removed on the process number.
+#
+# `ark` is the binary Positron hosts its R console in. A loop started by hand from a Positron
+# console is an ordinary R runner in every respect, but ps calls it "ark", so leaving it out made
+# recorded_pid_is_running() answer FALSE for a process that was very much alive: the lease of a
+# running search_loop() read as "crashed here" in the status table, and the setup() menu offered to
+# start a second one. The containers are unaffected either way - devscripts/run.sh starts them with
+# Rscript, which execs the R binary and reports "R".
+#
+# radian is deliberately *not* here, although it is an R console too: it hosts R inside python, so
+# accepting it would mean accepting "python", i.e. calling every python process of the machine a
+# live R runner. That is the one direction this list must never widen in.
 runner_process_image <- function(type) {
   if (.Platform$OS.type == "windows") {
+    # tasklist filters on the PID itself and prints a whole row, of which the image name is only
+    # one field: these patterns have to stay unanchored.
     switch(
       type,
-      R = "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe",
+      R = "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe|ark\\.exe",
       java = "java\\.exe",
       stop("Unsupported type of process")
     )
   } else {
     switch(
       type,
-      R = "R|rsession",
-      java = "java",
+      R = "(^|/)(R|Rscript|Rterm|rsession|ark)$",
+      java = "(^|/)java$",
       stop("Unsupported type of process")
     )
   }
