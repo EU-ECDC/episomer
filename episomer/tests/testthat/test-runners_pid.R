@@ -217,6 +217,52 @@ test_that("is_r_pid_running() is exact on the PID, not a substring of a ps line"
   expect_false(is_r_pid_running(29900L))
 })
 
+test_that("is_r_pid_running() is exact on the command name too", {
+  # The other half of the same accident, on the name rather than on the number: "R|rsession" was
+  # matched anywhere in the string, so any command merely *containing* an upper case R answered yes
+  # on a runner's behalf. The pattern now has to match a whole name, optionally at the end of a
+  # path (R/runners.R, runner_process_image()).
+  skip_on_os("windows")
+
+  accepted <- c(
+    # what a runner of this package really reports: Rscript execs the R binary and says "R"
+    "R",
+    "Rscript",
+    "rsession",
+    # an R session hosted under a name of its own. ark is Positron's R kernel: a loop started by
+    # hand from its console is an ordinary R runner, and reading it as dead is what made a live
+    # search_loop() show up as "crashed here" in the status table.
+    "ark",
+    # macOS prints the full path of the executable rather than the bare name, which is what the
+    # trailing path segment of the pattern is for
+    "/usr/lib/R/bin/exec/R",
+    "/Library/Frameworks/R.framework/Resources/bin/exec/R"
+  )
+  rejected <- c(
+    # a name that merely contains the letter: the substring match this replaced said yes to all three
+    "myRthing",
+    "sparkR",
+    "Rgui-wrapper",
+    # python is what accepting radian would have meant - every python process of the machine
+    # reading as a live R runner
+    "python3",
+    "java"
+  )
+
+  expect_true(all(vapply(accepted, named_pid_is_r, logical(1))))
+  expect_false(any(vapply(rejected, named_pid_is_r, logical(1))))
+})
+
+test_that("is_java_pid_running() is exact on the command name as well", {
+  skip_on_os("windows")
+
+  # the JVM the Scala side records in fs.java.PID, as Linux and macOS name it
+  expect_true(named_pid_is_java("java"))
+  expect_true(named_pid_is_java("/usr/lib/jvm/java-21-openjdk-amd64/bin/java"))
+  expect_false(named_pid_is_java("javascript"))
+  expect_false(named_pid_is_java("R"))
+})
+
 test_that("pid_command_name() names this process, and nothing for a PID no process has", {
   skip_on_os("windows")
   # Deliberately not asserting *which* name: Rscript execs the R binary and reports "R", an IDE

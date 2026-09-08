@@ -95,6 +95,59 @@ test_that("runner_leases_df() tells a lease nobody renews from a holder that cra
   expect_identical(df$Status[df$Runner == "search"], "crashed here")
 })
 
+test_that("the parent search lease is named a supervisor rather than reported stale", {
+  # search_loop() claims "search" and then blocks in parallel::parLapply() for the whole life of
+  # the service, so that lease is never renewed and goes stale after runner_ttl_search on a
+  # perfectly healthy machine (R/runners.R, is_search_running()). Wording it "stale (no heartbeat
+  # for 5 min)" made the table report a dead search loop that was collecting normally; the workers
+  # in the rows below are the ones that carry the truth, and they do renew.
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_search = 300
+  )
+  # held elsewhere, so the local crash check has nothing to say about it
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("search"))
+  with_instance(
+    "instance-B",
+    host = "machine-B",
+    code = write_runner_lease("search.bluesky")
+  )
+  Sys.setFileTime(runner_lease_path("search"), Sys.time() - 600)
+
+  df <- runner_leases_df()
+
+  expect_identical(
+    df$Status[df$Runner == "search"],
+    "supervisor (no heartbeat by design, see the search.* rows)"
+  )
+  # the worker is the row that reports whether anything is actually collecting...
+  expect_identical(df$Status[df$Runner == "search.bluesky"], "running")
+  # ... and it is displayed right under its parent, which is what the wording sends the reader to
+  expect_identical(df$Runner, c("search", "search.bluesky"))
+})
+
+test_that("a per-network search worker nobody renews is still reported stale", {
+  # The supervisor wording is for the parent runner only: a worker has an iteration to renew on
+  # every heartbeat span, so its silence means what it says.
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_search = 300
+  )
+  with_instance(
+    "instance-B",
+    host = "machine-B",
+    code = write_runner_lease("search.bluesky")
+  )
+  Sys.setFileTime(runner_lease_path("search.bluesky"), Sys.time() - 600)
+
+  expect_identical(
+    runner_leases_df()$Status,
+    "stale (no heartbeat for 5 min)"
+  )
+})
+
 test_that("runner_leases_df() shows the age of the last heartbeat and the claim time", {
   local_lease_conf(instance_id = "instance-A", runner_ttl_detect = 1800)
   with_instance("instance-B", host = "machine-B", code = write_runner_lease("detect"))
