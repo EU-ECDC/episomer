@@ -99,7 +99,8 @@ Imports:
     sf,
     cli,
     askpass,
-    bit64
+    bit64,
+    shinyjs
 Suggests: 
     knitr,
     taskscheduleR,
