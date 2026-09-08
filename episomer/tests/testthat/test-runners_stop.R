@@ -84,3 +84,112 @@ test_that("stop_fs_runner_task() returns at once when the fs has stopped", {
 
   expect_silent(stop_fs_runner_task())
 })
+
+# Stopping the search service (stop_runner_task("search"), R/runners.R).
+#
+# search_loop() does no collection itself: it claims the "search" runner and then blocks in
+# parallel::parLapply() while one PSOCK worker per social media runs search_loop_worker(). Those
+# workers are R processes of their own and the OS reparents them rather than killing them, so
+# signalling the parent alone left every network collecting for ever - with search.PID gone, which
+# is what made it look like a clean stop. Only the docker deployment was spared, its whole PID
+# namespace going down with the container.
+
+test_that("local_search_worker_runner_names() names the per-network workers only", {
+  data_dir <- local_lease_conf()
+  write_local_pid_file("search", 1L)
+  write_local_pid_file("search.bluesky", 2L)
+  write_local_pid_file("search.mastodon.piaille.fr", 3L)
+  write_local_pid_file("detect", 4L)
+  # The convention of the Scala side for the JVMs. There is no search JVM today, but these names are
+  # signalled as R processes, so they must not end up in this list if one ever appears.
+  write_local_pid_file("search.java", 5L)
+
+  expect_setequal(
+    local_search_worker_runner_names(),
+    c("search.bluesky", "search.mastodon.piaille.fr")
+  )
+})
+
+test_that("stop_runner_task() kills the search workers, not just the parent loop", {
+  local_lease_conf()
+  write_local_pid_file("search", 1L)
+  write_local_pid_file("search.bluesky", 2L)
+  write_local_pid_file("search.mastodon.piaille.fr", 3L)
+  killed <- character(0)
+  waited <- character(0)
+  local_mocked_bindings(
+    kill_task = function(pidfile, type = "R") {
+      killed <<- c(killed, pidfile)
+      invisible(TRUE)
+    },
+    # The leases the killed processes hold are the per-network ones, so the sweep has to be told to
+    # wait for the workers too: signalling is not dying, and a sweep run while they are still in
+    # the process table releases nothing (release_dead_local_runner_lease(), R/runners-lease.R).
+    release_stopped_runner_leases = function(names, ...) {
+      waited <<- names
+      invisible(character(0))
+    },
+    .package = "episomer"
+  )
+
+  suppressMessages(stop_runner_task("search"))
+
+  expect_setequal(
+    killed,
+    c("search", "search.bluesky", "search.mastodon.piaille.fr")
+  )
+  expect_setequal(
+    waited,
+    c("search", "search.bluesky", "search.mastodon.piaille.fr")
+  )
+})
+
+test_that("search_has_local_process() sees a worker the parent loop has already left behind", {
+  local_lease_conf()
+  local_live_this_process()
+  # The state an operator gets into by killing search.PID by hand, or by a parent that crashed: no
+  # parent left to find, workers still collecting. Reading the parent alone had
+  # stop_all_runner_tasks() decide there was nothing to stop.
+  write_local_pid_file("search", dead_pid)
+  write_local_pid_file("search.bluesky", Sys.getpid())
+
+  expect_false(is_runner_running_locally("search"))
+  expect_true(search_has_local_process())
+})
+
+test_that("search_has_local_process() is FALSE when every search PID file is stale", {
+  local_lease_conf()
+  local_live_this_process()
+  write_local_pid_file("search", dead_pid)
+  write_local_pid_file("search.bluesky", dead_pid)
+
+  expect_false(search_has_local_process())
+})
+
+test_that("a search worker PID file of another PID namespace is never signalled", {
+  local_lease_conf()
+  local_live_this_process()
+  # The state the `fs` container reads on every `make compose-up`: it mounts the whole of $EPI_HOME
+  # and its startup setup(silent = TRUE) goes through stop_all_runner_tasks(), so it lists the
+  # search PID files the *host* wizard left there. Their numbers mean nothing in its namespace, and
+  # PIDs are handed out from the same small range at every container start, so believing one is how
+  # a sweep would come to signal an unrelated R process of that container.
+  #
+  # The name is found - it is a search.<network>.PID like any other - and the record is what refuses
+  # it: recorded_pid_is_running() compares the recorded host with conf$instance_host first.
+  write_foreign_pid_file("search.bluesky", Sys.getpid(), host = "machine-B")
+  killed <- character(0)
+  local_mocked_bindings(
+    kill_task = function(pidfile, type = "R") {
+      killed <<- c(killed, pidfile)
+      invisible(TRUE)
+    },
+    .package = "episomer"
+  )
+
+  expect_equal(local_search_worker_runner_names(), "search.bluesky")
+  expect_false(search_has_local_process())
+  # ...so "stop all services" finds nothing of its own to stop, and signals nothing.
+  suppressMessages(stop_all_runner_tasks())
+  expect_equal(killed, character(0))
+})
