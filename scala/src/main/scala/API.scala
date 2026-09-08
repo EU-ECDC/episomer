@@ -649,6 +649,7 @@ object API {
 
     val bindHost = sys.env.getOrElse("EPISOMER_FS_BIND_HOST", "0.0.0.0")
     Http().newServerAt(bindHost, fsPortOverride.getOrElse(conf.fsPort)).bind(route)
+
   }
   def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
     if(!Files.exists(path))

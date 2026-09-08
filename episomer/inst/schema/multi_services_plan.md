@@ -491,7 +491,10 @@ The app itself does not appear in that table: it is not a runner (§6.4).
    the registration of the new monitor (M3-4). The PID file is now released together with the
    lease, which fixes the second case; the first one needs the holder's **process start time**
    (`/proc/<pid>/stat` field 22, `ps -o lstart=`) stored next to its PID and compared before
-   believing that a live PID is the holder. Not done.
+   believing that a live PID is the holder. **Done in issue 15**, which also adds the one field this
+   paragraph forgot to ask for — the *host* the PID file was written on, without which a file a
+   container leaves in a mounted data directory is read by the host machine as describing one of
+   its own processes.
 
 ---
 
@@ -1289,6 +1292,10 @@ Decided while implementing:
   its predecessor. `search` and `detect` mount only `jobs/`, so their PID files die with the
   container and the second signal correctly fails closed — a restarted `search` container still
   waits out its TTL, and two containers of the same service still cannot steal each other's lease.
+  *Superseded in part by issue 15*: the fs container now reclaims its own lease immediately rather
+  than after one TTL, because its PID file records the holder's start time and can therefore be told
+  from a new process wearing the same number. The leases of `search` and `detect` are still the
+  TTL's business, which is what it is for.
 * **The local layer's exclusion window widened by `runner_claim_guard` seconds.** Two processes of
   this machine starting the same runner at the same moment are now separated by the lease instead of
   by the PID file. That is the layer's job (§3.1): the loser of the confirmation read exits before
@@ -1381,3 +1388,171 @@ Decided while implementing:
   in the meantime: five minutes after a healthy start, any other instance may take the `search`
   lease — harmless, since its workers then wait on the per-network leases forever, but the Host
   column of the status table can name the wrong machine for `search`.
+
+---
+
+### Issue 15 — A PID file must say *whose* PID it holds
+
+Found the way issues 13 and 14 were, by running the deployment they keep declaring partly out of
+scope: `make compose-up`, `make compose-down`, then restarting the fs from the R wizard with
+`setup()`. `jobs/fs.log` said
+
+```
+Error in register_runner("fs", wait = wait) :
+  Runner  fs PID: 9 is already running
+```
+
+and no amount of waiting helped, because the refusal came from the layer that has no TTL: the local
+PID file. `$EPI_HOME/fs.PID` held `9` — the main `Rscript` of the *fs container*, which mounts the
+data directory and therefore writes its PID file where the host reads it. `compose down` runs no R
+code on the way out (§9, issue 13), so the file stayed.
+
+Two independent defects, and it took both to produce that message.
+
+**1. The PID file recorded a number and nothing else.** `get_running_task_pid()` read an integer and
+asked the operating system whether it was alive, which is only a meaningful question in the PID
+namespace the number was handed out in. The lease has known this since issue 2 — it records `host`
+and `lease_holder_is_dead_locally()` compares it before believing anything — but the PID layer,
+sitting *underneath* the lease and consulted first, had no equivalent. The asymmetry is what made
+the situation unrecoverable rather than merely slow: an expired lease frees itself, a PID file does
+not.
+
+The file now carries three lines, and only the first one is not new:
+
+```
+9                 <- the PID, alone on its line
+fs                <- conf$instance_host, the value the lease records too
+143112            <- the holder's start time, /proc/<pid>/stat field 22
+```
+
+* the **host** tells a PID file written in this namespace from one a container of this very machine
+  left in the same mounted directory. This is the field that fixes the bug above;
+* the **start time** closes the same hole *within* one host, where the host name cannot: two runs of
+  the same container are both `fs`, and both get their PIDs from the same small range, so the new
+  run's PID 9 is a different process wearing the holder's number. This is the signal §9 item 6 asked
+  for, and it is what finally lets a restarted fs container reclaim its own lease instead of waiting
+  out its TTL — the case issue 13 listed as "deliberately not fixed".
+
+Both fields are **optional on read**, and that is not laziness: the Scala side writes
+`fs.java.PID` and `detect.java.PID` itself (`ProcessID.writePID`), and `kill_task()` has to keep
+reading files written by either side and by older versions. A missing field means *unknown*, never
+*somebody else's*, so a bare number behaves exactly as it used to. The PID stays alone on the first
+line for the same reason. `ProcessID.writePID` now writes the host line as well, from
+`EPISOMER_INSTANCE` only — the JVM has no way to reproduce R's `Sys.info()[["nodename"]]` it can be
+trusted on (`InetAddress.getLocalHost().getHostName()` goes through a reverse lookup and may answer
+an FQDN, `localhost`, or throw), and a *different spelling of the same host* would be worse than no
+answer: it would read as a foreign namespace and have `stop_fs_runner_task()` leave the JVM running.
+Blank where it is unknown, and the only namespace this field exists to identify is a container's —
+which is exactly where `EPISOMER_INSTANCE` is set.
+
+**2. `is_r_pid_running()` was not exact on the PID.** It ran
+
+```sh
+ps -cax | grep 'R\|rsession' | grep <pid>
+```
+
+i.e. *"some line mentioning R also contains these digits somewhere"*. Any R process whose `ps` line
+happened to contain the digits of `pid` answered on its behalf: `PID 9` reads as alive as soon as an
+unrelated R session holds PID `2990`. On the machine where this was found, that unrelated session
+was the wizard itself. The probe now asks for the command name of that exact PID
+(`ps -p <pid> -o comm=`), so the only thing that can answer for 9 is process 9. `kill_task()` had
+the same pipeline, with a sharper consequence: it *signals* the number it read, so a leftover
+container `fs.PID` could have it `kill` whichever local process had been given PID 9.
+
+Both defects were needed. Exactness alone would have unblocked this particular restart, since PID 9
+did not exist on the host — but not a restart on a machine where it did. The host field alone would
+have fixed it too, but left `kill_task()` shooting at substring matches.
+
+Where it lands:
+
+* `write_running_task_pid()` / `read_running_task_pid_record()` / `recorded_pid_is_running()` /
+  `pid_start_time()` in `R/runners.R`, with `is_r_pid_running()` and the new `is_java_pid_running()`
+  kept as the named seams every liveness question goes through (the tests mock them: the only live
+  process a test is sure to have is itself, and an R session hosted under a name of its own — `ark`
+  for Positron, `python` for radian — is not recognised by name);
+* `lease_holder_is_dead_locally()` in `R/runners-lease.R`, whose second signal is now
+  `recorded_pid_is_running()` rather than a bare PID comparison — that one line is the whole of the
+  §9 item 6 fix;
+* `fs_has_local_process()`, which asked whether the *file* existed. It is the one caller for which
+  the difference is the entire point: the case it exists to catch is a fs published on this port by
+  somebody else, and the commonest somebody else is a container of this machine, which leaves its
+  `fs.PID` right where we look. Believing the file had every `compose-down` leftover read as "the
+  containerised fs is ours to stop", the exact opposite of the message it then prints;
+* `ProcessID.writePID` in `scala/src/main/scala/ProcessId.scala` (needs a `make package`);
+* `test-runners_pid.R`, and `write_foreign_pid_file()` in `helper-conf.R` — a PID file as another
+  namespace would have left it in a directory we also read.
+
+**What this does not do: clean up after `compose down`.** Nothing is deleted and nothing needs to
+be. A leftover file is now *recognised* as describing a process that is not ours, which is strictly
+better than a cleanup step: it also covers a `docker kill`, an OOM, a crash, and the operator who
+never runs the cleanup. `jobs/` is untouched on purpose — its `.log` files are the only trace of
+why a service stopped, and nothing in there was ever what blocked a restart.
+
+**Migration.** A PID file written by a version before this one holds a bare number and therefore
+falls back to the old behaviour. The exactness fix (defect 2) covers those on its own in every case
+where the recorded number is not a live R process on the reading machine, which is the usual one;
+the host and start time only start protecting a given file once the version that writes them has run
+once. Nothing to do by hand, and nothing to delete.
+
+---
+
+### Issue 16 — `fs_url` is a bind address, and bind addresses are machine-local
+
+Found immediately after issue 15, by the restart it had just unblocked. The fs took the lease, wrote
+its PID file, handed the process to the JVM, and `jobs/fs.log` ended on
+
+```
+running with PID: 80178[ERROR] ... Bind failed for TCP channel on endpoint [fs/<unresolved>:8080]
+java.net.SocketException: Unresolved address
+```
+
+Same pathology as issue 15, different file. `conf$fs_url` is the interface the Scala API **binds**
+(`API.scala`, `Http().newServerAt`), it is read straight out of `properties.json`
+(`Settings.scala`), and `properties.json` lives in the data directory *every instance shares*. The
+fs container is configured with `EPISOMER_OPTION_FS_URL=http://fs` (`docker/compose.yml`), the
+environment merge writes it to the file on the first start of a fresh data directory, and from then
+on the file is authoritative for everybody — precedence being defaults < `EPISOMER_OPTION_*` <
+`properties.json` (`R/config.R`). So the host reading that directory bound `fs`, a name that exists
+only inside the Docker network.
+
+The header of `R/fs.R` has described this exact hazard since the day `get_scala_api_endpoint()` was
+written — *"a containerised fs therefore writes there the name it binds to inside the Docker
+network, and any other machine reading that file would call a name that does not exist outside that
+network"* — and fixed the **client** half of it, rule 4: fall back to `localhost:fs_port`. The
+**bind** half was never fixed, and it is the worse of the two: a client that guesses wrong reports
+the database as down, a bind that guesses wrong kills the service.
+
+`Settings.fsBindHost` now applies the mirror of rule 4: strip the scheme, and if the host does not
+resolve on this machine, bind `localhost` and say why. Verified on the machine this was found on —
+`InetAddress.getByName("fs")` throws on the host and succeeds inside the container.
+
+What makes this the right fix rather than a patch is that **the unresolvable case is exactly the
+"not my address" case**, so one shared `fs_url` now serves both ends correctly with no per-machine
+configuration at all:
+
+| reads `fs_url = "http://fs"` | resolves? | binds |
+|---|---|---|
+| the fs container | yes, to its own IP | `fs` — reachable by `search` / `detect`, and via the published port |
+| the host running `setup()` | no | `localhost` — where `get_scala_api_endpoint()` rule 4 already looks |
+
+That is why `fs_url` is *not* being turned into a machine-local property here. It would be the
+tidier model — it is a bind interface, as instance-specific as `conf$instance_host` — but it would
+mean a new class of property, a save path that skips it, and a configuration page that explains
+which machine it applies to. The fallback buys the same outcome for four lines, and covers the
+deployments nobody configured for.
+
+Only *resolvability* is tested, deliberately: a name that resolves to an address this machine does
+not hold is a different mistake with a diagnosis of its own (`BindException: cannot assign requested
+address`), and silently binding `localhost` over an interface the operator named on purpose would
+hide it.
+
+Where it lands:
+
+* `Settings.fsBindHost` / `Settings.hostResolvesHere` in `scala/src/main/scala/Settings.scala`, used
+  by `API.scala` in place of `conf.fsUrl.replace("http://", "")`. **Needs a `make package`**, as
+  does issue 15's `ProcessID.writePID`;
+* `warn_if_fs_url_not_bindable()` in `R/fs.R`, called once by `fs_loop()` just before the process
+  becomes the JVM's. R already knew — `fs_url_resolves_here()` is what rule 4 rests on — and said
+  nothing, so the only trace of this in `jobs/fs.log` was a Pekko stack trace. It is a diagnosis,
+  not a guard: the bind decision belongs to the side that binds;
+* `test-fs.R`, next to the four rules of the client half.

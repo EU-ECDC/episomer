@@ -130,7 +130,8 @@ read_runner_lease <- function(name) {
 # Two corroborating signals are required, and the second one is what makes this safe:
 #
 #   1. the lease names our host (conf$instance_host), and
-#   2. our *local* PID file for that runner records exactly the PID written in the lease.
+#   2. our *local* PID file for that runner records exactly the PID written in the lease, and that
+#      record still describes a live process of this namespace (recorded_pid_is_running()).
 #
 # Signal 1 alone would be enough between real machines, but not between containers:
 # EPISOMER_INSTANCE is set per service in docker/compose.yml, so two containers of the same service
@@ -138,7 +139,9 @@ read_runner_lease <- function(name) {
 # "PID 42 does not exist here" would then not mean "the holder is dead", and we would steal a live
 # lease - the one thing this whole mechanism exists to prevent. Signal 2 closes that door: the PID
 # file is written by the holder on the disk we are reading (conf$data_dir is local to the container,
-# only jobs/ is shared), so a PID file naming the same PID means that PID really is ours to test.
+# only jobs/ is shared), so a PID file naming the same PID means that PID really is ours to test -
+# and the host and start time the record carries alongside the PID say whether it still does, which
+# is what tells a restarted container from a live one.
 #
 # Both signals fail closed: anything missing, unreadable or merely different means "not my business,
 # trust the mtime", i.e. the lease is treated as alive until it expires.
@@ -155,10 +158,17 @@ lease_holder_is_dead_locally <- function(lease, name) {
     return(FALSE)
   }
   # signal 2: this machine's own PID file agrees on which process that is
-  if (!identical(read_running_task_pid_file(name), lease_pid)) {
+  rec <- read_running_task_pid_record(name)
+  if (!identical(rec$pid, lease_pid)) {
     return(FALSE)
   }
-  !is_r_pid_running(lease_pid)
+  # recorded_pid_is_running() rather than is_r_pid_running(): the record carries the host and the
+  # start time of the process it describes, and both are needed here. The host tells a PID file
+  # written in this namespace from one a container of ours left in the same mounted directory, and
+  # the start time tells the holder from a *different* process that has since been handed its
+  # number - which is exactly what kept a restarted fs container from reclaiming its own lease, its
+  # new main Rscript being PID 9 again (inst/schema/multi_services_plan.md, section 9 item 6).
+  !recorded_pid_is_running(rec)
 }
 
 # TRUE when nothing stops this instance from claiming `name`.
@@ -1034,12 +1044,27 @@ runner_leases_df <- function() {
 # stopped) and a lease whose holder was a process of *this* machine that is not running anymore
 # (holder_dead_locally, see lease_holder_is_dead_locally()). The second one is a crash we can be
 # sure about, and it is reclaimable right now instead of at the end of the TTL.
+# "supervisor" is the third case, and it is not a failure at all. The parent "search" runner is
+# claimed by search_loop(), which then blocks in parallel::parLapply() for the whole life of the
+# service: it has no iteration left to renew its lease on, so that lease goes stale after
+# runner_ttl_search on a perfectly healthy machine and stays that way (R/runners.R,
+# is_search_running(), and plan section 9.5). Wording it "stale" made every reader of the table
+# report a dead search loop that was collecting normally, so it is named for what it is, with a
+# pointer to the rows that do carry the truth - the per-network workers, which renew every
+# heartbeat span and which sort_runner_names() has just placed right underneath.
+#
+# The order of the branches is what keeps this honest: a parent that really died *here* is caught
+# by holder_dead_locally above and still reads "crashed here", and a parent that died elsewhere
+# shows up as its workers going stale in the rows this label sends the reader to.
 runner_lease_status_label <- function(lease) {
   if (identical(lease$status, "running")) {
     return("running")
   }
   if (isTRUE(lease$holder_dead_locally)) {
     return("crashed here")
+  }
+  if (identical(lease$runner, "search")) {
+    return("supervisor (no heartbeat by design, see the search.* rows)")
   }
   sprintf("stale (no heartbeat for %s)", format_lease_duration(lease$ttl))
 }

@@ -93,45 +93,35 @@ is_secret_set <- function(secret) {
 }
 
 get_episomer_kr_password <- function() {
-    if (Sys.getenv("EPISOMER_KR_PASSWORD") != "") {
-	
-    } else if (Sys.getenv("EPISOMER_KR_PASSWORD_FILE") != "" && file.exists(Sys.getenv("EPISOMER_KR_PASSWORD_FILE"))) {
-        con <- file(Sys.getenv("EPISOMER_KR_PASSWORD_FILE"), "r", encoding = "UTF-8")
-        val <- readLines(con, n=1, warn=FALSE)
-        close(con)
-        Sys.setenv(EPISOMER_KR_PASSWORD = val)
-    } else {
-      password <- askpass::askpass(
-          paste(c(
-		"Please enter the encryption password for episomer secrets",
-          	"(you can set the environment variable 'EPISOMER_KR_PASSWORD' to avoid this message)",
-                "If you have forgotten the password please remove the file located at:",
-                "    Windows: C:\\Users\\<your user name>\\AppData\\Roaming\\r-keyring\\r-keyring\\episomer_kr_name.keyring",
-                "    Linux: /home/<your user name>/.config/r-keyring/episomer_kr_name.keyring",
-                "    Mac: /home/<your user name>/Library/Application Support/r-keyring/episomer_kr_name.keyring"
-          ),
-          collapse = "\n")
-        )
-      # askpass() returns NULL when it has nobody to ask: no terminal and no graphical prompt. That
-      # is the normal situation for the runners, which are separate processes started by the
-      # Windows task scheduler or by system2() and inherit nothing from the session that registered
-      # them - in particular not a EPISOMER_KR_PASSWORD set there with Sys.setenv(). Passing that
-      # NULL on to Sys.setenv() fails with "'names' and 'val' are of different lengths", which says
-      # nothing about the missing password, so the case is named here instead.
-      if (is.null(password) || length(password) == 0 || is.na(password[[1]])) {
-        stop(paste(
-          "No encryption password available for the episomer secrets and no way to ask for one.",
-          "Set the environment variable 'EPISOMER_KR_PASSWORD' with the password, or",
-          "'EPISOMER_KR_PASSWORD_FILE' with the path of a file whose first line is the password.",
-          "A background runner does not inherit the environment of the session that registered it,",
-          "so setting them with Sys.setenv() in that session is not enough: put them in the user",
-          "'.Renviron' file, which every R process reads at start up.",
-          sep = "\n"
-        ))
-      }
-      Sys.setenv(EPISOMER_KR_PASSWORD = password)
-    }
-    return(Sys.getenv("EPISOMER_KR_PASSWORD"))
+  if (
+    Sys.getenv("EPISOMER_KR_PASSWORD") == "" &
+      Sys.getenv("EPISOMER_KR_PASSWORD_FILE") == ""
+  ) {
+    stop(paste(
+      "No encryption password available for the episomer secrets.",
+      "Set the environment variable 'EPISOMER_KR_PASSWORD' with the password, or",
+      "'EPISOMER_KR_PASSWORD_FILE' with the path of a file whose first line is the password.",
+      "Put them in the user",
+      "'.Renviron' file, which every R process reads at start up.",
+      "To create or open this file please use usethis::edit_r_environ(). Restart your R session once the .Renviron file has been filled.",
+      sep = "\n"
+    ))
+  }
+
+  if (Sys.getenv("EPISOMER_KR_PASSWORD") != "") {} else if (
+    Sys.getenv("EPISOMER_KR_PASSWORD_FILE") != "" &&
+      file.exists(Sys.getenv("EPISOMER_KR_PASSWORD_FILE"))
+  ) {
+    con <- file(
+      Sys.getenv("EPISOMER_KR_PASSWORD_FILE"),
+      "r",
+      encoding = "UTF-8"
+    )
+    val <- readLines(con, n = 1, warn = FALSE)
+    close(con)
+    Sys.setenv(EPISOMER_KR_PASSWORD = val)
+  }
+  return(Sys.getenv("EPISOMER_KR_PASSWORD"))
 }
 # Get a secret from the chosen secret management backend
 get_secret <- function(secret) {
