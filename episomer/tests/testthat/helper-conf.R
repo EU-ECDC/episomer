@@ -154,6 +154,30 @@ local_live_this_process <- function(.local_envir = parent.frame()) {
   )
 }
 
+# What is_r_pid_running() / is_java_pid_running() conclude from a process whose `ps -o comm=` name
+# is `name`, whatever PID it is asked about.
+#
+# The command name is the only input of the decision under test here, and it is the one thing a
+# test cannot arrange for real: it would have to start a process actually called "ark" or
+# "sparkR". Mocking the probe rather than the process is what the tests of this layer already do
+# (see local_live_this_process() above), and pid_command_name() is the single call every liveness
+# question passes through.
+named_pid_is_r <- function(name) {
+  named_pid_is_of_type(name, is_r_pid_running)
+}
+
+named_pid_is_java <- function(name) {
+  named_pid_is_of_type(name, is_java_pid_running)
+}
+
+named_pid_is_of_type <- function(name, probe) {
+  testthat::with_mocked_bindings(
+    probe(1L),
+    pid_command_name = function(pid) name,
+    .package = "episomer"
+  )
+}
+
 # Makes the lease of `name` belong to another machine, as if it had been taken over while this
 # process was busy collecting.
 steal_lease <- function(name) {

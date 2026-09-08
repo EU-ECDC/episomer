@@ -652,7 +652,16 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
         # here. A local start refused by the lease still says so, in the log of the process it
         # spawns (register_runner() -> runner_lease_holder_message()).
         # fs keeps its /ping check below: it is not lease-based (plan section 6.2).
-        if(is_runner_running_locally("search")) {
+        #
+        # search asks search_has_local_process() rather than is_runner_running_locally("search"),
+        # because the parent loop and its per-network workers can outlive each other: search_loop()
+        # blocks in parLapply() while the workers are R processes of their own (R/runners.R). A
+        # parent killed by hand leaves them collecting, and reading the parent alone then offered
+        # "Start search loop (currently stopped)" next to workers that were still running - which is
+        # exactly the duplicate collection the lease exists to prevent. It is also the reader that
+        # matches what the "stop" action does: stop_runner_task("search") kills the workers *and*
+        # the parent.
+        if(search_has_local_process()) {
             options["3"] <- "Stop search loop (currently running)"
             actions["3"] <- "stop"
             targets["3"] <- "search"

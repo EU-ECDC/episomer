@@ -1044,12 +1044,27 @@ runner_leases_df <- function() {
 # stopped) and a lease whose holder was a process of *this* machine that is not running anymore
 # (holder_dead_locally, see lease_holder_is_dead_locally()). The second one is a crash we can be
 # sure about, and it is reclaimable right now instead of at the end of the TTL.
+# "supervisor" is the third case, and it is not a failure at all. The parent "search" runner is
+# claimed by search_loop(), which then blocks in parallel::parLapply() for the whole life of the
+# service: it has no iteration left to renew its lease on, so that lease goes stale after
+# runner_ttl_search on a perfectly healthy machine and stays that way (R/runners.R,
+# is_search_running(), and plan section 9.5). Wording it "stale" made every reader of the table
+# report a dead search loop that was collecting normally, so it is named for what it is, with a
+# pointer to the rows that do carry the truth - the per-network workers, which renew every
+# heartbeat span and which sort_runner_names() has just placed right underneath.
+#
+# The order of the branches is what keeps this honest: a parent that really died *here* is caught
+# by holder_dead_locally above and still reads "crashed here", and a parent that died elsewhere
+# shows up as its workers going stale in the rows this label sends the reader to.
 runner_lease_status_label <- function(lease) {
   if (identical(lease$status, "running")) {
     return("running")
   }
   if (isTRUE(lease$holder_dead_locally)) {
     return("crashed here")
+  }
+  if (identical(lease$runner, "search")) {
+    return("supervisor (no heartbeat by design, see the search.* rows)")
   }
   sprintf("stale (no heartbeat for %s)", format_lease_duration(lease$ttl))
 }

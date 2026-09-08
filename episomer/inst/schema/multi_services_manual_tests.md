@@ -256,6 +256,42 @@ for f in $EPI_HOME_LOCAL/runners/old/*.json; do echo "$f -> $(jq -r .instance_id
       `already held by another instance`. This is the regression to watch — it used to fail for a
       whole TTL, and with `fs.PID` deleted by that first failed attempt, for good.
 
+**M3-2c — stopping `search` from the wizard stops its per-network workers too.** The step M3-2b
+does not cover, and the one that was broken: `search_loop()` collects nothing itself, it claims the
+`search` runner and blocks in `parallel::parLapply()` while one PSOCK worker per social media runs
+`search_loop_worker()`. Those workers are R processes of their own, the OS reparents them instead of
+killing them, and a parent dying on `SIGTERM` runs no `on.exit(stopCluster(cl))` — so they never
+learn the master socket has closed (their loop is infinite, it never asks the cluster for work
+again) and keep collecting.
+
+```r
+library(episomer)
+setup(data_dir = "<EPI_HOME_LOCAL>")   # start the database, then the search loop, then stop it
+```
+
+```bash
+ls $EPI_HOME_LOCAL/*.PID                       # while search is running
+tail -f $EPI_HOME_LOCAL/jobs/search.bluesky.log  # after the stop
+```
+
+- [ ] `search.PID` **and** one `search.<network>.PID` per activated social media exist while the
+      service runs — both layers, one file per worker.
+- [ ] right after the stop, **every** one of them is gone, not just `search.PID`.
+- [ ] `jobs/search.<network>.log` stops growing. This is the symptom that named the bug: `search.PID`
+      disappeared, the wizard reported a clean stop, and the log kept scrolling.
+- [ ] `runners/search.<network>.json` is in `runners/old/`. It cannot be released before the worker
+      is actually gone (`release_dead_local_runner_lease()` demands the recorded PID be absent), so
+      a lease left behind here means the worker outlived the bounded wait of
+      `release_stopped_runner_leases()`.
+
+```bash
+# nothing must be left collecting - a PSOCK worker of the search loop looks like this
+ps -eo pid,cmd | grep -F workRSOCK | grep -v grep
+```
+
+`make compose-down` never showed any of this: the container's whole PID namespace goes down with it,
+workers included. It is the wizard — the path R controls — that has to do the job by hand.
+
 **M3-3 — a release means an immediate reclaim, no TTL wait** (§7 case 4).
 
 ```bash

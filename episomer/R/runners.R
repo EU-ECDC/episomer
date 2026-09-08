@@ -293,7 +293,7 @@ stop_all_runner_tasks <- function() {
     message("Detect loop is running, stopping it")
     stop_detect_runner_task()
   }
-  if(is_runner_running_locally("search")) {
+  if(search_has_local_process()) {
     message("Search loop is running, stopping it")
     stop_search_runner_task()
   }
@@ -412,6 +412,22 @@ fs_has_local_process <- function() {
     logical(1)
   )) ||
     recorded_pid_is_running(read_running_task_pid_record("fs.java"), "java")
+}
+
+# TRUE when this machine has a search process to kill - the parent loop, or any of its per-network
+# workers.
+#
+# Asked instead of is_runner_running_locally("search") alone, because the two can outlive each
+# other: search_loop() blocks in parLapply() for the whole life of the service and its workers are
+# separate R processes, so a parent killed by hand (or crashed) leaves them collecting with no
+# search.PID left to show for it. That is the state "stop all services" has to be able to get out
+# of, and reading the parent only made it silently do nothing.
+search_has_local_process <- function() {
+  any(vapply(
+    c("search", local_search_worker_runner_names()),
+    is_runner_running_locally,
+    logical(1)
+  ))
 }
 
 # Path of the Rscript executable to hand to taskscheduleR, in a form cmd.exe can parse.
@@ -569,13 +585,54 @@ stop_runner_task <- function(task_name) {
     release_stopped_runner_leases(c("fs", "fs_mon"))
     kill_task("fs.java", "java")
   } else if (task_name == "search") {
+    # The per-network workers before the parent, and not instead of it: search_loop() does no
+    # collection itself, it claims the "search" runner and then blocks in parallel::parLapply()
+    # while one PSOCK worker per social media runs search_loop_worker() (R/search.R). Those workers
+    # are R processes of their own, they are not children of the parent in any way the OS will clean
+    # up for us, and killing the parent alone leaves them collecting for ever: the parent dies on
+    # SIGTERM without running its on.exit(parallel::stopCluster(cl)), and a worker only notices the
+    # closed master socket when it next asks the cluster for work - which it never does, its loop
+    # is infinite. That is exactly what "search.PID is gone but jobs/search.<network>.log keeps
+    # growing" was.
+    #
+    # Nothing of this is needed on the docker side, which is why `make compose-down` never showed
+    # the problem: the container's whole PID namespace goes with it, workers included.
+    workers <- local_search_worker_runner_names()
+    for (worker in workers) {
+      kill_task(worker, "R")
+    }
     kill_task("search", "R")
-    release_stopped_runner_leases("search")
+    # The workers are waited for too, not just the parent: each of them holds the lease that really
+    # matters (exclusivity is per network, plan section 2), and each of them died on a signal
+    # without releasing it. Sweeping while they are still in the process table would release none.
+    release_stopped_runner_leases(c("search", workers))
   } else if (task_name == "detect") {
     kill_task("detect", "R")
     kill_task("detect.java", "java")
     release_stopped_runner_leases("detect")
   }
+}
+
+# The runner names of the per-network search workers this machine has a PID file for.
+#
+# Read from the disk rather than built from active_social_media(): a network deactivated - or an
+# instance URL changed - while the search loop was running still has a worker collecting for it, and
+# that worker is precisely the one a stop must not miss. The names carry dots of their own
+# ("search.mastodon.piaille.fr"), so the parent "search.PID" is the only thing to exclude.
+#
+# A file left behind by a process that has already gone is harmless here: kill_task() refuses to
+# signal a PID it cannot prove alive, and is_runner_running_locally() answers FALSE for it at once.
+local_search_worker_runner_names <- function() {
+  files <- list.files(
+    conf$data_dir,
+    pattern = "^search\\..+\\.PID$",
+    full.names = FALSE
+  )
+  names <- sub("\\.PID$", "", files)
+  # Every name here is signalled as an R process, so the ".java" convention of the Scala side
+  # (fs.java.PID, detect.java.PID) is kept out. The search service spawns no JVM today; this is so
+  # that the day it does, its PID file is not quietly handed to a check that will always say no.
+  names[!endsWith(names, ".java")]
 }
 
 # Gives back the leases of the runners this machine has just stopped.
@@ -1006,19 +1063,39 @@ pid_is_running_of_type <- function(pid, type = "R") {
 
 # The command names a runner process of that type is allowed to have. The former "mac" branch was
 # character for character the same as the unix one, so the two are a single branch.
+#
+# The unix patterns are matched against `ps -o comm=`, which is a bare name on Linux ("R", "java")
+# but the *full path* of the executable on macOS ("/.../Resources/bin/exec/R"). The `(^|/)...$`
+# frame is what accepts both while still matching a whole name: a plain "R|rsession" matched
+# anywhere in the string, so any command whose name merely *contains* an upper case R answered yes
+# on a runner's behalf - the same class of accident on the process name that
+# pid_is_running_of_type() removed on the process number.
+#
+# `ark` is the binary Positron hosts its R console in. A loop started by hand from a Positron
+# console is an ordinary R runner in every respect, but ps calls it "ark", so leaving it out made
+# recorded_pid_is_running() answer FALSE for a process that was very much alive: the lease of a
+# running search_loop() read as "crashed here" in the status table, and the setup() menu offered to
+# start a second one. The containers are unaffected either way - devscripts/run.sh starts them with
+# Rscript, which execs the R binary and reports "R".
+#
+# radian is deliberately *not* here, although it is an R console too: it hosts R inside python, so
+# accepting it would mean accepting "python", i.e. calling every python process of the machine a
+# live R runner. That is the one direction this list must never widen in.
 runner_process_image <- function(type) {
   if (.Platform$OS.type == "windows") {
+    # tasklist filters on the PID itself and prints a whole row, of which the image name is only
+    # one field: these patterns have to stay unanchored.
     switch(
       type,
-      R = "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe",
+      R = "R\\.exe|Rscript\\.exe|rsession\\.exe|Rterm\\.exe|ark\\.exe",
       java = "java\\.exe",
       stop("Unsupported type of process")
     )
   } else {
     switch(
       type,
-      R = "R|rsession",
-      java = "java",
+      R = "(^|/)(R|Rscript|Rterm|rsession|ark)$",
+      java = "(^|/)java$",
       stop("Unsupported type of process")
     )
   }
