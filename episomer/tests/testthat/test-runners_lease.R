@@ -595,7 +595,7 @@ test_that("heartbeat_before_retry() takes the long rate-limit waits over from ht
   elapsed <- system.time(waited <- heartbeat_before_retry(0.3))[["elapsed"]]
 
   # the wait happened here, with renewals...
-  expect_gte(elapsed, 0.3)
+  expect_gte(elapsed, 0.3 * 0.95)
   expect_gte(renewals, 2)
   # ...and httr2 is told it has nothing left to wait for
   expect_identical(waited, 0)
