@@ -24,10 +24,11 @@ if (length(extra) %% 2 != 0) {
     call. = FALSE
   )
 }
-named <- if (length(extra) > 0)
-    setNames(as.list(extra[c(FALSE, TRUE)]), extra[c(TRUE, FALSE)])
-  else
-    list()
+if (length(extra) > 0) {
+  named <- setNames(as.list(extra[c(FALSE, TRUE)]), extra[c(TRUE, FALSE)])
+} else {
+  named <- list()
+}
 
 episomer::fs_loop(
   data_dir,
