@@ -146,3 +146,51 @@ test_that("register_runner_task appends the extra arguments after the data direc
 # --------------------------------------------------------------------------------------------------
 # The guarantee that matters most: starting a database on another address must leave properties.json
 # alone. What this replaced wrote the shifted port there and relied on a finally to put it back.
+
+# --------------------------------------------------------------------------------------------------
+# wait_until_response used to be accepted and ignored: the function waited whatever the caller
+# asked for, so "start it and let me carry on" could not be expressed.
+
+test_that("register_fs_runner_task returns straight away when not asked to wait", {
+  local_lease_conf(fs_url = "http://fs", fs_port = 8080)
+  asked <- 0L
+  local_mocked_bindings(
+    register_runner_task = function(...) invisible(NULL),
+    is_fs_running = function() {
+      asked <<- asked + 1L
+      FALSE
+    },
+    .package = "episomer"
+  )
+
+  # is_fs_running() would answer FALSE for ever, so returning at all is the assertion
+  expect_silent(register_fs_runner_task())
+  expect_identical(asked, 0L)
+})
+
+test_that("register_fs_runner_task waits on the temporary port when asked to", {
+  local_lease_conf(fs_url = "http://fs", fs_port = 8080)
+  withr::defer(clear_fs_endpoint_override())
+  seen <- character(0)
+  answers <- c(FALSE, FALSE, TRUE)
+  local_mocked_bindings(
+    register_runner_task = function(...) invisible(NULL),
+    is_fs_running = function() {
+      seen <<- c(seen, get_scala_ping_url())
+      answers[length(seen)]
+    },
+    .package = "episomer"
+  )
+
+  expect_message(
+    register_fs_runner_task(
+      wait_until_response = TRUE,
+      bind_host = "localhost",
+      bind_port = 9080
+    ),
+    "fs is running"
+  )
+  # every probe went to the temporary port, never to the configured fs_url:fs_port
+  expect_identical(unique(seen), "http://127.0.0.1:9080/ping")
+  expect_length(seen, 3L)
+})

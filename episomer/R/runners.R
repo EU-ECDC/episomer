@@ -238,7 +238,8 @@ stop_detect_runner_task <- function() {
 
 #' @title Registers the episomer database task
 #' @description registers the episomer database task or stops if no configuration has been set or if it is already running
-#' @param wait_until_response Logical, whether to wait until the fs runner answers, default FALSE
+#' @param wait_until_response Logical, whether to block until the fs runner answers on
+#'   \code{\link{is_fs_running}} before returning, default FALSE
 #' @param bind_host Character, the interface the database has to bind for this run instead of the
 #'   configured \code{conf$fs_url}, with or without a scheme ("localhost" and "http://localhost"
 #'   are both accepted), default: NULL
@@ -300,6 +301,12 @@ register_fs_runner_task <- function(
     )
   }
   register_runner_task("fs", runner_args = runner_args)
+  # wait_until_response is now read. It used to be accepted and ignored - the function waited
+  # whatever the caller asked for - which made "start it and let me carry on" impossible to express
+  # and the argument misleading to read.
+  if (!wait_until_response) {
+    return(invisible(NULL))
+  }
   message(sprintf("Waiting until the fs runner answers on %s", get_scala_ping_url()))
   # Bounded when the caller asks for it. The wait used to be unbounded, which is survivable for an
   # operator watching a console and not at all for an unattended deployment: a database that cannot

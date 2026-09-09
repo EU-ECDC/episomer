@@ -48,7 +48,8 @@ is_fs_running()
 is_detect_running()
 }
 \arguments{
-\item{wait_until_response}{Logical, whether to wait until the fs runner answers, default FALSE}
+\item{wait_until_response}{Logical, whether to block until the fs runner answers on
+\code{\link{is_fs_running}} before returning, default FALSE}
 
 \item{bind_host}{Character, the interface the database has to bind for this run instead of the
 configured \code{conf$fs_url}, with or without a scheme ("localhost" and "http://localhost"
