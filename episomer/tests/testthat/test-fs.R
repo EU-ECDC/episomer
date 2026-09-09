@@ -57,9 +57,9 @@ test_that("get_scala_api_endpoint falls back on localhost when fs_url does not r
   expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
 })
 
-test_that("get_scala_api_endpoint follows the temporary port shift of the retraining", {
-  # setup() shifts conf$fs_port by 1000 while it retrains the language models, so the endpoint
-  # must be read from conf on every call and never frozen with the host resolution.
+test_that("get_scala_api_endpoint reads the port from conf on every call", {
+  # The endpoint must never be frozen together with the host resolution: the memo of
+  # fs_url_resolves_here() is keyed on fs_url alone, because a port plays no part in a name lookup.
   withr::local_envvar(EPI_HOST = "")
   local_conf(
     "fs_remote" = NULL,
@@ -74,9 +74,8 @@ test_that("get_scala_api_endpoint follows the temporary port shift of the retrai
 })
 
 # The session override is rule 0 of the resolution order: this process started a database of its
-# own and says where. It has to beat every other rule, including the two explicit ones, because it
-# describes a service the caller has just launched.
-
+# own - the language retraining of setup() - and says where. It has to beat every other rule,
+# including the two explicit ones, because it describes a service the caller has just launched.
 test_that("the fs endpoint override wins over fs_remote, EPI_HOST and fs_url", {
   withr::local_envvar(EPI_HOST = "http://from-env:8080")
   local_conf(
@@ -88,7 +87,7 @@ test_that("the fs endpoint override wins over fs_remote, EPI_HOST and fs_url", {
   expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
 
   # And it goes away without leaving anything behind, which is the whole reason it exists rather
-  # than a value written to properties.json.
+  # than a temporary shift of conf$fs_port written to properties.json.
   clear_fs_endpoint_override()
   expect_null(fs_endpoint_override())
   expect_equal(get_scala_api_endpoint(), "http://explicit:1234")

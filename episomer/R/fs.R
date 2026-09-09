@@ -23,8 +23,7 @@
 #                               fs_remote = NULL on purpose (it works on the local disk) and would
 #                               otherwise ignore it.
 #   3. conf$fs_url:conf$fs_port correct on the fs machine itself, the only process that both binds
-#                               and calls that address - and the only one for which the temporary
-#                               port shift of the language retraining in setup() must be honoured.
+#                               and calls that address.
 #   4. http://localhost:fs_port when the host part of conf$fs_url does not resolve here. That is
 #                               exactly the "Docker service name read from outside the network"
 #                               case, and there the port is published on the host, so localhost

@@ -623,13 +623,13 @@ Fixed R-side only, without touching Scala or the compose files. `get_scala_api_e
 | 0 | the session override | this very process started a database on an address of its own and said so — `set_fs_endpoint_override()`, used by `register_fs_runner_task(bind_host =, bind_port =)`. It comes first because it is the only rule describing a service the caller has just launched itself, and it is never persisted |
 | 1 | `conf$fs_remote` | the caller said where the fs is: `episomer_app(fs_remote = ...)`, or `EPI_HOST` through the `setup_config()` default |
 | 2 | `EPI_HOST` | machine-local. Needed on its own because `setup()` passes `fs_remote = NULL` on purpose (it works on the local disk) and would otherwise ignore it |
-| 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address, and the only one for which the temporary `fs_port + 1000` shift of the language retraining has to be honoured |
+| 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address |
 | 4 | `http://localhost:conf$fs_port` | when `conf$fs_url` is a wildcard (`0.0.0.0`, `::`), or when its host does **not** resolve here: the "Docker service name read from outside the network" case, where the port is published on the host |
 
 Step 3 vs 4 is decided by a DNS lookup (`curl::nslookup`), memoised in `conf` and keyed on the
 `fs_url` it was computed for — a miss costs ~0.5 s, the resolver does not cache it, and
 `get_scala_api_endpoint()` runs on every API request. The port plays no part in a name resolution,
-which is why the retraining port shift does not invalidate the memo.
+so a change of port never invalidates the memo.
 
 ### A wildcard `fs_url` binds everywhere and is callable nowhere
 
@@ -646,7 +646,40 @@ to rule 4, `localhost:fs_port`, which is where a wildcard listener answers anywa
 they are the most bindable value there is.
 
 This is what makes `EPISOMER_OPTION_FS_URL: "http://0.0.0.0"` the single setting a Kubernetes
-deployment needs.
+deployment needs. `EPI_HOST` on the fs pod becomes belt and braces rather than a requirement.
+
+### The temporary database of the language retraining
+
+The language model retraining of `setup()` needs a running database, and that database must not be
+taken for the real service by whatever waits for the real service to become healthy before starting
+— `depends_on: service_healthy` on `search` and `detect` in `docker/compose.yml`, a readiness probe
+in Kubernetes. It is therefore bound elsewhere, and both halves of "elsewhere" matter:
+
+* a port of its own, `conf$fs_setup_port` (9080 by default, `EPISOMER_OPTION_FS_SETUP_PORT`), which
+  is what keeps it out of sight of a health check watching `conf$fs_port`;
+* `conf$fs_setup_host` (`localhost` by default, `EPISOMER_OPTION_FS_SETUP_HOST`), so that reaching
+  it needs no name resolution, no published port and no routing. That is the half Kubernetes made
+  necessary: a Service does not route to a pod that is not ready, so the fs pod cannot reach
+  *itself* under its service name until it serves the port the readiness probe watches — which it
+  will not do until the retraining is over. Loopback is pod-internal and has none of that.
+
+This pair is deliberately **not** `fs_url` / `fs_port`, which they are easily mistaken for.
+`fs_url` names an address other machines have to reach; this pair names one that nobody else may
+reach, and the two requirements are opposites. Binding the retraining database on `fs_url` would
+either fail where that value is not an address this machine holds (a Docker service name under
+Kubernetes) or, for a wildcard, publish on every interface a database whose whole purpose is to be
+invisible.
+
+Both travel as command line arguments, `register_fs_runner_task(bind_host =, bind_port =)` →
+`jobs/fs.R` → `fs_loop(bind_host =, bind_port =)` → the `bindHost` / `bindPort` parameters of the
+Scala `fsService` command → `API.run()`, which binds them instead of `conf.fsBindHost` /
+`conf.fsPort`. Nothing is written to `properties.json`.
+
+What this replaces shifted `conf$fs_port` by 1000, saved it, and undid it in the `finally` of a
+`tryCatch()`. A process killed outright never runs a finally — SIGKILL, an OOM kill, an evicted pod
+— so the shifted port stayed in the *shared* configuration file and the next start shifted it again:
+8080, 9080, 10080, 11080. Everything left to undo is now session state (`clear_fs_endpoint_override()`),
+which a dying process cannot leave behind.
 
 `episomer_app()` was the second half of the bug: it built `fs_remote` as
 `sprintf("%s:%s", conf$fs_url, conf$fs_port)`, so it was broken in the same way even when called

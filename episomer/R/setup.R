@@ -388,19 +388,47 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             } else {
               pause(silent)
               message("Going to launch model retraining, starting the episomer database")
-              # using temporary port for fs_runner to prevent incorrect detection of execution success
+              # The retraining needs a running database, and that database must not be taken for
+              # the real service by whatever waits for the real service to become healthy before
+              # starting - `depends_on: service_healthy` on search and detect in
+              # docker/compose.yml, a readiness probe in Kubernetes. So it is bound somewhere else,
+              # and both halves of "somewhere else" matter:
+              #
+              #  * a port of its own, conf$fs_setup_port, which is what keeps it out of sight of a
+              #    health check watching conf$fs_port;
+              #  * conf$fs_setup_host, "localhost" by default, so that reaching it needs no name
+              #    resolution, no published port and no routing. Deliberately not conf$fs_url,
+              #    which names an address other machines must reach - the opposite requirement; see
+              #    the paragraph on this pair in get_empty_config(). That is the half Kubernetes
+              #    made necessary: a Service does not route
+              #    to a pod that is not ready, so the fs pod cannot reach *itself* under its
+              #    service name until it serves the port the readiness probe watches - which it
+              #    will not do until this retraining is over. Loopback is pod-internal and has none
+              #    of that.
+              #
+              # Both travel to the database as command line arguments and neither is written to
+              # properties.json. What this replaces shifted conf$fs_port by 1000, saved it, and
+              # undid it in the finally below: a process killed outright - SIGKILL, an OOM kill, an
+              # evicted pod - never runs a finally, so the shifted port stayed in the shared
+              # configuration file and the next start shifted it again (8080, 9080, 10080...).
+              # Everything left to undo here is session state, which a dying process cannot leave
+              # behind.
               tryCatch({
-                  conf$fs_port = conf$fs_port + 1000 
-                  save_config()
-                  register_fs_runner_task(wait_until_response = TRUE)
-	          message("Episomer database is running, proceeding with training")
+                  register_fs_runner_task(
+                      wait_until_response = TRUE,
+                      bind_host = conf$fs_setup_host,
+                      bind_port = conf$fs_setup_port,
+                      # Bounded, unlike the default: nothing here is interactive on a server, and a
+                      # database that cannot bind its address never answers at all.
+                      timeout = 900
+                  )
+                  message("Episomer database is running, proceeding with training")
                   update_languages()
                   stop_fs_runner_task()
                 }
                 , finally = {
-              	  conf$fs_port = conf$fs_port - 1000 
-              	  save_config()
-	          remove_running_task_pid("fs") 
+                  clear_fs_endpoint_override()
+                  remove_running_task_pid("fs") 
                 }
               )
               message("Episomer language models indexed and retrained, stopping the episomer database")

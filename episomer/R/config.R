@@ -227,6 +227,25 @@ get_empty_config <- function(data_dir) {
   ret$winutils_url <- "https://github.com/steveloughran/winutils/raw/master/hadoop-3.0.0/bin/winutils.exe"
   ret$fs_url <- "http://localhost"
   ret$fs_port <- 8080
+  # Where the *temporary* database of the language model retraining binds (setup(), option 5).
+  #
+  # Deliberately a pair of its own and not fs_url / fs_port, which they are often mistaken for.
+  # fs_url and fs_port describe a service other machines have to reach; this pair describes one
+  # that nobody else may reach, and the two requirements are opposites. Reusing fs_url here would
+  # bind the retraining database on whatever the real service binds - a Docker service name, a
+  # wildcard - and either fail where that name is not an address this machine holds, or publish on
+  # every interface a database whose whole purpose is to be invisible.
+  #
+  # localhost is the default because it is the one address that is bindable and callable on every
+  # platform, needs no name resolution, no published port and no service routing, and stays
+  # reachable while an orchestrator still considers the pod unready. The port is fixed and known
+  # rather than derived from fs_port: what waits for the real service to be healthy watches
+  # fs_port, and a deployment exposes ports explicitly and cannot expose a moving target.
+  #
+  # Change them here, in properties.json, or with EPISOMER_OPTION_FS_SETUP_HOST /
+  # EPISOMER_OPTION_FS_SETUP_PORT - the latter if 9080 is already taken on the machine.
+  ret$fs_setup_host <- "localhost"
+  ret$fs_setup_port <- 9080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
   # Runner leases (see R/runners-lease.R and inst/schema/multi_services_plan.md section 6.5).
@@ -536,6 +555,8 @@ setup_config <- function(
     conf$winutils_url <- temp$winutils_url
     conf$fs_url <- temp$fs_url
     conf$fs_port <- temp$fs_port
+    conf$fs_setup_host <- temp$fs_setup_host
+    conf$fs_setup_port <- temp$fs_setup_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
     # Runner lease tuning. runner_lease_ttl() and runner_claim_guard() (R/runners-lease.R) read
@@ -841,6 +862,8 @@ save_config <- function(
     temp$winutils_url <- conf$winutils_url
     temp$fs_url <- conf$fs_url
     temp$fs_port <- conf$fs_port
+    temp$fs_setup_host <- conf$fs_setup_host
+    temp$fs_setup_port <- conf$fs_setup_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
     temp$runner_heartbeat_span <- conf$runner_heartbeat_span

@@ -6,6 +6,10 @@
 # starts - `depends_on: service_healthy` on search and detect in docker/compose.yml, a readiness
 # probe in Kubernetes. So it is bound elsewhere, and the address travels as command line arguments
 # all the way to the JVM instead of being written to the shared properties.json.
+#
+# What this replaces shifted conf$fs_port by 1000, saved it, and undid it in the `finally` of a
+# tryCatch(). A process killed outright never runs a finally, so the shifted port stayed in the
+# configuration file and the next start shifted it again: 8080, 9080, 10080, 11080.
 
 test_that("register_fs_runner_task passes the bind address to the runner script", {
   local_lease_conf(fs_url = "http://fs", fs_port = 8080)
@@ -146,6 +150,56 @@ test_that("register_runner_task appends the extra arguments after the data direc
 # --------------------------------------------------------------------------------------------------
 # The guarantee that matters most: starting a database on another address must leave properties.json
 # alone. What this replaced wrote the shifted port there and relied on a finally to put it back.
+
+test_that("register_fs_runner_task writes nothing to properties.json", {
+  data_dir <- local_lease_conf(
+    fs_url = "http://fs",
+    fs_port = 8080,
+    fs_setup_host = "localhost",
+    fs_setup_port = 9080
+  )
+  withr::defer(clear_fs_endpoint_override())
+  local_mocked_bindings(
+    register_runner_task = function(...) invisible(NULL),
+    is_fs_running = function() TRUE,
+    .package = "episomer"
+  )
+  props <- file.path(data_dir, "properties.json")
+
+  expect_message(
+    register_fs_runner_task(
+      wait_until_response = TRUE,
+      bind_host = conf$fs_setup_host,
+      bind_port = conf$fs_setup_port
+    ),
+    "fs is running"
+  )
+
+  # nothing saved at all, and the port in conf is untouched
+  expect_false(file.exists(props))
+  expect_identical(conf$fs_port, 8080)
+  expect_identical(conf$fs_url, "http://fs")
+})
+
+test_that("save_config while an override is active keeps the configured port", {
+  # The override lives in conf, next to fs_port, so the question is whether a save_config() called
+  # by anything else during the retraining would carry it to disk. It cannot: save_config() writes
+  # an explicit list of properties, and the override is not one of them.
+  data_dir <- local_lease_conf()
+  withr::defer(clear_fs_endpoint_override())
+  suppressMessages(setup_config(data_dir = data_dir, fs_remote = NULL, ignore_keyring = TRUE))
+  set_fs_endpoint_override("localhost", 9080)
+
+  suppressMessages(save_config(data_dir = data_dir))
+  saved <- jsonlite::read_json(file.path(data_dir, "properties.json"))
+
+  # expect_equal, not identical: jsonlite reads the port back as an integer
+  expect_equal(saved$fs_port, 8080)
+  expect_identical(saved$fs_url, "http://localhost")
+  expect_null(saved$fs_endpoint_override)
+  # and the override is still in force for this process
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
+})
 
 # --------------------------------------------------------------------------------------------------
 # wait_until_response used to be accepted and ignored: the function waited whatever the caller
