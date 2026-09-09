@@ -413,6 +413,16 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
               # configuration file and the next start shifted it again (8080, 9080, 10080...).
               # Everything left to undo here is session state, which a dying process cannot leave
               # behind.
+              #
+              # The configuration is saved first because the JVM reads properties.json itself
+              # (Settings.load(), scala/src/main/scala/Settings.scala) and dies on
+              # java.io.FileNotFoundException when it is not there. On a fresh data directory it is
+              # not: setup_config() at the top of setup() only *reads* it, and every other
+              # save_config() above sits inside an "I typed a custom URL" branch that a silent run
+              # never takes. The port shift this replaces happened to write the file on its way
+              # past, so nothing else had to; that was luck, and it is now said out loud. Same
+              # pairing as the service start of option 6 further down.
+              save_config()
               tryCatch({
                   register_fs_runner_task(
                       wait_until_response = TRUE,
