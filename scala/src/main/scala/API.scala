@@ -51,7 +51,16 @@ object API {
   var oLuceneRunner:Option[ActorRef] = None
   var oConf:Option[Settings] = None
   val secrets = MMap[String, String]()
-  def run(epiHome:String) {
+  // oBindHost / oBindPort override what properties.json says, for this run only.
+  //
+  // They arrive as the optional 'bindHost' / 'bindPort' arguments of the fsService command
+  // (Episomer.main), put there by register_fs_runner_task(bind_host =, bind_port =) on the R side.
+  // The case they exist for: the R setup wizard needs a database of its own while it retrains the
+  // language models, and that database must not be found on the configured address by the services
+  // that wait for the real one to become healthy before they start. Writing the temporary address
+  // in properties.json - which is what used to happen - meant a shared configuration file left
+  // wrong whenever the wizard was killed before it could put it back.
+  def run(epiHome:String, oBindHost:Option[String] = None, oBindPort:Option[Int] = None) {
     import fs.EpiSerialisation._
     Logger.getLogger("pekko").setLevel(Level.DEBUG)
     Logger.getLogger("pekko.http").setLevel(Level.DEBUG)
@@ -648,8 +657,18 @@ object API {
     
 
     // conf.fsBindHost, not conf.fsUrl: see Settings.fsBindHost for why the configured host cannot be
-    // trusted to exist on the machine that reads it.
-    Http().newServerAt(conf.fsBindHost, conf.fsPort).bind(route)
+    // trusted to exist on the machine that reads it. The arguments win over both: a caller naming
+    // an interface has said something more specific than the configuration file can.
+    //
+    // The scheme is stripped here as well, so that the argument may be written either way round -
+    // fs_url carries one ("http://localhost") and newServerAt() takes an interface, not a URL.
+    val bindHost = oBindHost
+      .map(h => h.replaceAll("^https?://", "").replaceAll("/+$", ""))
+      .filter(_.nonEmpty)
+      .getOrElse(conf.fsBindHost)
+    val bindPort = oBindPort.getOrElse(conf.fsPort)
+    println(s"Binding the episomer API on $bindHost:$bindPort")
+    Http().newServerAt(bindHost, bindPort).bind(route)
   }
   def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
     if(!Files.exists(path))

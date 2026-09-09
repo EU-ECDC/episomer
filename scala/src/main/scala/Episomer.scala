@@ -29,7 +29,15 @@ object Episomer {
       if(!cmd(command).subsetOf(params.keySet))
         l.msg(s"Cannot run $command, expected named parameters are ${cmd(command)}")
       else if(command == "fsService") {
-        API.run(params.get("epiHome").get)
+        // epiHome is the only required parameter (see `cmd` above); bindHost and bindPort are
+        // optional and override the fs_url / fs_port of properties.json for this run only. The R
+        // side puts them there through register_fs_runner_task(bind_host =, bind_port =), see
+        // API.run for what they are for.
+        API.run(
+          params.get("epiHome").get,
+          params.get("bindHost"),
+          params.get("bindPort").map(_.toInt)
+        )
       } else if(command == "updateGeonames") {
          implicit val spark = JavaBridge.getSparkSession(params.get("parallelism").map(_.toInt).getOrElse(0)) 
          implicit val storage = JavaBridge.getSparkStorage(spark)
