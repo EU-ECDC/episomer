@@ -373,3 +373,49 @@ test_that("warn_if_fs_url_not_bindable() is silent on the machine fs_url belongs
 
   expect_silent(expect_false(warn_if_fs_url_not_bindable()))
 })
+
+# The retraining POST and its two libcurl bounds ---------------------------------------------------
+
+# retrain_languages() holds one HTTP request open for as long as the JVM takes to index and retrain
+# every language, receiving nothing while it waits. It used to say options(timeout = 1800), which is
+# a base R setting httr never reads, so the real bound was libcurl's default low-speed abort: less
+# than 1 byte a second for 600 seconds. A retraining longer than ten minutes therefore died at
+# exactly 600 s with the training already running, and in a container took the whole service down
+# with it.
+
+test_that("retrain_languages() bounds its request by fs_batch_timeout and allows a silent one", {
+  local_conf(fs_remote = NULL, fs_batch_timeout = 3600)
+  seen <- NULL
+  local_mocked_bindings(
+    get_geotraining_df = function() data.frame(a = 1),
+    get_geotraining_evaluation_path = function() tempfile(),
+    .package = "episomer"
+  )
+  local_mocked_bindings(
+    POST = function(url, ...) {
+      seen <<- Filter(function(x) inherits(x, "request"), list(...))
+      structure(list(status_code = 200L), class = "response")
+    },
+    status_code = function(x) 200L,
+    content = function(...) "ok",
+    .package = "httr"
+  )
+
+  retrain_languages()
+
+  opts <- do.call(c, lapply(seen, `[[`, "options"))
+  # the total bound is what the Scala side gives itself for a batch of this kind
+  expect_equal(opts$timeout, 3600)
+  # and the low-speed abort is off, so a JVM that says nothing for an hour is not an error
+  expect_equal(opts$low_speed_limit, 0)
+})
+
+test_that("options(timeout) does not bound an httr request, which is why it is not used", {
+  # The reason the line above is not options(timeout = ): base R's setting is read by download.file()
+  # and url(), and libcurl never looks at it. Asserted on the option list httr actually builds
+  # rather than by making a request, so nothing here waits on a socket.
+  cfg <- httr::config(timeout = 3600, low_speed_limit = 0)
+  expect_equal(cfg$options$timeout, 3600)
+  expect_equal(cfg$options$low_speed_limit, 0)
+  expect_null(httr::config()$options$timeout)
+})
