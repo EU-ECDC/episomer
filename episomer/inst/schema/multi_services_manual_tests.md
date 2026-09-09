@@ -375,17 +375,21 @@ tail $EPI_HOME/jobs/fs.log
 - [ ] nothing had to be deleted by hand. If you want to check the other direction too, start the fs
       on the host, then `make compose-up`: the container must refuse or wait on the *lease*, never
       believe the host's `fs.PID` describes one of its own processes.
-- [ ] the fs then actually **serves**, and `fs.log` shows neither `Unresolved address` nor a Pekko
-      stack trace. `properties.json` is shared, so it still holds `"fs_url": "http://fs"` — the
-      name the container binds — and the host cannot resolve it. `Settings.fsBindHost` binds
-      `localhost` there instead (issue 16), which is where `get_scala_api_endpoint()` rule 4
-      already looks. R says so first:
-      `conf$fs_url is 'http://fs', a host this machine cannot resolve`.
-- [ ] `make compose-up` afterwards still binds `fs` inside the container, from that same unchanged
-      `properties.json`: `docker compose -f docker/compose.yml logs fs | grep "cannot be resolved"`
-      must print **nothing**, and `search` must keep collecting. Do not "fix" `fs_url` to
-      `http://localhost` to make the host work — that would break the other two containers, which
-      reach the database by service name.
+Whether the fs then **serves** depends on `fs_url`, and only the lease and PID half of this test is
+about issue 15. `properties.json` is shared, so it holds whatever the compose stack wrote there:
+
+- [ ] with `docker/compose.yml`, that is `"fs_url": "http://fs"` — the name the container binds,
+      which the host cannot resolve. The bind therefore **fails**, `fs.log` ends on
+      `java.net.SocketException: Unresolved address`, and R has said why on the line before:
+      `conf$fs_url is 'http://fs', a host this machine cannot resolve`. This is expected. Reusing a
+      compose stack's data directory from the host is not a supported scenario, and the API used to
+      quietly bind `localhost` instead — a fallback removed for the reason in issue 16: in a
+      Kubernetes pod it would pass a loopback readiness probe while the Service routed to a listener
+      that accepts nothing else.
+- [ ] with the root `compose.yml`, that is `"fs_url": "http://0.0.0.0"`, which every machine can
+      bind, so the host serves and the container serves from that same unchanged file. That is the
+      value to prefer. Do not "fix" `fs_url` to `http://localhost` to make the host work — that
+      would break the other two containers, which reach the database by service name.
 
 ---
 

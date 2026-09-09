@@ -24,10 +24,12 @@
 #                               otherwise ignore it.
 #   3. conf$fs_url:conf$fs_port correct on the fs machine itself, the only process that both binds
 #                               and calls that address.
-#   4. http://localhost:fs_port when the host part of conf$fs_url does not resolve here. That is
-#                               exactly the "Docker service name read from outside the network"
-#                               case, and there the port is published on the host, so localhost
-#                               reaches it.
+#   4. http://localhost:fs_port when conf$fs_url is a wildcard ("http://0.0.0.0", what a
+#                               deployment behind a Service or a load balancer sets it to), or when
+#                               its host does not resolve here - the "Docker service name read from
+#                               outside the network" case. A wildcard listener answers on localhost,
+#                               and in the container case the port is published on the host, so
+#                               localhost reaches it either way.
 get_scala_api_endpoint <- function() {
   override <- fs_endpoint_override()
   if (!is.null(override)) {
@@ -184,26 +186,28 @@ is_wildcard_bind_host <- function(host) {
 # Says so when conf$fs_url names a host this machine cannot resolve, i.e. when the address the Scala
 # API is about to bind to does not exist here.
 #
-# The API falls back to localhost in that case (Settings.fsBindHost, scala/src/main/scala/Settings.scala),
-# so this is a diagnosis and not a guard - but it is a diagnosis worth having. fs_url is a bind
-# address kept in properties.json, which every instance sharing the data directory reads: a
-# containerised fs writes the name it binds inside the Docker network ("http://fs",
-# EPISOMER_OPTION_FS_URL in docker/compose.yml) and the host machine then reads it back. Before the
-# fallback existed, the only thing jobs/fs.log had to say about it was a Pekko stack trace ending in
-# "java.net.SocketException: Unresolved address", from a service that had already taken the lease.
+# The API binds conf$fs_url verbatim, so an unresolvable value is fatal: Pekko fails the bind and
+# the JVM dies on "java.net.SocketException: Unresolved address" before serving a request, having
+# already taken the fs lease and written its PID file. This is what jobs/fs.log has to say about it
+# in R's own words, on the last line before the process becomes the JVM's and every diagnosis
+# arrives as a stack trace.
+#
+# It is a diagnosis and not a guard: the bind decision belongs to the side that binds, and a
+# process that silently listened somewhere other than where it was told to would be the worse
+# outcome - under an orchestrator it would pass a loopback health check while the Service routed to
+# nothing. What to do about it is on the configuration page: fs_url has to be an interface this
+# machine holds, and "http://0.0.0.0" is the value that is one everywhere.
 warn_if_fs_url_not_bindable <- function() {
   # A wildcard is bindable - it is the one value that is bindable everywhere - even though
   # fs_url_resolves_here() answers FALSE for it. The two questions differ on purpose: that function
-  # asks "is this an address to call", this one asks "is this an address to listen on", and
-  # Settings.hostResolvesHere() on the Scala side accepts 0.0.0.0 exactly as it accepts a real
-  # interface. Warning here would report a working configuration as broken.
+  # asks "is this an address to call", this one asks "is this an address to listen on". Warning here
+  # would report a working configuration as broken.
   if (is_wildcard_bind_host(conf$fs_url) || fs_url_resolves_here()) {
     return(invisible(FALSE))
   }
   message(sprintf(
-    "conf$fs_url is '%s', a host this machine cannot resolve: the database will bind localhost:%s instead. That value comes from properties.json, where another instance wrote the address it binds to - a container binds its Docker service name, which means nothing outside that network. Set fs_url on the configuration page if this machine should bind something else.",
-    conf$fs_url,
-    conf$fs_port
+    "conf$fs_url is '%s', a host this machine cannot resolve: the database is about to bind it and will fail to start. That value comes from properties.json, which every instance sharing this data directory reads - a container writes there the Docker service name it binds, and that name means nothing outside that network. Set fs_url on the configuration page to an interface this machine holds ('http://0.0.0.0' is one everywhere).",
+    conf$fs_url
   ))
   invisible(TRUE)
 }

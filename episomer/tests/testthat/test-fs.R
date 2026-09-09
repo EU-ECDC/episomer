@@ -159,8 +159,8 @@ test_that("is_wildcard_bind_host accepts only the wildcards", {
 })
 
 test_that("a wildcard fs_url is not reported as unbindable", {
-  # The mirror question of the two above: 0.0.0.0 is the one address that binds everywhere, and
-  # Settings.hostResolvesHere() on the Scala side accepts it. Warning here would call a working
+  # The mirror question of the two above: 0.0.0.0 is the one address that binds everywhere, and the
+  # API hands fs_url to newServerAt() without inspecting it. Warning here would call a working
   # configuration broken.
   local_conf("fs_remote" = NULL, fs_url = "http://0.0.0.0", fs_port = 8080)
   expect_false(warn_if_fs_url_not_bindable())
@@ -347,11 +347,11 @@ test_that("epifile.mtime answers about each path of a vector", {
 # The bind half of the same problem ---------------------------------------------------------------
 
 # get_scala_api_endpoint() above is the *client* half: where do I call the fs. The bind half is the
-# Scala API's, which reads fs_url out of properties.json itself and binds it verbatim - so the host
-# running setup() on a data directory a container has written to used to bind "fs", a name that
-# exists only inside the Docker network, and die on java.net.SocketException: Unresolved address
-# before serving a request. The fallback lives in Settings.fsBindHost; what R owes the operator is
-# saying so in jobs/fs.log, where the only trace of it used to be a Pekko stack trace.
+# Scala API's, which reads fs_url out of properties.json and binds it verbatim - so a value that
+# does not name an interface of this machine fails the bind and kills the JVM on
+# java.net.SocketException: Unresolved address, from a service that has already taken the lease.
+# What R owes the operator is saying so in jobs/fs.log in words, on the last line before the
+# process becomes the JVM's and the only remaining trace would be a Pekko stack trace.
 
 test_that("warn_if_fs_url_not_bindable() says so when fs_url does not resolve here", {
   local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
@@ -361,9 +361,10 @@ test_that("warn_if_fs_url_not_bindable() says so when fs_url does not resolve he
     expect_true(warn_if_fs_url_not_bindable()),
     "a host this machine cannot resolve"
   )
-  # the operator needs both halves: what was configured, and what will be bound instead
+  # the operator needs the configured value, what is about to happen to it, and a way out
   expect_message(warn_if_fs_url_not_bindable(), "http://fs")
-  expect_message(warn_if_fs_url_not_bindable(), "localhost:8080")
+  expect_message(warn_if_fs_url_not_bindable(), "will fail to start")
+  expect_message(warn_if_fs_url_not_bindable(), "0\\.0\\.0\\.0")
 })
 
 test_that("warn_if_fs_url_not_bindable() is silent on the machine fs_url belongs to", {

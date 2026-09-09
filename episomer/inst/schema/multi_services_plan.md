@@ -636,7 +636,8 @@ so a change of port never invalidates the memo.
 `fs_url` is a bind interface, and the one value that binds correctly under every orchestrator is a
 wildcard: a service name resolves to the container IP under Docker and to a ClusterIP under
 Kubernetes, which a pod does not hold and therefore cannot bind (`BindException: cannot assign
-requested address`). `Settings.fsBindHost` accepts a wildcard, as it accepts any real interface.
+requested address`). The API binds `fs_url` verbatim, so a wildcard reaches `newServerAt()` exactly
+as a real interface does — nothing on the bind side inspects it.
 
 But a wildcard is not somewhere to send a request. Connecting to `0.0.0.0` reaches the loopback on
 Linux by kernel convention and is simply invalid on Windows, so `fs_url_resolves_here()` answers
@@ -1573,35 +1574,40 @@ network"* — and fixed the **client** half of it, rule 4: fall back to `localho
 **bind** half was never fixed, and it is the worse of the two: a client that guesses wrong reports
 the database as down, a bind that guesses wrong kills the service.
 
-`Settings.fsBindHost` now applies the mirror of rule 4: strip the scheme, and if the host does not
-resolve on this machine, bind `localhost` and say why. Verified on the machine this was found on —
-`InetAddress.getByName("fs")` throws on the host and succeeds inside the container.
+`Settings.fsBindHost` first applied the mirror of rule 4: strip the scheme, and if the host does
+not resolve on this machine, bind `localhost` and say why. That made one shared `fs_url` serve both
+ends of the Docker case with no per-machine configuration — the container resolved `fs` to its own
+IP and bound it, the host did not resolve it and bound `localhost`, which is where
+`get_scala_api_endpoint()` rule 4 already looks.
 
-What makes this the right fix rather than a patch is that **the unresolvable case is exactly the
-"not my address" case**, so one shared `fs_url` now serves both ends correctly with no per-machine
-configuration at all:
+**The fallback was then removed** (see below); what remains of `Settings.fsBindHost` is `fs_url`
+with its scheme stripped, because `Http().newServerAt()` takes an interface and `fs_url` carries a
+scheme for the benefit of every other reader.
 
-| reads `fs_url = "http://fs"` | resolves? | binds |
-|---|---|---|
-| the fs container | yes, to its own IP | `fs` — reachable by `search` / `detect`, and via the published port |
-| the host running `setup()` | no | `localhost` — where `get_scala_api_endpoint()` rule 4 already looks |
+Two reasons, in order of weight:
 
-That is why `fs_url` is *not* being turned into a machine-local property here. It would be the
-tidier model — it is a bind interface, as instance-specific as `conf$instance_host` — but it would
-mean a new class of property, a save path that skips it, and a configuration page that explains
-which machine it applies to. The fallback buys the same outcome for four lines, and covers the
-deployments nobody configured for.
+* **the case it existed for is not a supported one.** It fired when a data directory written by the
+  compose stack was then used by `setup()` on the host — bring the containers down, start the
+  services again from R. Nobody is expected to do that: the compose stack owns its data directory.
+* **it is dangerous under an orchestrator**, which is where the deployment is going. A Kubernetes
+  Service name resolves to a ClusterIP the pod does not hold, so the fallback would fire in the
+  fs pod itself and bind `localhost`. A readiness probe running `curl localhost:8080/ping` inside
+  that pod then **passes**, the pod is declared ready, and the Service routes traffic to a listener
+  that only accepts loopback connections. A failed bind is a pod that crash-loops with
+  `Unresolved address` in its log; a successful bind on the wrong interface is a green deployment
+  that does not work. The first is a diagnosis, the second is a mystery.
 
-Only *resolvability* is tested, deliberately: a name that resolves to an address this machine does
-not hold is a different mistake with a diagnosis of its own (`BindException: cannot assign requested
-address`), and silently binding `localhost` over an interface the operator named on purpose would
-hide it.
+So an unbindable `fs_url` is now fatal, and the answer to it is configuration:
+`EPISOMER_OPTION_FS_URL: "http://0.0.0.0"` is an interface every machine holds (see *A wildcard
+`fs_url` binds everywhere and is callable nowhere*). Only the *warning* was worth keeping, and it
+is worth more than it was: `warn_if_fs_url_not_bindable()` is now the last readable line before a
+bind that will fail, rather than a note about a fallback about to rescue it.
 
 Where it lands:
 
-* `Settings.fsBindHost` / `Settings.hostResolvesHere` in `scala/src/main/scala/Settings.scala`, used
-  by `API.scala` in place of `conf.fsUrl.replace("http://", "")`. **Needs a `make package`**, as
-  does issue 15's `ProcessID.writePID`;
+* `Settings.fsBindHost` in `scala/src/main/scala/Settings.scala`, used by `API.scala` in place of
+  `conf.fsUrl.replace("http://", "")`. `Settings.hostResolvesHere` is gone with the fallback.
+  **Needs a `make package`**, as does issue 15's `ProcessID.writePID`;
 * `warn_if_fs_url_not_bindable()` in `R/fs.R`, called once by `fs_loop()` just before the process
   becomes the JVM's. R already knew — `fs_url_resolves_here()` is what rule 4 rests on — and said
   nothing, so the only trace of this in `jobs/fs.log` was a Pekko stack trace. It is a diagnosis,

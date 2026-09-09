@@ -311,8 +311,8 @@ register_fs_runner_task <- function(
   # Bounded when the caller asks for it. The wait used to be unbounded, which is survivable for an
   # operator watching a console and not at all for an unattended deployment: a database that cannot
   # bind its address - a Kubernetes service name resolving to a cluster IP the pod does not hold is
-  # the case that happened, see Settings.fsBindHost - never answers, and setup() then hung on a row
-  # of dots instead of failing with something to read.
+  # the case that happened - never answers, and setup() then hung on a row of dots instead of
+  # failing with something to read.
   deadline <- Sys.time() + timeout
   while (TRUE) {
      if(is_fs_running()) {

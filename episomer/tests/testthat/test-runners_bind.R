@@ -89,8 +89,8 @@ test_that("register_fs_runner_task looks for the service on the address it asked
 test_that("register_fs_runner_task gives up with an error on a service that never answers", {
   # The wait used to be unbounded. That is survivable for an operator watching a console and not at
   # all for an unattended deployment: a database that cannot bind its address - a Kubernetes
-  # service name resolving to a cluster IP the pod does not hold, see Settings.fsBindHost - never
-  # answers at all, and setup() then hung on a growing row of dots with nothing to read.
+  # service name resolving to a cluster IP the pod does not hold - never answers at all, and
+  # setup() then hung on a growing row of dots with nothing to read.
   local_lease_conf(fs_url = "http://fs", fs_port = 8080)
   withr::defer(clear_fs_endpoint_override())
   local_mocked_bindings(

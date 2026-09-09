@@ -656,11 +656,13 @@ object API {
       }
     
 
-    // conf.fsBindHost, not conf.fsUrl: see Settings.fsBindHost for why the configured host cannot be
-    // trusted to exist on the machine that reads it. The arguments win over both: a caller naming
-    // an interface has said something more specific than the configuration file can.
+    // The arguments win over the configuration file: a caller naming an interface for this one run
+    // has said something more specific than a properties.json every instance of the data directory
+    // shares. Absent them, fs_url is bound verbatim (conf.fsBindHost is that value with its scheme
+    // removed) - if it is not an address this machine holds, the bind fails and says so, which is
+    // the diagnosis the operator needs rather than a service listening somewhere unasked for.
     //
-    // The scheme is stripped here as well, so that the argument may be written either way round -
+    // The scheme is stripped off the argument as well, so that it may be written either way round -
     // fs_url carries one ("http://localhost") and newServerAt() takes an interface, not a URL.
     val bindHost = oBindHost
       .map(h => h.replaceAll("^https?://", "").replaceAll("/+$", ""))
