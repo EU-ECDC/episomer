@@ -73,6 +73,54 @@ test_that("get_scala_api_endpoint follows the temporary port shift of the retrai
   expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
 })
 
+# A wildcard fs_url is the value a deployment behind a Kubernetes Service wants: "listen on every
+# interface". It is a bind address and never an address to call - connecting to 0.0.0.0 reaches the
+# loopback on Linux by kernel convention and is simply invalid on Windows - so the endpoint
+# resolution has to step over it even though the resolver answers for it.
+
+test_that("a wildcard fs_url falls back to localhost instead of being called", {
+  withr::local_envvar(EPI_HOST = "")
+  local_conf("fs_remote" = NULL, fs_url = "http://0.0.0.0", fs_port = 8080)
+  expect_false(fs_url_resolves_here())
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
+
+  # scheme-less, and the IPv6 wildcard, are the same answer
+  local_conf("fs_remote" = NULL, fs_url = "0.0.0.0", fs_port = 8080)
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
+  local_conf("fs_remote" = NULL, fs_url = "http://[::]", fs_port = 8080)
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
+})
+
+test_that("is_wildcard_bind_host accepts only the wildcards", {
+  expect_true(is_wildcard_bind_host("0.0.0.0"))
+  expect_true(is_wildcard_bind_host("http://0.0.0.0"))
+  expect_true(is_wildcard_bind_host("http://0.0.0.0/"))
+  expect_true(is_wildcard_bind_host("http://0.0.0.0:8080"))
+  expect_true(is_wildcard_bind_host("::"))
+  expect_true(is_wildcard_bind_host("http://[::]"))
+
+  # a real interface, a name, and the loopback are all callable addresses
+  expect_false(is_wildcard_bind_host("http://localhost"))
+  expect_false(is_wildcard_bind_host("http://127.0.0.1"))
+  expect_false(is_wildcard_bind_host("http://10.0.0.0"))
+  expect_false(is_wildcard_bind_host("http://fs"))
+  expect_false(is_wildcard_bind_host(""))
+  expect_false(is_wildcard_bind_host(NULL))
+  expect_false(is_wildcard_bind_host(NA))
+})
+
+test_that("a wildcard fs_url is not reported as unbindable", {
+  # The mirror question of the two above: 0.0.0.0 is the one address that binds everywhere, and
+  # Settings.hostResolvesHere() on the Scala side accepts it. Warning here would call a working
+  # configuration broken.
+  local_conf("fs_remote" = NULL, fs_url = "http://0.0.0.0", fs_port = 8080)
+  expect_false(warn_if_fs_url_not_bindable())
+
+  # while a name that exists nowhere on this machine still gets its diagnosis
+  local_conf("fs_remote" = NULL, fs_url = "http://fs", fs_port = 8080)
+  expect_message(expect_true(warn_if_fs_url_not_bindable()), "cannot resolve")
+})
+
 test_that("prefer_loopback_ipv4 rewrites only the exact host localhost", {
   # Windows resolves "localhost" to ::1 only, where the Scala API does not listen; every request
   # then pays a failed connection before falling back to IPv4.

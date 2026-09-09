@@ -623,12 +623,29 @@ Fixed R-side only, without touching Scala or the compose files. `get_scala_api_e
 | 1 | `conf$fs_remote` | the caller said where the fs is: `episomer_app(fs_remote = ...)`, or `EPI_HOST` through the `setup_config()` default |
 | 2 | `EPI_HOST` | machine-local. Needed on its own because `setup()` passes `fs_remote = NULL` on purpose (it works on the local disk) and would otherwise ignore it |
 | 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address, and the only one for which the temporary `fs_port + 1000` shift of the language retraining has to be honoured |
-| 4 | `http://localhost:conf$fs_port` | when the host part of `conf$fs_url` does **not** resolve here: exactly the "Docker service name read from outside the network" case, where the port is published on the host |
+| 4 | `http://localhost:conf$fs_port` | when `conf$fs_url` is a wildcard (`0.0.0.0`, `::`), or when its host does **not** resolve here: the "Docker service name read from outside the network" case, where the port is published on the host |
 
 Step 3 vs 4 is decided by a DNS lookup (`curl::nslookup`), memoised in `conf` and keyed on the
 `fs_url` it was computed for — a miss costs ~0.5 s, the resolver does not cache it, and
 `get_scala_api_endpoint()` runs on every API request. The port plays no part in a name resolution,
 which is why the retraining port shift does not invalidate the memo.
+
+### A wildcard `fs_url` binds everywhere and is callable nowhere
+
+`fs_url` is a bind interface, and the one value that binds correctly under every orchestrator is a
+wildcard: a service name resolves to the container IP under Docker and to a ClusterIP under
+Kubernetes, which a pod does not hold and therefore cannot bind (`BindException: cannot assign
+requested address`). `Settings.fsBindHost` accepts a wildcard, as it accepts any real interface.
+
+But a wildcard is not somewhere to send a request. Connecting to `0.0.0.0` reaches the loopback on
+Linux by kernel convention and is simply invalid on Windows, so `fs_url_resolves_here()` answers
+`FALSE` for it *before* asking the resolver — which would say yes — and the endpoint falls through
+to rule 4, `localhost:fs_port`, which is where a wildcard listener answers anyway.
+`warn_if_fs_url_not_bindable()` is the mirror question and skips wildcards for the opposite reason:
+they are the most bindable value there is.
+
+This is what makes `EPISOMER_OPTION_FS_URL: "http://0.0.0.0"` the single setting a Kubernetes
+deployment needs.
 
 `episomer_app()` was the second half of the bug: it built `fs_remote` as
 `sprintf("%s:%s", conf$fs_url, conf$fs_port)`, so it was broken in the same way even when called

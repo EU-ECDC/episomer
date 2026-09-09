@@ -79,6 +79,16 @@ fs_url_resolves_here <- function() {
   if (is.null(conf$fs_url) || is.na(conf$fs_url) || conf$fs_url == "") {
     return(FALSE)
   }
+  # A wildcard is answered before the resolver is asked, because the resolver says yes: it is a
+  # perfectly good *bind* address - "every interface of this machine", which is what a deployment
+  # behind a load balancer or a Kubernetes Service wants fs_url to be - and not an address anything
+  # can call. Connecting to 0.0.0.0 happens to reach the loopback on Linux and is simply invalid on
+  # Windows, so letting it through as an endpoint would put a broken URL in front of every API call
+  # of a Windows session reading a properties.json a container wrote. Falling through to rule 4
+  # gives localhost:fs_port, which is where a wildcard listener answers anyway.
+  if (is_wildcard_bind_host(conf$fs_url)) {
+    return(FALSE)
+  }
   if (identical(conf$fs_url_resolved_for, conf$fs_url)) {
     return(conf$fs_url_resolves)
   }
@@ -88,6 +98,18 @@ fs_url_resolves_here <- function() {
   conf$fs_url_resolved_for <- conf$fs_url
   conf$fs_url_resolves <- resolves
   resolves
+}
+
+# TRUE when `host` is a wildcard bind address, i.e. "listen on every interface" rather than the name
+# of somewhere to send a request. Both families are covered: 0.0.0.0 for IPv4, :: (also written
+# [::]) for IPv6.
+is_wildcard_bind_host <- function(host) {
+  if (is.null(host) || length(host) != 1 || is.na(host)) {
+    return(FALSE)
+  }
+  bare <- sub("^https?://", "", sub("/+$", "", trimws(host)))
+  bare <- sub(":[0-9]+$", "", bare)
+  bare %in% c("0.0.0.0", "::", "[::]", "0:0:0:0:0:0:0:0", "[0:0:0:0:0:0:0:0]")
 }
 
 # Says so when conf$fs_url names a host this machine cannot resolve, i.e. when the address the Scala
@@ -101,7 +123,12 @@ fs_url_resolves_here <- function() {
 # fallback existed, the only thing jobs/fs.log had to say about it was a Pekko stack trace ending in
 # "java.net.SocketException: Unresolved address", from a service that had already taken the lease.
 warn_if_fs_url_not_bindable <- function() {
-  if (fs_url_resolves_here()) {
+  # A wildcard is bindable - it is the one value that is bindable everywhere - even though
+  # fs_url_resolves_here() answers FALSE for it. The two questions differ on purpose: that function
+  # asks "is this an address to call", this one asks "is this an address to listen on", and
+  # Settings.hostResolvesHere() on the Scala side accepts 0.0.0.0 exactly as it accepts a real
+  # interface. Warning here would report a working configuration as broken.
+  if (is_wildcard_bind_host(conf$fs_url) || fs_url_resolves_here()) {
     return(invisible(FALSE))
   }
   message(sprintf(
