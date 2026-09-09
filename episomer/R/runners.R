@@ -244,6 +244,8 @@ stop_detect_runner_task <- function() {
 #'   are both accepted), default: NULL
 #' @param bind_port Numeric, the port the database has to bind for this run instead of the
 #'   configured \code{conf$fs_port}, default: NULL
+#' @param timeout Numeric, how many seconds to wait for the database to answer before giving up
+#'   with an error, default: Inf
 #' @return Nothing
 #' @details Registers the episomer database task or stops if no configuration has been set or if it is already running.
 #' This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
@@ -278,7 +280,8 @@ stop_detect_runner_task <- function() {
 register_fs_runner_task <- function(
   wait_until_response = FALSE,
   bind_host = NULL,
-  bind_port = NULL
+  bind_port = NULL,
+  timeout = Inf
 ) {
   runner_args <- character(0)
   if (!is.null(bind_host)) {
@@ -298,15 +301,27 @@ register_fs_runner_task <- function(
   }
   register_runner_task("fs", runner_args = runner_args)
   message(sprintf("Waiting until the fs runner answers on %s", get_scala_ping_url()))
-  answered <- FALSE
-  while(!answered) {
+  # Bounded when the caller asks for it. The wait used to be unbounded, which is survivable for an
+  # operator watching a console and not at all for an unattended deployment: a database that cannot
+  # bind its address - a Kubernetes service name resolving to a cluster IP the pod does not hold is
+  # the case that happened, see Settings.fsBindHost - never answers, and setup() then hung on a row
+  # of dots instead of failing with something to read.
+  deadline <- Sys.time() + timeout
+  while (TRUE) {
      if(is_fs_running()) {
          message("fs is running")
-         answered <- TRUE
-     } else {
-         cat(".")
-         Sys.sleep(2)
+         return(invisible(NULL))
      }
+     if (Sys.time() >= deadline) {
+       stop(sprintf(
+         "The episomer database did not answer on %s after %s seconds. Its log is in %s.",
+         get_scala_ping_url(),
+         timeout,
+         file.path(conf$data_dir, "jobs", "fs.log")
+       ))
+     }
+     cat(".")
+     Sys.sleep(2)
   }
 }
 

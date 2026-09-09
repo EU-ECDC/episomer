@@ -82,6 +82,30 @@ test_that("register_fs_runner_task looks for the service on the address it asked
   expect_equal(seen, "http://127.0.0.1:9080/ping")
 })
 
+test_that("register_fs_runner_task gives up with an error on a service that never answers", {
+  # The wait used to be unbounded. That is survivable for an operator watching a console and not at
+  # all for an unattended deployment: a database that cannot bind its address - a Kubernetes
+  # service name resolving to a cluster IP the pod does not hold, see Settings.fsBindHost - never
+  # answers at all, and setup() then hung on a growing row of dots with nothing to read.
+  local_lease_conf(fs_url = "http://fs", fs_port = 8080)
+  withr::defer(clear_fs_endpoint_override())
+  local_mocked_bindings(
+    register_runner_task = function(...) invisible(NULL),
+    is_fs_running = function() FALSE,
+    .package = "episomer"
+  )
+
+  expect_error(
+    suppressMessages(register_fs_runner_task(
+      wait_until_response = TRUE,
+      bind_host = "localhost",
+      bind_port = 9080,
+      timeout = 0
+    )),
+    "did not answer on http://127.0.0.1:9080/ping"
+  )
+})
+
 test_that("register_runner_task appends the extra arguments after the data directory", {
   data_dir <- local_lease_conf(force_date_format = "")
   dir.create(file.path(data_dir, "jobs"), showWarnings = FALSE)

@@ -29,7 +29,8 @@ stop_detect_runner_task()
 register_fs_runner_task(
   wait_until_response = FALSE,
   bind_host = NULL,
-  bind_port = NULL
+  bind_port = NULL,
+  timeout = Inf
 )
 
 stop_all_runner_tasks()
