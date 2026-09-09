@@ -152,6 +152,10 @@ address until \code{clear_fs_endpoint_override()} is called or the process ends.
 address reachable from inside the pod only, needing no exposed port and no service routing, and
 therefore reachable even while the pod is still unready.
 
+A database given either of them is always started attached to this session, on Windows as
+everywhere else, and never as a Windows scheduled task: it is meant to live for the length of
+one call, and a scheduled task would both outlive it and truncate its command line.
+
 Stops the detect loop, the search loop and the fs loop
 This function will try also deactivate the respective scheduled task on Windows.
 

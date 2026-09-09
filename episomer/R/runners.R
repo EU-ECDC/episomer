@@ -265,6 +265,10 @@ stop_detect_runner_task <- function() {
 #' \code{"localhost"} is the value to give \code{bind_host} in a container orchestrator: an
 #' address reachable from inside the pod only, needing no exposed port and no service routing, and
 #' therefore reachable even while the pod is still unready.
+#'
+#' A database given either of them is always started attached to this session, on Windows as
+#' everywhere else, and never as a Windows scheduled task: it is meant to live for the length of
+#' one call, and a scheduled task would both outlive it and truncate its command line.
 #' @examples
 #' \dontrun{
 #'    #getting tasks statuses
@@ -300,7 +304,17 @@ register_fs_runner_task <- function(
       if (is.null(bind_port)) conf$fs_port else bind_port
     )
   }
-  register_runner_task("fs", runner_args = runner_args)
+  # attached = TRUE for a database asked to bind somewhere else, because such a database exists for
+  # the length of one call: the caller has an address only it knows about, and setup() stops the
+  # service as soon as the retraining is done. A Windows scheduled task is the wrong shape for that
+  # twice over - it would go on restarting the thing every hour, and its command line is capped
+  # short enough that the bind arguments pushed it past the limit and it was stored truncated. See
+  # register_runner_task().
+  register_runner_task(
+    "fs",
+    runner_args = runner_args,
+    attached = length(runner_args) > 0
+  )
   # wait_until_response is now read. It used to be accepted and ignored - the function waited
   # whatever the caller asked for - which made "start it and let me carry on" impossible to express
   # and the argument misleading to read.
@@ -517,12 +531,56 @@ rscript_exe_for_schtasks <- function() {
   if (grepl(" ", short, fixed = TRUE)) shQuote(short, type = "cmd") else short
 }
 
+# Path of the Rscript executable to hand to system2(), which does not quote its `command`.
+#
+# "Rscript" off the PATH is what this has always used and is right on every supported Linux image.
+# It is not safe on Windows, where the installer puts R under "C:/Program Files" by default: the
+# space would split the program name. The 8.3 short name removes the space rather than quoting
+# around it, exactly as for the scheduled task - see rscript_exe_for_schtasks() above for why that
+# is preferred, and for the case where 8.3 generation is disabled and quoting is all that is left.
+rscript_exe_attached <- function() {
+  if (.Platform$OS.type != "windows") {
+    return("Rscript")
+  }
+  exe <- file.path(R.home("bin"), "Rscript.exe")
+  if (!file.exists(exe)) {
+    return("Rscript")
+  }
+  short <- utils::shortPathName(exe)
+  if (grepl(" ", short, fixed = TRUE)) shQuote(short, type = "cmd") else short
+}
+
 # This task is currently Windows only
 #
 # runner_args are extra command line arguments appended after the data directory, read by the
 # jobs/<task>.R script the runner is started with. Only the fs uses them today, to be told which
 # interface and port to bind (see register_fs_runner_task()).
-register_runner_task <- function(task_name, runner_args = character(0)) {
+#
+# attached = TRUE skips the Windows task scheduler and starts the runner as a child of this
+# session, which is what already happens everywhere else. It is for a service that is meant to live
+# for the length of one call rather than to be brought back after a reboot, and there are two
+# reasons a caller has to be able to say so - both found on the temporary database of the language
+# model retraining, the only such service today:
+#
+#  * a scheduled task outlives the call. taskscheduler_create() registers an HOURLY task, so
+#    Windows kept restarting a retraining database on conf$fs_setup_port every hour, for ever,
+#    long after setup() had finished with it. stop_runner_task() disables the task but does not
+#    delete it;
+#  * schtasks truncates. The whole "cmd /c <Rexe> <script> <args> >> <log> 2>&1" string is handed
+#    to its /TR argument, which caps it - measured at 253 characters on a default Windows install.
+#    Adding "bindHost localhost bindPort 9080" to a command line that already names the data
+#    directory three times (the script, the argument, the log) took it from 221 to 254, and the
+#    task was stored with its last character missing:
+#        ... >> "C:/Users/.../jobs/fs.log" 2>&
+#    "2>&" is not a redirection cmd.exe can parse, so the task exited 1 without running anything
+#    and *without creating the log file* - the only place that would have said why. What it looked
+#    like from setup() was register_fs_runner_task(wait_until_response = TRUE) waiting for ever on
+#    a database that was never started, with no jobs/fs.log to read. system2() has no such limit.
+register_runner_task <- function(
+  task_name,
+  runner_args = character(0),
+  attached = FALSE
+) {
   # Making sure configuration has been set
   stop_if_no_config(paste(
     "Cannot register scheduled task without configuration setup"
@@ -530,7 +588,7 @@ register_runner_task <- function(task_name, runner_args = character(0)) {
 
   # Getting the embedded script name to be called in order to make the script run
   script_name <- paste(task_name, "R", sep = ".")
-  run_attached <- FALSE
+  run_attached <- attached
   # Getting source script
   script_base <- system.file(
     "extdata",
@@ -551,7 +609,7 @@ register_runner_task <- function(task_name, runner_args = character(0)) {
     collapse = " "
   )
 
-  if (.Platform$OS.type == "windows") {
+  if (.Platform$OS.type == "windows" && !run_attached) {
     # testing if taskscheduleR can be loaded
     if (requireNamespace("taskscheduleR", quietly = TRUE)) {
       # Registering the task as a schedule task using taskscheduleR
@@ -577,7 +635,7 @@ register_runner_task <- function(task_name, runner_args = character(0)) {
       )
       run_attached <- TRUE
     }
-  } else {
+  } else if (!run_attached) {
     message(
       "Permanent Task scheduling only work in Windows. The task will not automatically trigger on server startup"
     )
@@ -594,7 +652,7 @@ register_runner_task <- function(task_name, runner_args = character(0)) {
       message(sprintf("Rscript '%s' %s > %s", script, rscript_args, log))
       message(sprintf("Logs written to %s", log))
       system2(
-        "Rscript",
+        rscript_exe_attached(),
         args = c(script, conf$data_dir, runner_args),
         stdout = log,
         stderr = log,

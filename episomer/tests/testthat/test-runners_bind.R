@@ -16,7 +16,7 @@ test_that("register_fs_runner_task passes the bind address to the runner script"
   withr::defer(clear_fs_endpoint_override())
   got <- NULL
   local_mocked_bindings(
-    register_runner_task = function(task_name, runner_args = character(0)) {
+    register_runner_task = function(task_name, runner_args = character(0), attached = FALSE) {
       got <<- list(task_name = task_name, runner_args = runner_args)
       invisible(NULL)
     },
@@ -43,7 +43,7 @@ test_that("register_fs_runner_task passes nothing when no bind address is asked 
   local_lease_conf(fs_url = "http://fs", fs_port = 8080)
   got <- "not called"
   local_mocked_bindings(
-    register_runner_task = function(task_name, runner_args = character(0)) {
+    register_runner_task = function(task_name, runner_args = character(0), attached = FALSE) {
       got <<- runner_args
       invisible(NULL)
     },
@@ -247,4 +247,98 @@ test_that("register_fs_runner_task waits on the temporary port when asked to", {
   # every probe went to the temporary port, never to the configured fs_url:fs_port
   expect_identical(unique(seen), "http://127.0.0.1:9080/ping")
   expect_length(seen, 3L)
+})
+
+# --------------------------------------------------------------------------------------------------
+# A database bound somewhere else is a run-scoped service, so it never becomes a Windows scheduled
+# task. Two independent reasons, both found on Windows:
+#
+#  * taskscheduler_create() registers an HOURLY task, so Windows went on starting a retraining
+#    database on port 9080 every hour long after setup() had finished with it;
+#  * schtasks caps the command line it stores. "cmd /c <Rexe> <script> <args> >> <log> 2>&1" names
+#    the data directory three times, and adding "bindHost localhost bindPort 9080" took a default
+#    Windows install from 221 to 254 characters. The task was stored ending in "2>&", which
+#    cmd.exe cannot parse, so it exited 1 having created no log file at all - and setup() waited
+#    for ever on a database nothing had started, with nothing to read.
+
+test_that("register_fs_runner_task starts a bound database attached, never as a scheduled task", {
+  local_lease_conf(fs_url = "http://fs", fs_port = 8080)
+  withr::defer(clear_fs_endpoint_override())
+  got <- NULL
+  local_mocked_bindings(
+    register_runner_task = function(task_name, runner_args = character(0), attached = FALSE) {
+      got <<- attached
+      invisible(NULL)
+    },
+    is_fs_running = function() TRUE,
+    .package = "episomer"
+  )
+
+  expect_message(
+    register_fs_runner_task(
+      wait_until_response = TRUE,
+      bind_host = "localhost",
+      bind_port = 9080
+    ),
+    "fs is running"
+  )
+  expect_true(got)
+})
+
+test_that("register_fs_runner_task leaves the real service on the task scheduler", {
+  # The reason this is not simply always attached: the real fs is meant to come back after a
+  # reboot, which is the whole point of registering it with the scheduler on Windows.
+  local_lease_conf(fs_url = "http://fs", fs_port = 8080)
+  got <- "not called"
+  local_mocked_bindings(
+    register_runner_task = function(task_name, runner_args = character(0), attached = FALSE) {
+      got <<- attached
+      invisible(NULL)
+    },
+    is_fs_running = function() TRUE,
+    .package = "episomer"
+  )
+
+  expect_message(register_fs_runner_task(wait_until_response = TRUE), "fs is running")
+  expect_false(got)
+})
+
+test_that("register_runner_task(attached = TRUE) does not consult the task scheduler", {
+  data_dir <- local_lease_conf(force_date_format = "")
+  dir.create(file.path(data_dir, "jobs"), showWarnings = FALSE)
+  got <- NULL
+  local_mocked_bindings(stop_if_no_config = function(...) invisible(NULL), .package = "episomer")
+  local_mocked_bindings(
+    system2 = function(command, args, ...) {
+      got <<- args
+      invisible(0)
+    },
+    .package = "base"
+  )
+  skip_on_os("windows")
+
+  suppressMessages(register_runner_task(
+    "fs",
+    runner_args = c("bindHost", "localhost", "bindPort", "9080"),
+    attached = TRUE
+  ))
+
+  # the arguments still reach the runner script, and no "Permanent Task scheduling" message is
+  # printed because the scheduler branch is not entered at all
+  expect_equal(got, c(file.path(data_dir, "jobs", "fs.R"), data_dir,
+                      "bindHost", "localhost", "bindPort", "9080"))
+  expect_silent(suppressMessages(NULL))
+})
+
+test_that("rscript_exe_attached() names an executable system2 can run", {
+  # system2() does not quote its `command`, and the Windows installer puts R under
+  # "C:/Program Files" by default.
+  exe <- rscript_exe_attached()
+  expect_length(exe, 1L)
+  expect_true(nchar(exe) > 0)
+  if (.Platform$OS.type != "windows") {
+    expect_identical(exe, "Rscript")
+  } else {
+    expect_false(grepl(" ", exe, fixed = TRUE) && !grepl('^"', exe))
+  }
 })
