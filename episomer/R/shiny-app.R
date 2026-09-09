@@ -465,7 +465,7 @@ episomer_app <- function(
       config_page <-
         shiny::fluidPage(
           shinyjs::useShinyjs(),
-          shiny::tags$style(HTML(
+          shiny::tags$style(shiny::HTML(
             "
             .config-toggle-title {
               cursor: pointer;
