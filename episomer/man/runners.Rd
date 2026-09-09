@@ -26,7 +26,11 @@ register_detect_runner_task()
 
 stop_detect_runner_task()
 
-register_fs_runner_task(wait_until_response = FALSE)
+register_fs_runner_task(
+  wait_until_response = FALSE,
+  bind_host = NULL,
+  bind_port = NULL
+)
 
 stop_all_runner_tasks()
 
@@ -44,6 +48,13 @@ is_detect_running()
 }
 \arguments{
 \item{wait_until_response}{Logical, whether to wait until the fs runner answers, default FALSE}
+
+\item{bind_host}{Character, the interface the database has to bind for this run instead of the
+configured \code{conf$fs_url}, with or without a scheme ("localhost" and "http://localhost"
+are both accepted), default: NULL}
+
+\item{bind_port}{Numeric, the port the database has to bind for this run instead of the
+configured \code{conf$fs_port}, default: NULL}
 
 \item{timeout}{Numeric how many seconds to wait for the database service to stop answering
 before giving up, default: 60}
@@ -125,6 +136,20 @@ Registers the episomer database task or stops if no configuration has been set o
 This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
 This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
 
+\code{bind_host} and \code{bind_port} start a database that is deliberately *not* on the
+configured address, for a caller that needs one for itself: the language model retraining of
+\code{\link{setup}} needs a running database, and it must not be mistaken for the real service
+by whatever waits for that service to become healthy before starting (\code{depends_on:
+service_healthy} in docker/compose.yml, a readiness probe in Kubernetes). They travel to the
+database as command line arguments - jobs/fs.R, then \code{\link{fs_loop}}, then the Scala
+\code{API.run()} - and nothing about them is written to properties.json, so a process killed
+outright leaves no trace behind. Every call the current process makes to the API goes to that
+address until \code{clear_fs_endpoint_override()} is called or the process ends.
+
+\code{"localhost"} is the value to give \code{bind_host} in a container orchestrator: an
+address reachable from inside the pod only, needing no exposed port and no service routing, and
+therefore reachable even while the pod is still unready.
+
 Stops the detect loop, the search loop and the fs loop
 This function will try also deactivate the respective scheduled task on Windows.
 
@@ -196,6 +221,9 @@ this machine or on any other machine sharing the same episomer database - see
    message('Please choose the episomer data directory')
    setup_config(file.choose())
    register_fs_runner_task()
+
+   # a database only this process can see, on a port of its own
+   register_fs_runner_task(wait_until_response = TRUE, bind_host = "localhost", bind_port = 9080)
 }
 \dontrun{
    #getting tasks statuses

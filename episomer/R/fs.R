@@ -12,6 +12,10 @@
 #
 # Resolution order, from the most explicit to the last resort:
 #
+#   0. the session override      this very process started a database on an address of its own and
+#                                said so, see set_fs_endpoint_override() below. It comes first
+#                                because it is the only rule describing a service the caller has
+#                                just launched itself.
 #   1. conf$fs_remote           the caller said where the fs is: episomer_app(fs_remote = ...), or
 #                               EPI_HOST through the setup_config() default.
 #   2. EPI_HOST                 machine-local, and already how the search / detect containers are
@@ -26,6 +30,10 @@
 #                               case, and there the port is published on the host, so localhost
 #                               reaches it.
 get_scala_api_endpoint <- function() {
+  override <- fs_endpoint_override()
+  if (!is.null(override)) {
+    return(override)
+  }
   if (!is.null(conf$fs_remote)) {
     return(prefer_loopback_ipv4(gsub("/$", "", conf$fs_remote)))
   }
@@ -38,6 +46,68 @@ get_scala_api_endpoint <- function() {
   } else {
     paste("http://localhost", ":", conf$fs_port, sep = "")
   })
+}
+
+# Where the fs API answers *for this process only*, once this process has started a database of its
+# own on an address that is deliberately not the configured one.
+#
+# The one caller today is the language model retraining of setup(): that step needs a running
+# database, and that database must not be found by anybody else while it runs. The services that
+# wait for the fs to be healthy before starting - search and detect, `depends_on: service_healthy`
+# in docker/compose.yml, a readiness probe in Kubernetes - all watch conf$fs_url:conf$fs_port, so
+# a retraining database bound somewhere else is invisible to them, which is the whole point.
+#
+# It is a *session* value, held in conf and never written to properties.json, and that is the point
+# of it. What it replaces was a temporary shift of conf$fs_port followed by save_config(), undone
+# in the `finally` of a tryCatch() in setup(). A process killed outright never runs that finally -
+# SIGKILL, an OOM kill, a Kubernetes pod evicted or its liveness probe failing - so the shifted
+# port stayed in properties.json and the next start shifted it again: 8080, 9080, 10080, 11080,
+# with a configuration file nobody had asked to change.
+#
+# Neither conf$fs_remote nor conf$fs_port would do:
+#   * conf$fs_remote does more than name an endpoint - fs_remote() gates to_remote_if_needed()
+#     (R/paths.R), so setting it turns every path under the data directory into an API URL, and the
+#     retraining works on the local disk;
+#   * conf$fs_port is persisted by save_config(), i.e. it outlives the process that changed it.
+set_fs_endpoint_override <- function(bind_host, bind_port) {
+  conf$fs_endpoint_override <- prefer_loopback_ipv4(sprintf(
+    "%s:%s",
+    fs_bind_host_url(bind_host),
+    bind_port
+  ))
+  invisible(conf$fs_endpoint_override)
+}
+
+# Forgets the override, i.e. goes back to the configured address. Called when the temporary
+# database has been stopped; a process that dies before getting here loses it for free, which is
+# exactly what the previous conf$fs_port shift could not do.
+clear_fs_endpoint_override <- function() {
+  if (exists("fs_endpoint_override", envir = conf, inherits = FALSE)) {
+    rm("fs_endpoint_override", envir = conf)
+  }
+  invisible(NULL)
+}
+
+fs_endpoint_override <- function() {
+  value <- conf$fs_endpoint_override
+  if (is.null(value) || length(value) != 1 || is.na(value) || value == "") {
+    return(NULL)
+  }
+  value
+}
+
+# A bind host in the "scheme://host" form conf$fs_url is written in, so that "localhost",
+# "http://localhost" and "http://localhost/" are all accepted from a caller.
+fs_bind_host_url <- function(bind_host) {
+  host <- sub("/+$", "", trimws(bind_host))
+  if (!grepl("^https?://", host)) host <- paste("http://", host, sep = "")
+  host
+}
+
+# The host part alone, which is what the Scala API binds: Http().newServerAt() takes an interface,
+# not a URL, and Settings.fsBindHost strips the scheme off fs_url for the same reason.
+fs_bind_host_only <- function(bind_host) {
+  sub("^https?://", "", fs_bind_host_url(bind_host))
 }
 
 # Rewrites a "localhost" host part into 127.0.0.1, leaving every other address alone.
@@ -383,6 +453,12 @@ copy_secret_scripts <- function() {
 #' @description Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
 #' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
 #' If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @param bind_host Character, the interface the database has to bind instead of \code{conf$fs_url},
+#'   with or without a scheme ("localhost" and "http://localhost" are both accepted). Meant for a
+#'   database that must not be found on its configured address, see
+#'   \code{\link{register_fs_runner_task}}, default: NULL
+#' @param bind_port Numeric, the port the database has to bind instead of \code{conf$fs_port},
+#'   default: NULL
 #' @return nothing
 #' @details Launches the episomer embedded database which is accessed via a REST API located on localhost at port 8080. You can test that the database is running by accesssing the local URL and adding "/ping". 
 #' the REST API provide episomer a way to send and retrieve data related with posts and time series and to trigger geolocation or aggregation
@@ -406,14 +482,31 @@ copy_secret_scripts <- function() {
 #' @importFrom future multisession plan future
 #' @importFrom rlang current_env
 #' @export
-fs_loop <- function(data_dir = NA) {
+fs_loop <- function(data_dir = NA, bind_host = NULL, bind_port = NULL) {
   if (is.na(data_dir)) setup_config_if_not_already() else
     setup_config(data_dir = data_dir, fs_remote = NULL)
   data_dir <- conf$data_dir
+  # Told by the caller where to bind, so the service is not on the configured address and nothing
+  # in this process may look for it there either - the fs monitor below and the health check it
+  # runs included. register_fs_runner_task(bind_host =, bind_port =) is what puts these on the
+  # command line of jobs/fs.R; see set_fs_endpoint_override() at the top of this file for why they
+  # travel as arguments rather than through properties.json.
+  if (!is.null(bind_host) || !is.null(bind_port)) {
+    bind_host <- if (is.null(bind_host)) conf$fs_url else bind_host
+    bind_port <- if (is.null(bind_port)) conf$fs_port else bind_port
+    set_fs_endpoint_override(bind_host, bind_port)
+    message(sprintf(
+      "Binding the episomer database on %s:%s, as asked by the caller instead of the configured %s:%s",
+      fs_bind_host_only(bind_host),
+      bind_port,
+      fs_bind_host_only(conf$fs_url),
+      conf$fs_port
+    ))
+  }
   copy_secret_scripts()
   # calculating alerts per topic
   future::plan(future::multisession)
-  monitor <- start_fs_monitor(data_dir)
+  monitor <- start_fs_monitor(data_dir, bind_host, bind_port)
 
   message("Launching fs")
   # Registering the fs runner using current PID and ensuring no other instance of the search is actually running.
@@ -427,8 +520,10 @@ fs_loop <- function(data_dir = NA) {
   on.exit(unregister_runner(), add = TRUE)
 
   # Said once, here: from the next line on this process is the JVM's, and whatever it has to say
-  # about the address it binds arrives as a stack trace.
-  warn_if_fs_url_not_bindable()
+  # about the address it binds arrives as a stack trace. Skipped when the caller named the
+  # interface itself: conf$fs_url is then not the address being bound, so its resolvability is not
+  # the question.
+  if (is.null(bind_host)) warn_if_fs_url_not_bindable()
 
   # Infinite loop calling the fs runner
   while (TRUE) {
@@ -436,14 +531,23 @@ fs_loop <- function(data_dir = NA) {
       {
         spark_job(
           paste(
-            "fsService",
-            "epiHome",
-            # Quoted like every other path handed to the Scala side (see conf_geonames_as_arg() in
-            # R/spark-bridge.R): the arguments end up in a command line, and Episomer.main() reads
-            # what follows the command as 'key' 'value' pairs. A data_dir holding a space - which
-            # is what the default of a Windows installation looks like - would be split into two
-            # arguments and the service would refuse to start on an odd argument count.
-            paste("\"", conf$data_dir, "\"", sep = "")
+            c(
+              "fsService",
+              "epiHome",
+              # Quoted like every other path handed to the Scala side (see conf_geonames_as_arg()
+              # in R/spark-bridge.R): the arguments end up in a command line, and Episomer.main()
+              # reads what follows the command as 'key' 'value' pairs. A data_dir holding a space -
+              # which is what the default of a Windows installation looks like - would be split
+              # into two arguments and the service would refuse to start on an odd argument count.
+              paste("\"", conf$data_dir, "\"", sep = ""),
+              # Two more optional 'key' 'value' pairs, read by Episomer.main() and handed to
+              # API.run(), which binds them instead of conf.fsBindHost / conf.fsPort
+              # (scala/src/main/scala/Episomer.scala and API.scala). The bind address of a
+              # temporary database has no business being written in the shared properties.json.
+              if (!is.null(bind_host)) c("bindHost", fs_bind_host_only(bind_host)),
+              if (!is.null(bind_port)) c("bindPort", as.character(bind_port))
+            ),
+            collapse = " "
           )
         )
       },
@@ -460,7 +564,7 @@ fs_loop <- function(data_dir = NA) {
     # spark_job() only gives the control back when the Scala service has stopped, which makes this
     # the one moment this process can look at anything else - hence the monitor check here rather
     # than on a timer that would never fire.
-    monitor <- restart_fs_monitor_if_dead(monitor, data_dir)
+    monitor <- restart_fs_monitor_if_dead(monitor, data_dir, bind_host, bind_port)
   }
 }
 
@@ -485,16 +589,16 @@ fs_loop <- function(data_dir = NA) {
 #
 # What follows is what makes a third one visible: the loop writes to <data_dir>/fs_mon.log, survives
 # what can be survived, and fs_loop() collects the value of a monitor that died anyway.
-start_fs_monitor <- function(data_dir) {
+start_fs_monitor <- function(data_dir, bind_host = NULL, bind_port = NULL) {
   future::future(
-    fs_monitor_loop(data_dir),
-    globals = c("data_dir", "fs_monitor_loop"),
+    fs_monitor_loop(data_dir, bind_host, bind_port),
+    globals = c("data_dir", "bind_host", "bind_port", "fs_monitor_loop"),
     envir = rlang::current_env()
   )
 }
 
 # The body of the fs monitor, running in the worker started above.
-fs_monitor_loop <- function(data_dir) {
+fs_monitor_loop <- function(data_dir, bind_host = NULL, bind_port = NULL) {
   fs_monitor_log("Monitoring episomer", data_dir = data_dir)
   # fs_remote = NULL, exactly as the fs_loop() branch above: this worker runs on the fs machine
   # itself, /episomer-data is its own local disk and the Scala API is not up yet when it starts.
@@ -510,6 +614,16 @@ fs_monitor_loop <- function(data_dir) {
       stop(e)
     }
   )
+  # Carried over from fs_loop(): this is a separate R process, so the session override of the
+  # endpoint (set_fs_endpoint_override(), top of this file) does not come with the globals - and
+  # health_check() below calls the API. Without it the monitor would ask conf$fs_url:conf$fs_port
+  # about a database bound somewhere else, and report a perfectly healthy service as down.
+  if (!is.null(bind_host) || !is.null(bind_port)) {
+    set_fs_endpoint_override(
+      if (is.null(bind_host)) conf$fs_url else bind_host,
+      if (is.null(bind_port)) conf$fs_port else bind_port
+    )
+  }
   x = 60
   step = 2
   while (TRUE) {
@@ -590,7 +704,7 @@ fs_monitor_log <- function(m, data_dir = conf$data_dir) {
 # Collecting its value is the only way to get that error out of the worker: it is raised here,
 # caught, and turned into a message that reaches `docker logs` - fs_mon.log has it too, but an
 # operator looking at a service that stopped collecting should not have to know that.
-restart_fs_monitor_if_dead <- function(monitor, data_dir) {
+restart_fs_monitor_if_dead <- function(monitor, data_dir, bind_host = NULL, bind_port = NULL) {
   if (!future::resolved(monitor)) {
     return(monitor)
   }
@@ -605,7 +719,7 @@ restart_fs_monitor_if_dead <- function(monitor, data_dir) {
       ))
     }
   )
-  start_fs_monitor(data_dir)
+  start_fs_monitor(data_dir, bind_host, bind_port)
 }
 
 #' @title perform full text search on posts collected with episomer

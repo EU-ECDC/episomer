@@ -239,10 +239,29 @@ stop_detect_runner_task <- function() {
 #' @title Registers the episomer database task
 #' @description registers the episomer database task or stops if no configuration has been set or if it is already running
 #' @param wait_until_response Logical, whether to wait until the fs runner answers, default FALSE
+#' @param bind_host Character, the interface the database has to bind for this run instead of the
+#'   configured \code{conf$fs_url}, with or without a scheme ("localhost" and "http://localhost"
+#'   are both accepted), default: NULL
+#' @param bind_port Numeric, the port the database has to bind for this run instead of the
+#'   configured \code{conf$fs_port}, default: NULL
 #' @return Nothing
 #' @details Registers the episomer database task or stops if no configuration has been set or if it is already running.
 #' This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
 #' This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
+#'
+#' \code{bind_host} and \code{bind_port} start a database that is deliberately *not* on the
+#' configured address, for a caller that needs one for itself: the language model retraining of
+#' \code{\link{setup}} needs a running database, and it must not be mistaken for the real service
+#' by whatever waits for that service to become healthy before starting (\code{depends_on:
+#' service_healthy} in docker/compose.yml, a readiness probe in Kubernetes). They travel to the
+#' database as command line arguments - jobs/fs.R, then \code{\link{fs_loop}}, then the Scala
+#' \code{API.run()} - and nothing about them is written to properties.json, so a process killed
+#' outright leaves no trace behind. Every call the current process makes to the API goes to that
+#' address until \code{clear_fs_endpoint_override()} is called or the process ends.
+#'
+#' \code{"localhost"} is the value to give \code{bind_host} in a container orchestrator: an
+#' address reachable from inside the pod only, needing no exposed port and no service routing, and
+#' therefore reachable even while the pod is still unready.
 #' @examples
 #' \dontrun{
 #'    #getting tasks statuses
@@ -250,12 +269,35 @@ stop_detect_runner_task <- function() {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    register_fs_runner_task()
+#'
+#'    # a database only this process can see, on a port of its own
+#'    register_fs_runner_task(wait_until_response = TRUE, bind_host = "localhost", bind_port = 9080)
 #' }
 #' @rdname runners
 #' @export
-register_fs_runner_task <- function(wait_until_response=FALSE) {
-  register_runner_task("fs")
-  message("Waiting until the fs runner answers")
+register_fs_runner_task <- function(
+  wait_until_response = FALSE,
+  bind_host = NULL,
+  bind_port = NULL
+) {
+  runner_args <- character(0)
+  if (!is.null(bind_host)) {
+    runner_args <- c(runner_args, "bindHost", fs_bind_host_only(bind_host))
+  }
+  if (!is.null(bind_port)) {
+    runner_args <- c(runner_args, "bindPort", as.character(bind_port))
+  }
+  # Set *before* the service is started, because the wait below is is_fs_running(), i.e. a GET on
+  # get_scala_ping_url(): asking the configured address about a database bound somewhere else would
+  # wait for ever. See set_fs_endpoint_override() in R/fs.R.
+  if (length(runner_args) > 0) {
+    set_fs_endpoint_override(
+      if (is.null(bind_host)) conf$fs_url else bind_host,
+      if (is.null(bind_port)) conf$fs_port else bind_port
+    )
+  }
+  register_runner_task("fs", runner_args = runner_args)
+  message(sprintf("Waiting until the fs runner answers on %s", get_scala_ping_url()))
   answered <- FALSE
   while(!answered) {
      if(is_fs_running()) {
@@ -454,7 +496,11 @@ rscript_exe_for_schtasks <- function() {
 }
 
 # This task is currently Windows only
-register_runner_task <- function(task_name) {
+#
+# runner_args are extra command line arguments appended after the data directory, read by the
+# jobs/<task>.R script the runner is started with. Only the fs uses them today, to be told which
+# interface and port to bind (see register_fs_runner_task()).
+register_runner_task <- function(task_name, runner_args = character(0)) {
   # Making sure configuration has been set
   stop_if_no_config(paste(
     "Cannot register scheduled task without configuration setup"
@@ -478,7 +524,10 @@ register_runner_task <- function(task_name) {
   # Copying the script
   file.copy(from = script_base, to = script, overwrite = TRUE)
   taskname = paste("episomer", task_name, "loop", sep = "_")
-  rscript_args = paste("\"", conf$data_dir, "\"", sep = "")
+  rscript_args = paste(
+    c(paste("\"", conf$data_dir, "\"", sep = ""), runner_args),
+    collapse = " "
+  )
 
   if (.Platform$OS.type == "windows") {
     # testing if taskscheduleR can be loaded
@@ -520,11 +569,11 @@ register_runner_task <- function(task_name) {
       cm <- paste(script, rscript_args)
       script_log <- paste(task_name, "log", sep = ".")
       log <- file.path(script_folder, script_log)
-      message(sprintf("Rscript '%s' '%s' > %s", script, conf$data_dir, log))
+      message(sprintf("Rscript '%s' %s > %s", script, rscript_args, log))
       message(sprintf("Logs written to %s", log))
       system2(
         "Rscript",
-        args = c(script, conf$data_dir),
+        args = c(script, conf$data_dir, runner_args),
         stdout = log,
         stderr = log,
         wait = FALSE

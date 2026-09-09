@@ -4,11 +4,19 @@
 \alias{fs_loop}
 \title{Runs the episomer embedded database loop}
 \usage{
-fs_loop(data_dir = NA)
+fs_loop(data_dir = NA, bind_host = NULL, bind_port = NULL)
 }
 \arguments{
 \item{data_dir}{Path to the 'data directory' containing application settings, models and collected posts.
 If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
+
+\item{bind_host}{Character, the interface the database has to bind instead of \code{conf$fs_url},
+with or without a scheme ("localhost" and "http://localhost" are both accepted). Meant for a
+database that must not be found on its configured address, see
+\code{\link{register_fs_runner_task}}, default: NULL}
+
+\item{bind_port}{Numeric, the port the database has to bind instead of \code{conf$fs_port},
+default: NULL}
 }
 \value{
 nothing

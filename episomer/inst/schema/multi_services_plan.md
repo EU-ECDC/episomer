@@ -620,6 +620,7 @@ Fixed R-side only, without touching Scala or the compose files. `get_scala_api_e
 
 | # | Source | When it wins |
 |---|---|---|
+| 0 | the session override | this very process started a database on an address of its own and said so — `set_fs_endpoint_override()`, used by `register_fs_runner_task(bind_host =, bind_port =)`. It comes first because it is the only rule describing a service the caller has just launched itself, and it is never persisted |
 | 1 | `conf$fs_remote` | the caller said where the fs is: `episomer_app(fs_remote = ...)`, or `EPI_HOST` through the `setup_config()` default |
 | 2 | `EPI_HOST` | machine-local. Needed on its own because `setup()` passes `fs_remote = NULL` on purpose (it works on the local disk) and would otherwise ignore it |
 | 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address, and the only one for which the temporary `fs_port + 1000` shift of the language retraining has to be honoured |

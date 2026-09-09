@@ -73,6 +73,56 @@ test_that("get_scala_api_endpoint follows the temporary port shift of the retrai
   expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
 })
 
+# The session override is rule 0 of the resolution order: this process started a database of its
+# own and says where. It has to beat every other rule, including the two explicit ones, because it
+# describes a service the caller has just launched.
+
+test_that("the fs endpoint override wins over fs_remote, EPI_HOST and fs_url", {
+  withr::local_envvar(EPI_HOST = "http://from-env:8080")
+  local_conf(
+    "fs_remote" = "http://explicit:1234",
+    fs_url = "http://fs",
+    fs_port = 8080
+  )
+  set_fs_endpoint_override("localhost", 9080)
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
+
+  # And it goes away without leaving anything behind, which is the whole reason it exists rather
+  # than a value written to properties.json.
+  clear_fs_endpoint_override()
+  expect_null(fs_endpoint_override())
+  expect_equal(get_scala_api_endpoint(), "http://explicit:1234")
+})
+
+test_that("clear_fs_endpoint_override is a no-op when no override was set", {
+  local_conf("fs_remote" = NULL, fs_url = "http://localhost", fs_port = 8080)
+  expect_null(fs_endpoint_override())
+  expect_silent(clear_fs_endpoint_override())
+  expect_null(fs_endpoint_override())
+})
+
+test_that("a bind host is accepted with or without a scheme", {
+  # conf$fs_url carries a scheme ("http://localhost") while Http().newServerAt() takes an
+  # interface, so both forms have to be understood on the way in and only one on the way out.
+  expect_equal(fs_bind_host_url("localhost"), "http://localhost")
+  expect_equal(fs_bind_host_url("http://localhost"), "http://localhost")
+  expect_equal(fs_bind_host_url("http://localhost/"), "http://localhost")
+  expect_equal(fs_bind_host_url(" localhost "), "http://localhost")
+
+  expect_equal(fs_bind_host_only("localhost"), "localhost")
+  expect_equal(fs_bind_host_only("http://0.0.0.0"), "0.0.0.0")
+  expect_equal(fs_bind_host_only("https://fs/"), "fs")
+})
+
+test_that("set_fs_endpoint_override normalises localhost to the IPv4 loopback", {
+  # Same reason as prefer_loopback_ipv4() above: on Windows "localhost" resolves to ::1 only,
+  # where the Scala API does not listen, and every request pays a failed connection first.
+  local_conf("fs_remote" = NULL, fs_url = "http://localhost", fs_port = 8080)
+  set_fs_endpoint_override("localhost", 9080)
+  expect_equal(fs_endpoint_override(), "http://127.0.0.1:9080")
+  clear_fs_endpoint_override()
+})
+
 # A wildcard fs_url is the value a deployment behind a Kubernetes Service wants: "listen on every
 # interface". It is a bind address and never an address to call - connecting to 0.0.0.0 reaches the
 # loopback on Linux by kernel convention and is simply invalid on Windows - so the endpoint
