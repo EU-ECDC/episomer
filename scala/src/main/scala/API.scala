@@ -647,8 +647,11 @@ object API {
       }
     
 
-    val bindHost = sys.env.getOrElse("EPISOMER_FS_BIND_HOST", "0.0.0.0")
-    Http().newServerAt(bindHost, fsPortOverride.getOrElse(conf.fsPort)).bind(route)
+    //val bindHost = sys.env.getOrElse("EPISOMER_FS_BIND_HOST", "0.0.0.0")
+    //Http().newServerAt(bindHost, fsPortOverride.getOrElse(conf.fsPort)).bind(route)
+    // conf.fsBindHost, not conf.fsUrl: see Settings.fsBindHost for why the configured host cannot be
+    // trusted to exist on the machine that reads it.
+    Http().newServerAt(conf.fsBindHost, conf.fsPort).bind(route)
 
   }
   def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
