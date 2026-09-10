@@ -531,23 +531,26 @@ rscript_exe_for_schtasks <- function() {
   if (grepl(" ", short, fixed = TRUE)) shQuote(short, type = "cmd") else short
 }
 
-# Path of the Rscript executable to hand to system2(), which does not quote its `command`.
+# Path of the Rscript executable to hand to system2().
 #
-# "Rscript" off the PATH is what this has always used and is right on every supported Linux image.
-# It is not safe on Windows, where the installer puts R under "C:/Program Files" by default: the
-# space would split the program name. The 8.3 short name removes the space rather than quoting
-# around it, exactly as for the scheduled task - see rscript_exe_for_schtasks() above for why that
-# is preferred, and for the case where 8.3 generation is disabled and quoting is all that is left.
+# "Rscript" off the PATH is what this used, and it is right on every supported Linux image. On
+# Windows R's bin directory is not on the PATH of a session started by the installer, so the
+# executable has to be named outright.
+#
+# Deliberately *not* quoted, and deliberately not the 8.3 short name either. system2() shQuote()s
+# its `command` itself (see base::system2), so a path holding a space is already safe, and quoting
+# it first gets it quoted twice - measured on a default "C:/Program Files/R" install, that fails
+# with
+#     '"\"C:\PROGRA~1\R\R-44~1.2\bin\x64\Rscript.exe\""' not found
+# and a return code of 127. Verified the other way round as well: the long path, unquoted, runs.
+# rscript_exe_for_schtasks() below still needs both, because there the string goes into a command
+# line nothing else will quote.
 rscript_exe_attached <- function() {
   if (.Platform$OS.type != "windows") {
     return("Rscript")
   }
   exe <- file.path(R.home("bin"), "Rscript.exe")
-  if (!file.exists(exe)) {
-    return("Rscript")
-  }
-  short <- utils::shortPathName(exe)
-  if (grepl(" ", short, fixed = TRUE)) shQuote(short, type = "cmd") else short
+  if (file.exists(exe)) exe else "Rscript"
 }
 
 # This task is currently Windows only
@@ -651,9 +654,17 @@ register_runner_task <- function(
       log <- file.path(script_folder, script_log)
       message(sprintf("Rscript '%s' %s > %s", script, rscript_args, log))
       message(sprintf("Logs written to %s", log))
+      # shQuote()d, because system2() quotes its `command` and *not* its `args`: it pastes them
+      # into one command line as they are. Both of the first two hold a path, and the default data
+      # directory of a Windows installation sits under "C:/Users/<given name> <family name>", so
+      # unquoted they were split at the space and Rscript was handed "C:/Users/Yohann" as the
+      # script to run. It then exited without writing a line, which is why the only symptom was
+      # register_fs_runner_task(wait_until_response = TRUE) waiting on a database that never came
+      # up, next to an empty jobs/fs.log. The same is true on Linux; it went unnoticed because
+      # /episomer-data has no space in it.
       system2(
         rscript_exe_attached(),
-        args = c(script, conf$data_dir, runner_args),
+        args = shQuote(c(script, conf$data_dir, runner_args)),
         stdout = log,
         stderr = log,
         wait = FALSE

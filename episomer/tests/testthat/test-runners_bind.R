@@ -134,17 +134,62 @@ test_that("register_runner_task appends the extra arguments after the data direc
   ))
 
   expect_equal(got$command, "Rscript")
+  # shQuote()d: system2() quotes its `command` and not its `args`, and the first two are paths. The
+  # default Windows data directory lives under "C:/Users/<given name> <family name>", so unquoted
+  # they were split at the space and Rscript got "C:/Users/Yohann" as the script to run.
   expect_equal(
     got$args,
-    c(
+    shQuote(c(
       file.path(data_dir, "jobs", "fs.R"),
       data_dir,
       "bindHost",
       "localhost",
       "bindPort",
       "9080"
-    )
+    ))
   )
+  # every argument survives a directory holding a space, which is the case that failed
+  expect_length(got$args, 6L)
+})
+
+test_that("register_runner_task quotes a data directory that holds a space", {
+  data_dir <- file.path(withr::local_tempdir(), "Yohann Mansiaux", "EPI HOME")
+  dir.create(file.path(data_dir, "jobs"), recursive = TRUE, showWarnings = FALSE)
+  local_lease_conf(force_date_format = "")
+  conf$data_dir <- data_dir
+  got <- NULL
+  local_mocked_bindings(
+    stop_if_no_config = function(...) invisible(NULL),
+    .package = "episomer"
+  )
+  local_mocked_bindings(
+    system2 = function(command, args, ...) {
+      got <<- args
+      invisible(0)
+    },
+    .package = "base"
+  )
+  skip_on_os("windows")
+
+  suppressMessages(register_runner_task(
+    "fs",
+    runner_args = c("bindHost", "localhost", "bindPort", "9080"),
+    attached = TRUE
+  ))
+
+  # six arguments, not the nine a split on the two spaces would have produced
+  expect_length(got, 6L)
+  # and the child sees the directory whole once the shell has stripped the quotes
+  expect_equal(got[[2]], shQuote(data_dir))
+})
+
+test_that("rscript_exe_attached() is not quoted, because system2 quotes it", {
+  # Quoting it here gets it quoted twice: measured on a default "C:/Program Files/R" install, that
+  # fails with '"\"C:\PROGRA~1\...\Rscript.exe\""' not found and a return code of 127.
+  exe <- rscript_exe_attached()
+  expect_length(exe, 1L)
+  expect_false(grepl('^"', exe))
+  expect_false(grepl("'", exe, fixed = TRUE))
 })
 
 # --------------------------------------------------------------------------------------------------
@@ -325,20 +370,13 @@ test_that("register_runner_task(attached = TRUE) does not consult the task sched
 
   # the arguments still reach the runner script, and no "Permanent Task scheduling" message is
   # printed because the scheduler branch is not entered at all
-  expect_equal(got, c(file.path(data_dir, "jobs", "fs.R"), data_dir,
-                      "bindHost", "localhost", "bindPort", "9080"))
-  expect_silent(suppressMessages(NULL))
+  expect_equal(got, shQuote(c(file.path(data_dir, "jobs", "fs.R"), data_dir,
+                              "bindHost", "localhost", "bindPort", "9080")))
 })
 
 test_that("rscript_exe_attached() names an executable system2 can run", {
-  # system2() does not quote its `command`, and the Windows installer puts R under
-  # "C:/Program Files" by default.
   exe <- rscript_exe_attached()
   expect_length(exe, 1L)
   expect_true(nchar(exe) > 0)
-  if (.Platform$OS.type != "windows") {
-    expect_identical(exe, "Rscript")
-  } else {
-    expect_false(grepl(" ", exe, fixed = TRUE) && !grepl('^"', exe))
-  }
+  if (.Platform$OS.type != "windows") expect_identical(exe, "Rscript")
 })
