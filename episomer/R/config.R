@@ -57,21 +57,68 @@ set_secret <- function(secret, value) {
       password = value
     )
   } else {
-    resp <- httr2::request(
-      sprintf(
-        "%s?secret=%s&passphrase=%s&value=%s",
-        get_scala_secrets_url(),
-        secret,
-        urltools::url_encode(get_episomer_kr_password()),
-        urltools::url_encode(value)
-      )
-    ) %>%
-      httr2::req_method("POST") %>%
-      httr2::req_perform() 
-    ret <- jsonlite::fromJSON(resp %>% httr2::resp_body_string())
+    ret <- secrets_api_set(secret, value)
     if(ret$status != "ok")
-       stop("Error on setting secret") 
+       stop(secrets_api_reason("Error on setting secret", ret))
   }
+}
+
+# The request both directions of the /secret endpoint of the fs API are built from.
+#
+# The API reads and writes the keyring by running an Rscript sub process, and when that process
+# fails it answers 406 with the process stderr in the body ("Could not get the secret
+# exit(<code>):<err>", API.scala). That body is the only place the real cause is written - a wrong
+# EPISOMER_KR_PASSWORD, an Rscript missing from the PATH of the API process, a keyring that cannot
+# be read - and it used to be dropped on both sides:
+#
+#   * reading went through jsonlite::read_json(), i.e. url(), which reports "cannot open the
+#     connection to '<the whole URL>' ... HTTP status was '406 Not Acceptable'" and nothing else,
+#     printing the passphrase in clear on the console and into any screenshot of one;
+#   * writing raised the httr2 error of the 406, whose message is the status line alone.
+#
+# req_error(body = ) puts the stderr of the sub process in the message instead, and the URL stays
+# out of it.
+secrets_api_request <- function(secret, ...) {
+  httr2::request(get_scala_secrets_url()) %>%
+    httr2::req_url_query(
+      secret = secret,
+      passphrase = get_episomer_kr_password(),
+      ...
+    ) %>%
+    httr2::req_error(body = function(resp) {
+      body <- try(httr2::resp_body_string(resp), silent = TRUE)
+      if (inherits(body, "try-error") || !nzchar(body)) NULL else body
+    })
+}
+
+# The API completes with a JsObject turned into a String, so its answer is JSON served as
+# text/plain and resp_body_json() would refuse it on its content type. simplifyVector = FALSE
+# keeps the shape read_json() returned: a list of scalars.
+secrets_api_answer <- function(resp) {
+  jsonlite::fromJSON(httr2::resp_body_string(resp), simplifyVector = FALSE)
+}
+
+# The endpoint also answers "ko" *with a 200* when the sub process ran but did nothing useful -
+# get_secret.R writing "Not found" on stderr, say. The reason is then in the answer, not in an
+# HTTP error, and saying it beats a bare "could not".
+secrets_api_reason <- function(what, ret) {
+  paste0(
+    what,
+    ": ",
+    if (is.null(ret$message)) "no reason given by the fs API" else ret$message
+  )
+}
+
+secrets_api_get <- function(secret) {
+  secrets_api_answer(secrets_api_request(secret) %>% httr2::req_perform())
+}
+
+secrets_api_set <- function(secret, value) {
+  secrets_api_answer(
+    secrets_api_request(secret, value = value) %>%
+      httr2::req_method("POST") %>%
+      httr2::req_perform()
+  )
 }
 
 # Checks whether a secret is set on the secret management backend
@@ -82,13 +129,7 @@ is_secret_set <- function(secret) {
     return(nrow(secrets[secrets$username == secret, ]) > 0 || exists(secret, where = env_secrets))
 
   } else {
-    res <- jsonlite::read_json(sprintf(
-      "%s?secret=%s&passphrase=%s",
-      get_scala_secrets_url(),
-      secret,
-      urltools::url_encode(get_episomer_kr_password())
-    ))
-    res$status == "ok"
+    secrets_api_get(secret)$status == "ok"
   }
 }
 
@@ -136,16 +177,11 @@ get_secret <- function(secret) {
         stop("Could not found the requested secret")
     }
   } else {
-    res <- jsonlite::read_json(sprintf(
-      "%s?secret=%s&passphrase=%s",
-      get_scala_secrets_url(),
-      secret,
-      urltools::url_encode(get_episomer_kr_password())
-    ))
+    res <- secrets_api_get(secret)
     if(res$status == "ok")
        res$value
     else
-       stop("Could not retrieve the secret")
+       stop(secrets_api_reason("Could not retrieve the secret", res))
   }
 }
 
