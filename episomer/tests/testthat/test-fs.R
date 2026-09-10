@@ -419,3 +419,51 @@ test_that("options(timeout) does not bound an httr request, which is why it is n
   expect_equal(cfg$options$low_speed_limit, 0)
   expect_null(httr::config()$options$timeout)
 })
+
+# A failed request is not an answer, and not a reason to exit -------------------------------------
+
+# epifile.mtime() is called by service loops: health_check() asks it about fs/posts every five
+# seconds from the sleep of the detect scheduler, and read_runner_lease() asks it about the lease
+# file. It used to let an API error through, and the detect loop then ended on "Execution halted" -
+# observed on a 500 the API returned while Lucene was merging segments under fs/posts, a file
+# having been deleted between the directory listing and the stat (API.recursiveLastModifiedTime).
+
+test_that("epifile.mtime reports an unreachable path as NA instead of erroring", {
+  local_conf(fs_remote = "http://127.0.0.1:1/")
+  local_mocked_bindings(
+    epifile.exists = function(...) TRUE,
+    .package = "episomer"
+  )
+  local_mocked_bindings(
+    read_json = function(...) stop("HTTP status was '500 Internal Server Error'"),
+    .package = "jsonlite"
+  )
+
+  expect_message(
+    got <- epifile.mtime(epipath("fs", "posts")),
+    "Reporting it as unknown"
+  )
+  expect_s3_class(got, "POSIXct")
+  expect_true(is.na(got))
+})
+
+test_that("epifile.mtime keeps answering about the other paths of a vector", {
+  # one bad answer must not cost the good ones, and the result has to stay a POSIXct vector
+  local_conf(fs_remote = "http://127.0.0.1:1/")
+  local_mocked_bindings(epifile.exists = function(...) TRUE, .package = "episomer")
+  seen <- 0L
+  local_mocked_bindings(
+    read_json = function(...) {
+      seen <<- seen + 1L
+      if (seen == 1L) stop("500") else "2026-09-10T10:37:58Z"
+    },
+    .package = "jsonlite"
+  )
+
+  got <- suppressMessages(epifile.mtime(epipath("fs", c("posts", "topwords"))))
+
+  expect_s3_class(got, "POSIXct")
+  expect_length(got, 2L)
+  expect_true(is.na(got[[1]]))
+  expect_false(is.na(got[[2]]))
+})

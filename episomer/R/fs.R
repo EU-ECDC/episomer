@@ -385,19 +385,42 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
 # The runner leases rely on this function to decide whether a runner is still alive: the mtime is
 # produced by the single machine hosting the fs, so no clock skew between runners can make a lease
 # look fresh or expired when it is not (see inst/schema/multi_services_plan.md section 3.2).
+# The modification time of each element of `path`, NA where there is no answer about one.
+#
+# The remote branch is wrapped because it is two HTTP calls, and the callers are service loops that
+# must not exit on one that fails. health_check() asks this about fs/posts every five seconds from
+# the sleep of the detect scheduler (last_fs_updates(), R/scheduler.R), and the answer used to be
+# an uncaught error: a 500 from the API ended the whole detect loop on "Execution halted", hours
+# after it had done its work. read_runner_lease() (R/runners-lease.R) is the other caller, and it
+# already documents NA as "trust the lease until it expires".
+#
+# NA rather than a retry because that is what this function already means by "no answer about this
+# path" - the branch above returns it for a path that does not exist - and every caller handles it.
+# Said out loud in the log, so that a genuinely unreachable database is still diagnosable: it is
+# health_check() and is_fs_running() that are supposed to notice that, not a service dying.
 epifile.mtime <- function(path) {
     do.call(c, lapply(path, function(p) {
       if(!is_remote(p))
         file.mtime(p)
       else {
-        # `p`, not `path`: inside the lapply the existence test must be about the path being
-        # visited, otherwise a vector of paths gets the answer of its first element only.
-        if(!epifile.exists(p))
-            # a typed NA, so that c()-ing the results keeps a POSIXct vector. A bare NA is logical
-            # and would silently turn the whole vector into numbers.
-            as.POSIXct(NA)
-        else
-            lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
+        tryCatch({
+          # `p`, not `path`: inside the lapply the existence test must be about the path being
+          # visited, otherwise a vector of paths gets the answer of its first element only.
+          if(!epifile.exists(p))
+              # a typed NA, so that c()-ing the results keeps a POSIXct vector. A bare NA is
+              # logical and would silently turn the whole vector into numbers.
+              as.POSIXct(NA)
+          else
+              lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
+        },
+        error = function(e) {
+          message(sprintf(
+            "Could not get the modification time of %s: %s. Reporting it as unknown.",
+            p,
+            conditionMessage(e)
+          ))
+          as.POSIXct(NA)
+        })
       }
     }))
 }
