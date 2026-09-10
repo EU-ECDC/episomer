@@ -249,24 +249,27 @@ check_languages <- function() {
 check_series_present <- function(
   series = c("country_counts", "geolocated", "topwords", "tags", "urls")
 ) {
-  for(s in series) {
+  for (s in series) {
     found <- FALSE
-    for(p in epilist.dirs(epipath("fs", s))) {
-       for(w in epilist.dirs(p)) {
-         if(length(epilist.files(w, ".*\\.fdt"))>0) {
-            found <- TRUE
-            break
-         }
-       }
-       if(found <- TRUE)
-           break
+    for (p in epilist.dirs(epipath("fs", s))) {
+      #  for(w in epilist.dirs(p)) {
+      if (length(epilist.files(p, ".*\\.fdt")) > 0) {
+        found <- TRUE
+        break
+      }
+      #  }
+      if (found) {
+        break
+      }
     }
-    if(!found) {
+    if (!found) {
       warning(
-        sprintf("No data was found for %s. Please ensure the search loop is properly running", s)
+        sprintf(
+          "No data was found for %s. Please ensure the search loop is properly running",
+          s
+        )
       )
       return(FALSE)
- 
     }
   }
   return(TRUE)

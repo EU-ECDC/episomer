@@ -79,7 +79,7 @@ test_that("restart_fs_monitor_if_dead() reports the error of a dead monitor and 
   previous_plan <- future::plan(future::sequential)
   withr::defer(future::plan(previous_plan))
   local_mocked_bindings(
-    start_fs_monitor = function(data_dir) "a new monitor",
+    start_fs_monitor = function(data_dir, bind_host = NULL, bind_port = NULL) "a new monitor",
     .package = "episomer"
   )
   monitor <- future::future(stop("the configuration could not be set up"))
@@ -88,4 +88,29 @@ test_that("restart_fs_monitor_if_dead() reports the error of a dead monitor and 
     expect_identical(restart_fs_monitor_if_dead(monitor, "/episomer-data"), "a new monitor"),
     "The episomer fs monitor stopped with the following error"
   )
+})
+
+test_that("restart_fs_monitor_if_dead() gives the new monitor the bind address of the old one", {
+  # The monitor runs health_check(), which calls the API: a monitor restarted without the bind
+  # address of a database bound elsewhere - the temporary one of the language retraining - would
+  # ask conf$fs_url:conf$fs_port and report a perfectly healthy service as down.
+  previous_plan <- future::plan(future::sequential)
+  withr::defer(future::plan(previous_plan))
+  got <- NULL
+  local_mocked_bindings(
+    start_fs_monitor = function(data_dir, bind_host = NULL, bind_port = NULL) {
+      got <<- list(data_dir = data_dir, bind_host = bind_host, bind_port = bind_port)
+      "a new monitor"
+    },
+    .package = "episomer"
+  )
+  monitor <- future::future(stop("the configuration could not be set up"))
+
+  suppressMessages(restart_fs_monitor_if_dead(
+    monitor,
+    "/episomer-data",
+    bind_host = "localhost",
+    bind_port = 9080
+  ))
+  expect_identical(got, list(data_dir = "/episomer-data", bind_host = "localhost", bind_port = 9080))
 })

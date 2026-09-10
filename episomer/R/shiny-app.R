@@ -465,7 +465,7 @@ episomer_app <- function(
       config_page <-
         shiny::fluidPage(
           shinyjs::useShinyjs(),
-          shiny::tags$style(HTML(
+          shiny::tags$style(shiny::HTML(
             "
             .config-toggle-title {
               cursor: pointer;
@@ -2546,7 +2546,11 @@ episomer_app <- function(
         issues <- loop_run_issues("fs")
         if (issues == "") {
           # registering the scheduled task
-          register_fs_runner_task()
+          # wait_until_response = TRUE is passed explicitly to keep the behaviour this button has
+          # always had: register_fs_runner_task() used to wait whatever the argument said, and the
+          # refresh below is only meaningful once the database answers. It is now honoured, so the
+          # value has to be given here.
+          register_fs_runner_task(wait_until_response = TRUE)
           # refresh task data to check if tasks are to be updated
           refresh_config_data(cd, list("tasks"))
         } else {

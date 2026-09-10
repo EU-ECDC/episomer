@@ -57,9 +57,9 @@ test_that("get_scala_api_endpoint falls back on localhost when fs_url does not r
   expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
 })
 
-test_that("get_scala_api_endpoint follows the temporary port shift of the retraining", {
-  # setup() shifts conf$fs_port by 1000 while it retrains the language models, so the endpoint
-  # must be read from conf on every call and never frozen with the host resolution.
+test_that("get_scala_api_endpoint reads the port from conf on every call", {
+  # The endpoint must never be frozen together with the host resolution: the memo of
+  # fs_url_resolves_here() is keyed on fs_url alone, because a port plays no part in a name lookup.
   withr::local_envvar(EPI_HOST = "")
   local_conf(
     "fs_remote" = NULL,
@@ -71,6 +71,103 @@ test_that("get_scala_api_endpoint follows the temporary port shift of the retrai
 
   local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
   expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
+})
+
+# The session override is rule 0 of the resolution order: this process started a database of its
+# own - the language retraining of setup() - and says where. It has to beat every other rule,
+# including the two explicit ones, because it describes a service the caller has just launched.
+test_that("the fs endpoint override wins over fs_remote, EPI_HOST and fs_url", {
+  withr::local_envvar(EPI_HOST = "http://from-env:8080")
+  local_conf(
+    "fs_remote" = "http://explicit:1234",
+    fs_url = "http://fs",
+    fs_port = 8080
+  )
+  set_fs_endpoint_override("localhost", 9080)
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:9080")
+
+  # And it goes away without leaving anything behind, which is the whole reason it exists rather
+  # than a temporary shift of conf$fs_port written to properties.json.
+  clear_fs_endpoint_override()
+  expect_null(fs_endpoint_override())
+  expect_equal(get_scala_api_endpoint(), "http://explicit:1234")
+})
+
+test_that("clear_fs_endpoint_override is a no-op when no override was set", {
+  local_conf("fs_remote" = NULL, fs_url = "http://localhost", fs_port = 8080)
+  expect_null(fs_endpoint_override())
+  expect_silent(clear_fs_endpoint_override())
+  expect_null(fs_endpoint_override())
+})
+
+test_that("a bind host is accepted with or without a scheme", {
+  # conf$fs_url carries a scheme ("http://localhost") while Http().newServerAt() takes an
+  # interface, so both forms have to be understood on the way in and only one on the way out.
+  expect_equal(fs_bind_host_url("localhost"), "http://localhost")
+  expect_equal(fs_bind_host_url("http://localhost"), "http://localhost")
+  expect_equal(fs_bind_host_url("http://localhost/"), "http://localhost")
+  expect_equal(fs_bind_host_url(" localhost "), "http://localhost")
+
+  expect_equal(fs_bind_host_only("localhost"), "localhost")
+  expect_equal(fs_bind_host_only("http://0.0.0.0"), "0.0.0.0")
+  expect_equal(fs_bind_host_only("https://fs/"), "fs")
+})
+
+test_that("set_fs_endpoint_override normalises localhost to the IPv4 loopback", {
+  # Same reason as prefer_loopback_ipv4() above: on Windows "localhost" resolves to ::1 only,
+  # where the Scala API does not listen, and every request pays a failed connection first.
+  local_conf("fs_remote" = NULL, fs_url = "http://localhost", fs_port = 8080)
+  set_fs_endpoint_override("localhost", 9080)
+  expect_equal(fs_endpoint_override(), "http://127.0.0.1:9080")
+  clear_fs_endpoint_override()
+})
+
+# A wildcard fs_url is the value a deployment behind a Kubernetes Service wants: "listen on every
+# interface". It is a bind address and never an address to call - connecting to 0.0.0.0 reaches the
+# loopback on Linux by kernel convention and is simply invalid on Windows - so the endpoint
+# resolution has to step over it even though the resolver answers for it.
+
+test_that("a wildcard fs_url falls back to localhost instead of being called", {
+  withr::local_envvar(EPI_HOST = "")
+  local_conf("fs_remote" = NULL, fs_url = "http://0.0.0.0", fs_port = 8080)
+  expect_false(fs_url_resolves_here())
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
+
+  # scheme-less, and the IPv6 wildcard, are the same answer
+  local_conf("fs_remote" = NULL, fs_url = "0.0.0.0", fs_port = 8080)
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
+  local_conf("fs_remote" = NULL, fs_url = "http://[::]", fs_port = 8080)
+  expect_equal(get_scala_api_endpoint(), "http://127.0.0.1:8080")
+})
+
+test_that("is_wildcard_bind_host accepts only the wildcards", {
+  expect_true(is_wildcard_bind_host("0.0.0.0"))
+  expect_true(is_wildcard_bind_host("http://0.0.0.0"))
+  expect_true(is_wildcard_bind_host("http://0.0.0.0/"))
+  expect_true(is_wildcard_bind_host("http://0.0.0.0:8080"))
+  expect_true(is_wildcard_bind_host("::"))
+  expect_true(is_wildcard_bind_host("http://[::]"))
+
+  # a real interface, a name, and the loopback are all callable addresses
+  expect_false(is_wildcard_bind_host("http://localhost"))
+  expect_false(is_wildcard_bind_host("http://127.0.0.1"))
+  expect_false(is_wildcard_bind_host("http://10.0.0.0"))
+  expect_false(is_wildcard_bind_host("http://fs"))
+  expect_false(is_wildcard_bind_host(""))
+  expect_false(is_wildcard_bind_host(NULL))
+  expect_false(is_wildcard_bind_host(NA))
+})
+
+test_that("a wildcard fs_url is not reported as unbindable", {
+  # The mirror question of the two above: 0.0.0.0 is the one address that binds everywhere, and the
+  # API hands fs_url to newServerAt() without inspecting it. Warning here would call a working
+  # configuration broken.
+  local_conf("fs_remote" = NULL, fs_url = "http://0.0.0.0", fs_port = 8080)
+  expect_false(warn_if_fs_url_not_bindable())
+
+  # while a name that exists nowhere on this machine still gets its diagnosis
+  local_conf("fs_remote" = NULL, fs_url = "http://fs", fs_port = 8080)
+  expect_message(expect_true(warn_if_fs_url_not_bindable()), "cannot resolve")
 })
 
 test_that("prefer_loopback_ipv4 rewrites only the exact host localhost", {
@@ -250,11 +347,11 @@ test_that("epifile.mtime answers about each path of a vector", {
 # The bind half of the same problem ---------------------------------------------------------------
 
 # get_scala_api_endpoint() above is the *client* half: where do I call the fs. The bind half is the
-# Scala API's, which reads fs_url out of properties.json itself and binds it verbatim - so the host
-# running setup() on a data directory a container has written to used to bind "fs", a name that
-# exists only inside the Docker network, and die on java.net.SocketException: Unresolved address
-# before serving a request. The fallback lives in Settings.fsBindHost; what R owes the operator is
-# saying so in jobs/fs.log, where the only trace of it used to be a Pekko stack trace.
+# Scala API's, which reads fs_url out of properties.json and binds it verbatim - so a value that
+# does not name an interface of this machine fails the bind and kills the JVM on
+# java.net.SocketException: Unresolved address, from a service that has already taken the lease.
+# What R owes the operator is saying so in jobs/fs.log in words, on the last line before the
+# process becomes the JVM's and the only remaining trace would be a Pekko stack trace.
 
 test_that("warn_if_fs_url_not_bindable() says so when fs_url does not resolve here", {
   local_mocked_bindings(fs_url_resolves_here = function() FALSE, .package = "episomer")
@@ -264,9 +361,10 @@ test_that("warn_if_fs_url_not_bindable() says so when fs_url does not resolve he
     expect_true(warn_if_fs_url_not_bindable()),
     "a host this machine cannot resolve"
   )
-  # the operator needs both halves: what was configured, and what will be bound instead
+  # the operator needs the configured value, what is about to happen to it, and a way out
   expect_message(warn_if_fs_url_not_bindable(), "http://fs")
-  expect_message(warn_if_fs_url_not_bindable(), "localhost:8080")
+  expect_message(warn_if_fs_url_not_bindable(), "will fail to start")
+  expect_message(warn_if_fs_url_not_bindable(), "0\\.0\\.0\\.0")
 })
 
 test_that("warn_if_fs_url_not_bindable() is silent on the machine fs_url belongs to", {
@@ -274,4 +372,98 @@ test_that("warn_if_fs_url_not_bindable() is silent on the machine fs_url belongs
   local_conf(fs_url = "http://fs", fs_port = 8080)
 
   expect_silent(expect_false(warn_if_fs_url_not_bindable()))
+})
+
+# The retraining POST and its two libcurl bounds ---------------------------------------------------
+
+# retrain_languages() holds one HTTP request open for as long as the JVM takes to index and retrain
+# every language, receiving nothing while it waits. It used to say options(timeout = 1800), which is
+# a base R setting httr never reads, so the real bound was libcurl's default low-speed abort: less
+# than 1 byte a second for 600 seconds. A retraining longer than ten minutes therefore died at
+# exactly 600 s with the training already running, and in a container took the whole service down
+# with it.
+
+test_that("retrain_languages() bounds its request by fs_batch_timeout and allows a silent one", {
+  local_conf(fs_remote = NULL, fs_batch_timeout = 3600)
+  seen <- NULL
+  local_mocked_bindings(
+    get_geotraining_df = function() data.frame(a = 1),
+    get_geotraining_evaluation_path = function() tempfile(),
+    .package = "episomer"
+  )
+  local_mocked_bindings(
+    POST = function(url, ...) {
+      seen <<- Filter(function(x) inherits(x, "request"), list(...))
+      structure(list(status_code = 200L), class = "response")
+    },
+    status_code = function(x) 200L,
+    content = function(...) "ok",
+    .package = "httr"
+  )
+
+  retrain_languages()
+
+  opts <- do.call(c, lapply(seen, `[[`, "options"))
+  # the total bound is what the Scala side gives itself for a batch of this kind
+  expect_equal(opts$timeout, 3600)
+  # and the low-speed abort is off, so a JVM that says nothing for an hour is not an error
+  expect_equal(opts$low_speed_limit, 0)
+})
+
+test_that("options(timeout) does not bound an httr request, which is why it is not used", {
+  # The reason the line above is not options(timeout = ): base R's setting is read by download.file()
+  # and url(), and libcurl never looks at it. Asserted on the option list httr actually builds
+  # rather than by making a request, so nothing here waits on a socket.
+  cfg <- httr::config(timeout = 3600, low_speed_limit = 0)
+  expect_equal(cfg$options$timeout, 3600)
+  expect_equal(cfg$options$low_speed_limit, 0)
+  expect_null(httr::config()$options$timeout)
+})
+
+# A failed request is not an answer, and not a reason to exit -------------------------------------
+
+# epifile.mtime() is called by service loops: health_check() asks it about fs/posts every five
+# seconds from the sleep of the detect scheduler, and read_runner_lease() asks it about the lease
+# file. It used to let an API error through, and the detect loop then ended on "Execution halted" -
+# observed on a 500 the API returned while Lucene was merging segments under fs/posts, a file
+# having been deleted between the directory listing and the stat (API.recursiveLastModifiedTime).
+
+test_that("epifile.mtime reports an unreachable path as NA instead of erroring", {
+  local_conf(fs_remote = "http://127.0.0.1:1/")
+  local_mocked_bindings(
+    epifile.exists = function(...) TRUE,
+    .package = "episomer"
+  )
+  local_mocked_bindings(
+    read_json = function(...) stop("HTTP status was '500 Internal Server Error'"),
+    .package = "jsonlite"
+  )
+
+  expect_message(
+    got <- epifile.mtime(epipath("fs", "posts")),
+    "Reporting it as unknown"
+  )
+  expect_s3_class(got, "POSIXct")
+  expect_true(is.na(got))
+})
+
+test_that("epifile.mtime keeps answering about the other paths of a vector", {
+  # one bad answer must not cost the good ones, and the result has to stay a POSIXct vector
+  local_conf(fs_remote = "http://127.0.0.1:1/")
+  local_mocked_bindings(epifile.exists = function(...) TRUE, .package = "episomer")
+  seen <- 0L
+  local_mocked_bindings(
+    read_json = function(...) {
+      seen <<- seen + 1L
+      if (seen == 1L) stop("500") else "2026-09-10T10:37:58Z"
+    },
+    .package = "jsonlite"
+  )
+
+  got <- suppressMessages(epifile.mtime(epipath("fs", c("posts", "topwords"))))
+
+  expect_s3_class(got, "POSIXct")
+  expect_length(got, 2L)
+  expect_true(is.na(got[[1]]))
+  expect_false(is.na(got[[2]]))
 })

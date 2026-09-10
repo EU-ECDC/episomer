@@ -51,7 +51,16 @@ object API {
   var oLuceneRunner:Option[ActorRef] = None
   var oConf:Option[Settings] = None
   val secrets = MMap[String, String]()
-  def run(epiHome:String) {
+  // oBindHost / oBindPort override what properties.json says, for this run only.
+  //
+  // They arrive as the optional 'bindHost' / 'bindPort' arguments of the fsService command
+  // (Episomer.main), put there by register_fs_runner_task(bind_host =, bind_port =) on the R side.
+  // The case they exist for: the R setup wizard needs a database of its own while it retrains the
+  // language models, and that database must not be found on the configured address by the services
+  // that wait for the real one to become healthy before they start. Writing the temporary address
+  // in properties.json - which is what used to happen - meant a shared configuration file left
+  // wrong whenever the wizard was killed before it could put it back.
+  def run(epiHome:String, oBindHost:Option[String] = None, oBindPort:Option[Int] = None) {
     import fs.EpiSerialisation._
     Logger.getLogger("pekko").setLevel(Level.DEBUG)
     Logger.getLogger("pekko.http").setLevel(Level.DEBUG)
@@ -647,29 +656,81 @@ object API {
       }
     
 
-    // conf.fsBindHost, not conf.fsUrl: see Settings.fsBindHost for why the configured host cannot be
-    // trusted to exist on the machine that reads it.
-    Http().newServerAt(conf.fsBindHost, conf.fsPort).bind(route)
+    // The arguments win over the configuration file: a caller naming an interface for this one run
+    // has said something more specific than a properties.json every instance of the data directory
+    // shares. Absent them, fs_url is bound verbatim (conf.fsBindHost is that value with its scheme
+    // removed) - if it is not an address this machine holds, the bind fails and says so, which is
+    // the diagnosis the operator needs rather than a service listening somewhere unasked for.
+    //
+    // The scheme is stripped off the argument as well, so that it may be written either way round -
+    // fs_url carries one ("http://localhost") and newServerAt() takes an interface, not a URL.
+    val bindHost = oBindHost
+      .map(h => h.replaceAll("^https?://", "").replaceAll("/+$", ""))
+      .filter(_.nonEmpty)
+      .getOrElse(conf.fsBindHost)
+    val bindPort = oBindPort.getOrElse(conf.fsPort)
+    println(s"Binding the episomer API on $bindHost:$bindPort")
+    Http().newServerAt(bindHost, bindPort).bind(route)
   }
+  // Same two hazards as recursiveLastModifiedTime() below, in the same three lines: a live index
+  // directory can vanish mid-walk, and Files.list() holds an open directory handle until it is
+  // closed.
   def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
     if(!Files.exists(path))
-        return Seq()
+        Seq()
     else if(Files.isDirectory(path)) {
-        if(recursive)
-            Files.list(path).map(recursiveFileList(_)).toList().asScala.flatMap(d => d).toSeq 
-        else
-            Files.list(path).toList().asScala.toSeq
+        var stream:java.util.stream.Stream[Path] = null
+        try {
+            stream = Files.list(path)
+            if(recursive)
+                stream.map(recursiveFileList(_)).toList().asScala.flatMap(d => d).toSeq
+            else
+                stream.toList().asScala.toSeq
+        } catch {
+            case _:java.nio.file.NoSuchFileException => Seq()
+        } finally {
+            if(stream != null) stream.close()
+        }
     } else {
         Seq(path)
     }
   }
+  // The latest modification time under `path`, or None when there is nothing to date.
+  //
+  // Nothing here can be atomic: the directories being walked are live Lucene indices, and Lucene
+  // deletes a segment file the moment it has merged it into a bigger one. So a file listed a
+  // moment ago may be gone by the time it is asked for its attributes, and that used to escape as
+  //     java.nio.file.NoSuchFileException: ...\fs\posts\2026.36\_kd_Lucene103_0.tip
+  // which Pekko's default handler turned into a 500. R does not survive that: health_check() asks
+  // for this on fs/posts every five seconds from the sleep of the detect scheduler
+  // (last_fs_updates() -> epifile.mtime()), so one segment merge landing between the listing and
+  // the stat killed the whole detect loop with "Execution halted".
+  //
+  // A file that no longer exists has no modification time, which is exactly what None means, and
+  // dropping it is also the right answer: it cannot be the newest thing under a directory that
+  // outlived it.
+  //
+  // The stream is closed, which it was not. Files.list() holds an open directory handle until it
+  // is, one per directory per request, and on Windows an open handle on a directory also stands in
+  // the way of deleting what is inside it - so leaking them on a path polled every five seconds
+  // worked against the very merges above.
   def recursiveLastModifiedTime(path:Path):Option[java.nio.file.attribute.FileTime] = {
     if(!Files.exists(path))
-        return None
+        None
     else if(Files.isDirectory(path)) {
-        Files.list(path).map(recursiveLastModifiedTime(_)).toList().asScala.flatMap(d => d).maxOption
+        var stream:java.util.stream.Stream[Path] = null
+        try {
+            stream = Files.list(path)
+            stream.map(recursiveLastModifiedTime(_)).toList().asScala.flatMap(d => d).maxOption
+        } catch {
+            // the directory itself went away while it was being walked
+            case _:java.nio.file.NoSuchFileException => None
+        } finally {
+            if(stream != null) stream.close()
+        }
     } else {
-        Some(Files.getLastModifiedTime(path))
+        try Some(Files.getLastModifiedTime(path))
+        catch { case _:java.nio.file.NoSuchFileException => None }
     }
   }
   def logThis(log:String) = {
