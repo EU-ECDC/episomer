@@ -3035,6 +3035,9 @@ episomer_app <- function(
             paste(conf$data_dir, "countries.xlsx", sep = "/"),
             overwrite = TRUE
           )
+          # get_country_items() memoises the parsed file for the whole session, so a new upload is
+          # only visible once its entries are dropped.
+          drop_country_items_cache()
           cd$countries_refresh_flag(Sys.time())
         }
       })

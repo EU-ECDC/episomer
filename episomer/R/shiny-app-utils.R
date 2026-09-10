@@ -47,10 +47,25 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
 
 
 # Get or update data for config page from configuration, Data collection & processing and Requirements & alerts pipeline files
+#
+# Isolated on purpose. The body below both reads and writes the e$*_refresh_flag() reactive values:
+# it reads them to compare a file mtime against the one it saw last time, and writes the new mtime
+# when the file has changed. Read and written in the same reactive context, that is the textbook
+# self-invalidating observer - and every caller of this function is an observe() or an
+# observeEvent(). The write invalidates the caller, Shiny re-runs it inside the same flush, the
+# file it watches (tasks.json, rewritten on every runner iteration; properties.json, rewritten by
+# the autosave) has moved again, so it writes again, and the flush never drains. While a flush is
+# draining, no input event is processed: a click on Run reaches its observeEvent() minutes late,
+# once the watched files happen to stop changing. The flags still invalidate the outputs that read
+# them, which is what they are for - only the caller stops depending on what it publishes.
 refresh_config_data <- function(
   e = new.env(),
   limit = list("langs", "topics", "tasks", "geo")
 ) {
+  shiny::isolate(refresh_config_data_impl(e = e, limit = limit))
+}
+
+refresh_config_data_impl <- function(e, limit) {
   # Refreshing configuration
   setup_config(data_dir = conf$data_dir, ignore_properties = TRUE)
 
