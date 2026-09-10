@@ -138,7 +138,7 @@ compose-up:
 
 	export EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=`pass epitools/ecdc_mastodon_mastodon_social_token` && \
 	export EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=`pass epitools/ecdc_mastodon_mstdn_party_token` && \
-	docker compose -f docker/compose.yml up --build -d	
+	docker compose -f compose.yml up --build -d	
 
 
 compose-down:

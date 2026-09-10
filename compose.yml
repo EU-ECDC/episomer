@@ -1,7 +1,9 @@
   services:
     fs:
       image: episomer-dev
+      dns_search: "."
       pull_policy: never
+      #restart: on-failure
       build: 
         context: .
         dockerfile: Dockerfile
@@ -10,7 +12,10 @@
       ports:
         - "${EPISOMER_FS_PORT}:8080"
       healthcheck:
-        test: curl --fail http://fs:8080/ping
+        # localhost, not http://fs: it needs no DNS and it is the same check a Kubernetes
+        # readiness probe makes. It works because EPISOMER_OPTION_FS_URL below is a wildcard,
+        # so the API listens on the loopback as well - the two settings go together.
+        test: curl --fail http://localhost:8080/ping
         interval: 30s
         timeout: 5s
         retries: 400
@@ -18,13 +23,35 @@
       environment:
         EPI_HOME: "/episomer-data"
         EPISOMER_RUN: "FS"
+        EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
-        EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "TRUE"
-        EPISOMER_OPTION_FS_URL: "http://fs"
+        EPISOMER_OPTION_SM_ALERTS_BLUESKY: "TRUE"
+        EPISOMER_OPTION_SM_ACTIVATED_MASTODON: "FALSE"
+        EPISOMER_OPTION_SM_ALERTS_MASTODON: "FALSE"
+        EPISOMER_OPTION_MASTODON_INSTANCES: "mastodon.social;mstdn.party"
+        # The interface the Scala API binds, not an address anything calls. A wildcard is the
+        # one value that works unchanged under Docker and under Kubernetes: a service name
+        # resolves to the container IP here and to a ClusterIP there, which a pod does not hold
+        # and cannot bind. The R side knows a wildcard is not callable and dials
+        # localhost:fs_port instead (get_scala_api_endpoint(), R/fs.R).
+        EPISOMER_OPTION_FS_URL: "http://0.0.0.0"
+        # Where the *temporary* database of the language model retraining binds (setup(),
+        # option 5). Spelled out here rather than left to the defaults because these are the
+        # two values a deployment has to know about: 9080 must stay unexposed and unrouted,
+        # and the host must stay loopback so nothing outside this container can reach it.
+        #
+        # Deliberately not the same as EPISOMER_OPTION_FS_URL above. That one has to be as
+        # wide as possible - search and detect and the health check all have to reach the real
+        # database. This one has to be as narrow as possible: while the retraining runs, search
+        # and detect must NOT find a database, or they start collecting against untrained
+        # language models. Opposite requirements, so opposite values.
+        EPISOMER_OPTION_FS_SETUP_HOST: "localhost"
+        EPISOMER_OPTION_FS_SETUP_PORT: 9080
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
         EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
         EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
-        EPISOMER_SECRET_MASTODON_TOKEN_FILE: "/run/secrets/episomer_mastodon_token"
+        EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN_FILE: "/run/secrets/episomer_mastodon_mastodon_social_token"
+        EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN_FILE: "/run/secrets/episomer_mastodon_mstdn_party_token"
         OPENBLAS_NUM_THREADS: 1
         TMPDIR: "/episomer-data/tmp"
         _JAVA_OPTIONS=-Djava.io.tmpdir: "/episomer-data/tmp"
@@ -32,12 +59,15 @@
         - episomer_kr_password
         - episomer_bluesky_user
         - episomer_bluesky_password
-        - episomer_mastodon_token
+        - episomer_mastodon_mastodon_social_token
+        - episomer_mastodon_mstdn_party_token
       volumes:
         - ${EPI_HOME}:/episomer-data
     search:
       image: episomer-dev
+      dns_search: "."
       pull_policy: never
+      restart: on-failure
       depends_on:
         fs:
           condition: service_healthy
@@ -45,6 +75,7 @@
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
         EPISOMER_RUN: "SEARCH"
+        EPISOMER_INSTANCE: "search"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
       secrets:
         - episomer_kr_password
@@ -58,7 +89,9 @@
         - ${EPI_HOME}/jobs:/episomer-data/jobs
     detect:
       image: episomer-dev
+      dns_search: "."
       pull_policy: never
+      restart: on-failure
       depends_on:
         fs:
           condition: service_healthy
@@ -66,6 +99,7 @@
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
         EPISOMER_RUN: "DETECT"
+        EPISOMER_INSTANCE: "detect"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
       secrets:
         - episomer_kr_password
@@ -78,6 +112,7 @@
       environment: EPISOMER_BLUESKY_USER  
     episomer_bluesky_password:
       environment: EPISOMER_BLUESKY_PASSWORD
-    episomer_mastodon_token:
-      environment: EPISOMER_MASTODON_TOKEN
-    
+    episomer_mastodon_mastodon_social_token:
+      environment: EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN
+    episomer_mastodon_mstdn_party_token:
+      environment: EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN   

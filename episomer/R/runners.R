@@ -238,11 +238,37 @@ stop_detect_runner_task <- function() {
 
 #' @title Registers the episomer database task
 #' @description registers the episomer database task or stops if no configuration has been set or if it is already running
-#' @param wait_until_response Logical, whether to wait until the fs runner answers, default FALSE
+#' @param wait_until_response Logical, whether to block until the fs runner answers on
+#'   \code{\link{is_fs_running}} before returning, default FALSE
+#' @param bind_host Character, the interface the database has to bind for this run instead of the
+#'   configured \code{conf$fs_url}, with or without a scheme ("localhost" and "http://localhost"
+#'   are both accepted), default: NULL
+#' @param bind_port Numeric, the port the database has to bind for this run instead of the
+#'   configured \code{conf$fs_port}, default: NULL
+#' @param timeout Numeric, how many seconds to wait for the database to answer before giving up
+#'   with an error, default: Inf
 #' @return Nothing
 #' @details Registers the episomer database task or stops if no configuration has been set or if it is already running.
 #' This task need the dependencies, geonames and languages steps to have been successfully ran. This can be done on the shiny app configuration page or by manually running the detect_runner_task.
 #' This function will try to use the task scheduler on windows and will fall back to launching the runner as a separate process (attached to this session) on Linux.
+#'
+#' \code{bind_host} and \code{bind_port} start a database that is deliberately *not* on the
+#' configured address, for a caller that needs one for itself: the language model retraining of
+#' \code{\link{setup}} needs a running database, and it must not be mistaken for the real service
+#' by whatever waits for that service to become healthy before starting (\code{depends_on:
+#' service_healthy} in docker/compose.yml, a readiness probe in Kubernetes). They travel to the
+#' database as command line arguments - jobs/fs.R, then \code{\link{fs_loop}}, then the Scala
+#' \code{API.run()} - and nothing about them is written to properties.json, so a process killed
+#' outright leaves no trace behind. Every call the current process makes to the API goes to that
+#' address until \code{clear_fs_endpoint_override()} is called or the process ends.
+#'
+#' \code{"localhost"} is the value to give \code{bind_host} in a container orchestrator: an
+#' address reachable from inside the pod only, needing no exposed port and no service routing, and
+#' therefore reachable even while the pod is still unready.
+#'
+#' A database given either of them is always started attached to this session, on Windows as
+#' everywhere else, and never as a Windows scheduled task: it is meant to live for the length of
+#' one call, and a scheduled task would both outlive it and truncate its command line.
 #' @examples
 #' \dontrun{
 #'    #getting tasks statuses
@@ -250,21 +276,73 @@ stop_detect_runner_task <- function() {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    register_fs_runner_task()
+#'
+#'    # a database only this process can see, on a port of its own
+#'    register_fs_runner_task(wait_until_response = TRUE, bind_host = "localhost", bind_port = 9080)
 #' }
 #' @rdname runners
 #' @export
-register_fs_runner_task <- function(wait_until_response=FALSE) {
-  register_runner_task("fs")
-  message("Waiting until the fs runner answers")
-  answered <- FALSE
-  while(!answered) {
+register_fs_runner_task <- function(
+  wait_until_response = FALSE,
+  bind_host = NULL,
+  bind_port = NULL,
+  timeout = Inf
+) {
+  runner_args <- character(0)
+  if (!is.null(bind_host)) {
+    runner_args <- c(runner_args, "bindHost", fs_bind_host_only(bind_host))
+  }
+  if (!is.null(bind_port)) {
+    runner_args <- c(runner_args, "bindPort", as.character(bind_port))
+  }
+  # Set *before* the service is started, because the wait below is is_fs_running(), i.e. a GET on
+  # get_scala_ping_url(): asking the configured address about a database bound somewhere else would
+  # wait for ever. See set_fs_endpoint_override() in R/fs.R.
+  if (length(runner_args) > 0) {
+    set_fs_endpoint_override(
+      if (is.null(bind_host)) conf$fs_url else bind_host,
+      if (is.null(bind_port)) conf$fs_port else bind_port
+    )
+  }
+  # attached = TRUE for a database asked to bind somewhere else, because such a database exists for
+  # the length of one call: the caller has an address only it knows about, and setup() stops the
+  # service as soon as the retraining is done. A Windows scheduled task is the wrong shape for that
+  # twice over - it would go on restarting the thing every hour, and its command line is capped
+  # short enough that the bind arguments pushed it past the limit and it was stored truncated. See
+  # register_runner_task().
+  register_runner_task(
+    "fs",
+    runner_args = runner_args,
+    attached = length(runner_args) > 0
+  )
+  # wait_until_response is now read. It used to be accepted and ignored - the function waited
+  # whatever the caller asked for - which made "start it and let me carry on" impossible to express
+  # and the argument misleading to read.
+  if (!wait_until_response) {
+    return(invisible(NULL))
+  }
+  message(sprintf("Waiting until the fs runner answers on %s", get_scala_ping_url()))
+  # Bounded when the caller asks for it. The wait used to be unbounded, which is survivable for an
+  # operator watching a console and not at all for an unattended deployment: a database that cannot
+  # bind its address - a Kubernetes service name resolving to a cluster IP the pod does not hold is
+  # the case that happened - never answers, and setup() then hung on a row of dots instead of
+  # failing with something to read.
+  deadline <- Sys.time() + timeout
+  while (TRUE) {
      if(is_fs_running()) {
          message("fs is running")
-         answered <- TRUE
-     } else {
-         cat(".")
-         Sys.sleep(2)
+         return(invisible(NULL))
      }
+     if (Sys.time() >= deadline) {
+       stop(sprintf(
+         "The episomer database did not answer on %s after %s seconds. Its log is in %s.",
+         get_scala_ping_url(),
+         timeout,
+         file.path(conf$data_dir, "jobs", "fs.log")
+       ))
+     }
+     cat(".")
+     Sys.sleep(2)
   }
 }
 
@@ -453,8 +531,59 @@ rscript_exe_for_schtasks <- function() {
   if (grepl(" ", short, fixed = TRUE)) shQuote(short, type = "cmd") else short
 }
 
+# Path of the Rscript executable to hand to system2().
+#
+# "Rscript" off the PATH is what this used, and it is right on every supported Linux image. On
+# Windows R's bin directory is not on the PATH of a session started by the installer, so the
+# executable has to be named outright.
+#
+# Deliberately *not* quoted, and deliberately not the 8.3 short name either. system2() shQuote()s
+# its `command` itself (see base::system2), so a path holding a space is already safe, and quoting
+# it first gets it quoted twice - measured on a default "C:/Program Files/R" install, that fails
+# with
+#     '"\"C:\PROGRA~1\R\R-44~1.2\bin\x64\Rscript.exe\""' not found
+# and a return code of 127. Verified the other way round as well: the long path, unquoted, runs.
+# rscript_exe_for_schtasks() below still needs both, because there the string goes into a command
+# line nothing else will quote.
+rscript_exe_attached <- function() {
+  if (.Platform$OS.type != "windows") {
+    return("Rscript")
+  }
+  exe <- file.path(R.home("bin"), "Rscript.exe")
+  if (file.exists(exe)) exe else "Rscript"
+}
+
 # This task is currently Windows only
-register_runner_task <- function(task_name) {
+#
+# runner_args are extra command line arguments appended after the data directory, read by the
+# jobs/<task>.R script the runner is started with. Only the fs uses them today, to be told which
+# interface and port to bind (see register_fs_runner_task()).
+#
+# attached = TRUE skips the Windows task scheduler and starts the runner as a child of this
+# session, which is what already happens everywhere else. It is for a service that is meant to live
+# for the length of one call rather than to be brought back after a reboot, and there are two
+# reasons a caller has to be able to say so - both found on the temporary database of the language
+# model retraining, the only such service today:
+#
+#  * a scheduled task outlives the call. taskscheduler_create() registers an HOURLY task, so
+#    Windows kept restarting a retraining database on conf$fs_setup_port every hour, for ever,
+#    long after setup() had finished with it. stop_runner_task() disables the task but does not
+#    delete it;
+#  * schtasks truncates. The whole "cmd /c <Rexe> <script> <args> >> <log> 2>&1" string is handed
+#    to its /TR argument, which caps it - measured at 253 characters on a default Windows install.
+#    Adding "bindHost localhost bindPort 9080" to a command line that already names the data
+#    directory three times (the script, the argument, the log) took it from 221 to 254, and the
+#    task was stored with its last character missing:
+#        ... >> "C:/Users/.../jobs/fs.log" 2>&
+#    "2>&" is not a redirection cmd.exe can parse, so the task exited 1 without running anything
+#    and *without creating the log file* - the only place that would have said why. What it looked
+#    like from setup() was register_fs_runner_task(wait_until_response = TRUE) waiting for ever on
+#    a database that was never started, with no jobs/fs.log to read. system2() has no such limit.
+register_runner_task <- function(
+  task_name,
+  runner_args = character(0),
+  attached = FALSE
+) {
   # Making sure configuration has been set
   stop_if_no_config(paste(
     "Cannot register scheduled task without configuration setup"
@@ -462,7 +591,7 @@ register_runner_task <- function(task_name) {
 
   # Getting the embedded script name to be called in order to make the script run
   script_name <- paste(task_name, "R", sep = ".")
-  run_attached <- FALSE
+  run_attached <- attached
   # Getting source script
   script_base <- system.file(
     "extdata",
@@ -478,9 +607,12 @@ register_runner_task <- function(task_name) {
   # Copying the script
   file.copy(from = script_base, to = script, overwrite = TRUE)
   taskname = paste("episomer", task_name, "loop", sep = "_")
-  rscript_args = paste("\"", conf$data_dir, "\"", sep = "")
+  rscript_args = paste(
+    c(paste("\"", conf$data_dir, "\"", sep = ""), runner_args),
+    collapse = " "
+  )
 
-  if (.Platform$OS.type == "windows") {
+  if (.Platform$OS.type == "windows" && !run_attached) {
     # testing if taskscheduleR can be loaded
     if (requireNamespace("taskscheduleR", quietly = TRUE)) {
       # Registering the task as a schedule task using taskscheduleR
@@ -506,7 +638,7 @@ register_runner_task <- function(task_name) {
       )
       run_attached <- TRUE
     }
-  } else {
+  } else if (!run_attached) {
     message(
       "Permanent Task scheduling only work in Windows. The task will not automatically trigger on server startup"
     )
@@ -520,11 +652,19 @@ register_runner_task <- function(task_name) {
       cm <- paste(script, rscript_args)
       script_log <- paste(task_name, "log", sep = ".")
       log <- file.path(script_folder, script_log)
-      message(sprintf("Rscript '%s' '%s' > %s", script, conf$data_dir, log))
+      message(sprintf("Rscript '%s' %s > %s", script, rscript_args, log))
       message(sprintf("Logs written to %s", log))
+      # shQuote()d, because system2() quotes its `command` and *not* its `args`: it pastes them
+      # into one command line as they are. Both of the first two hold a path, and the default data
+      # directory of a Windows installation sits under "C:/Users/<given name> <family name>", so
+      # unquoted they were split at the space and Rscript was handed "C:/Users/Yohann" as the
+      # script to run. It then exited without writing a line, which is why the only symptom was
+      # register_fs_runner_task(wait_until_response = TRUE) waiting on a database that never came
+      # up, next to an empty jobs/fs.log. The same is true on Linux; it went unnoticed because
+      # /episomer-data has no space in it.
       system2(
-        "Rscript",
-        args = c(script, conf$data_dir),
+        rscript_exe_attached(),
+        args = shQuote(c(script, conf$data_dir, runner_args)),
         stdout = log,
         stderr = log,
         wait = FALSE

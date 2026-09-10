@@ -620,15 +620,67 @@ Fixed R-side only, without touching Scala or the compose files. `get_scala_api_e
 
 | # | Source | When it wins |
 |---|---|---|
+| 0 | the session override | this very process started a database on an address of its own and said so — `set_fs_endpoint_override()`, used by `register_fs_runner_task(bind_host =, bind_port =)`. It comes first because it is the only rule describing a service the caller has just launched itself, and it is never persisted |
 | 1 | `conf$fs_remote` | the caller said where the fs is: `episomer_app(fs_remote = ...)`, or `EPI_HOST` through the `setup_config()` default |
 | 2 | `EPI_HOST` | machine-local. Needed on its own because `setup()` passes `fs_remote = NULL` on purpose (it works on the local disk) and would otherwise ignore it |
-| 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address, and the only one for which the temporary `fs_port + 1000` shift of the language retraining has to be honoured |
-| 4 | `http://localhost:conf$fs_port` | when the host part of `conf$fs_url` does **not** resolve here: exactly the "Docker service name read from outside the network" case, where the port is published on the host |
+| 3 | `conf$fs_url:conf$fs_port` | only when that host resolves here — i.e. on the fs machine itself, the only process that both binds and calls that address |
+| 4 | `http://localhost:conf$fs_port` | when `conf$fs_url` is a wildcard (`0.0.0.0`, `::`), or when its host does **not** resolve here: the "Docker service name read from outside the network" case, where the port is published on the host |
 
 Step 3 vs 4 is decided by a DNS lookup (`curl::nslookup`), memoised in `conf` and keyed on the
 `fs_url` it was computed for — a miss costs ~0.5 s, the resolver does not cache it, and
 `get_scala_api_endpoint()` runs on every API request. The port plays no part in a name resolution,
-which is why the retraining port shift does not invalidate the memo.
+so a change of port never invalidates the memo.
+
+### A wildcard `fs_url` binds everywhere and is callable nowhere
+
+`fs_url` is a bind interface, and the one value that binds correctly under every orchestrator is a
+wildcard: a service name resolves to the container IP under Docker and to a ClusterIP under
+Kubernetes, which a pod does not hold and therefore cannot bind (`BindException: cannot assign
+requested address`). The API binds `fs_url` verbatim, so a wildcard reaches `newServerAt()` exactly
+as a real interface does — nothing on the bind side inspects it.
+
+But a wildcard is not somewhere to send a request. Connecting to `0.0.0.0` reaches the loopback on
+Linux by kernel convention and is simply invalid on Windows, so `fs_url_resolves_here()` answers
+`FALSE` for it *before* asking the resolver — which would say yes — and the endpoint falls through
+to rule 4, `localhost:fs_port`, which is where a wildcard listener answers anyway.
+`warn_if_fs_url_not_bindable()` is the mirror question and skips wildcards for the opposite reason:
+they are the most bindable value there is.
+
+This is what makes `EPISOMER_OPTION_FS_URL: "http://0.0.0.0"` the single setting a Kubernetes
+deployment needs. `EPI_HOST` on the fs pod becomes belt and braces rather than a requirement.
+
+### The temporary database of the language retraining
+
+The language model retraining of `setup()` needs a running database, and that database must not be
+taken for the real service by whatever waits for the real service to become healthy before starting
+— `depends_on: service_healthy` on `search` and `detect` in `docker/compose.yml`, a readiness probe
+in Kubernetes. It is therefore bound elsewhere, and both halves of "elsewhere" matter:
+
+* a port of its own, `conf$fs_setup_port` (9080 by default, `EPISOMER_OPTION_FS_SETUP_PORT`), which
+  is what keeps it out of sight of a health check watching `conf$fs_port`;
+* `conf$fs_setup_host` (`localhost` by default, `EPISOMER_OPTION_FS_SETUP_HOST`), so that reaching
+  it needs no name resolution, no published port and no routing. That is the half Kubernetes made
+  necessary: a Service does not route to a pod that is not ready, so the fs pod cannot reach
+  *itself* under its service name until it serves the port the readiness probe watches — which it
+  will not do until the retraining is over. Loopback is pod-internal and has none of that.
+
+This pair is deliberately **not** `fs_url` / `fs_port`, which they are easily mistaken for.
+`fs_url` names an address other machines have to reach; this pair names one that nobody else may
+reach, and the two requirements are opposites. Binding the retraining database on `fs_url` would
+either fail where that value is not an address this machine holds (a Docker service name under
+Kubernetes) or, for a wildcard, publish on every interface a database whose whole purpose is to be
+invisible.
+
+Both travel as command line arguments, `register_fs_runner_task(bind_host =, bind_port =)` →
+`jobs/fs.R` → `fs_loop(bind_host =, bind_port =)` → the `bindHost` / `bindPort` parameters of the
+Scala `fsService` command → `API.run()`, which binds them instead of `conf.fsBindHost` /
+`conf.fsPort`. Nothing is written to `properties.json`.
+
+What this replaces shifted `conf$fs_port` by 1000, saved it, and undid it in the `finally` of a
+`tryCatch()`. A process killed outright never runs a finally — SIGKILL, an OOM kill, an evicted pod
+— so the shifted port stayed in the *shared* configuration file and the next start shifted it again:
+8080, 9080, 10080, 11080. Everything left to undo is now session state (`clear_fs_endpoint_override()`),
+which a dying process cannot leave behind.
 
 `episomer_app()` was the second half of the bug: it built `fs_remote` as
 `sprintf("%s:%s", conf$fs_url, conf$fs_port)`, so it was broken in the same way even when called
@@ -1522,35 +1574,40 @@ network"* — and fixed the **client** half of it, rule 4: fall back to `localho
 **bind** half was never fixed, and it is the worse of the two: a client that guesses wrong reports
 the database as down, a bind that guesses wrong kills the service.
 
-`Settings.fsBindHost` now applies the mirror of rule 4: strip the scheme, and if the host does not
-resolve on this machine, bind `localhost` and say why. Verified on the machine this was found on —
-`InetAddress.getByName("fs")` throws on the host and succeeds inside the container.
+`Settings.fsBindHost` first applied the mirror of rule 4: strip the scheme, and if the host does
+not resolve on this machine, bind `localhost` and say why. That made one shared `fs_url` serve both
+ends of the Docker case with no per-machine configuration — the container resolved `fs` to its own
+IP and bound it, the host did not resolve it and bound `localhost`, which is where
+`get_scala_api_endpoint()` rule 4 already looks.
 
-What makes this the right fix rather than a patch is that **the unresolvable case is exactly the
-"not my address" case**, so one shared `fs_url` now serves both ends correctly with no per-machine
-configuration at all:
+**The fallback was then removed** (see below); what remains of `Settings.fsBindHost` is `fs_url`
+with its scheme stripped, because `Http().newServerAt()` takes an interface and `fs_url` carries a
+scheme for the benefit of every other reader.
 
-| reads `fs_url = "http://fs"` | resolves? | binds |
-|---|---|---|
-| the fs container | yes, to its own IP | `fs` — reachable by `search` / `detect`, and via the published port |
-| the host running `setup()` | no | `localhost` — where `get_scala_api_endpoint()` rule 4 already looks |
+Two reasons, in order of weight:
 
-That is why `fs_url` is *not* being turned into a machine-local property here. It would be the
-tidier model — it is a bind interface, as instance-specific as `conf$instance_host` — but it would
-mean a new class of property, a save path that skips it, and a configuration page that explains
-which machine it applies to. The fallback buys the same outcome for four lines, and covers the
-deployments nobody configured for.
+* **the case it existed for is not a supported one.** It fired when a data directory written by the
+  compose stack was then used by `setup()` on the host — bring the containers down, start the
+  services again from R. Nobody is expected to do that: the compose stack owns its data directory.
+* **it is dangerous under an orchestrator**, which is where the deployment is going. A Kubernetes
+  Service name resolves to a ClusterIP the pod does not hold, so the fallback would fire in the
+  fs pod itself and bind `localhost`. A readiness probe running `curl localhost:8080/ping` inside
+  that pod then **passes**, the pod is declared ready, and the Service routes traffic to a listener
+  that only accepts loopback connections. A failed bind is a pod that crash-loops with
+  `Unresolved address` in its log; a successful bind on the wrong interface is a green deployment
+  that does not work. The first is a diagnosis, the second is a mystery.
 
-Only *resolvability* is tested, deliberately: a name that resolves to an address this machine does
-not hold is a different mistake with a diagnosis of its own (`BindException: cannot assign requested
-address`), and silently binding `localhost` over an interface the operator named on purpose would
-hide it.
+So an unbindable `fs_url` is now fatal, and the answer to it is configuration:
+`EPISOMER_OPTION_FS_URL: "http://0.0.0.0"` is an interface every machine holds (see *A wildcard
+`fs_url` binds everywhere and is callable nowhere*). Only the *warning* was worth keeping, and it
+is worth more than it was: `warn_if_fs_url_not_bindable()` is now the last readable line before a
+bind that will fail, rather than a note about a fallback about to rescue it.
 
 Where it lands:
 
-* `Settings.fsBindHost` / `Settings.hostResolvesHere` in `scala/src/main/scala/Settings.scala`, used
-  by `API.scala` in place of `conf.fsUrl.replace("http://", "")`. **Needs a `make package`**, as
-  does issue 15's `ProcessID.writePID`;
+* `Settings.fsBindHost` in `scala/src/main/scala/Settings.scala`, used by `API.scala` in place of
+  `conf.fsUrl.replace("http://", "")`. `Settings.hostResolvesHere` is gone with the fallback.
+  **Needs a `make package`**, as does issue 15's `ProcessID.writePID`;
 * `warn_if_fs_url_not_bindable()` in `R/fs.R`, called once by `fs_loop()` just before the process
   becomes the JVM's. R already knew — `fs_url_resolves_here()` is what rule 4 rests on — and said
   nothing, so the only trace of this in `jobs/fs.log` was a Pekko stack trace. It is a diagnosis,

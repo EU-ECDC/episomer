@@ -37,8 +37,15 @@ get_raw_countries <- function() {
 get_country_items <- function(order = "level") {
   `%>%` <- magrittr::`%>%`
   #If countries are already on cache we return them otherwise we calculate them
-  if (exists(paste("country_items", order, sep = ""), where = cached)) {
-    return(cached[["country_items", order, sep = ""]])
+  # One key, computed once: the lookup used sep = "" while the write at the end of this function
+  # uses sep = "_", so the two never named the same entry and the cache never hit once. Every
+  # caller - refresh_dashboard_data() on every dashboard filter change, get_regions_df(),
+  # get_country_code_map() - paid a countries.xlsx read (an HTTP download when the fs is remote)
+  # plus the quadratic region/country loops below. The `return()` was broken too: `[[` on an
+  # environment takes a single name, so the extra arguments would have errored had it ever run.
+  cache_key <- paste("country_items", order, sep = "_")
+  if (exists(cache_key, where = cached)) {
+    return(cached[[cache_key]])
   } else {
     # Getting country data from package embedded excel, ignoring Antarctica
     countries <- get_raw_countries() %>% dplyr::filter(.data$region != "")
@@ -251,9 +258,18 @@ get_country_items <- function(order = "level") {
       }))]
 
     # Setting the cache
-    cached[[paste("country_items", order, sep = "_")]] <- items
+    cached[[cache_key]] <- items
     return(items)
   }
+}
+
+# Forgets the memoised country items, so that the next get_country_items() reparses the file.
+# Called when countries.xlsx is replaced from the configuration page.
+drop_country_items_cache <- function() {
+  keys <- ls(cached, all.names = TRUE)
+  keys <- keys[startsWith(keys, "country_items_")]
+  if (length(keys) > 0) rm(list = keys, envir = cached)
+  invisible(NULL)
 }
 
 # Get country codes
@@ -902,13 +918,29 @@ update_geotraining_df <- function(
 # retrain the language classifiers for entity recognition with the current set of annotations
 retrain_languages <- function() {
   `%>%` <- magrittr::`%>%`
-  old <- options()
-  on.exit(options(old))
-  options(timeout = 1800)
   body <- get_geotraining_df() %>% jsonlite::toJSON()
+  # This POST holds the connection open for as long as the JVM takes to index and retrain every
+  # language, and the JVM sends nothing at all in the meantime. Two libcurl bounds have to be set
+  # for that to be allowed, and neither of them is options(timeout = ):
+  #
+  #  * options(timeout = ) is a base R setting, read by download.file() and url() and by nothing
+  #    else. httr goes through libcurl, which never looks at it. It used to be set to 1800 here,
+  #    which did nothing whatsoever - verified by measurement: with options(timeout = 8) an httr
+  #    request to a server that accepts and stays silent runs for well over two minutes;
+  #  * libcurl's own default is a low-speed abort - less than 1 byte a second for 600 seconds - so
+  #    a retraining that takes more than ten minutes died on
+  #        Operation too slow. Less than 1 bytes/sec transferred the last 600 seconds
+  #    with the training already running in the JVM, and, in a container, an Rscript that exited
+  #    non-zero and a service that restarted on top of its own log. low_speed_limit = 0 turns that
+  #    check off, which is what makes a silent connection legitimate.
+  #
+  # conf$fs_batch_timeout is then the single bound, and it is the right one: it is what the Scala
+  # side gives itself for a batch of exactly this kind (Settings.fsBatchTimeout), so the client
+  # waiting less than the server allows could only ever be wrong.
   post_result <- httr::POST(
     url = get_scala_geotraining_url(),
     httr::content_type_json(),
+    httr::config(timeout = conf$fs_batch_timeout, low_speed_limit = 0),
     body = body,
     encode = "raw",
     encoding = "UTF-8"
