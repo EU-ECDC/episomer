@@ -553,6 +553,29 @@ rscript_exe_attached <- function() {
   if (file.exists(exe)) exe else "Rscript"
 }
 
+# Path of the Rscript executable to hand to the Scala side.
+#
+# Third member of the family, because the Scala side runs R too: the /secret endpoint of the fs
+# API reads and writes the keyring by starting `Rscript jobs/get_secret.R` through a
+# java.lang.ProcessBuilder (API.scala), and that sub process has to be the R this episomer is
+# installed into. "Rscript" off the PATH is not necessarily it, and the failure is worse than the
+# one rscript_exe_attached() describes: where *some* Rscript is on the PATH but belongs to another
+# installation, the sub process starts, finds nothing in its library - the user library is per
+# version, win-library/4.4 against win-library/4.6 - and dies on "there is no package called
+# 'episomer'". The endpoint then answers 406, i.e. it reports a keyring problem for something that
+# never reached the keyring.
+#
+# Named outright on every platform, unlike rscript_exe_attached(): ProcessBuilder takes the
+# program as one literal argument with no shell in between, so there is no quoting to get wrong
+# and no reason to fall back on the PATH when the path is known.
+rscript_exe_for_scala <- function() {
+  exe <- file.path(
+    R.home("bin"),
+    if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"
+  )
+  if (file.exists(exe)) exe else "Rscript"
+}
+
 # This task is currently Windows only
 #
 # runner_args are extra command line arguments appended after the data directory, read by the
