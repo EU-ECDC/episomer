@@ -37,8 +37,15 @@ get_raw_countries <- function() {
 get_country_items <- function(order = "level") {
   `%>%` <- magrittr::`%>%`
   #If countries are already on cache we return them otherwise we calculate them
-  if (exists(paste("country_items", order, sep = ""), where = cached)) {
-    return(cached[["country_items", order, sep = ""]])
+  # One key, computed once: the lookup used sep = "" while the write at the end of this function
+  # uses sep = "_", so the two never named the same entry and the cache never hit once. Every
+  # caller - refresh_dashboard_data() on every dashboard filter change, get_regions_df(),
+  # get_country_code_map() - paid a countries.xlsx read (an HTTP download when the fs is remote)
+  # plus the quadratic region/country loops below. The `return()` was broken too: `[[` on an
+  # environment takes a single name, so the extra arguments would have errored had it ever run.
+  cache_key <- paste("country_items", order, sep = "_")
+  if (exists(cache_key, where = cached)) {
+    return(cached[[cache_key]])
   } else {
     # Getting country data from package embedded excel, ignoring Antarctica
     countries <- get_raw_countries() %>% dplyr::filter(.data$region != "")
@@ -251,9 +258,18 @@ get_country_items <- function(order = "level") {
       }))]
 
     # Setting the cache
-    cached[[paste("country_items", order, sep = "_")]] <- items
+    cached[[cache_key]] <- items
     return(items)
   }
+}
+
+# Forgets the memoised country items, so that the next get_country_items() reparses the file.
+# Called when countries.xlsx is replaced from the configuration page.
+drop_country_items_cache <- function() {
+  keys <- ls(cached, all.names = TRUE)
+  keys <- keys[startsWith(keys, "country_items_")]
+  if (length(keys) > 0) rm(list = keys, envir = cached)
+  invisible(NULL)
 }
 
 # Get country codes
