@@ -522,7 +522,7 @@ create_map <- function(
   # retunrning empty chart if no data is found
   if (nrow(df) == 0) {
     return(get_empty_chart(
-      "No data found for the selected topic, region and period"
+      "No data found for the selected topic, region and period. If a search is currently ongoing for this topic please come back in a moment when data aggregation has been performed."
     ))
   }
 
@@ -600,7 +600,7 @@ create_map <- function(
   # returning an empty chart if no rows are found
   if (nrow(df) == 0) {
     return(get_empty_chart(
-      "No data found for the selected topic, region and period"
+      "No data found for the selected topic, region and period. If a search is currently ongoing for this topic please come back in a moment when data aggregation has been performed."
     ))
   }
 
@@ -1002,7 +1002,7 @@ create_topchart <- function(
 
   if (inherits(df, "try-error") || nrow(df) == 0 || is.null(df)) {
     return(get_empty_chart(
-      "No data found for the selected topic, region and period"
+      "No data found for the selected topic, region and period. If a search is currently ongoing for this topic please come back in a moment when data aggregation has been performed."
     ))
   }
 
@@ -1042,7 +1042,7 @@ create_topchart <- function(
     dplyr::mutate(top = reorder(.data$top, .data$frequency)))
   if (nrow(df) == 0) {
     return(get_empty_chart(
-      "No data found for the selected topic, region and period"
+      "No data found for the selected topic, region and period. If a search is currently ongoing for this topic please come back in a moment when data aggregation has been performed."
     ))
   }
 
