@@ -29,8 +29,10 @@ import org.apache.pekko.http.scaladsl.model.HttpEntity.{Chunked, Strict}
 import org.apache.pekko.util.ByteString
 import org.apache.pekko.stream.scaladsl.FileIO
 import java.time.Instant
-import java.nio.file.{Paths, Files, Path, FileAlreadyExistsException}
+import java.nio.file.{Paths, Files, Path, FileAlreadyExistsException, FileSystemException}
 import java.nio.file.attribute.FileTime
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 import java.io.{File, FileInputStream, InputStreamReader, BufferedReader, OutputStreamWriter, BufferedWriter}
 import java.util.zip.GZIPInputStream
 import java.nio.file.{StandardCopyOption, StandardOpenOption}
@@ -46,6 +48,27 @@ object EpisomerActor {
   case class Success(msg:String)
 }
 object API {
+
+  private def touchExistingFile(path:Path):Unit = {
+    try {
+      Files.setLastModifiedTime(path, FileTime.from(Instant.now()))
+    } catch {
+      case _:FileSystemException =>
+        val channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE)
+        try {
+          val firstByte = ByteBuffer.allocate(1)
+          if(channel.read(firstByte, 0) == 1) {
+            firstByte.flip()
+            channel.write(firstByte, 0)
+          } else {
+            channel.write(ByteBuffer.wrap(Array[Byte](0)), 0)
+            channel.truncate(0)
+          }
+        } finally {
+          channel.close()
+        }
+    }
+  }
 
   var actorSystemPointer:Option[ActorSystem] = None
   var oLuceneRunner:Option[ActorRef] = None
@@ -591,7 +614,7 @@ object API {
                        try {
                           Files.createFile(localPath);
                        } catch  { case e:FileAlreadyExistsException =>
-                          Files.setLastModifiedTime(localPath, FileTime.from(Instant.now()))
+                          touchExistingFile(localPath)
                        }
                        complete("ok") 
                     } else if(action == "copy") {
