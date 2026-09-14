@@ -512,6 +512,9 @@ episomer_app <- function(
                 shiny::helpText(
                   "To start or stop services, run episomer::setup()."
                 ),
+                shiny::helpText(
+                  "The elements below are updated every 60 seconds."
+                ),
                 shiny::fluidRow(
                   shiny::column(5, "episomer database"),
                   shiny::column(7, shiny::htmlOutput("fs_running"))
@@ -989,6 +992,9 @@ episomer_app <- function(
                 ),
                 shiny::fluidRow(
                   shiny::column(4, shiny::h5("Limit topic history"))
+                ),
+                shiny::helpText(
+                  "The elements below are updated every 60 seconds."
                 ),
                 DT::dataTableOutput("config_topics")
               ),
