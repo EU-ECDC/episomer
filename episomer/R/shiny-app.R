@@ -1003,32 +1003,9 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_langs_body",
-                shiny::fluidRow(
-                  shiny::column(4, shiny::h5("Available languages")),
-                  shiny::column(
-                    2,
-                    shiny::downloadButton("conf_lang_download", "Download")
-                  ),
-                  shiny::column(
-                    2,
-                    shiny::downloadButton(
-                      "conf_orig_lang_download",
-                      "Download default"
-                    )
-                  ),
-                  shiny::column(
-                    4,
-                    shiny::fileInput(
-                      "conf_lang_upload",
-                      label = NULL,
-                      buttonLabel = "Upload",
-                      accept = ".xlsx"
-                    )
-                  )
-                ),
-                shiny::fluidRow(
-                  shiny::column(4, shiny::h5("Active languages")),
-                  shiny::column(8, shiny::uiOutput("lang_items_0"))
+                shiny::h5("Active languages"),
+                shiny::helpText(
+                  "To set up languages, run episomer::setup()."
                 ),
                 DT::dataTableOutput("config_langs")
               ),
@@ -2800,18 +2777,6 @@ episomer_app <- function(
           )
           refresh_config_data(e = cd, limit = list("langs"))
         }
-      })
-
-      # rendering active languages when something has changed on languages
-      output$lang_items_0 <- shiny::renderUI({
-        # Adding a dependency to lang refresh
-        cd$langs_refresh_flag()
-        shiny::selectInput(
-          "lang_items",
-          label = NULL,
-          multiple = FALSE,
-          choices = cd$lang_items
-        )
       })
 
       ######### TASKS LOGIC ##################
