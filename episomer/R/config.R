@@ -14,34 +14,25 @@ get_key_ring <- function(backend = NULL) {
   }
   Sys.setenv(kr_name = "episomer_kr_name")
   Sys.setenv(kr_service = "kr_service")
-  keyring = "file"#Sys.getenv("kr_backend")
-  if (keyring == "secret_service") {
-    kb <- keyring::backend_secret_service$new()
-  } else if (keyring == "wincred") {
-    kb <- keyring::backend_wincred$new()
-  } else if (keyring == "macos") {
-    kb <- keyring::backend_macos$new()
-  } else if (keyring == "file") {
-    kb <- keyring::backend_file$new()
-  } else {
-    kb <- keyring::backend_env$new()
-  }
+  keyring <- "file"
+
+  kb <- keyring::backend_file$new()
+
   kr_name <- NULL
   # creating the file keyring if requested and not existent
-  if (keyring == "file") {
-    kr_name <- Sys.getenv("kr_name")
-    krs <- kb$keyring_list()
-    if (nrow(krs[krs$keyring == kr_name, ]) == 0) {
-      kb$keyring_create(kr_name, get_episomer_kr_password())
-    }
-    kb$keyring_set_default(kr_name)
+
+  kr_name <- Sys.getenv("kr_name")
+  krs <- kb$keyring_list()
+  if (nrow(krs[krs$keyring == kr_name, ]) == 0) {
+    kb$keyring_create(kr_name, get_episomer_kr_password())
   }
+  kb$keyring_set_default(kr_name)
 
   # unlocking keyring if unlocked using environment variable to get the password
   if (kb$keyring_is_locked(keyring = kr_name)) {
     kb$keyring_unlock(
-        keyring = kr_name,
-        password = get_episomer_kr_password()
+      keyring = kr_name,
+      password = get_episomer_kr_password()
     )
     # unlocking keyring if unlocked using password prompt
   }
