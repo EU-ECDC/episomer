@@ -1002,6 +1002,30 @@ runner_leases <- function() {
   lapply(runner_lease_names(), runner_lease_status)
 }
 
+# Human-readable name of the service a runner belongs to, matching the wording used for the same
+# services in the status panel above the table ("episomer database", "Data collection &
+# processing", "Alerts"). The raw runner name is kept alongside it (runner_leases_df() puts it in
+# brackets) so a "search.bluesky" row is still traceable back to what it is.
+#
+# "fs_mon" has no entry here on purpose: it is the watchdog that keeps "fs" alive, not a service of
+# its own, and the app filters its row out of the table before this is ever called on it.
+runner_service_display_name <- function(name) {
+  labels <- c(
+    fs = "episomer database",
+    search = "Data collection & processing",
+    detect = "Alerts"
+  )
+  label <- unname(labels[runner_service(name)])
+  if (is.na(label)) name else label
+}
+
+# "Data collection & processing (search.bluesky)": the display name above with the raw runner name
+# in brackets, or just the raw name when it has no display name of its own.
+runner_display_name <- function(name) {
+  label <- runner_service_display_name(name)
+  if (identical(label, name)) name else sprintf("%s (%s)", label, name)
+}
+
 # The same thing as a data.frame, ready to be displayed: one row per runner, the five columns of
 # plan issue 8.
 #

@@ -509,32 +509,20 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_status_body",
-                shiny::fluidRow(
-                  shiny::column(3, "episomer database"),
-                  shiny::column(5, shiny::htmlOutput("fs_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_fs", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_fs", "stop"))
+                shiny::helpText(
+                  "To start or stop services, run episomer::setup()."
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Data collection & processing"),
-                  shiny::column(5, shiny::htmlOutput("search_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_search", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_search", "stop"))
+                  shiny::column(5, "episomer database"),
+                  shiny::column(7, shiny::htmlOutput("fs_running"))
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Alerts"),
-                  shiny::column(5, shiny::htmlOutput("detect_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_detect", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_detect", "stop"))
+                  shiny::column(5, "Data collection & processing"),
+                  shiny::column(7, shiny::htmlOutput("search_running"))
+                ),
+                shiny::fluidRow(
+                  shiny::column(5, "Alerts"),
+                  shiny::column(7, shiny::htmlOutput("detect_running"))
                 ),
                 ################################################
                 ######### RUNNERS DETAIL #######################
@@ -545,7 +533,6 @@ episomer_app <- function(
                 # a lease, on this machine or on any other machine sharing this database - a runner
                 # nobody holds simply has no row. The app itself never appears here: it is a reader
                 # of the leases, not a runner (section 6.4).
-                shiny::h4("Runners"),
                 DT::dataTableOutput("runner_leases_table")
               ),
               ################################################
@@ -942,7 +929,7 @@ episomer_app <- function(
                 DT::dataTableOutput("tasks_df")
               ),
               ################################################
-              ######### SOCIAL MEDIA PANDEL###################
+              ######### SOCIAL MEDIA PANEL ###################
               ################################################
               shiny::h2(
                 id = "config_socialmedia_title",
@@ -952,104 +939,12 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_socialmedia_body",
-                shiny::fluidRow(
-                  shiny::column(4, "Social Media"),
-                  shiny::column(8, "Configuration"),
-                  style = "font-weight:bold"
+                # Purely informational: activation, instances and alert detection are all set up
+                # from the wizard (episomer::setup()), not edited here.
+                shiny::helpText(
+                  "To configure social media collection, instances and alert detection, run episomer::setup()."
                 ),
-                #################
-                # Bluesky logic #
-                #################
-                shiny::fluidRow(
-                  shiny::column(
-                    4,
-                    shiny::checkboxInput(
-                      "conf_sm_activated_bluesky",
-                      label = "Bluesky",
-                      value = conf$sm_activated_bluesky
-                    )
-                  ),
-                  shiny::column(
-                    8,
-                    shiny::conditionalPanel(
-                      condition = "input.conf_sm_activated_bluesky == true",
-                      shiny::checkboxInput(
-                        "conf_sm_alerts_bluesky",
-                        label = "Calculate alerts",
-                        value = conf$sm_alerts_bluesky
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "User"),
-                        shiny::column(
-                          9,
-                          shiny::textInput(
-                            "bluesky_user",
-                            label = NULL,
-                            value = if (is_secret_set("bluesky_user")) {
-                              get_secret("bluesky_user")
-                            } else {
-                              NULL
-                            }
-                          )
-                        )
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "Password"),
-                        shiny::column(
-                          9,
-                          shiny::passwordInput(
-                            "bluesky_password",
-                            label = NULL,
-                            value = if (is_secret_set("bluesky_password")) {
-                              get_secret("bluesky_password")
-                            } else {
-                              NULL
-                            }
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-                ),
-                ##################
-                # Mastodon logic #
-                ##################
-                # The checkboxes below switch the whole of Mastodon on or off. The instances to
-                # collect from and their access tokens are not editable here: they are added from
-                # the social media menu of episomer::setup(), which stores each token in the keyring.
-                shiny::fluidRow(
-                  shiny::column(
-                    4,
-                    shiny::checkboxInput(
-                      "conf_sm_activated_mastodon",
-                      label = "Mastodon",
-                      value = conf$sm_activated_mastodon
-                    )
-                  ),
-                  shiny::column(
-                    8,
-                    shiny::conditionalPanel(
-                      condition = "input.conf_sm_activated_mastodon == true",
-                      shiny::checkboxInput(
-                        "conf_sm_alerts_mastodon",
-                        label = "Calculate alerts",
-                        value = conf$sm_alerts_mastodon
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "Instances"),
-                        shiny::column(
-                          9,
-                          shiny::textOutput("conf_mastodon_instances"),
-                          shiny::helpText(
-                            "Mastodon instances and their access tokens are added by running episomer::setup() and choosing the social media authentication step."
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-                )
+                DT::dataTableOutput("social_media_table")
               ),
               ################################################
               ######### TOPICS PANEL ######################
@@ -1108,32 +1003,9 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_langs_body",
-                shiny::fluidRow(
-                  shiny::column(4, shiny::h5("Available languages")),
-                  shiny::column(
-                    2,
-                    shiny::downloadButton("conf_lang_download", "Download")
-                  ),
-                  shiny::column(
-                    2,
-                    shiny::downloadButton(
-                      "conf_orig_lang_download",
-                      "Download default"
-                    )
-                  ),
-                  shiny::column(
-                    4,
-                    shiny::fileInput(
-                      "conf_lang_upload",
-                      label = NULL,
-                      buttonLabel = "Upload",
-                      accept = ".xlsx"
-                    )
-                  )
-                ),
-                shiny::fluidRow(
-                  shiny::column(4, shiny::h5("Active languages")),
-                  shiny::column(8, shiny::uiOutput("lang_items_0"))
+                shiny::h5("Active languages"),
+                shiny::helpText(
+                  "To set up languages, run episomer::setup()."
                 ),
                 DT::dataTableOutput("config_langs")
               ),
@@ -2401,7 +2273,11 @@ episomer_app <- function(
 
         message <- ""
         if (!cd$search_running || is.na(cd$search_diff)) {
-          message <- "Stopped"
+          message <- paste0(
+            "Stopped (for ",
+            format_status_duration(cd$search_since),
+            ")"
+          )
         } else {
           message <- "Running"
         }
@@ -2448,7 +2324,11 @@ episomer_app <- function(
           " style='color:",
           if (cd$fs_running) "#348017'" else "#F75D59'",
           ">",
-          if (cd$fs_running) "Running" else "Stopped",
+          if (cd$fs_running) {
+            "Running"
+          } else {
+            paste0("Stopped (for ", format_status_duration(cd$fs_since), ")")
+          },
           "</span>",
           sep = ""
         )
@@ -2467,7 +2347,15 @@ episomer_app <- function(
           " style='color:",
           if (cd$detect_running) "#348017'" else "#F75D59'",
           ">",
-          if (cd$detect_running) "Running" else "Stopped",
+          if (cd$detect_running) {
+            "Running"
+          } else {
+            paste0(
+              "Stopped (for ",
+              format_status_duration(cd$detect_since),
+              ")"
+            )
+          },
           "</span>",
           sep = ""
         )
@@ -2480,8 +2368,29 @@ episomer_app <- function(
         # Adding a dependency to process update (each 10 seconds)
         cd$process_refresh_flag()
 
+        leases_df <- cd$runner_leases_df
+        # Rows that are internal plumbing rather than a service a non-coder would recognise:
+        # - "search" is the parent lease, a supervisor that renews nothing for the whole life of
+        #   the service (see runner_lease_status_label()) - its per-network workers
+        #   (search.bluesky, ...) are the rows that actually say whether collection is happening.
+        # - "fs_mon" is the watchdog that keeps the episomer database (the "fs" row) alive and
+        #   renews its lease; it is not a second database, and showing it next to "fs" as its own
+        #   "episomer database monitor" row reads as one to somebody who did not write this code.
+        leases_df <- leases_df[
+          !(leases_df$Runner %in% c("search", "fs_mon")),
+          ,
+          drop = FALSE
+        ]
+        # Understandable service names for a reader of the status panel, with the raw runner name
+        # kept in brackets so a row is still traceable to what runner_leases_df() reported.
+        leases_df$Runner <- vapply(
+          leases_df$Runner,
+          runner_display_name,
+          character(1)
+        )
+
         DT::datatable(
-          cd$runner_leases_df,
+          leases_df,
           rownames = FALSE,
           # A status block, not a data table: no search box, no pagination, no sorting - the rows
           # come in the reading order of runner_leases_df(). scrollX keeps the five columns
@@ -2711,10 +2620,6 @@ episomer_app <- function(
           conf_smtp_from = input$smtp_from,
           conf_smtp_login = input$smtp_login,
           conf_smtp_password = input$smtp_password,
-          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
-          conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
-          conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
           conf_force_date_format = input$force_date_format
         )
       })
@@ -2728,14 +2633,8 @@ episomer_app <- function(
         {
           update_config_from_input(debounced_elements_to_save_in_conf())
 
-          # Saving Bluesky properties
-          sm_api_set_auth(
-            network = "bluesky",
-            shiny_input_list = input
-          )
-
-          # Mastodon instances and their access tokens are managed via episomer::setup(),
-          # not from this form, so there is nothing to save here.
+          # Social media activation, instances and alert detection are managed via
+          # episomer::setup(), not from this form, so there is nothing to save here.
 
           # Saving properties.json
           save_config(
@@ -2748,15 +2647,68 @@ episomer_app <- function(
         ignoreInit = TRUE
       )
 
-      # the instances collected from, added with episomer::setup()
-      output$conf_mastodon_instances <- shiny::renderText({
+      # the social media table: one row per family, all set up via episomer::setup()
+      output$social_media_table <- DT::renderDataTable({
+        # Adding a dependency to config refresh (e.g. instances added by episomer::setup())
         cd$properties_refresh_flag()
-        instances <- sm_instances_of("mastodon")
-        if (length(instances) == 0) {
-          "No instance configured yet, no Mastodon post will be collected."
-        } else {
-          paste(instances, collapse = ", ")
-        }
+
+        families <- social_media_families()
+        df <- data.frame(
+          "Social media" = vapply(
+            families,
+            function(family) {
+              paste0(
+                toupper(substr(family, 1, 1)),
+                substr(family, 2, nchar(family))
+              )
+            },
+            character(1)
+          ),
+          "Activated for search" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_activated_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          "Instances" = vapply(
+            families,
+            function(family) {
+              if (!sm_is_federated(family)) {
+                return("-")
+              }
+              instances <- sm_instances_of(family)
+              if (length(instances) == 0) {
+                "None configured yet"
+              } else {
+                paste(instances, collapse = ", ")
+              }
+            },
+            character(1)
+          ),
+          "Alert detection activated" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_alerts_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          check.names = FALSE
+        )
+
+        DT::datatable(
+          df,
+          rownames = FALSE,
+          options = list(dom = "t", paging = FALSE, ordering = FALSE)
+        )
       })
 
       ######### IMPORTANT USERS LOGIC ###########
@@ -2825,18 +2777,6 @@ episomer_app <- function(
           )
           refresh_config_data(e = cd, limit = list("langs"))
         }
-      })
-
-      # rendering active languages when something has changed on languages
-      output$lang_items_0 <- shiny::renderUI({
-        # Adding a dependency to lang refresh
-        cd$langs_refresh_flag()
-        shiny::selectInput(
-          "lang_items",
-          label = NULL,
-          multiple = FALSE,
-          choices = cd$lang_items
-        )
       })
 
       ######### TASKS LOGIC ##################
