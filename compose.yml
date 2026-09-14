@@ -48,6 +48,11 @@
         EPISOMER_OPTION_FS_SETUP_HOST: "localhost"
         EPISOMER_OPTION_FS_SETUP_PORT: 9080
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+        # The social media credentials belong to this service and to this one only. search and
+        # detect run with EPI_HOST set, which makes fs_remote() true (R/fs.R), and every secret
+        # they need is then an HTTP call to the fs API, resolved out of the environment of *this*
+        # container by the get_secret.R sub process (scala/src/main/scala/API.scala). Repeating
+        # them on search or detect would have no effect at all.
         EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
         EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
         EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN_FILE: "/run/secrets/episomer_mastodon_mastodon_social_token"
@@ -105,13 +110,22 @@
         - episomer_kr_password
       volumes:
         - ${EPI_HOME}/jobs:/episomer-data/jobs
+  # The host-side variables feeding these secrets are deliberately named after the variables the
+  # application itself reads, EPISOMER_SECRET_<NAME>. Nothing forces it - compose only needs *a*
+  # variable here - but the alternative has already cost a deployment: a name like
+  # EPISOMER_BLUESKY_USER seen in this file reads like the setting to define, while it is only the
+  # value piped into the secret, and the R side never looks at it. See get_env_secrets()
+  # (episomer/R/config.R): it collects EPISOMER_SECRET_<NAME> for a value given directly, and
+  # EPISOMER_SECRET_<NAME>_FILE for a value read from the first line of a file - the two forms are
+  # interchangeable, which is what makes the mounted secrets below equivalent to plain variables on
+  # a deployment that has its own secret store.
   secrets:
     episomer_kr_password:
       environment: EPISOMER_KR_PASSWORD
     episomer_bluesky_user:
-      environment: EPISOMER_BLUESKY_USER  
+      environment: EPISOMER_SECRET_BLUESKY_USER
     episomer_bluesky_password:
-      environment: EPISOMER_BLUESKY_PASSWORD
+      environment: EPISOMER_SECRET_BLUESKY_PASSWORD
     episomer_mastodon_mastodon_social_token:
       environment: EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN
     episomer_mastodon_mstdn_party_token:

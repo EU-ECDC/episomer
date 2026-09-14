@@ -133,8 +133,8 @@ compose-up:
 	$(call set_bluesky_password)
 	$(call set_mastodon_tokens)
 	@export EPISOMER_KR_PASSWORD=`pass epitools/ecdc_kr_pwd` && \
-	export EPISOMER_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
-	export EPISOMER_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
+	export EPISOMER_SECRET_BLUESKY_USER=`pass epitools/ecdc_bluesky_user` && \
+	export EPISOMER_SECRET_BLUESKY_PASSWORD=`pass epitools/ecdc_bluesky_password` && \
 	export EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=`pass epitools/ecdc_mastodon_mastodon_social_token` && \
 	export EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=`pass epitools/ecdc_mastodon_mstdn_party_token` && \
 	docker compose -f compose.yml up --build -d	
