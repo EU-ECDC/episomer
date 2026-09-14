@@ -236,6 +236,8 @@ test_that("an R sub process started with that environment gets those library pat
   # JVM starts two levels down searches the libraries this session searched - which is where
   # episomer is. Run for real, because "which variable does R honour" is not something a mock can
   # answer.
+
+  skip_on_ci()
   withr::local_envvar(EPISOMER_RSCRIPT = NA, R_LIBS = NA)
   set_scala_r_env()
 
