@@ -21,9 +21,7 @@
         retries: 400
         start_period: 10s
       environment:
-        EPI_HOME: "/episomer-data"
-        # Every log this service writes goes to the standard output instead of a file under
-        # /episomer-data/jobs, which is the only place `docker logs` and `kubectl logs` read.
+        EPI_HOME: "/episomer-data"        
         EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "FS"
         EPISOMER_INSTANCE: "fs"
