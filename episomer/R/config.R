@@ -1500,3 +1500,42 @@ get_env_secrets <- function() {
   }
   ret
 }
+
+# Whether the services must write their logs to the standard output instead of files under
+# <data_dir>/jobs.
+#
+# One log per file is the right shape for a machine an operator logs into: the Shiny app offers
+# them for download (see the "logs" section of build_dump(), R/check.R) and they survive the
+# process that wrote them. It is the wrong shape for a container: nothing collects a file inside a
+# pod, `docker logs` and `kubectl logs` read the standard output of PID 1 and nothing else, so a
+# deployment that leaves the default on has services whose logs exist and are unreachable - which
+# is what the Kubernetes deployment this option was written for reported (issue 149).
+#
+# A plain environment variable rather than an EPISOMER_OPTION_* property, for two reasons:
+#
+#  * where a process writes its log belongs to the process, not to the cluster. properties.json is
+#    shared by every instance of a deployment, and the same data directory can perfectly well be
+#    served by a container (stdout) and read by a desktop session (files);
+#  * properties.json takes precedence over the environment (see setup_config()), so a knob stored
+#    there would stop obeying the container the day it was first written - i.e. always, since
+#    save_config() writes every property.
+#
+# "1"/"0" are accepted alongside "TRUE"/"FALSE", as coerce_env_props() does for the properties:
+# writing a boolean as 1/0 in a compose file is common enough.
+logs_to_stdout <- function() {
+  raw <- trimws(Sys.getenv("EPISOMER_LOGS_TO_STDOUT", "FALSE"))
+  if (raw == "") {
+    return(FALSE)
+  }
+  value <- as.logical(raw)
+  if (is.na(value) && grepl("^[01]$", raw)) {
+    value <- as.logical(as.numeric(raw))
+  }
+  if (is.na(value)) {
+    stop(sprintf(
+      "Invalid value '%s' for environment variable EPISOMER_LOGS_TO_STDOUT: expected a boolean",
+      raw
+    ))
+  }
+  value
+}
