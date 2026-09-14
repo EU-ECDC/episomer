@@ -3,7 +3,11 @@
 #' @param data_dir optional path to the 'data directory' containing application settings, models and collected posts. If not provided it will reuse the last set on the current session.
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, Default: NA
 #' @param sandboxed logical indicating if the search loop should be run in sandboxed mode. If TRUE, the search loop will not send or commit posts to the database. Default: FALSE
-#' @param log_to_file logical indicating if the search loop should log to a file. Default: TRUE
+#' @param log_to_file logical indicating if the search loop should log to a file, one per collected
+#' network (jobs/search.<network>.log). When FALSE every worker writes to the standard output of
+#' this process instead, which is what a container deployment needs - nothing collects a file
+#' inside a pod. Default: FALSE when the environment variable 'EPISOMER_LOGS_TO_STDOUT' is set to
+#' TRUE, TRUE otherwise
 #' @param max_requests integer indicating the maximum number of requests to perform. If 0, the search loop will run indefinitely. Default: 0
 #' @return Nothing
 #' @details The detect loop is a pure R function designed for downloading posts from the social media search API. It can handle several topics ensuring that all of them will be downloaded fairly using a
@@ -33,7 +37,7 @@
 search_loop <- function(
   data_dir = NA,
   sandboxed = FALSE,
-  log_to_file = TRUE,
+  log_to_file = !logs_to_stdout(),
   max_requests = 0
 ) {
   # Setting or reusing the data directory

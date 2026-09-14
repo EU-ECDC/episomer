@@ -8,7 +8,7 @@
 search_loop(
   data_dir = NA,
   sandboxed = FALSE,
-  log_to_file = TRUE,
+  log_to_file = !logs_to_stdout(),
   max_requests = 0
 )
 
@@ -19,7 +19,11 @@ search_loop_worker(network, data_dir = NA, sandboxed = FALSE, max_requests = 0)
 
 \item{sandboxed}{Whether to run in sandboxed mode.}
 
-\item{log_to_file}{logical indicating if the search loop should log to a file. Default: TRUE}
+\item{log_to_file}{logical indicating if the search loop should log to a file, one per collected
+network (jobs/search.<network>.log). When FALSE every worker writes to the standard output of
+this process instead, which is what a container deployment needs - nothing collects a file
+inside a pod. Default: FALSE when the environment variable 'EPISOMER_LOGS_TO_STDOUT' is set to
+TRUE, TRUE otherwise}
 
 \item{max_requests}{The maximum number of requests to perform.}
 

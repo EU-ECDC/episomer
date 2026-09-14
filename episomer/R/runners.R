@@ -338,7 +338,8 @@ register_fs_runner_task <- function(
          "The episomer database did not answer on %s after %s seconds. Its log is in %s.",
          get_scala_ping_url(),
          timeout,
-         file.path(conf$data_dir, "jobs", "fs.log")
+         if (logs_to_stdout()) "the standard output of this process" else
+           file.path(conf$data_dir, "jobs", "fs.log")
        ))
      }
      cat(".")
@@ -674,9 +675,21 @@ register_runner_task <- function(
       message(sprintf("Running %s as a service attached to this session (for permanent scheduling add the following code to startup tasks)", task_name))
       cm <- paste(script, rscript_args)
       script_log <- paste(task_name, "log", sep = ".")
-      log <- file.path(script_folder, script_log)
-      message(sprintf("Rscript '%s' %s > %s", script, rscript_args, log))
-      message(sprintf("Logs written to %s", log))
+      # "" is what system2() understands as "do not redirect": the child keeps the standard output
+      # and error of this process, which in a container is the one place an operator can read
+      # (`docker logs`, `kubectl logs`) and the only one anything collects. A file is still the
+      # default everywhere else - see logs_to_stdout(), R/config.R.
+      log <- if (logs_to_stdout()) "" else file.path(script_folder, script_log)
+      message(sprintf(
+        "Rscript '%s' %s > %s",
+        script,
+        rscript_args,
+        if (log == "") "the standard output of this process" else log
+      ))
+      message(sprintf(
+        "Logs written to %s",
+        if (log == "") "the standard output of this process" else log
+      ))
       # shQuote()d, because system2() quotes its `command` and *not* its `args`: it pastes them
       # into one command line as they are. Both of the first two hold a path, and the default data
       # directory of a Windows installation sits under "C:/Users/<given name> <family name>", so

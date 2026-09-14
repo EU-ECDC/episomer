@@ -619,7 +619,14 @@ start_fs_monitor <- function(data_dir, bind_host = NULL, bind_port = NULL) {
   future::future(
     fs_monitor_loop(data_dir, bind_host, bind_port),
     globals = c("data_dir", "bind_host", "bind_port", "fs_monitor_loop"),
-    envir = rlang::current_env()
+    envir = rlang::current_env(),
+    # stdout = NA, i.e. "do not capture": future's default is to sink the worker's output into a
+    # buffer replayed when the value is collected, and nobody ever collects this one (see above).
+    # For a monitor writing to the standard output that buffer is exactly where the lines must not
+    # go. Left uncaptured, they come out of the worker process itself, which inherits the standard
+    # output of this one (a multisession worker is started without an outfile redirection), so
+    # they reach `docker logs` like everything else this process writes.
+    stdout = if (logs_to_stdout()) NA else TRUE
   )
 }
 
@@ -707,18 +714,26 @@ fs_monitor_log_once <- function(m, span = 60, data_dir = conf$data_dir) {
   invisible(TRUE)
 }
 
-# Appends one timestamped line to <data_dir>/fs_mon.log.
+# Appends one timestamped line to <data_dir>/fs_mon.log, or to the standard output when the
+# deployment asked for it (logs_to_stdout(), R/config.R).
 #
 # A file, and deliberately not message(): the monitor runs in a future worker whose messages nobody
 # ever reads (see start_fs_monitor()) and which future accumulates in a buffer meant to be replayed
 # when the value is collected - for a loop that runs for weeks and never returns, writing to that
-# buffer is a slow leak, not a log.
+# buffer is a slow leak, not a log. The stdout branch is written with the same write(), to the
+# worker's own standard output, which start_fs_monitor() keeps uncaptured and which the worker
+# inherits from this process - a real file descriptor, not a captured condition, so neither of the
+# two problems above applies to it.
 #
 # Never raises: a monitor that cannot write its log still has a lease to renew.
 fs_monitor_log <- function(m, data_dir = conf$data_dir) {
   line <- paste0(strftime(Sys.time(), "%Y-%m-%d %H:%M:%S"), " [fs_mon]: ", m)
   try(
-    write(line, file = file.path(data_dir, "fs_mon.log"), append = TRUE),
+    if (logs_to_stdout()) {
+      write(line, file = "")
+    } else {
+      write(line, file = file.path(data_dir, "fs_mon.log"), append = TRUE)
+    },
     silent = TRUE
   )
   invisible(line)
