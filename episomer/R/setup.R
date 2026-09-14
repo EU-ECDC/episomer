@@ -808,7 +808,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                         "2" = "No"
                     ),
                     silent,
-                    default = "2"
+                    default = "1"
                 )
                 if (fs_for_shiny_ans == "1") {
                     message("Starting the episomer database...")
