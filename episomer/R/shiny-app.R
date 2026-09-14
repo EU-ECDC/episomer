@@ -2275,11 +2275,11 @@ episomer_app <- function(
 
       ######### STATUS PANEL LOGIC ##################
       # Timer for updating task statuses
-      # each thirty seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
-      # each thirty seconds a process refresh flag will be invalidated to trigger process status recalculation
+      # each sixty seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
+      # each sixty seconds a process refresh flag will be invalidated to trigger process status recalculation
       shiny::observe({
         # Setting the timer
-        shiny::invalidateLater(30000)
+        shiny::invalidateLater(60000)
 
         # updating config data
         refresh_config_data(cd, list("tasks", "topics", "langs"))
