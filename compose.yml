@@ -22,6 +22,9 @@
         start_period: 10s
       environment:
         EPI_HOME: "/episomer-data"
+        # Every log this service writes goes to the standard output instead of a file under
+        # /episomer-data/jobs, which is the only place `docker logs` and `kubectl logs` read.
+        EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "FS"
         EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
@@ -74,6 +77,7 @@
       environment:
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
+        EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "SEARCH"
         EPISOMER_INSTANCE: "search"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
@@ -98,6 +102,7 @@
       environment:
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
+        EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "DETECT"
         EPISOMER_INSTANCE: "detect"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
