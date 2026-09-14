@@ -509,6 +509,9 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_status_body",
+                shiny::helpText(
+                  "To start or stop services, run episomer::setup()."
+                ),
                 shiny::fluidRow(
                   shiny::column(5, "episomer database"),
                   shiny::column(7, shiny::htmlOutput("fs_running"))
@@ -530,7 +533,6 @@ episomer_app <- function(
                 # a lease, on this machine or on any other machine sharing this database - a runner
                 # nobody holds simply has no row. The app itself never appears here: it is a reader
                 # of the leases, not a runner (section 6.4).
-                shiny::h4("Runners"),
                 DT::dataTableOutput("runner_leases_table")
               ),
               ################################################
@@ -2294,7 +2296,11 @@ episomer_app <- function(
 
         message <- ""
         if (!cd$search_running || is.na(cd$search_diff)) {
-          message <- "Stopped"
+          message <- paste0(
+            "Stopped (for ",
+            format_status_duration(cd$search_since),
+            ")"
+          )
         } else {
           message <- "Running"
         }
@@ -2341,7 +2347,11 @@ episomer_app <- function(
           " style='color:",
           if (cd$fs_running) "#348017'" else "#F75D59'",
           ">",
-          if (cd$fs_running) "Running" else "Stopped",
+          if (cd$fs_running) {
+            "Running"
+          } else {
+            paste0("Stopped (for ", format_status_duration(cd$fs_since), ")")
+          },
           "</span>",
           sep = ""
         )
@@ -2360,7 +2370,15 @@ episomer_app <- function(
           " style='color:",
           if (cd$detect_running) "#348017'" else "#F75D59'",
           ">",
-          if (cd$detect_running) "Running" else "Stopped",
+          if (cd$detect_running) {
+            "Running"
+          } else {
+            paste0(
+              "Stopped (for ",
+              format_status_duration(cd$detect_since),
+              ")"
+            )
+          },
           "</span>",
           sep = ""
         )
@@ -2373,8 +2391,29 @@ episomer_app <- function(
         # Adding a dependency to process update (each 10 seconds)
         cd$process_refresh_flag()
 
+        leases_df <- cd$runner_leases_df
+        # Rows that are internal plumbing rather than a service a non-coder would recognise:
+        # - "search" is the parent lease, a supervisor that renews nothing for the whole life of
+        #   the service (see runner_lease_status_label()) - its per-network workers
+        #   (search.bluesky, ...) are the rows that actually say whether collection is happening.
+        # - "fs_mon" is the watchdog that keeps the episomer database (the "fs" row) alive and
+        #   renews its lease; it is not a second database, and showing it next to "fs" as its own
+        #   "episomer database monitor" row reads as one to somebody who did not write this code.
+        leases_df <- leases_df[
+          !(leases_df$Runner %in% c("search", "fs_mon")),
+          ,
+          drop = FALSE
+        ]
+        # Understandable service names for a reader of the status panel, with the raw runner name
+        # kept in brackets so a row is still traceable to what runner_leases_df() reported.
+        leases_df$Runner <- vapply(
+          leases_df$Runner,
+          runner_display_name,
+          character(1)
+        )
+
         DT::datatable(
-          cd$runner_leases_df,
+          leases_df,
           rownames = FALSE,
           # A status block, not a data table: no search box, no pagination, no sorting - the rows
           # come in the reading order of runner_leases_df(). scrollX keeps the five columns
