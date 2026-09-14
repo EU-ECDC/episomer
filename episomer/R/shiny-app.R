@@ -942,7 +942,7 @@ episomer_app <- function(
                 DT::dataTableOutput("tasks_df")
               ),
               ################################################
-              ######### SOCIAL MEDIA PANDEL###################
+              ######### SOCIAL MEDIA PANEL ###################
               ################################################
               shiny::h2(
                 id = "config_socialmedia_title",
@@ -952,104 +952,12 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_socialmedia_body",
-                shiny::fluidRow(
-                  shiny::column(4, "Social Media"),
-                  shiny::column(8, "Configuration"),
-                  style = "font-weight:bold"
+                # Purely informational: activation, instances and alert detection are all set up
+                # from the wizard (episomer::setup()), not edited here.
+                shiny::helpText(
+                  "To configure social media collection, instances and alert detection, run episomer::setup()."
                 ),
-                #################
-                # Bluesky logic #
-                #################
-                shiny::fluidRow(
-                  shiny::column(
-                    4,
-                    shiny::checkboxInput(
-                      "conf_sm_activated_bluesky",
-                      label = "Bluesky",
-                      value = conf$sm_activated_bluesky
-                    )
-                  ),
-                  shiny::column(
-                    8,
-                    shiny::conditionalPanel(
-                      condition = "input.conf_sm_activated_bluesky == true",
-                      shiny::checkboxInput(
-                        "conf_sm_alerts_bluesky",
-                        label = "Calculate alerts",
-                        value = conf$sm_alerts_bluesky
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "User"),
-                        shiny::column(
-                          9,
-                          shiny::textInput(
-                            "bluesky_user",
-                            label = NULL,
-                            value = if (is_secret_set("bluesky_user")) {
-                              get_secret("bluesky_user")
-                            } else {
-                              NULL
-                            }
-                          )
-                        )
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "Password"),
-                        shiny::column(
-                          9,
-                          shiny::passwordInput(
-                            "bluesky_password",
-                            label = NULL,
-                            value = if (is_secret_set("bluesky_password")) {
-                              get_secret("bluesky_password")
-                            } else {
-                              NULL
-                            }
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-                ),
-                ##################
-                # Mastodon logic #
-                ##################
-                # The checkboxes below switch the whole of Mastodon on or off. The instances to
-                # collect from and their access tokens are not editable here: they are added from
-                # the social media menu of episomer::setup(), which stores each token in the keyring.
-                shiny::fluidRow(
-                  shiny::column(
-                    4,
-                    shiny::checkboxInput(
-                      "conf_sm_activated_mastodon",
-                      label = "Mastodon",
-                      value = conf$sm_activated_mastodon
-                    )
-                  ),
-                  shiny::column(
-                    8,
-                    shiny::conditionalPanel(
-                      condition = "input.conf_sm_activated_mastodon == true",
-                      shiny::checkboxInput(
-                        "conf_sm_alerts_mastodon",
-                        label = "Calculate alerts",
-                        value = conf$sm_alerts_mastodon
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "Instances"),
-                        shiny::column(
-                          9,
-                          shiny::textOutput("conf_mastodon_instances"),
-                          shiny::helpText(
-                            "Mastodon instances and their access tokens are added by running episomer::setup() and choosing the social media authentication step."
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-                )
+                DT::dataTableOutput("social_media_table")
               ),
               ################################################
               ######### TOPICS PANEL ######################
@@ -2711,10 +2619,6 @@ episomer_app <- function(
           conf_smtp_from = input$smtp_from,
           conf_smtp_login = input$smtp_login,
           conf_smtp_password = input$smtp_password,
-          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
-          conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
-          conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
           conf_force_date_format = input$force_date_format
         )
       })
@@ -2728,14 +2632,8 @@ episomer_app <- function(
         {
           update_config_from_input(debounced_elements_to_save_in_conf())
 
-          # Saving Bluesky properties
-          sm_api_set_auth(
-            network = "bluesky",
-            shiny_input_list = input
-          )
-
-          # Mastodon instances and their access tokens are managed via episomer::setup(),
-          # not from this form, so there is nothing to save here.
+          # Social media activation, instances and alert detection are managed via
+          # episomer::setup(), not from this form, so there is nothing to save here.
 
           # Saving properties.json
           save_config(
@@ -2748,15 +2646,68 @@ episomer_app <- function(
         ignoreInit = TRUE
       )
 
-      # the instances collected from, added with episomer::setup()
-      output$conf_mastodon_instances <- shiny::renderText({
+      # the social media table: one row per family, all set up via episomer::setup()
+      output$social_media_table <- DT::renderDataTable({
+        # Adding a dependency to config refresh (e.g. instances added by episomer::setup())
         cd$properties_refresh_flag()
-        instances <- sm_instances_of("mastodon")
-        if (length(instances) == 0) {
-          "No instance configured yet, no Mastodon post will be collected."
-        } else {
-          paste(instances, collapse = ", ")
-        }
+
+        families <- social_media_families()
+        df <- data.frame(
+          "Social media" = vapply(
+            families,
+            function(family) {
+              paste0(
+                toupper(substr(family, 1, 1)),
+                substr(family, 2, nchar(family))
+              )
+            },
+            character(1)
+          ),
+          "Activated for search" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_activated_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          "Instances" = vapply(
+            families,
+            function(family) {
+              if (!sm_is_federated(family)) {
+                return("-")
+              }
+              instances <- sm_instances_of(family)
+              if (length(instances) == 0) {
+                "None configured yet"
+              } else {
+                paste(instances, collapse = ", ")
+              }
+            },
+            character(1)
+          ),
+          "Alert detection activated" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_alerts_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          check.names = FALSE
+        )
+
+        DT::datatable(
+          df,
+          rownames = FALSE,
+          options = list(dom = "t", paging = FALSE, ordering = FALSE)
+        )
       })
 
       ######### IMPORTANT USERS LOGIC ###########

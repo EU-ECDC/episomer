@@ -368,8 +368,4 @@ update_config_from_input <- function(input) {
   conf$smtp_password <- input$conf_smtp_password
   conf$admin_email <- input$conf_admin_email
   conf$force_date_format <- input$conf_force_date_format
-  conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
-  conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
-  conf$sm_alerts_mastodon <- input$conf_sm_alerts_mastodon
-  conf$sm_activated_mastodon <- input$conf_sm_activated_mastodon
 }
