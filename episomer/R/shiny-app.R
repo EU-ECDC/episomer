@@ -510,31 +510,16 @@ episomer_app <- function(
               shiny::div(
                 id = "config_status_body",
                 shiny::fluidRow(
-                  shiny::column(3, "episomer database"),
-                  shiny::column(5, shiny::htmlOutput("fs_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_fs", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_fs", "stop"))
+                  shiny::column(5, "episomer database"),
+                  shiny::column(7, shiny::htmlOutput("fs_running"))
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Data collection & processing"),
-                  shiny::column(5, shiny::htmlOutput("search_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_search", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_search", "stop"))
+                  shiny::column(5, "Data collection & processing"),
+                  shiny::column(7, shiny::htmlOutput("search_running"))
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Alerts"),
-                  shiny::column(5, shiny::htmlOutput("detect_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_detect", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_detect", "stop"))
+                  shiny::column(5, "Alerts"),
+                  shiny::column(7, shiny::htmlOutput("detect_running"))
                 ),
                 ################################################
                 ######### RUNNERS DETAIL #######################
