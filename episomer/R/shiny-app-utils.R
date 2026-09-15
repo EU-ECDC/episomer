@@ -1,3 +1,27 @@
+# Records, in `e`, the moment a runnning flag last changed value, so the status panel can say how
+# long a service has been stopped (or running). `name` is the field prefix ("fs", "search",
+# "detect"): this writes `e[[name]_running]` and, only on a change (or the first call), resets
+# `e[[name]_since]` to now.
+update_status_since <- function(e, name, running) {
+  running_field <- paste0(name, "_running")
+  since_field <- paste0(name, "_since")
+  changed <- !exists(since_field, where = e) ||
+    !identical(e[[running_field]], running)
+  if (changed) {
+    e[[since_field]] <- Sys.time()
+  }
+  e[[running_field]] <- running
+}
+
+# Formats a duration for the status panel, e.g. "3 minutes" or "less than a minute".
+format_status_duration <- function(since) {
+  minutes <- floor(as.numeric(difftime(Sys.time(), since, units = "mins")))
+  if (minutes < 1) {
+    return("less than a minute")
+  }
+  paste(minutes, if (minutes == 1) "minute" else "minutes")
+}
+
 # Get or updates data used for dashboard filters based on configuration values and aggregated period
 refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
   e$topics <- {
@@ -158,9 +182,15 @@ refresh_config_data_impl <- function(e, limit) {
     # runner state and holds no lease itself (section 6.4), and a service running on another machine
     # of the deployment must show as running here. What machine each of them runs on is what the
     # status table of issue 8 will add.
-    e$detect_running <- is_detect_running()
-    e$fs_running <- is_fs_running()
-    e$search_running <- is_search_running()
+    #
+    # update_status_since() also stamps the moment each of the three last flipped state, which is
+    # what lets the status panel say "Stopped (for x minutes)" instead of a bare "Stopped": neither
+    # the fs ping nor the detect/search leases carry that history themselves (a lease that has gone
+    # free or stale has nothing left to say about when it stopped), so it is tracked here, across
+    # refreshes, in this same long-lived environment.
+    update_status_since(e, "detect", is_detect_running())
+    update_status_since(e, "fs", is_fs_running())
+    update_status_since(e, "search", is_search_running())
     e$missing_search_jobs <- missing_search_jobs()
     e$search_diff <- round(Sys.time() - last_search_time())
 
@@ -368,8 +398,4 @@ update_config_from_input <- function(input) {
   conf$smtp_password <- input$conf_smtp_password
   conf$admin_email <- input$conf_admin_email
   conf$force_date_format <- input$conf_force_date_format
-  conf$sm_alerts_bluesky <- input$conf_sm_alerts_bluesky
-  conf$sm_activated_bluesky <- input$conf_sm_activated_bluesky
-  conf$sm_alerts_mastodon <- input$conf_sm_alerts_mastodon
-  conf$sm_activated_mastodon <- input$conf_sm_activated_mastodon
 }

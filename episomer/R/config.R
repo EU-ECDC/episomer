@@ -14,34 +14,25 @@ get_key_ring <- function(backend = NULL) {
   }
   Sys.setenv(kr_name = "episomer_kr_name")
   Sys.setenv(kr_service = "kr_service")
-  keyring = "file"#Sys.getenv("kr_backend")
-  if (keyring == "secret_service") {
-    kb <- keyring::backend_secret_service$new()
-  } else if (keyring == "wincred") {
-    kb <- keyring::backend_wincred$new()
-  } else if (keyring == "macos") {
-    kb <- keyring::backend_macos$new()
-  } else if (keyring == "file") {
-    kb <- keyring::backend_file$new()
-  } else {
-    kb <- keyring::backend_env$new()
-  }
+  keyring <- "file"
+
+  kb <- keyring::backend_file$new()
+
   kr_name <- NULL
   # creating the file keyring if requested and not existent
-  if (keyring == "file") {
-    kr_name <- Sys.getenv("kr_name")
-    krs <- kb$keyring_list()
-    if (nrow(krs[krs$keyring == kr_name, ]) == 0) {
-      kb$keyring_create(kr_name, get_episomer_kr_password())
-    }
-    kb$keyring_set_default(kr_name)
+
+  kr_name <- Sys.getenv("kr_name")
+  krs <- kb$keyring_list()
+  if (nrow(krs[krs$keyring == kr_name, ]) == 0) {
+    kb$keyring_create(kr_name, get_episomer_kr_password())
   }
+  kb$keyring_set_default(kr_name)
 
   # unlocking keyring if unlocked using environment variable to get the password
   if (kb$keyring_is_locked(keyring = kr_name)) {
     kb$keyring_unlock(
-        keyring = kr_name,
-        password = get_episomer_kr_password()
+      keyring = kr_name,
+      password = get_episomer_kr_password()
     )
     # unlocking keyring if unlocked using password prompt
   }
@@ -57,21 +48,68 @@ set_secret <- function(secret, value) {
       password = value
     )
   } else {
-    resp <- httr2::request(
-      sprintf(
-        "%s?secret=%s&passphrase=%s&value=%s",
-        get_scala_secrets_url(),
-        secret,
-        urltools::url_encode(get_episomer_kr_password()),
-        urltools::url_encode(value)
-      )
-    ) %>%
-      httr2::req_method("POST") %>%
-      httr2::req_perform() 
-    ret <- jsonlite::fromJSON(resp %>% httr2::resp_body_string())
+    ret <- secrets_api_set(secret, value)
     if(ret$status != "ok")
-       stop("Error on setting secret") 
+       stop(secrets_api_reason("Error on setting secret", ret))
   }
+}
+
+# The request both directions of the /secret endpoint of the fs API are built from.
+#
+# The API reads and writes the keyring by running an Rscript sub process, and when that process
+# fails it answers 406 with the process stderr in the body ("Could not get the secret
+# exit(<code>):<err>", API.scala). That body is the only place the real cause is written - a wrong
+# EPISOMER_KR_PASSWORD, an Rscript missing from the PATH of the API process, a keyring that cannot
+# be read - and it used to be dropped on both sides:
+#
+#   * reading went through jsonlite::read_json(), i.e. url(), which reports "cannot open the
+#     connection to '<the whole URL>' ... HTTP status was '406 Not Acceptable'" and nothing else,
+#     printing the passphrase in clear on the console and into any screenshot of one;
+#   * writing raised the httr2 error of the 406, whose message is the status line alone.
+#
+# req_error(body = ) puts the stderr of the sub process in the message instead, and the URL stays
+# out of it.
+secrets_api_request <- function(secret, ...) {
+  httr2::request(get_scala_secrets_url()) %>%
+    httr2::req_url_query(
+      secret = secret,
+      passphrase = get_episomer_kr_password(),
+      ...
+    ) %>%
+    httr2::req_error(body = function(resp) {
+      body <- try(httr2::resp_body_string(resp), silent = TRUE)
+      if (inherits(body, "try-error") || !nzchar(body)) NULL else body
+    })
+}
+
+# The API completes with a JsObject turned into a String, so its answer is JSON served as
+# text/plain and resp_body_json() would refuse it on its content type. simplifyVector = FALSE
+# keeps the shape read_json() returned: a list of scalars.
+secrets_api_answer <- function(resp) {
+  jsonlite::fromJSON(httr2::resp_body_string(resp), simplifyVector = FALSE)
+}
+
+# The endpoint also answers "ko" *with a 200* when the sub process ran but did nothing useful -
+# get_secret.R writing "Not found" on stderr, say. The reason is then in the answer, not in an
+# HTTP error, and saying it beats a bare "could not".
+secrets_api_reason <- function(what, ret) {
+  paste0(
+    what,
+    ": ",
+    if (is.null(ret$message)) "no reason given by the fs API" else ret$message
+  )
+}
+
+secrets_api_get <- function(secret) {
+  secrets_api_answer(secrets_api_request(secret) %>% httr2::req_perform())
+}
+
+secrets_api_set <- function(secret, value) {
+  secrets_api_answer(
+    secrets_api_request(secret, value = value) %>%
+      httr2::req_method("POST") %>%
+      httr2::req_perform()
+  )
 }
 
 # Checks whether a secret is set on the secret management backend
@@ -82,13 +120,7 @@ is_secret_set <- function(secret) {
     return(nrow(secrets[secrets$username == secret, ]) > 0 || exists(secret, where = env_secrets))
 
   } else {
-    res <- jsonlite::read_json(sprintf(
-      "%s?secret=%s&passphrase=%s",
-      get_scala_secrets_url(),
-      secret,
-      urltools::url_encode(get_episomer_kr_password())
-    ))
-    res$status == "ok"
+    secrets_api_get(secret)$status == "ok"
   }
 }
 
@@ -103,7 +135,8 @@ get_episomer_kr_password <- function() {
       "'EPISOMER_KR_PASSWORD_FILE' with the path of a file whose first line is the password.",
       "Put them in the user",
       "'.Renviron' file, which every R process reads at start up.",
-      "To create or open this file please use usethis::edit_r_environ(). Restart your R session once the .Renviron file has been filled.",
+      "To create or open this file please use usethis::edit_r_environ(), and set for example EPISOMER_KR_PASSWORD=mypassword.",
+      "Restart your R session once the .Renviron file has been filled.",
       sep = "\n"
     ))
   }
@@ -136,16 +169,11 @@ get_secret <- function(secret) {
         stop("Could not found the requested secret")
     }
   } else {
-    res <- jsonlite::read_json(sprintf(
-      "%s?secret=%s&passphrase=%s",
-      get_scala_secrets_url(),
-      secret,
-      urltools::url_encode(get_episomer_kr_password())
-    ))
+    res <- secrets_api_get(secret)
     if(res$status == "ok")
        res$value
     else
-       stop("Could not retrieve the secret")
+       stop(secrets_api_reason("Could not retrieve the secret", res))
   }
 }
 
@@ -1463,4 +1491,43 @@ get_env_secrets <- function() {
      }
   }
   ret
+}
+
+# Whether the services must write their logs to the standard output instead of files under
+# <data_dir>/jobs.
+#
+# One log per file is the right shape for a machine an operator logs into: the Shiny app offers
+# them for download (see the "logs" section of build_dump(), R/check.R) and they survive the
+# process that wrote them. It is the wrong shape for a container: nothing collects a file inside a
+# pod, `docker logs` and `kubectl logs` read the standard output of PID 1 and nothing else, so a
+# deployment that leaves the default on has services whose logs exist and are unreachable - which
+# is what the Kubernetes deployment this option was written for reported (issue 149).
+#
+# A plain environment variable rather than an EPISOMER_OPTION_* property, for two reasons:
+#
+#  * where a process writes its log belongs to the process, not to the cluster. properties.json is
+#    shared by every instance of a deployment, and the same data directory can perfectly well be
+#    served by a container (stdout) and read by a desktop session (files);
+#  * properties.json takes precedence over the environment (see setup_config()), so a knob stored
+#    there would stop obeying the container the day it was first written - i.e. always, since
+#    save_config() writes every property.
+#
+# "1"/"0" are accepted alongside "TRUE"/"FALSE", as coerce_env_props() does for the properties:
+# writing a boolean as 1/0 in a compose file is common enough.
+logs_to_stdout <- function() {
+  raw <- trimws(Sys.getenv("EPISOMER_LOGS_TO_STDOUT", "FALSE"))
+  if (raw == "") {
+    return(FALSE)
+  }
+  value <- as.logical(raw)
+  if (is.na(value) && grepl("^[01]$", raw)) {
+    value <- as.logical(as.numeric(raw))
+  }
+  if (is.na(value)) {
+    stop(sprintf(
+      "Invalid value '%s' for environment variable EPISOMER_LOGS_TO_STDOUT: expected a boolean",
+      raw
+    ))
+  }
+  value
 }

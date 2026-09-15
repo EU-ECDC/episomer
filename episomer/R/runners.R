@@ -338,7 +338,8 @@ register_fs_runner_task <- function(
          "The episomer database did not answer on %s after %s seconds. Its log is in %s.",
          get_scala_ping_url(),
          timeout,
-         file.path(conf$data_dir, "jobs", "fs.log")
+         if (logs_to_stdout()) "the standard output of this process" else
+           file.path(conf$data_dir, "jobs", "fs.log")
        ))
      }
      cat(".")
@@ -553,6 +554,29 @@ rscript_exe_attached <- function() {
   if (file.exists(exe)) exe else "Rscript"
 }
 
+# Path of the Rscript executable to hand to the Scala side.
+#
+# Third member of the family, because the Scala side runs R too: the /secret endpoint of the fs
+# API reads and writes the keyring by starting `Rscript jobs/get_secret.R` through a
+# java.lang.ProcessBuilder (API.scala), and that sub process has to be the R this episomer is
+# installed into. "Rscript" off the PATH is not necessarily it, and the failure is worse than the
+# one rscript_exe_attached() describes: where *some* Rscript is on the PATH but belongs to another
+# installation, the sub process starts, finds nothing in its library - the user library is per
+# version, win-library/4.4 against win-library/4.6 - and dies on "there is no package called
+# 'episomer'". The endpoint then answers 406, i.e. it reports a keyring problem for something that
+# never reached the keyring.
+#
+# Named outright on every platform, unlike rscript_exe_attached(): ProcessBuilder takes the
+# program as one literal argument with no shell in between, so there is no quoting to get wrong
+# and no reason to fall back on the PATH when the path is known.
+rscript_exe_for_scala <- function() {
+  exe <- file.path(
+    R.home("bin"),
+    if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript"
+  )
+  if (file.exists(exe)) exe else "Rscript"
+}
+
 # This task is currently Windows only
 #
 # runner_args are extra command line arguments appended after the data directory, read by the
@@ -651,9 +675,21 @@ register_runner_task <- function(
       message(sprintf("Running %s as a service attached to this session (for permanent scheduling add the following code to startup tasks)", task_name))
       cm <- paste(script, rscript_args)
       script_log <- paste(task_name, "log", sep = ".")
-      log <- file.path(script_folder, script_log)
-      message(sprintf("Rscript '%s' %s > %s", script, rscript_args, log))
-      message(sprintf("Logs written to %s", log))
+      # "" is what system2() understands as "do not redirect": the child keeps the standard output
+      # and error of this process, which in a container is the one place an operator can read
+      # (`docker logs`, `kubectl logs`) and the only one anything collects. A file is still the
+      # default everywhere else - see logs_to_stdout(), R/config.R.
+      log <- if (logs_to_stdout()) "" else file.path(script_folder, script_log)
+      message(sprintf(
+        "Rscript '%s' %s > %s",
+        script,
+        rscript_args,
+        if (log == "") "the standard output of this process" else log
+      ))
+      message(sprintf(
+        "Logs written to %s",
+        if (log == "") "the standard output of this process" else log
+      ))
       # shQuote()d, because system2() quotes its `command` and *not* its `args`: it pastes them
       # into one command line as they are. Both of the first two hold a path, and the default data
       # directory of a Windows installation sits under "C:/Users/<given name> <family name>", so

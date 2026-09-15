@@ -21,7 +21,8 @@
         retries: 400
         start_period: 10s
       environment:
-        EPI_HOME: "/episomer-data"
+        EPI_HOME: "/episomer-data"        
+        EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "FS"
         EPISOMER_INSTANCE: "fs"
         EPISOMER_OPTION_SM_ACTIVATED_BLUESKY: "TRUE"
@@ -47,7 +48,7 @@
         # language models. Opposite requirements, so opposite values.
         EPISOMER_OPTION_FS_SETUP_HOST: "localhost"
         EPISOMER_OPTION_FS_SETUP_PORT: 9080
-        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
+        EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"        
         EPISOMER_SECRET_BLUESKY_USER_FILE: "/run/secrets/episomer_bluesky_user"
         EPISOMER_SECRET_BLUESKY_PASSWORD_FILE: "/run/secrets/episomer_bluesky_password"
         EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN_FILE: "/run/secrets/episomer_mastodon_mastodon_social_token"
@@ -74,6 +75,7 @@
       environment:
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
+        EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "SEARCH"
         EPISOMER_INSTANCE: "search"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
@@ -98,20 +100,21 @@
       environment:
         EPI_HOST: "http://fs:8080"
         EPI_HOME: "/episomer-data"
+        EPISOMER_LOGS_TO_STDOUT: "TRUE"
         EPISOMER_RUN: "DETECT"
         EPISOMER_INSTANCE: "detect"
         EPISOMER_KR_PASSWORD_FILE: "/run/secrets/episomer_kr_password"
       secrets:
         - episomer_kr_password
       volumes:
-        - ${EPI_HOME}/jobs:/episomer-data/jobs
+        - ${EPI_HOME}/jobs:/episomer-data/jobs  
   secrets:
     episomer_kr_password:
       environment: EPISOMER_KR_PASSWORD
     episomer_bluesky_user:
-      environment: EPISOMER_BLUESKY_USER  
+      environment: EPISOMER_SECRET_BLUESKY_USER
     episomer_bluesky_password:
-      environment: EPISOMER_BLUESKY_PASSWORD
+      environment: EPISOMER_SECRET_BLUESKY_PASSWORD
     episomer_mastodon_mastodon_social_token:
       environment: EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN
     episomer_mastodon_mstdn_party_token:

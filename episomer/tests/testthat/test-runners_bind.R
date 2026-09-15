@@ -192,6 +192,66 @@ test_that("rscript_exe_attached() is not quoted, because system2 quotes it", {
   expect_false(grepl("'", exe, fixed = TRUE))
 })
 
+# The R the Scala side runs ------------------------------------------------------------------------
+#
+# The fs API starts the secret scripts of jobs/ through a ProcessBuilder, and it used to name the
+# program "Rscript", i.e. whatever the PATH offered. Where that was another R installation the sub
+# process died on "there is no package called 'episomer'" and the /secret endpoint answered 406,
+# reporting a keyring failure for something that had not reached the keyring.
+
+test_that("rscript_exe_for_scala() names the executable of this R", {
+  exe <- rscript_exe_for_scala()
+
+  expect_length(exe, 1L)
+  expect_true(file.exists(exe))
+  # this R, not one found on the PATH
+  expect_equal(normalizePath(dirname(exe)), normalizePath(R.home("bin")))
+})
+
+test_that("rscript_exe_for_scala() is not quoted, because ProcessBuilder takes it literally", {
+  # no shell sits between the JVM and the program, so a quote would become part of the file name
+  exe <- rscript_exe_for_scala()
+
+  expect_false(grepl('"', exe, fixed = TRUE))
+  expect_false(grepl("'", exe, fixed = TRUE))
+})
+
+test_that("set_scala_r_env() hands the JVM the executable and the library paths", {
+  # the JVM inherits this environment through system(), and ProcessBuilder copies it into the sub
+  # process, so both reach the Rscript running get_secret.R two levels down
+  withr::local_envvar(EPISOMER_RSCRIPT = NA, R_LIBS = NA)
+
+  set_scala_r_env()
+
+  expect_equal(Sys.getenv("EPISOMER_RSCRIPT"), rscript_exe_for_scala())
+  expect_equal(
+    Sys.getenv("R_LIBS"),
+    paste(.libPaths(), collapse = .Platform$path.sep)
+  )
+})
+
+test_that("an R sub process started with that environment gets those library paths", {
+  # The point of the whole thing, and the reason it is R_LIBS rather than R_LIBS_USER: R_LIBS is
+  # the one an R sub process prepends to .libPaths() whatever else it reads, so the Rscript the
+  # JVM starts two levels down searches the libraries this session searched - which is where
+  # episomer is. Run for real, because "which variable does R honour" is not something a mock can
+  # answer.
+
+  skip_on_ci()
+  withr::local_envvar(EPISOMER_RSCRIPT = NA, R_LIBS = NA)
+  set_scala_r_env()
+
+  got <- suppressWarnings(system2(
+    Sys.getenv("EPISOMER_RSCRIPT"),
+    c("-e", shQuote("cat(.libPaths(), sep = '\n')")),
+    stdout = TRUE,
+    stderr = FALSE
+  ))
+  skip_if(!is.null(attr(got, "status")), "could not run the sub process")
+
+  expect_true(all(normalizePath(.libPaths()) %in% normalizePath(got)))
+})
+
 # --------------------------------------------------------------------------------------------------
 # The guarantee that matters most: starting a database on another address must leave properties.json
 # alone. What this replaced wrote the shifted port there and relied on a finally to put it back.

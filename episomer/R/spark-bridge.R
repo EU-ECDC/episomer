@@ -22,6 +22,28 @@ set_blas_env <- function() {
   }
 }
 
+# Telling the JVM which R to run, and where that R finds its packages.
+#
+# The fs API starts `Rscript jobs/get_secret.R` to reach the keyring (API.scala), and until it was
+# told otherwise it ran whatever "Rscript" the PATH offered - see rscript_exe_for_scala()
+# (R/runners.R) for what that costs.
+#
+# The environment is the channel because it is the only one that carries all the way down: the JVM
+# inherits this process's environment through system(), and ProcessBuilder starts its own children
+# with a copy of System.getenv(). So R_LIBS reaches the Rscript sub process on its own, two levels
+# down, and the Scala side only has to read EPISOMER_RSCRIPT.
+#
+# R_LIBS rather than R_LIBS_USER: it is the one an R sub process prepends to .libPaths() whatever
+# else it reads, and .libPaths() is precisely the list that just worked here. A container needs
+# neither - the Dockerfile sets R_LIBS_USER for the whole image and holds one R - but setting them
+# there changes nothing and keeps a single code path.
+set_scala_r_env <- function() {
+  Sys.setenv(
+    EPISOMER_RSCRIPT = rscript_exe_for_scala(),
+    R_LIBS = paste(.libPaths(), collapse = .Platform$path.sep)
+  )
+}
+
 # Getting Java options for using MKL BLAS if setup
 get_blas_java_opt <- function() {
   if (.Platform$OS.type == "windows") {
@@ -76,6 +98,8 @@ conf_geonames_as_arg <- function() {
 spark_job <- function(args) {
   # Setting BLAS environmebt variables
   set_blas_env()
+  # Setting the R the JVM runs the secret scripts with
+  set_scala_r_env()
   cmd <- paste(
     if (.Platform$OS.type != "windows") {
       #Default non windows environment variables within the command
@@ -119,6 +143,8 @@ spark_job <- function(args) {
 spark_df <- function(args, handler = NULL) {
   # Setting BLAS environmebt variables
   set_blas_env()
+  # Setting the R the JVM runs the secret scripts with
+  set_scala_r_env()
   # Setting the memory to the half of allocated since R will use memory for loading the dataframe
   half_mem <- paste(
     ceiling(as.integer(gsub("[^0-9]*", "", conf$spark_memory)) / 2),

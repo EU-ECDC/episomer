@@ -74,6 +74,40 @@ object API {
   var oLuceneRunner:Option[ActorRef] = None
   var oConf:Option[Settings] = None
   val secrets = MMap[String, String]()
+  // The R executable the secret scripts of jobs/ are run with.
+  //
+  // "Rscript" off the PATH is not necessarily the R this episomer is installed into. On Windows
+  // R's bin directory is not on the PATH of a session started by the installer at all, and where
+  // some Rscript *is* on the PATH it can belong to another installation: the R user library is per
+  // version (win-library/4.4 against win-library/4.6), so the sub process starts, finds nothing in
+  // its library and dies on "there is no package called 'episomer'". The /secret endpoint then
+  // answers 406, i.e. it reports a keyring failure for something that never reached the keyring.
+  //
+  // The R side knows which R it is running and puts it here before starting this JVM
+  // (rscript_exe_for_scala() and set_scala_r_env(), R/runners.R and R/spark-bridge.R). It puts its
+  // .libPaths() in R_LIBS as well, which needs no forwarding of ours: ProcessBuilder starts a sub
+  // process with a copy of this JVM's environment. The fallback keeps a JVM started by hand, with
+  // neither variable set, working as before.
+  def rscriptExecutable =
+    sys.env.get("EPISOMER_RSCRIPT").filter(_.trim.nonEmpty).getOrElse("Rscript")
+
+  // The sub process running one of the secret scripts of jobs/. Reading and writing set it up the
+  // same way, only the script and the extra `value` parameter differ.
+  def secretProcess(conf:Settings, script:String, secret:String, passphrase:String) = {
+    val pb = new ProcessBuilder(
+      rscriptExecutable,
+      Paths.get(conf.epiHome, "jobs", script).toString,
+      secret,
+      conf.epiHome
+    )
+    sys.env.get("R_EPIHOME") match {
+      case Some(path) =>
+        pb.directory(new File(path))
+      case _ =>
+    }
+    pb.environment().put("EPISOMER_KR_PASSWORD", passphrase)
+    pb
+  }
   // oBindHost / oBindPort override what properties.json says, for this run only.
   //
   // They arrive as the optional 'bindHost' / 'bindPort' arguments of the fsService command
@@ -424,15 +458,7 @@ object API {
                       case Some(s) =>
                           complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(s)), ("code",JsNumber(0)))).toString())
                       case None =>
-		          val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "get_secret.R").toString, secret, conf.epiHome)
-                          
-                          sys.env.get("R_EPIHOME") match {
-                            case Some(path) => 
-	                        pb.directory(new File(path))
-                            case _ =>
-                          }
-                          val env = pb.environment()
-                          env.put("EPISOMER_KR_PASSWORD", passphrase)
+		          val pb = secretProcess(conf, "get_secret.R", secret, passphrase)
                           val p = pb.start();
                           val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
                           val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
@@ -460,14 +486,7 @@ object API {
           } ~ post {
             withRequestTimeout(conf.fsQueryTimeout.seconds) {
                 parameters("secret".as[String], "passphrase".as[String], "value".as[String]) { (secret, passphrase, value) =>
-                  val pb = new ProcessBuilder("Rscript", Paths.get(conf.epiHome, "jobs", "set_secret.R").toString, secret, conf.epiHome)
-                  sys.env.get("R_EPIHOME") match {
-                    case Some(path) => 
-	                pb.directory(new File(path))
-                    case _ =>
-                  }
-                  val env = pb.environment()
-                  env.put("EPISOMER_KR_PASSWORD", passphrase)
+                  val pb = secretProcess(conf, "set_secret.R", secret, passphrase)
                   val p = pb.start();
                   val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
                   val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))

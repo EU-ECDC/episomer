@@ -799,7 +799,33 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
             default_sh_answer
         )
         # Performing requested action
-        if(sh_ans != end_ans && !is_fs_running()) {
+        if (sh_ans != end_ans && !is_fs_running()) {
+            if (interactive()) {
+                fs_for_shiny_ans <- choose_between(
+                    "The episomer database must be started in order to run the shiny app - do you want to start it ?",
+                    list(
+                        "1" = "Yes",
+                        "2" = "No"
+                    ),
+                    silent,
+                    default = "1"
+                )
+                if (fs_for_shiny_ans == "1") {
+                    message("Starting the episomer database...")
+                    save_config()
+                    register_fs_runner_task(wait_until_response = TRUE)
+                } else {
+                    stop(
+                        "The episomer database must be started in order to run the shiny app"
+                    )
+                }
+            } else {
+                stop(
+                    "The episomer database must be started in order to run the shiny app"
+                )
+            }
+        }
+        if (sh_ans != end_ans && !is_fs_running()) {
             # Naming the URL that did not answer is the whole point of this message: the database
             # may very well be running and simply not be reachable *from here* under the address
             # this machine resolved (see get_scala_api_endpoint()). Without the URL the wizard just
@@ -816,16 +842,16 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
                 conf$fs_port
             )))
         } else if (sh_ans == "1") {
-           message("Opening the shiny app in full mode...")
+            message("Opening the shiny app in full mode...")
             app <- episomer_app(data_dir = conf$data_dir)
         } else if (sh_ans == "2") {
-           message("Opening the shiny app in dashboard...")
+            message("Opening the shiny app in dashboard...")
             app <- episomer_app(
                 data_dir = conf$data_dir,
                 profile = c("dashboard")
             )
         } else if (sh_ans == "3") {
-           message("Opening the shiny app in admin...")
+            message("Opening the shiny app in admin...")
             app <- episomer_app(data_dir = conf$data_dir, profile = c("admin"))
         }
     }

@@ -509,32 +509,23 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_status_body",
-                shiny::fluidRow(
-                  shiny::column(3, "episomer database"),
-                  shiny::column(5, shiny::htmlOutput("fs_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_fs", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_fs", "stop"))
+                shiny::helpText(
+                  "To start or stop services, run episomer::setup()."
+                ),
+                shiny::helpText(
+                  "The elements below are updated every 60 seconds."
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Data collection & processing"),
-                  shiny::column(5, shiny::htmlOutput("search_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_search", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_search", "stop"))
+                  shiny::column(5, "episomer database"),
+                  shiny::column(7, shiny::htmlOutput("fs_running"))
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Alerts"),
-                  shiny::column(5, shiny::htmlOutput("detect_running")),
-                  shiny::column(
-                    2,
-                    shiny::actionButton("activate_detect", "activate")
-                  ),
-                  shiny::column(2, shiny::actionButton("stop_detect", "stop"))
+                  shiny::column(5, "Data collection & processing"),
+                  shiny::column(7, shiny::htmlOutput("search_running"))
+                ),
+                shiny::fluidRow(
+                  shiny::column(5, "Alerts"),
+                  shiny::column(7, shiny::htmlOutput("detect_running"))
                 ),
                 ################################################
                 ######### RUNNERS DETAIL #######################
@@ -545,7 +536,6 @@ episomer_app <- function(
                 # a lease, on this machine or on any other machine sharing this database - a runner
                 # nobody holds simply has no row. The app itself never appears here: it is a reader
                 # of the leases, not a runner (section 6.4).
-                shiny::h4("Runners"),
                 DT::dataTableOutput("runner_leases_table")
               ),
               ################################################
@@ -942,7 +932,7 @@ episomer_app <- function(
                 DT::dataTableOutput("tasks_df")
               ),
               ################################################
-              ######### SOCIAL MEDIA PANDEL###################
+              ######### SOCIAL MEDIA PANEL ###################
               ################################################
               shiny::h2(
                 id = "config_socialmedia_title",
@@ -952,104 +942,12 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_socialmedia_body",
-                shiny::fluidRow(
-                  shiny::column(4, "Social Media"),
-                  shiny::column(8, "Configuration"),
-                  style = "font-weight:bold"
+                # Purely informational: activation, instances and alert detection are all set up
+                # from the wizard (episomer::setup()), not edited here.
+                shiny::helpText(
+                  "To configure social media collection, instances and alert detection, run episomer::setup()."
                 ),
-                #################
-                # Bluesky logic #
-                #################
-                shiny::fluidRow(
-                  shiny::column(
-                    4,
-                    shiny::checkboxInput(
-                      "conf_sm_activated_bluesky",
-                      label = "Bluesky",
-                      value = conf$sm_activated_bluesky
-                    )
-                  ),
-                  shiny::column(
-                    8,
-                    shiny::conditionalPanel(
-                      condition = "input.conf_sm_activated_bluesky == true",
-                      shiny::checkboxInput(
-                        "conf_sm_alerts_bluesky",
-                        label = "Calculate alerts",
-                        value = conf$sm_alerts_bluesky
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "User"),
-                        shiny::column(
-                          9,
-                          shiny::textInput(
-                            "bluesky_user",
-                            label = NULL,
-                            value = if (is_secret_set("bluesky_user")) {
-                              get_secret("bluesky_user")
-                            } else {
-                              NULL
-                            }
-                          )
-                        )
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "Password"),
-                        shiny::column(
-                          9,
-                          shiny::passwordInput(
-                            "bluesky_password",
-                            label = NULL,
-                            value = if (is_secret_set("bluesky_password")) {
-                              get_secret("bluesky_password")
-                            } else {
-                              NULL
-                            }
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-                ),
-                ##################
-                # Mastodon logic #
-                ##################
-                # The checkboxes below switch the whole of Mastodon on or off. The instances to
-                # collect from and their access tokens are not editable here: they are added from
-                # the social media menu of episomer::setup(), which stores each token in the keyring.
-                shiny::fluidRow(
-                  shiny::column(
-                    4,
-                    shiny::checkboxInput(
-                      "conf_sm_activated_mastodon",
-                      label = "Mastodon",
-                      value = conf$sm_activated_mastodon
-                    )
-                  ),
-                  shiny::column(
-                    8,
-                    shiny::conditionalPanel(
-                      condition = "input.conf_sm_activated_mastodon == true",
-                      shiny::checkboxInput(
-                        "conf_sm_alerts_mastodon",
-                        label = "Calculate alerts",
-                        value = conf$sm_alerts_mastodon
-                      ),
-                      shiny::fluidRow(
-                        shiny::column(3, "Instances"),
-                        shiny::column(
-                          9,
-                          shiny::textOutput("conf_mastodon_instances"),
-                          shiny::helpText(
-                            "Mastodon instances and their access tokens are added by running episomer::setup() and choosing the social media authentication step."
-                          )
-                        )
-                      )
-                    )
-                  ),
-                  style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-                )
+                DT::dataTableOutput("social_media_table")
               ),
               ################################################
               ######### TOPICS PANEL ######################
@@ -1095,6 +993,9 @@ episomer_app <- function(
                 shiny::fluidRow(
                   shiny::column(4, shiny::h5("Limit topic history"))
                 ),
+                shiny::helpText(
+                  "The elements below are updated every 60 seconds."
+                ),
                 DT::dataTableOutput("config_topics")
               ),
               ################################################
@@ -1108,32 +1009,9 @@ episomer_app <- function(
               ),
               shiny::div(
                 id = "config_langs_body",
-                shiny::fluidRow(
-                  shiny::column(4, shiny::h5("Available languages")),
-                  shiny::column(
-                    2,
-                    shiny::downloadButton("conf_lang_download", "Download")
-                  ),
-                  shiny::column(
-                    2,
-                    shiny::downloadButton(
-                      "conf_orig_lang_download",
-                      "Download default"
-                    )
-                  ),
-                  shiny::column(
-                    4,
-                    shiny::fileInput(
-                      "conf_lang_upload",
-                      label = NULL,
-                      buttonLabel = "Upload",
-                      accept = ".xlsx"
-                    )
-                  )
-                ),
-                shiny::fluidRow(
-                  shiny::column(4, shiny::h5("Active languages")),
-                  shiny::column(8, shiny::uiOutput("lang_items_0"))
+                shiny::h5("Active languages"),
+                shiny::helpText(
+                  "To set up languages, run episomer::setup()."
                 ),
                 DT::dataTableOutput("config_langs")
               ),
@@ -1531,6 +1409,28 @@ episomer_app <- function(
     if("dashboard" %in% profile) {
 
         ################################################
+        ######### DASHBOARD STATE ######################
+        ################################################
+
+        # Snapshot of the last dashboard run: filled by the Run button, read by
+        # every dashboard output. Session scoped, unlike d/cd which are built
+        # once for the whole app.
+        dash <- shiny::reactiveVal(NULL)
+        # Dedicated progress environment, so a dashboard run cannot close the
+        # progress bar of another operation.
+        prog <- new.env()
+
+        # Reads one element of the snapshot: nothing is rendered before the
+        # first Run, and a validation or computation error is replayed in every
+        # output panel.
+        dash_get <- function(part) {
+          res <- dash()
+          shiny::req(res)
+          shiny::validate(shiny::need(is.null(res$error), res$error))
+          res[[part]]
+        }
+
+        ################################################
         ######### FILTERS LOGIC ########################
         ################################################
 
@@ -1608,18 +1508,21 @@ episomer_app <- function(
 	  )
 	})
 
-	# dashboard actions
-	shiny::observeEvent(input$run_dashboard, {
-          # rendering line chart
-          rep = new.env()
-          progress_start("Generating report", rep)
-          output$line_chart <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.15, message = "Generating line chart", rep)
-            shiny::isolate({
+        # dashboard actions
+        # Clicking Run computes every dataset once and stores the result in
+        # dash(). The outputs below only read that snapshot, so they never
+        # depend on the filters directly and only change when Run is clicked.
+        shiny::observeEvent(input$run_dashboard, {
+          progress_start("Generating report", prog)
+          on.exit(progress_close(prog), add = TRUE)
+
+          tryCatch(
+            {
+              # Validate if minimal requirements for rendering are met
               can_render(input, d)
-              # getting the chart
-              chart <- line_chart_from_filters(
+
+              progress_set(value = 0.15, message = "Generating line chart", prog)
+              line <- line_chart_from_filters(
                 input$sms,
                 input$topics,
                 input$countries,
@@ -1632,119 +1535,19 @@ episomer_app <- function(
                 input$history_filter,
                 input$bonferroni_correction,
                 input$same_weekday_baseline
-              )$chart
+              )
 
-              # Setting size based on container size
-              height <- session$clientData$output_line_chart_height
-              width <- session$clientData$output_line_chart_width
-
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              gg <- plotly::ggplotly(
-                chart,
-                height = height,
-                width = width,
-                tooltip = c("label")
-              ) %>%
-                plotly::config(displayModeBar = FALSE)
-
-              # Fixing bad entries on ggplotly chart
-              for (i in 1:length(gg$x$data)) {
-                if (
-                  startsWith(gg$x$data[[i]]$name, "(") &&
-                    endsWith(gg$x$data[[i]]$name, ")")
-                )
-                  gg$x$data[[i]]$name = gsub(
-                    "\\(|\\)|,|[0-9]",
-                    "",
-                    gg$x$data[[i]]$name
-                  ) else gg$x$data[[i]]$name = "                        "
-                gg$x$data[[i]]$legendgroup = gsub(
-                  "\\(|\\)|,|[0-9]",
-                  "",
-                  gg$x$data[[i]]$legendgroup
-                )
-              }
-              gg
-            })
-          })
-
-          # rendering map chart
-          output$map_chart <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.30, message = "Generating map chart", rep)
-
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_map_chart_height
-              width <- session$clientData$output_map_chart_width
-
-              # getting the chart
-              chart <- map_chart_from_filters(
+              progress_set(value = 0.30, message = "Generating map chart", prog)
+              map <- map_chart_from_filters(
                 input$sms,
                 input$topics,
                 input$countries,
                 input$period,
                 input$with_quotes
-              )$chart
+              )
 
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              gg <- chart %>%
-                plotly::ggplotly(
-                  height = height,
-                  width = width,
-                  tooltip = c("label")
-                ) %>%
-                plotly::layout(
-                  title = list(text = paste("<b>", chart$labels$title, "</b>")),
-                  margin = list(l = 5, r = 5, b = 50, t = 80),
-                  annotations = list(
-                    text = chart$labels$caption,
-                    font = list(size = 10),
-                    showarrow = FALSE,
-                    xref = 'paper',
-                    x = 0,
-                    yref = 'paper',
-                    y = -0.15
-                  ) #,
-                  #legend = list(orientation = 'v')
-                ) %>%
-                plotly::config(displayModeBar = FALSE)
-
-              # Fixing bad entries on ggplotly chart
-              for (i in 1:length(gg$x$data)) {
-                if (
-                  substring(gg$x$data[[i]]$name, 1, 2) %in%
-                    c("a.", "b.", "c.", "d.", "e.", "f.", "g.", "h.")
-                )
-                  gg$x$data[[i]]$name <- substring(
-                    gg$x$data[[i]]$name,
-                    4,
-                    nchar(gg$x$data[[i]]$name)
-                  )
-                #gg$x$data[[i]]$legendgroup <- gsub("\\(|\\)|,|[0-9]", "", gg$x$data[[i]]$legendgroup)
-              }
-              gg
-            })
-          })
-
-          output$top_chart1 <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.45, message = "Generating top chart 1", rep)
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_top_chart1_height
-              width <- session$clientData$output_top_chart1_width
-
-              # getting the chart
-              chart <- top_chart_from_filters(
+              progress_set(value = 0.45, message = "Generating top chart 1", prog)
+              top1 <- top_chart_from_filters(
                 input$sms,
                 input$topics,
                 "tags",
@@ -1752,50 +1555,10 @@ episomer_app <- function(
                 input$period,
                 input$with_quotes,
                 20
-              )$chart
+              )
 
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              chart %>%
-                plotly::ggplotly(height = height, width = width) %>%
-                plotly::layout(
-                  title = list(
-                    text = paste(
-                      "<b>",
-                      chart$labels$title,
-                      "<br>",
-                      chart$labels$subtitle
-                    ),
-                    "</b>"
-                  ),
-                  margin = list(l = 30, r = 30, b = 100, t = 80),
-                  annotations = list(
-                    text = chart$labels$caption,
-                    font = list(size = 10),
-                    showarrow = FALSE,
-                    xref = 'paper',
-                    x = 0,
-                    yref = 'paper',
-                    y = -0.4
-                  )
-                ) %>%
-                plotly::config(displayModeBar = FALSE)
-            })
-          })
-
-          output$top_chart2 <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.7, message = "Generating top chart 2", rep)
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_top_chart2_height
-              width <- session$clientData$output_top_chart2_width
-
-              # getting the chart
-              chart <- top_chart_from_filters(
+              progress_set(value = 0.7, message = "Generating top chart 2", prog)
+              top2 <- top_chart_from_filters(
                 input$sms,
                 input$topics,
                 "topwords",
@@ -1803,69 +1566,10 @@ episomer_app <- function(
                 input$period,
                 input$with_quotes,
                 20
-              )$chart
-
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              chart %>%
-                plotly::ggplotly(height = height, width = width) %>%
-                plotly::layout(
-                  title = list(
-                    text = paste(
-                      "<b>",
-                      chart$labels$title,
-                      "<br>",
-                      chart$labels$subtitle
-                    ),
-                    "</b>"
-                  ),
-                  margin = list(l = 30, r = 30, b = 100, t = 80),
-                  annotations = list(
-                    text = chart$labels$caption,
-                    font = list(size = 10),
-                    showarrow = FALSE,
-                    xref = 'paper',
-                    x = 0,
-                    yref = 'paper',
-                    y = -0.4
-                  )
-                ) %>%
-                plotly::config(displayModeBar = FALSE)
-            })
-          })
-
-          output$top_table_title <- shiny::isolate({
-            shiny::renderText({
-              topic <- unname(get_topics_labels()[stringr::str_replace_all(
-                input$topics,
-                "%20",
-                " "
-              )])
-              paste(
-                "<h5 style=\"font-weight:bold;font-family:Helvetica;font-size:16px\">Top URLS of messages mentioning",
-                topic,
-                "from",
-                input$period[[1]],
-                "to",
-                input$period[[2]],
-                "</h5>"
               )
-            })
-          })
-          output$top_table <- DT::renderDataTable({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.85, message = "Generating top links", rep)
 
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_top_chart2_height
-              width <- session$clientData$output_top_chart2_width
-
-              # getting the chart to obtain the table
-              chart <- top_chart_from_filters(
+              progress_set(value = 0.85, message = "Generating top links", prog)
+              urls <- top_chart_from_filters(
                 input$sms,
                 input$topics,
                 "urls",
@@ -1873,32 +1577,242 @@ episomer_app <- function(
                 input$period,
                 input$with_quotes,
                 200
-              )$chart
+              )
 
-              # returning empty if no data is found on chart
-              chart_not_empty(chart)
-
-              data <- chart$data %>%
-                dplyr::mutate(
-                  top = paste(
-                    "<a href=\"",
-                    .data$top,
-                    "\"  target=\"_blank\">",
-                    .data$top,
-                    "</a>"
-                  )
-                ) %>%
-                dplyr::rename(Url = .data$top, Frequency = .data$frequency) %>%
-                DT::datatable(escape = FALSE)
-            })
-          })
-
-          output$top_table_disc <- shiny::isolate({
-            shiny::renderText({
-              progress_close(rep)
-            })
-          })
+              dash(list(
+                error = NULL,
+                # snapshot of the filters, so that the table title cannot
+                # describe a topic other than the one shown below it
+                topics = input$topics,
+                period = input$period,
+                line = line,
+                map = map,
+                top1 = top1,
+                top2 = top2,
+                urls = urls
+              ))
+            },
+            # can_render() raises a shiny.silent.error, which an observer would
+            # swallow silently: store the message so dash_get() can replay it
+            validation = function(e) dash(list(error = conditionMessage(e))),
+            error = function(e) {
+              message(e)
+              dash(list(error = conditionMessage(e)))
+            }
+          )
         })
+
+        # rendering line chart
+        output$line_chart <- plotly::renderPlotly({
+          chart <- dash_get("line")$chart
+
+          # Setting size based on container size. Isolated on purpose: charts
+          # keep the size they had when Run was clicked instead of being
+          # recomputed on every window resize.
+          height <- shiny::isolate(session$clientData$output_line_chart_height)
+          width <- shiny::isolate(session$clientData$output_line_chart_width)
+
+          # returning empty chart if no data is found on chart
+          chart_not_empty(chart)
+
+          # transforming chart on plotly
+          gg <- plotly::ggplotly(
+            chart,
+            height = height,
+            width = width,
+            tooltip = c("label")
+          ) %>%
+            plotly::config(displayModeBar = FALSE)
+
+          # Fixing bad entries on ggplotly chart
+          for (i in 1:length(gg$x$data)) {
+            if (
+              startsWith(gg$x$data[[i]]$name, "(") &&
+                endsWith(gg$x$data[[i]]$name, ")")
+            )
+              gg$x$data[[i]]$name = gsub(
+                "\\(|\\)|,|[0-9]",
+                "",
+                gg$x$data[[i]]$name
+              ) else gg$x$data[[i]]$name = "                        "
+            gg$x$data[[i]]$legendgroup = gsub(
+              "\\(|\\)|,|[0-9]",
+              "",
+              gg$x$data[[i]]$legendgroup
+            )
+          }
+          gg
+        })
+
+        # rendering map chart
+        output$map_chart <- plotly::renderPlotly({
+          chart <- dash_get("map")$chart
+
+          # Setting size based on container size
+          height <- shiny::isolate(session$clientData$output_map_chart_height)
+          width <- shiny::isolate(session$clientData$output_map_chart_width)
+
+          # returning empty chart if no data is found on chart
+          chart_not_empty(chart)
+
+          # transforming chart on plotly
+          gg <- chart %>%
+            plotly::ggplotly(
+              height = height,
+              width = width,
+              tooltip = c("label")
+            ) %>%
+            plotly::layout(
+              title = list(text = paste("<b>", chart$labels$title, "</b>")),
+              margin = list(l = 5, r = 5, b = 50, t = 80),
+              annotations = list(
+                text = chart$labels$caption,
+                font = list(size = 10),
+                showarrow = FALSE,
+                xref = 'paper',
+                x = 0,
+                yref = 'paper',
+                y = -0.15
+              ) #,
+              #legend = list(orientation = 'v')
+            ) %>%
+            plotly::config(displayModeBar = FALSE)
+
+          # Fixing bad entries on ggplotly chart
+          for (i in 1:length(gg$x$data)) {
+            if (
+              substring(gg$x$data[[i]]$name, 1, 2) %in%
+                c("a.", "b.", "c.", "d.", "e.", "f.", "g.", "h.")
+            )
+              gg$x$data[[i]]$name <- substring(
+                gg$x$data[[i]]$name,
+                4,
+                nchar(gg$x$data[[i]]$name)
+              )
+            #gg$x$data[[i]]$legendgroup <- gsub("\\(|\\)|,|[0-9]", "", gg$x$data[[i]]$legendgroup)
+          }
+          gg
+        })
+
+        output$top_chart1 <- plotly::renderPlotly({
+          chart <- dash_get("top1")$chart
+
+          # Setting size based on container size
+          height <- shiny::isolate(session$clientData$output_top_chart1_height)
+          width <- shiny::isolate(session$clientData$output_top_chart1_width)
+
+          # returning empty chart if no data is found on chart
+          chart_not_empty(chart)
+
+          # transforming chart on plotly
+          chart %>%
+            plotly::ggplotly(height = height, width = width) %>%
+            plotly::layout(
+              title = list(
+                text = paste(
+                  "<b>",
+                  chart$labels$title,
+                  "<br>",
+                  chart$labels$subtitle
+                ),
+                "</b>"
+              ),
+              margin = list(l = 30, r = 30, b = 100, t = 80),
+              annotations = list(
+                text = chart$labels$caption,
+                font = list(size = 10),
+                showarrow = FALSE,
+                xref = 'paper',
+                x = 0,
+                yref = 'paper',
+                y = -0.4
+              )
+            ) %>%
+            plotly::config(displayModeBar = FALSE)
+        })
+
+        output$top_chart2 <- plotly::renderPlotly({
+          chart <- dash_get("top2")$chart
+
+          # Setting size based on container size
+          height <- shiny::isolate(session$clientData$output_top_chart2_height)
+          width <- shiny::isolate(session$clientData$output_top_chart2_width)
+
+          # returning empty chart if no data is found on chart
+          chart_not_empty(chart)
+
+          # transforming chart on plotly
+          chart %>%
+            plotly::ggplotly(height = height, width = width) %>%
+            plotly::layout(
+              title = list(
+                text = paste(
+                  "<b>",
+                  chart$labels$title,
+                  "<br>",
+                  chart$labels$subtitle
+                ),
+                "</b>"
+              ),
+              margin = list(l = 30, r = 30, b = 100, t = 80),
+              annotations = list(
+                text = chart$labels$caption,
+                font = list(size = 10),
+                showarrow = FALSE,
+                xref = 'paper',
+                x = 0,
+                yref = 'paper',
+                y = -0.4
+              )
+            ) %>%
+            plotly::config(displayModeBar = FALSE)
+        })
+
+        output$top_table_title <- shiny::renderText({
+          # reading the snapshot, not the live filters, so the title always
+          # describes the table currently displayed
+          res <- dash_get("topics")
+          topic <- unname(get_topics_labels()[stringr::str_replace_all(
+            res,
+            "%20",
+            " "
+          )])
+          period <- dash_get("period")
+          paste(
+            "<h5 style=\"font-weight:bold;font-family:Helvetica;font-size:16px\">Top URLS of messages mentioning",
+            topic,
+            "from",
+            period[[1]],
+            "to",
+            period[[2]],
+            "</h5>"
+          )
+        })
+
+        output$top_table <- DT::renderDataTable({
+          chart <- dash_get("urls")$chart
+
+          # returning empty if no data is found on chart
+          chart_not_empty(chart)
+
+          chart$data %>%
+            dplyr::mutate(
+              top = paste(
+                "<a href=\"",
+                .data$top,
+                "\"  target=\"_blank\">",
+                .data$top,
+                "</a>"
+              )
+            ) %>%
+            dplyr::rename(Url = .data$top, Frequency = .data$frequency) %>%
+            DT::datatable(escape = FALSE)
+        })
+
+        # kept as an empty placeholder: closing the progress bar is now handled
+        # by the Run observer itself
+        output$top_table_disc <- shiny::renderText("")
+
         # Saving line chart as png and downloading it from shiny app
         output$export_line <- shiny::downloadHandler(
           filename = function() {
@@ -2367,11 +2281,11 @@ episomer_app <- function(
 
       ######### STATUS PANEL LOGIC ##################
       # Timer for updating task statuses
-      # each thirty seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
-      # each thirty seconds a process refresh flag will be invalidated to trigger process status recalculation
+      # each sixty seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
+      # each sixty seconds a process refresh flag will be invalidated to trigger process status recalculation
       shiny::observe({
         # Setting the timer
-        shiny::invalidateLater(30000)
+        shiny::invalidateLater(60000)
 
         # updating config data
         refresh_config_data(cd, list("tasks", "topics", "langs"))
@@ -2401,7 +2315,11 @@ episomer_app <- function(
 
         message <- ""
         if (!cd$search_running || is.na(cd$search_diff)) {
-          message <- "Stopped"
+          message <- paste0(
+            "Stopped (for ",
+            format_status_duration(cd$search_since),
+            ")"
+          )
         } else {
           message <- "Running"
         }
@@ -2448,7 +2366,11 @@ episomer_app <- function(
           " style='color:",
           if (cd$fs_running) "#348017'" else "#F75D59'",
           ">",
-          if (cd$fs_running) "Running" else "Stopped",
+          if (cd$fs_running) {
+            "Running"
+          } else {
+            paste0("Stopped (for ", format_status_duration(cd$fs_since), ")")
+          },
           "</span>",
           sep = ""
         )
@@ -2467,7 +2389,15 @@ episomer_app <- function(
           " style='color:",
           if (cd$detect_running) "#348017'" else "#F75D59'",
           ">",
-          if (cd$detect_running) "Running" else "Stopped",
+          if (cd$detect_running) {
+            "Running"
+          } else {
+            paste0(
+              "Stopped (for ",
+              format_status_duration(cd$detect_since),
+              ")"
+            )
+          },
           "</span>",
           sep = ""
         )
@@ -2480,8 +2410,29 @@ episomer_app <- function(
         # Adding a dependency to process update (each 10 seconds)
         cd$process_refresh_flag()
 
+        leases_df <- cd$runner_leases_df
+        # Rows that are internal plumbing rather than a service a non-coder would recognise:
+        # - "search" is the parent lease, a supervisor that renews nothing for the whole life of
+        #   the service (see runner_lease_status_label()) - its per-network workers
+        #   (search.bluesky, ...) are the rows that actually say whether collection is happening.
+        # - "fs_mon" is the watchdog that keeps the episomer database (the "fs" row) alive and
+        #   renews its lease; it is not a second database, and showing it next to "fs" as its own
+        #   "episomer database monitor" row reads as one to somebody who did not write this code.
+        leases_df <- leases_df[
+          !(leases_df$Runner %in% c("search", "fs_mon")),
+          ,
+          drop = FALSE
+        ]
+        # Understandable service names for a reader of the status panel, with the raw runner name
+        # kept in brackets so a row is still traceable to what runner_leases_df() reported.
+        leases_df$Runner <- vapply(
+          leases_df$Runner,
+          runner_display_name,
+          character(1)
+        )
+
         DT::datatable(
-          cd$runner_leases_df,
+          leases_df,
           rownames = FALSE,
           # A status block, not a data table: no search box, no pagination, no sorting - the rows
           # come in the reading order of runner_leases_df(). scrollX keeps the five columns
@@ -2711,10 +2662,6 @@ episomer_app <- function(
           conf_smtp_from = input$smtp_from,
           conf_smtp_login = input$smtp_login,
           conf_smtp_password = input$smtp_password,
-          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
-          conf_sm_alerts_mastodon = input$conf_sm_alerts_mastodon,
-          conf_sm_activated_mastodon = input$conf_sm_activated_mastodon,
           conf_force_date_format = input$force_date_format
         )
       })
@@ -2728,14 +2675,8 @@ episomer_app <- function(
         {
           update_config_from_input(debounced_elements_to_save_in_conf())
 
-          # Saving Bluesky properties
-          sm_api_set_auth(
-            network = "bluesky",
-            shiny_input_list = input
-          )
-
-          # Mastodon instances and their access tokens are managed via episomer::setup(),
-          # not from this form, so there is nothing to save here.
+          # Social media activation, instances and alert detection are managed via
+          # episomer::setup(), not from this form, so there is nothing to save here.
 
           # Saving properties.json
           save_config(
@@ -2748,15 +2689,68 @@ episomer_app <- function(
         ignoreInit = TRUE
       )
 
-      # the instances collected from, added with episomer::setup()
-      output$conf_mastodon_instances <- shiny::renderText({
+      # the social media table: one row per family, all set up via episomer::setup()
+      output$social_media_table <- DT::renderDataTable({
+        # Adding a dependency to config refresh (e.g. instances added by episomer::setup())
         cd$properties_refresh_flag()
-        instances <- sm_instances_of("mastodon")
-        if (length(instances) == 0) {
-          "No instance configured yet, no Mastodon post will be collected."
-        } else {
-          paste(instances, collapse = ", ")
-        }
+
+        families <- social_media_families()
+        df <- data.frame(
+          "Social media" = vapply(
+            families,
+            function(family) {
+              paste0(
+                toupper(substr(family, 1, 1)),
+                substr(family, 2, nchar(family))
+              )
+            },
+            character(1)
+          ),
+          "Activated for search" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_activated_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          "Instances" = vapply(
+            families,
+            function(family) {
+              if (!sm_is_federated(family)) {
+                return("-")
+              }
+              instances <- sm_instances_of(family)
+              if (length(instances) == 0) {
+                "None configured yet"
+              } else {
+                paste(instances, collapse = ", ")
+              }
+            },
+            character(1)
+          ),
+          "Alert detection activated" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_alerts_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          check.names = FALSE
+        )
+
+        DT::datatable(
+          df,
+          rownames = FALSE,
+          options = list(dom = "t", paging = FALSE, ordering = FALSE)
+        )
       })
 
       ######### IMPORTANT USERS LOGIC ###########
@@ -2825,18 +2819,6 @@ episomer_app <- function(
           )
           refresh_config_data(e = cd, limit = list("langs"))
         }
-      })
-
-      # rendering active languages when something has changed on languages
-      output$lang_items_0 <- shiny::renderUI({
-        # Adding a dependency to lang refresh
-        cd$langs_refresh_flag()
-        shiny::selectInput(
-          "lang_items",
-          label = NULL,
-          multiple = FALSE,
-          choices = cd$lang_items
-        )
       })
 
       ######### TASKS LOGIC ##################
