@@ -304,10 +304,32 @@ check_posts_present <- function() {
 
 # check if alert files are present
 check_alerts_present <- function() {
-  dirs <- epilist.dirs(path = epipath("alerts"))
+  dirs <- tryCatch(
+    suppressWarnings(epilist.dirs(path = epipath("alerts"))),
+    error = function(e) {
+      warning("No alert files found. Please execute the alerts task")
+      NULL
+    }
+  )
+  if (is.null(dirs)) {
+    return(FALSE)
+  }
   dirs <- dirs[!grepl(".*NA$", dirs)]
+  if (length(dirs) == 0) {
+    warning("No alert files found. Please execute the alerts task")
+    return(FALSE)
+  }
   last_year <- tail(dirs, n = 1)
-  last_file <- tail(epilist.files(path = last_year, pattern = ".*.json"), n = 1)
+  last_file <- tryCatch(
+    suppressWarnings(tail(
+      epilist.files(path = last_year, pattern = ".*.json"),
+      n = 1
+    )),
+    error = function(e) {
+      warning("No alert files found. Please execute the alerts task")
+      character(0)
+    }
+  )
 
   if (length(last_file) > 0) {
     TRUE
