@@ -268,7 +268,7 @@ check_series_present <- function(
     }
     for (p in dirs) {
       #  for(w in epilist.dirs(p)) {
-      if (length(epilist.files(p, ".*\\.fdt")) > 0) {
+      if (length(epilist.files(p, ".*\\.fdt", recursive = TRUE)) > 0) {
         found <- TRUE
         break
       }
