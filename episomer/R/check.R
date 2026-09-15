@@ -251,7 +251,22 @@ check_series_present <- function(
 ) {
   for (s in series) {
     found <- FALSE
-    for (p in epilist.dirs(epipath("fs", s))) {
+    dirs <- tryCatch(
+      suppressWarnings(epipath("fs", s)),
+      error = function(e) {
+        warning(
+          sprintf(
+            "No aggregated data found for %s. Please run the data collection (if not running yet) and the database with episomer::setup()",
+            s
+          )
+        )
+        NULL
+      }
+    )
+    if (is.null(dirs)) {
+      return(FALSE)
+    }
+    for (p in dirs) {
       #  for(w in epilist.dirs(p)) {
       if (length(epilist.files(p, ".*\\.fdt")) > 0) {
         found <- TRUE
@@ -280,7 +295,9 @@ check_posts_present <- function() {
   if (!is.na(last_fs_updates("posts"))) {
     TRUE
   } else {
-    warning("No posts found on database. Please execute the Data collection")
+    warning(
+      "No posts found on database. Please run the data collection with episomer::setup()"
+    )
     FALSE
   }
 }
@@ -349,24 +366,9 @@ check_tex <- function() {
 # check search is running
 check_search_running <- function() {
   if (is_search_running()) TRUE else {
-    warning(paste0(
-      "Data collection & processing pipeline is not running on any machine sharing this database. On Windows, you can activate it by clicking on the 'activate' Data collection & processing button on the configuration page ",
-      "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. episomer::search_loop('",
-      conf$data_dir,
-      "')"
-    ))
-    FALSE
-  }
-}
-
-# check fs is running
-check_fs_running <- function() {
-  if (is_fs_running()) TRUE else {
-    warning(paste0(
-      "Embedded episomer database is not running. On Windows, you can activate it by clicking on the 'activate' episomer database button on the configuration page ",
-      "You can also manually run the Data collection & processing pipeline by executing the following command on a separate R session. episomer::search_loop('",
-      conf$data_dir,
-      "')"
+    warning(paste(
+      "Data collection & processing pipeline is not running on any machine sharing this database. ",
+      "Please run episomer::setup() to start the search loop."
     ))
     FALSE
   }
@@ -375,11 +377,9 @@ check_fs_running <- function() {
 # check detect is running
 check_detect_running <- function() {
   if (is_detect_running()) TRUE else {
-    warning(paste0(
-      "Requirements & alerts pipeline is not running on any machine sharing this database. On Windows, you can activate it by clicking on the 'activate' Requirements & alerts button on the configuration page ",
-      "You can also manually run the Requirements & alerts pipeline by executing the following command on a separate R session. episomer::detect_loop('",
-      conf$data_dir,
-      "')"
+    warning(paste(
+      "Requirements & alerts pipeline is not running on any machine sharing this database. ",
+      "Please run episomer::setup() to start the detect loop."
     ))
     FALSE
   }
@@ -388,11 +388,9 @@ check_detect_running <- function() {
 # check fs is running
 check_fs_running <- function() {
   if (is_fs_running()) TRUE else {
-    warning(paste0(
-      "Embedded database is not running. On Windows, you can activate it by clicking on the 'activate' database service button on the configuration page ",
-      "You can also manually run the fs service by executing the following command on a separate R session. episomer::fs_loop('",
-      conf$data_dir,
-      "')"
+    warning(paste(
+      "Embedded database is not running",
+      "Please run episomer::setup() to start the database."
     ))
     FALSE
   }
@@ -402,31 +400,34 @@ check_fs_running <- function() {
 last_check_sm_auth <- new.env()
 
 check_sm_auth <- function() {
-    lastsm = "No active SM"
-    ok <- tryCatch(
+  unauthenticated_sm <- "No active SM"
+
+  all_authenticated <- tryCatch(
     {
       ok <- FALSE
-      for(sm in active_social_media()) {
-	lastsm = sm
+      for (sm in active_social_media()) {
+        unauthenticated_sm <- sm
         ok <- is_sm_authenticated(sm)
-        if(!ok)
-	  break
+        if (!ok) break
       }
-      last_check_sm_auth$value <- ok
       ok
     },
-    warning = function(m) {
-      FALSE
-    },
-    error = function(e) {
-      FALSE
-    }
+    warning = function(m) FALSE,
+    error = function(e) FALSE
   )
-  if (ok) TRUE else {
+
+  last_check_sm_auth$value <- all_authenticated
+
+  if (!all_authenticated) {
     warning(
-      sprintf("Cannot create a token for %s, please choose an authentication method on the configuration page", lastsm)
+      sprintf(
+        "Could not find an authentication for %s, please define it using episomer::setup() if you want to collect messages",
+        unauthenticated_sm
+      )
     )
   }
+
+  all_authenticated
 }
 check_last_sm_auth <- function() {
   if (exists("value", last_check_sm_auth) && last_check_sm_auth$value)
@@ -595,7 +596,6 @@ check_all <- function() {
     java64 = check_java_64,
     java_version = check_java_version,
     winmsvc = check_winmsvcr100,
-    detect_activation = check_manual_task_request,
     detection_running = check_detect_running,
     winutils = check_winutils,
     java_deps = check_java_deps,
