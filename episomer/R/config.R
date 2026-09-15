@@ -135,7 +135,8 @@ get_episomer_kr_password <- function() {
       "'EPISOMER_KR_PASSWORD_FILE' with the path of a file whose first line is the password.",
       "Put them in the user",
       "'.Renviron' file, which every R process reads at start up.",
-      "To create or open this file please use usethis::edit_r_environ(). Restart your R session once the .Renviron file has been filled.",
+      "To create or open this file please use usethis::edit_r_environ(), and set for example EPISOMER_KR_PASSWORD=mypassword.",
+      "Restart your R session once the .Renviron file has been filled.",
       sep = "\n"
     ))
   }
