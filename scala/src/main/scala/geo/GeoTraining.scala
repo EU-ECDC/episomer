@@ -427,6 +427,19 @@ object GeoTraining {
          .forall(t => !lang.areVectorsNew() && storage.getNode(s"${lang.modelPath}.${t}").exists)
     }
   }
+  // Modification time of every entity detection model file currently on disk. Two calls returning
+  // the same map mean no retraining happened in between, which is how a geolocation pipeline that
+  // holds models loaded earlier can tell whether they are still the ones on disk.
+  def modelTimestamps(languages:Seq[Language])(implicit storage:Storage):Map[String, Long] = {
+    languages
+      .flatMap(lang => Seq("I").map(t => s"${lang.modelPath}.${t}"))
+      .flatMap{path =>
+        if(storage.getNode(path).exists) storage.getFileModificationTime(path = Some(path)).map(ts => (path, ts))
+        else None
+      }
+      .toMap
+  }
+
   def getModels(testId:Option[String]=None, languages:Seq[Language])(implicit storage:Storage) = { 
     languages
       .flatMap(lang => Seq("I").map(t => (t, lang)))
@@ -434,7 +447,14 @@ object GeoTraining {
          val path = s"${lang.modelPath}.${t}${testId.map(tid => "."+tid.toLowerCase.replace(" ", "-")).getOrElse("")}"
          if(storage.getNode(path).exists && !lang.areVectorsNew()) 
          {
-           //l.msg(s"loading $path") 
+           // Which model file is actually being used to geolocate, and from when. This is the only
+           // place a geolocation model is read from disk - the geolocate-text endpoint, the
+           // geotraining evaluation and the detect loop all come through here - so the timestamp
+           // printed here is the answer to "is the retraining I just ran the one being applied?".
+           // The geolocation of collected posts loads them only when it builds its pipeline
+           // (LuceneActor.geolocatePosts), which it rebuilds when these files change, so a line
+           // here is also the proof that a retraining has reached that pipeline.
+           l.msg(s"Loading geolocation model $path (trained on ${storage.getFileModificationTime(path = Some(path)).map(ts => new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(ts))).getOrElse("unknown date")})")
              Some(s"$t.${lang.code}", LinearSVCModel.load(path))
          } else {
             throw new Exception(s"Cannot get a tagging model in $path or vectors are new. Please retrain")

@@ -955,6 +955,38 @@ retrain_languages <- function() {
     fileConn <- file(get_geotraining_evaluation_path(), encoding = "UTF-8")
     writeLines(httr::content(post_result, "text", encoding = "UTF-8"), fileConn)
     close(fileConn)
+    log_geotagging_models()
+  }
+}
+
+# Print, for each language, the date of the entity detection model currently on disk. Called right
+# after a retraining, it says which model files that retraining actually produced; the database logs
+# then say which of them a geolocation picked up ("Loading geolocation model ..." in the JVM log,
+# scala/src/main/scala/geo/GeoTraining.scala).
+#
+# The date printed here is what the geolocation of collected posts compares itself against: it
+# builds its pipeline once and holds the models it loaded then, so it rebuilds that pipeline as soon
+# as these files are newer (LuceneActor.geolocatePosts). The database log then says which of the two
+# happened, on its next batch of posts, without anything having to be restarted.
+log_geotagging_models <- function() {
+  for (lang in conf$languages) {
+    model_path <- paste(get_lang_model_path(lang$code), "I", sep = ".")
+    if (!file.exists(model_path)) {
+      message(sprintf("No entity detection model for %s in %s", lang$code, model_path))
+      next
+    }
+    # The model is a Spark ML directory: its own timestamp is not always the one of the files that
+    # were rewritten inside it, so the most recent file it contains is what dates the training.
+    trained_on <- suppressWarnings(max(file.mtime(c(
+      model_path,
+      list.files(model_path, recursive = TRUE, full.names = TRUE)
+    ))))
+    message(sprintf(
+      "Entity detection model for %s trained on %s (%s)",
+      lang$code,
+      strftime(trained_on, "%Y-%m-%d %H:%M:%S"),
+      model_path
+    ))
   }
 }
 
