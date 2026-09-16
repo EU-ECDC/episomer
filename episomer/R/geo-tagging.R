@@ -470,8 +470,8 @@ update_languages <- function() {
   update_geotraining_df()
   
   # touching the geotraining_evaluation_path after the update of the geotraining dataset to allow proper change detection of training set in setup
-  if(file.exists(get_geotraining_evaluation_path()))
-      Sys.setFileTime(get_geotraining_evaluation_path(), Sys.time())
+  if(epifile.exists(get_geotraining_evaluation_path()))
+      epifile.touch(get_geotraining_evaluation_path())
   
 }
 
@@ -952,9 +952,12 @@ retrain_languages <- function() {
       sep = "\n"
     ))
   } else {
-    fileConn <- file(get_geotraining_evaluation_path(), encoding = "UTF-8")
-    writeLines(httr::content(post_result, "text", encoding = "UTF-8"), fileConn)
-    close(fileConn)
+    # epiwriteLines(), not file() + writeLines(): the evaluation path is an fs path, and on the
+    # default configuration the fs is reached over HTTP, where file() cannot be opened for writing
+    epiwriteLines(
+      httr::content(post_result, "text", encoding = "UTF-8"),
+      get_geotraining_evaluation_path()
+    )
   }
 }
 
@@ -1064,20 +1067,23 @@ update_forced_geo_codes <- function() {
 # check whether languages need retrain
 get_lang_traing_need <- function() {
     conf_langs <- unlist(lapply(conf$languages, `[[`, "code"))
-    existing_vectors <- conf_langs[file.exists(unlist(lapply(conf$languages, `[[`, "vectors")))]
+    # epifile.exists()/epifile.mtime() throughout: every path asked about here comes from epipath(),
+    # so it is a URL whenever the fs is remote, and base file.exists() answers FALSE about a URL -
+    # which reads as "the evaluation was never produced" and asks for a retraining that just ran
+    existing_vectors <- conf_langs[epifile.exists(unlist(lapply(conf$languages, `[[`, "vectors")))]
     # If there are some vectors not downloaded then retraining is needed
     if(length(existing_vectors) < length(conf_langs) )
         return(TRUE)
     # If the training set is not yet produced then training is needed
-    if(!file.exists(get_geotraining_path()))
+    if(!epifile.exists(get_geotraining_path()))
         return(TRUE)
     # If the evaluation of models has not been performed then training is needed
-    if(!file.exists(get_geotraining_evaluation_path()))
+    if(!epifile.exists(get_geotraining_evaluation_path()))
         return(TRUE)
     # If date of update of vectors or training set is later than the evaluation of models then training is needed
-    last_vectors_update <- max(file.mtime(sapply(existing_vectors, function(code) get_lang_vectors_path(code))))
-    last_evaluation <- file.mtime(get_geotraining_evaluation_path())
-    last_training_update <-file.mtime(get_geotraining_path())
+    last_vectors_update <- max(epifile.mtime(sapply(existing_vectors, function(code) get_lang_vectors_path(code))))
+    last_evaluation <- epifile.mtime(get_geotraining_evaluation_path())
+    last_training_update <- epifile.mtime(get_geotraining_path())
     if(max(last_vectors_update, last_training_update) > max(last_evaluation))
         return(TRUE)
     return(FALSE)
