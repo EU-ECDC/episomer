@@ -470,8 +470,7 @@ update_languages <- function() {
   update_geotraining_df()
   
   # touching the geotraining_evaluation_path after the update of the geotraining dataset to allow proper change detection of training set in setup
-  if(epifile.exists(get_geotraining_evaluation_path()))
-      epifile.touch(get_geotraining_evaluation_path())
+  mark_geotraining_evaluated()
   
 }
 
@@ -1094,6 +1093,24 @@ update_forced_geo_codes <- function() {
     if (epifile.exists(get_forced_geo_codes_path()))
       epifile.remove(get_forced_geo_codes_path())
   }
+}
+
+# Mark the model evaluation as being the one of the training set currently on disk.
+#
+# get_lang_traing_need() below answers "yes" when the training set is more recent than the
+# evaluation, and every path that retrains writes the training set again *after* the retraining:
+# update_geotraining_df() refreshes the Episomer match columns of the spreadsheet with the models
+# that were just trained, so it necessarily runs last. The evaluation is then a few seconds older
+# than the spreadsheet it evaluated, which reads as "the training set changed since the last
+# training" and makes setup() offer a retraining at every start, for ever, with nothing having
+# changed. Touching the evaluation last is what closes that.
+#
+# It is deliberately not called by update_geotraining_df() itself: the geotraining tab also updates
+# the spreadsheet without retraining (the "update geotraining dataset" button), and there the
+# spreadsheet legitimately becomes newer than the evaluation and setup() is right to ask.
+mark_geotraining_evaluated <- function() {
+  if (epifile.exists(get_geotraining_evaluation_path()))
+    epifile.touch(get_geotraining_evaluation_path())
 }
 
 # check whether languages need retrain
