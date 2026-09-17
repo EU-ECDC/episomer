@@ -1974,9 +1974,22 @@ classify_alerts <- function(
       sep = "\n"
     )
     progress(value = 0.7, message = "Training models")
+    message(sprintf(
+      "Posting %d alerts to %s (%s)",
+      nrow(alerts),
+      get_scala_alert_training_url(),
+      if (retrain) "retraining the declared runs" else "classifying with the stored model"
+    ))
+    # Same two libcurl bounds as retrain_languages(): this POST holds the connection open for as
+    # long as the JVM takes to train every declared run and sends nothing in the meantime, and
+    # libcurl aborts a connection transferring less than one byte a second for 600 seconds
+    # ("Operation too slow"), with the training still running on the other side. low_speed_limit = 0
+    # turns that check off and conf$fs_batch_timeout becomes the single bound - the same one the
+    # Scala side gives itself for this endpoint (withRequestTimeout(conf.fsBatchTimeout)).
     post_result <- httr::POST(
       url = get_scala_alert_training_url(),
       httr::content_type_json(),
+      httr::config(timeout = conf$fs_batch_timeout, low_speed_limit = 0),
       body = body,
       encode = "raw",
       encoding = "UTF-8"
@@ -2023,12 +2036,38 @@ retrain_alert_classifier <- function(
   `%>%` <- magrittr::`%>%`
   progress(value = 0.1, message = "Getting alerts to retrain")
   alerts = get_alert_training_df()
+  annotated <- sum(!is.na(alerts$given_category))
+  message(sprintf(
+    "Retraining the alert classifier on %d alerts (%d annotated) in %d categories: %s",
+    nrow(alerts),
+    annotated,
+    length(unique(alerts$given_category[!is.na(alerts$given_category)])),
+    paste(
+      sort(unique(alerts$given_category[!is.na(alerts$given_category)])),
+      collapse = ", "
+    )
+  ))
   ret <- classify_alerts(alerts, retrain = TRUE, progress = progress)
   if (exists("alerts", where = ret)) {
     progress(value = 0.9, message = "Writing results")
+    # The models the JVM just wrote under $EPI_HOME/alert-ml are the ones every later
+    # classification loads, including the ones the search loop asks for in generate_alerts(), so
+    # the ranking reported here is what new alerts will be classified with from now on
+    best <- ret$runs[order(ret$runs$ranking), ][1, ]
+    message(sprintf(
+      "Alert classifier retrained: best run %s (f1score %s, accuracy %s, last run %s). New alerts will be classified with it from now on",
+      best$models,
+      round(best$f1score, 3),
+      round(best$accuracy, 3),
+      best$last_run
+    ))
     write_alert_training_db(
       alerts = ret$alerts %>% dplyr::filter(!.data$augmented),
       runs = ret$runs
+    )
+  } else {
+    message(
+      "No retraining was performed - see the warning above (every category needs at least 10 annotated alerts, and at least one run must be active)"
     )
   }
 }
