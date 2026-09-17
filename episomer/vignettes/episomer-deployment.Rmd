@@ -22,17 +22,18 @@ knitr::opts_chunk$set(
 )
 ```
 
-## Who this document is for
-
 <span style="color:red">This document assumes a reader who administers the machines `{episomer}`
 runs on: someone comfortable with a terminal, with Docker or Kubernetes, and with environment
 variables.</span>
 
 # Running episomer in containers
 
-<span style="color:red">`{episomer}` ships with a `Dockerfile` and a `compose.yml` at the root of
-its source repository. They are not published as a
-ready-made image, so a deployment starts by building the image from the sources.</span>
+<span style="color:red">A container deployment of `{episomer}` is described by three files at the root of the
+source repository: a `Dockerfile`, which describes the image, a `compose.yml`, which describes the
+services to run, and a `Makefile`, which holds the shortcuts used to drive them. None of the three
+is in the installed R package — neither the CRAN version nor a `.tar.gz` of the package contains
+them — and there is no ready-made image to pull, so a container deployment starts by cloning the
+sources and building an image from them.</span>
 
 ## <span style="color:red">What the image contains</span>
 
@@ -49,8 +50,12 @@ ready-made image, so a deployment starts by building the image from the sources.
     unprivileged user (uid 1000 by default, configurable with the `EPISOMER_USER` build
     argument).</span>
 
-<span style="color:red">One image serves every role. Which service a container runs is decided at
-run time by the `EPISOMER_RUN` environment variable, read by the entry point:</span>
+<span style="color:red">One image serves every role. Which service a container runs is decided at run time by
+the `EPISOMER_RUN` environment variable, which the entry point of the image reads. You do not
+normally set it yourself: `compose.yml` already gives each of its three services the right value.
+It is worth knowing about for two reasons — it is what makes three containers out of one image, and
+it is what you would set on a fourth service if you wanted to serve the Shiny app from a container
+too:</span>
 
 | <span style="color:red">`EPISOMER_RUN`</span> | <span style="color:red">What the container runs</span> |
 |---|---|
@@ -133,8 +138,8 @@ kinds of variables feed it:</span>
 
 ## <span style="color:red">The provided Docker Compose deployment</span>
 
-<span style="color:red">`compose.yml`, at the root of the repository, starts the three services of a
-working `{episomer}`:</span>
+<span style="color:red">`compose.yml` starts the three services of a working
+`{episomer}`:</span>
 
 -   <span style="color:red">**`fs`** — the episomer database. It is the only service that holds data:
     the data directory is mounted into it as a volume, and it publishes the database port. Before
@@ -154,17 +159,52 @@ working `{episomer}`:</span>
 a container that cannot claim its lease — see the next part — retry until the lease is free, instead
 of exiting for good.</span>
 
-<span style="color:red">The `Makefile` wraps the whole thing, taking the credentials out of a `pass`
-password store and handing them to Compose as secrets:</span>
+### <span style="color:red">Starting it</span>
+
+<span style="color:red">Work from a clone of the `{episomer}` source repository. The whole clone is the build context: the image is built from the R sources and the Scala sources it contains, and the packaging step run inside it goes through the `Makefile`, which is why the three files have to travel together.</span>
+
+<span style="color:red">Everything else is one file to write, named `.env`, next to `compose.yml`. Docker Compose reads it by itself; it carries both the values `compose.yml` interpolates and the credentials Compose hands to the containers as secrets.</span>
 
 ```sh
-make compose-up      # build the image if needed and start fs, search and detect
-make compose-down    # stop them
+# .env, next to compose.yml
+
+# Where the data directory lives on the host, and on which port the database is published
+EPI_HOME=/srv/episomer-data
+EPISOMER_FS_PORT=8080
+
+# The password protecting the episomer keyring inside the containers. Choose it once:
+# changing it later makes the credentials already stored unreadable.
+EPISOMER_KR_PASSWORD=...
+
+# Social media credentials, as the setup wizard would have asked for them
+EPISOMER_SECRET_BLUESKY_USER=...
+EPISOMER_SECRET_BLUESKY_PASSWORD=...
+
+# One token per Mastodon instance collected, only if Mastodon is activated
+EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=...
+EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=...
 ```
 
-<span style="color:red">If you do not use `pass`, export the `EPISOMER_KR_PASSWORD`,
-`EPISOMER_SECRET_*` and `EPI_HOME` variables yourself and call `docker compose -f compose.yml up
---build -d` directly.</span>
+<span style="color:red">Then, from that directory:</span>
+
+```sh
+docker compose up --build -d     # build the image if needed, then start fs, search and detect
+docker compose ps                # what is running
+docker compose logs -f fs        # follow one service
+docker compose down              # stop everything
+```
+
+<span style="color:red">The very first `up` is long: it compiles the Scala code and installs every R dependency into the image, and then the `fs` container runs the setup wizard silently and downloads GeoNames and the language models. Follow it with `docker compose logs -f fs`; `search` and `detect` wait for the database to report itself healthy before they start.</span>
+
+<span style="color:red">The `Makefile` offers the same two operations as `make compose-up` and `make compose-down`. They do one thing more than the commands above: instead of reading the credentials from `.env`, they fetch them from a `pass` password store, under names such as `epitools/ecdc_bluesky_user`. It is the better option if you already keep your secrets in `pass`; if you do not, use `.env` and the plain `docker compose` commands above, which need nothing else installed.</span>
+
+### <span style="color:red">A word on the credentials</span>
+
+<span style="color:red">`.env` is a plain text file. It is convenient, and it is what Compose expects, but it must be treated as a secret: keep it out of version control and restrict it to its owner (`chmod 600 .env`).</span>
+
+<span style="color:red">Two alternatives avoid writing the credentials down at all. The variables can simply be exported in the shell that calls `docker compose`, which is what a CI system or an orchestrator's secret store does naturally. Or the `secrets` section of `compose.yml` can be changed from `environment:` to `file:`, so that Compose reads each credential from a file you provide rather than from a variable. The containers see no difference either way: they only ever read `/run/secrets/...`.</span>
+
+<span style="color:red">One last thing to keep consistent: the Mastodon instances appear in three places that must agree — `EPISOMER_OPTION_MASTODON_INSTANCES` in `compose.yml`, the matching `EPISOMER_SECRET_MASTODON_<INSTANCE>_TOKEN_FILE` entries next to it, and the values in `.env`. Collecting from a different instance means editing all three.</span>
 
 <span style="color:red">Note that `compose.yml` starts no Shiny app: the three services above are
 what a server deployment needs, and the app is expected to be run where the analysts are. To serve
@@ -190,8 +230,7 @@ that changes one without the other will not work:</span>
 
 # Running episomer on several machines
 
-Everything described so far runs perfectly well on a single machine, and that is how `{episomer}` is
-deployed almost everywhere. This section is about the other case: **one database, several machines**
+This section is about the case: **one database, several machines**
 — typically because the post collection has become too heavy for one host, or because you want a
 second machine ready to take over when the first one is stopped for maintenance.
 
@@ -321,31 +360,6 @@ Two rules of thumb are worth keeping:
 geolocation, aggregation) can legitimately run for a very long time without writing anything, and a
 working service that looks dead is worse than a dead one noticed late.
 
-## <span style="color:red">Watching a failover with Docker Compose</span>
-
-<span style="color:red">The quickest way to see the mechanism at work is to start a second collection
-container against the deployment of `compose.yml`, on the same laptop. Any container of the same
-image with `EPISOMER_RUN=SEARCH`, the same `EPI_HOST` and a different `EPISOMER_INSTANCE` will
-do:</span>
-
-```sh
-docker compose run --rm \
-  -e EPISOMER_INSTANCE=search-standby \
-  search
-```
-
-<span style="color:red">You will see the standby refuse to start, naming the container that holds the
-lease, and retry — that retry loop *is* the standby, and it costs one read of one small file per
-attempt. Then, from another terminal:</span>
-
-```sh
-docker compose stop search          # clean stop: leases released, takeover within seconds
-docker compose kill search          # brutal stop: takeover after runner_ttl_search (300 s)
-```
-
-<span style="color:red">Watch the handover in the Shiny app, in the *Status* section of the
-configuration page.</span>
-
 # Operator guide: reading the runner leases {#leases}
 
 ## From the Shiny app
@@ -437,11 +451,6 @@ is the place to look to answer "when did that machine hand the collection over?"
 | A row is `stale` while the service is clearly working | The service is silent for longer than its TTL | Raise that TTL rather than lowering the heartbeat |
 | The app shows a service as running while its machine is off | The lease has not expired yet | Wait for the TTL; it is the failover latency |
 | `runners/` contains files but nothing is running | Services stopped without releasing | Normal after a crash; the files disappear when a new holder takes over |
-
-Finally, a limit to keep in mind: the leases are **cooperative, not enforced**. They stop the
-mistake, not a determined attacker — anyone who can reach the database can read, take or remove any
-lease, exactly as they can read or remove any other file it serves. Protect the database machine at
-the network level.
 
 # <span style="color:red">Related documents</span>
 
