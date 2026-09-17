@@ -523,3 +523,71 @@ test_that("epifile.mtime keeps answering about the other paths of a vector", {
   expect_true(is.na(got[[1]]))
   expect_false(is.na(got[[2]]))
 })
+
+# The evaluation is what says the training set has already been trained on ---------------------------
+
+# get_lang_traing_need() answers by comparing dates, and every path that retrains writes the training
+# spreadsheet again after the retraining - update_geotraining_df() refreshes its Episomer match
+# columns with the models just trained. The evaluation therefore ends up a few seconds older than the
+# spreadsheet it evaluated, and setup() offered "Do you want to launch language model retrain?" at
+# every start, for ever, with nothing having changed. Measured on a real data directory: evaluation
+# 15:41:49, spreadsheet 15:42:03, fourteen seconds apart.
+
+test_that("mark_geotraining_evaluated() settles the retraining need a fresh training leaves open", {
+  data_dir <- withr::local_tempdir()
+  vectors <- file.path(data_dir, "fr.txt.gz")
+  writeLines("vectors", vectors)
+  local_conf(
+    fs_remote = NULL,
+    data_dir = data_dir,
+    languages = list(list(code = "fr", name = "French", vectors = vectors))
+  )
+  evaluation <- file.path(data_dir, "geo-training-evaluation.json")
+  training <- file.path(data_dir, "geo-training.xlsx")
+  local_mocked_bindings(
+    get_geotraining_evaluation_path = function() evaluation,
+    get_geotraining_path = function() training,
+    get_lang_vectors_path = function(code) vectors,
+    .package = "episomer"
+  )
+
+  # what a retraining leaves behind: the evaluation written first, the spreadsheet rewritten after
+  writeLines("[]", evaluation)
+  writeLines("training set", training)
+  Sys.setFileTime(evaluation, Sys.time() - 14)
+  expect_true(get_lang_traing_need())
+
+  mark_geotraining_evaluated()
+
+  expect_false(get_lang_traing_need())
+})
+
+test_that("mark_geotraining_evaluated() leaves a training set updated on its own asking to retrain", {
+  # the "update geotraining dataset" button rewrites the spreadsheet without retraining, and there
+  # the answer has to stay "yes" - which is why update_geotraining_df() does not touch the evaluation
+  data_dir <- withr::local_tempdir()
+  vectors <- file.path(data_dir, "fr.txt.gz")
+  writeLines("vectors", vectors)
+  local_conf(
+    fs_remote = NULL,
+    data_dir = data_dir,
+    languages = list(list(code = "fr", name = "French", vectors = vectors))
+  )
+  evaluation <- file.path(data_dir, "geo-training-evaluation.json")
+  training <- file.path(data_dir, "geo-training.xlsx")
+  local_mocked_bindings(
+    get_geotraining_evaluation_path = function() evaluation,
+    get_geotraining_path = function() training,
+    get_lang_vectors_path = function(code) vectors,
+    .package = "episomer"
+  )
+  writeLines("[]", evaluation)
+  writeLines("training set", training)
+  mark_geotraining_evaluated()
+  expect_false(get_lang_traing_need())
+
+  # the spreadsheet alone moves on
+  Sys.setFileTime(training, Sys.time() + 14)
+
+  expect_true(get_lang_traing_need())
+})

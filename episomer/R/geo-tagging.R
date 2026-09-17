@@ -470,8 +470,7 @@ update_languages <- function() {
   update_geotraining_df()
   
   # touching the geotraining_evaluation_path after the update of the geotraining dataset to allow proper change detection of training set in setup
-  if(epifile.exists(get_geotraining_evaluation_path()))
-      epifile.touch(get_geotraining_evaluation_path())
+  mark_geotraining_evaluated()
   
 }
 
@@ -958,7 +957,39 @@ retrain_languages <- function() {
       httr::content(post_result, "text", encoding = "UTF-8"),
       get_geotraining_evaluation_path()
     )
+    log_geotagging_models()
   }
+}
+
+# Print, for each language, the date of the entity detection model currently on disk. Called right
+# after a retraining, it says which model files that retraining actually produced; the database logs
+# then say which of them a geolocation picked up ("Loading geolocation model ..." in the JVM log,
+# scala/src/main/scala/geo/GeoTraining.scala).
+#
+# The date printed here is what the geolocation of collected posts compares itself against: it
+# builds its pipeline once and holds the models it loaded then, so it rebuilds that pipeline as soon
+# as these files are newer (LuceneActor.geolocatePosts). The database log then says which of the two
+# happened, on its next batch of posts, without anything having to be restarted.
+log_geotagging_models <- function() {
+  for (lang in conf$languages) {
+    model_path <- paste(get_lang_model_path(lang$code), "I", sep = ".")
+    if (!file.exists(model_path)) {
+      message(sprintf("No entity detection model for %s in %s", lang$code, model_path))
+      next
+    }
+    # The model is a Spark ML directory: its own timestamp is not always the one of the files that
+    # were rewritten inside it, so the most recent file it contains is what dates the training.
+    trained_on <- suppressWarnings(max(file.mtime(c(
+      model_path,
+      list.files(model_path, recursive = TRUE, full.names = TRUE)
+    ))))
+    message(sprintf(
+      "Entity detection model for %s trained on %s (%s)",
+      lang$code,
+      strftime(trained_on, "%Y-%m-%d %H:%M:%S"),
+      model_path
+    ))
+}
 }
 
 # update the topic keywords JSON file. When several location entities are found, the one closest to a topic is chosen
@@ -1064,6 +1095,24 @@ update_forced_geo_codes <- function() {
   }
 }
 
+# Mark the model evaluation as being the one of the training set currently on disk.
+#
+# get_lang_traing_need() below answers "yes" when the training set is more recent than the
+# evaluation, and every path that retrains writes the training set again *after* the retraining:
+# update_geotraining_df() refreshes the Episomer match columns of the spreadsheet with the models
+# that were just trained, so it necessarily runs last. The evaluation is then a few seconds older
+# than the spreadsheet it evaluated, which reads as "the training set changed since the last
+# training" and makes setup() offer a retraining at every start, for ever, with nothing having
+# changed. Touching the evaluation last is what closes that.
+#
+# It is deliberately not called by update_geotraining_df() itself: the geotraining tab also updates
+# the spreadsheet without retraining (the "update geotraining dataset" button), and there the
+# spreadsheet legitimately becomes newer than the evaluation and setup() is right to ask.
+mark_geotraining_evaluated <- function() {
+  if (epifile.exists(get_geotraining_evaluation_path()))
+    epifile.touch(get_geotraining_evaluation_path())
+}
+
 # check whether languages need retrain
 get_lang_traing_need <- function() {
     conf_langs <- unlist(lapply(conf$languages, `[[`, "code"))
@@ -1088,3 +1137,4 @@ get_lang_traing_need <- function() {
         return(TRUE)
     return(FALSE)
 }
+  

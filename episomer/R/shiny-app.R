@@ -3504,6 +3504,9 @@ episomer_app <- function(
                   progress_set(value = 0.5 + value / 2, message = message)
                 }
               )
+              # last, after the spreadsheet update just above rewrote the training set: same
+              # ordering as update_languages(), and for the same reason
+              mark_geotraining_evaluated()
               cd$geotraining_refresh_flag(Sys.time())
               #TO DO : afficher les résultats + observe qui met à jour si de nouveelles données sont uploadées
             },

@@ -29,6 +29,7 @@ import org.apache.lucene.search.spell.LuceneDictionary
 import demy.util.{log => l}
 import scala.concurrent.ExecutionContext
 import org.ecdc.episomer.geo.Geonames.Geolocate
+import org.ecdc.episomer.geo.GeoTraining
 import scala.util.{Try, Success, Failure}
 import java.nio.charset.StandardCharsets
 import spray.json.JsonParser
@@ -383,6 +384,8 @@ case class IndexHolder(
   var aggregating:Boolean = false,
   var commiting:Boolean = false,
   var toGeolocate:Option[Dataset[Int]] = None,
+  // Modification time of the geolocation models that toGeolocate holds, see geolocatePosts
+  var geoModelStamps:Map[String, Long] = Map[String, Long](),
   val commitRequests:HashSet[String] = HashSet[String]()
 )
  
@@ -690,10 +693,30 @@ object LuceneActor {
     import spark.implicits._
     val sc = spark.sparkContext
     val startTime = System.nanoTime
+    // The geolocation models are read from disk when the pipeline below is built, and broadcast
+    // inside it. A pipeline kept from before a retraining therefore goes on applying the previous
+    // models: every post the search loop keeps sending would be geolocated by a model the user has
+    // already replaced, and only a restart of this process would end that. A user retraining from
+    // the Shiny geotagging tab cannot restart a container, so instead of asking them to, the model
+    // files' timestamps are compared here with the ones this pipeline was built on, and the
+    // pipeline is dropped when they differ - the rebuild below reloads the models from disk.
+    // Only one geolocation runs at a time (holder.geolocating, set under holder.dirs.synchronized
+    // in add2Geolocate), so nothing is reading the pipeline while this replaces it.
+    val modelStamps = GeoTraining.modelTimestamps(conf.languages.get)
+    if(holder.toGeolocate.isDefined && modelStamps != holder.geoModelStamps) {
+      l.msg("The geolocation models have changed since the geolocation pipeline was built, rebuilding it so the models just trained are the ones applied")
+      holder.toGeolocate = None
+    }
     holder.toGeolocate = {
       holder.toGeolocate match {
-        case Some(df) => holder.toGeolocate
+        case Some(df) =>
+          // Reused as is, which the check above has just established is safe: the posts are re-read
+          // from disk on every run, and the models this pipeline holds are still the ones on disk.
+          l.msg("Geolocating posts with the geolocation pipeline built earlier, whose models are still the ones on disk")
+          holder.toGeolocate
         case None => 
+          l.msg("Building the geolocation pipeline, the geolocation models are about to be loaded")
+          holder.geoModelStamps = modelStamps
           val par =  50//conf.sparkCores.get
           Some(
             spark.sparkContext.parallelize(Seq.range(0, par)).repartition(par).unpersist()
