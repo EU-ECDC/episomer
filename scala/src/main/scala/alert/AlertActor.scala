@@ -23,7 +23,7 @@ import scala.collection.JavaConverters._
 import org.apache.spark.sql.{SparkSession, Column, Dataset, Row, DataFrame}
 import org.apache.spark.sql.functions.{col, lit, array_join, udf, concat}
 import org.apache.spark.ml.linalg.{Vectors, DenseVector, Vector=>MLVector}
-import demy.storage.{Storage, FSNode}
+import demy.storage.{Storage, FSNode, WriteMode}
 import scala.util.Random
 
 class AlertActor(conf:Settings) extends Actor with ActorLogging {
@@ -38,12 +38,21 @@ class AlertActor(conf:Settings) extends Actor with ActorLogging {
       //Ensuring languages models are up to date
 
       var sep = ""
+      l.msg(s"Alert classification requested for ${alerts.size} alerts, ${if(oRuns.isEmpty) "classifying with the stored model" else s"retraining the ${oRuns.get.size} declared runs"}")
       Future {
         implicit val s = conf.getSparkSession
         implicit val st = conf.getSparkStorage
         import s.implicits._
         
-	    val alertsdf =  AlertActor.alerts2modeldf(alerts = alerts, reuseLabels = oRuns.isEmpty)
+        // A classification reads the model set that is currently published; a retraining fits its
+        // models in a directory of its own and publishes it only once both are in place, so the
+        // search loop classifying at the same time keeps reading the previous set whole
+        val modelSet =
+          if(oRuns.isEmpty) AlertActor.activeModelSetPath()
+          else AlertActor.newModelSetPath()
+        l.msg(s"Alert model set in use for this request: $modelSet (${if(oRuns.isEmpty) "published" else "staged by this retraining"})")
+
+	    val alertsdf =  AlertActor.alerts2modeldf(alerts = alerts, reuseLabels = oRuns.isEmpty, modelSet = modelSet)
       val retRuns = 
 	      oRuns.map{case runs =>
 	        val newRuns = 
@@ -62,7 +71,7 @@ class AlertActor(conf:Settings) extends Actor with ActorLogging {
                     l.msg(s"Running ${r.models} on ${v} ${r.runs} times, customized with ${r.custom_parameters}") 
                     v
                   })
-                  AlertActor.trainTest(alertsdf = alertsdf, run = r, trainRatio = 0.75)
+                  AlertActor.trainTest(alertsdf = alertsdf, run = r, trainRatio = 0.75, modelSet = modelSet)
 	                  .setCount(alerts.size)
 	              }
               }
@@ -78,14 +87,19 @@ class AlertActor(conf:Settings) extends Actor with ActorLogging {
               l.msg(s"Retraining with full data for forced run ${newRuns(0).models}, balanced(${newRuns(0).balance_classes}), ${newRuns(0).custom_parameters}")
             else
               l.msg(s"Retraining with full data for best run ${newRuns(0).models}, balanced(${newRuns(0).balance_classes}) ${newRuns(0).custom_parameters}")
-	          AlertActor.finalTrain(alertsdf = alertsdf, run = newRuns(0))
+	          AlertActor.finalTrain(alertsdf = alertsdf, run = newRuns(0), modelSet = modelSet)
+            AlertActor.publishModelSet(modelSet)
 	        } else {
-            l.msg(s"No training was performed since no active runs where declared")
+            // Nothing can be published and nothing can be classified either: the label indexer
+            // fitted above belongs to this training set only, and the previously published
+            // classifier predicts against the labels of its own indexer. Answering with categories
+            // read through mismatched labels is what used to happen here, silently
+            throw new Exception(s"No training was performed since no active runs where declared. The published alert models were left untouched")
 	        }
 	        newRuns
 	      }
 
-        val retAlerts = AlertActor.classifyAlerts(alertsdf).collect.toSeq
+        val retAlerts = AlertActor.classifyAlerts(alertsdf, modelSet = modelSet).collect.toSeq
 	      AlertClassification(retAlerts, retRuns)
       }.recover {
         case e: Exception =>
@@ -144,45 +158,125 @@ object AlertActor {
   }
 
   def classificationPath()(implicit conf:Settings) = s"${conf.epiHome}/alert-ml"
-  def labelIndexerPath()(implicit conf:Settings) = s"${AlertActor.classificationPath()}/label-indexer.ml"
-  def alertClassifierPath()(implicit conf:Settings) = s"${AlertActor.classificationPath()}/classifier.ml"
-  def ensureFolderExists()(implicit conf:Settings) = {
+
+  // A model set is one directory holding a label indexer and the classifier fitted against it. The
+  // two only mean something together: classifyAlerts turns a prediction into a category through
+  // the indexer's label array, so an old classifier read with a new indexer returns wrong
+  // categories and no error at all. They also used to be written minutes apart - the indexer when
+  // the training set was vectorized, the classifier once the best run had been chosen - and the
+  // search loop classifies through this same actor while a retraining runs (receive answers from a
+  // Future, so both are in flight at once), which is exactly when that mix happened.
+  //
+  // A retraining now fits both models inside a directory nobody reads, and publishes the set by
+  // writing the marker file last. A classification resolves the newest marked directory, so it
+  // reads either the whole previous set or the whole new one.
+  def modelSetPrefix = "model-"
+  def labelIndexerPath(modelSet:String) = s"$modelSet/label-indexer.ml"
+  def alertClassifierPath(modelSet:String) = s"$modelSet/classifier.ml"
+  def modelSetMarkerPath(modelSet:String) = s"$modelSet/complete"
+
+  def modelSets()(implicit conf:Settings) = {
+    val root = conf.getSparkStorage.getNode(AlertActor.classificationPath())
+    if(!root.exists)
+      Seq[String]()
+    else
+      root.list(recursive = false)
+        .map(_.path)
+        .filter(p => p.split("/").last.startsWith(AlertActor.modelSetPrefix))
+        .sorted
+  }
+  def completeModelSets()(implicit conf:Settings) = {
     val st = conf.getSparkStorage
-    st.ensurePathExists(AlertActor.classificationPath)
+    AlertActor.modelSets().filter(p => st.getNode(AlertActor.modelSetMarkerPath(p)).exists)
+  }
+  // No published set means either a fresh installation or models written by a version that kept
+  // them directly under alert-ml. That flat layout is read as it stands, so an existing model goes
+  // on classifying until the next retraining publishes its first set
+  def activeModelSetPath()(implicit conf:Settings) =
+    AlertActor.completeModelSets().lastOption.getOrElse(AlertActor.classificationPath())
+  def newModelSetPath()(implicit conf:Settings) = {
+    val stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss-SSS").format(new java.util.Date())
+    val path = s"${AlertActor.classificationPath()}/${AlertActor.modelSetPrefix}$stamp"
+    conf.getSparkStorage.ensurePathExists(path)
+    path
+  }
+  def publishModelSet(modelSet:String)(implicit conf:Settings) = {
+    conf.getSparkStorage.getNode(AlertActor.modelSetMarkerPath(modelSet))
+      .setContent(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()), WriteMode.overwrite)
+    l.msg(s"Alert model set $modelSet published. Every classification from now on, the search loop's included, uses it")
+    AlertActor.pruneModelSets()
+    modelSet
+  }
+  // The set published before this one is kept: a classification that resolved it a moment before
+  // the marker appeared is still loading from it. Everything older goes, and so does what a
+  // retraining that died halfway left behind, once no running retraining could still be filling it
+  // (fsBatchTimeout bounds one, a day is far past that)
+  def pruneModelSets(keep:Int = 2)(implicit conf:Settings) = {
+    val st = conf.getSparkStorage
+    val complete = AlertActor.completeModelSets()
+    val abandoned =
+      AlertActor.modelSets()
+        .filterNot(complete.contains)
+        .filter(p =>
+          st.getNode(p).getFileModificationTime()
+            .map(t => System.currentTimeMillis - t > 24 * 3600 * 1000L)
+            .getOrElse(false)
+        )
+    (complete.dropRight(keep) ++ abandoned).foreach{p =>
+      l.msg(s"Removing the obsolete alert model set $p")
+      st.getNode(p).delete(recurse = true)
+    }
   }
 
-  def getLabelIndexer()(implicit conf:Settings) = StringIndexerModel.load(AlertActor.labelIndexerPath()) 
-  
-  def getAlertClassifier()(implicit conf:Settings) = {
+  // Nothing caches these models in memory: every classification loads them from disk as they are
+  // at that moment, so the timestamp logged on each load is what tells, from the fs log alone,
+  // whether a classification used the model a retraining just wrote
+  def modelStamp(path:String)(implicit conf:Settings) =
+    conf.getSparkStorage.getNode(path).getFileModificationTime()
+      .map(t => new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(t)))
+      .getOrElse("never written")
+
+  def getLabelIndexer(modelSet:String)(implicit conf:Settings) = {
     val storage = conf.getSparkStorage
-    if(!storage.getNode(AlertActor.alertClassifierPath()).exists)
-      throw new Exception(s"Cannot find alert classification model. Please train alerts")
-    else
-      OneVsRestModel.load(AlertActor.alertClassifierPath()) 
+    if(!storage.getNode(AlertActor.labelIndexerPath(modelSet)).exists)
+      throw new Exception(s"Cannot find the alert label indexer at ${AlertActor.labelIndexerPath(modelSet)}. Please train alerts")
+    l.msg(s"Loading the alert label indexer from ${AlertActor.labelIndexerPath(modelSet)} (last written ${AlertActor.modelStamp(AlertActor.labelIndexerPath(modelSet))})")
+    StringIndexerModel.load(AlertActor.labelIndexerPath(modelSet)) 
   }
   
-  def fitLabelIndexer(alerts:Seq[TaggedAlert])(implicit conf:Settings)  = {
+  def getAlertClassifier(modelSet:String)(implicit conf:Settings) = {
+    val storage = conf.getSparkStorage
+    if(!storage.getNode(AlertActor.alertClassifierPath(modelSet)).exists)
+      throw new Exception(s"Cannot find alert classification model. Please train alerts")
+    else {
+      l.msg(s"Classifying alerts with the model stored at ${AlertActor.alertClassifierPath(modelSet)} (last written ${AlertActor.modelStamp(AlertActor.alertClassifierPath(modelSet))})")
+      OneVsRestModel.load(AlertActor.alertClassifierPath(modelSet)) 
+    }
+  }
+  
+  def fitLabelIndexer(alerts:Seq[TaggedAlert], modelSet:String)(implicit conf:Settings)  = {
     val spark = conf.getSparkSession
     val storage = conf.getSparkStorage
     import spark.implicits._
-    AlertActor.ensureFolderExists()
+    storage.ensurePathExists(modelSet)
     assert(alerts.map(_.given_category).distinct.size > 1)
     
+    l.msg(s"Fitting the alert label indexer on categories ${alerts.flatMap(_.given_category).distinct.sorted.mkString(", ")}, writing ${AlertActor.labelIndexerPath(modelSet)}")
     new StringIndexer()
       .setInputCol("given_category")
       .setOutputCol("category_vector")
       .setHandleInvalid("keep")
       .fit(alerts.toDS)
       .write.overwrite()
-      .save(AlertActor.labelIndexerPath())
+      .save(AlertActor.labelIndexerPath(modelSet))
 
-       getLabelIndexer()
+       getLabelIndexer(modelSet)
    }
 
-  def finalTrain(alertsdf:DataFrame, run:AlertRun)(implicit conf:Settings) = {
+  def finalTrain(alertsdf:DataFrame, run:AlertRun, modelSet:String)(implicit conf:Settings) = {
     val r = new Random(20121205)
     val model = AlertActor.getModel(run)
-    AlertActor.ensureFolderExists()
+    conf.getSparkStorage.ensurePathExists(modelSet)
     val finaltrain = if (run.balance_classes.get) {
       alertsdf.where(!col("deleted"))
     } else {
@@ -190,24 +284,26 @@ object AlertActor {
     }
     model.fit(finaltrain.where(col("given_category")=!=lit("?")))
      .write.overwrite()
-     .save(AlertActor.alertClassifierPath())
+     .save(AlertActor.alertClassifierPath(modelSet))
+    l.msg(s"Alert classifier ${run.models} written to ${AlertActor.alertClassifierPath(modelSet)} (${AlertActor.modelStamp(AlertActor.alertClassifierPath(modelSet))}) on ${finaltrain.count} alerts")
     
-    getAlertClassifier()
+    getAlertClassifier(modelSet)
   }
 
-  def classifyAlerts(alerts:Seq[TaggedAlert])(implicit conf:Settings):Seq[TaggedAlert] = {
-    val df = AlertActor.alerts2modeldf(alerts, reuseLabels = true) 
-    classifyAlerts(df)
+  def classifyAlerts(alerts:Seq[TaggedAlert], modelSet:String = null)(implicit conf:Settings):Seq[TaggedAlert] = {
+    val set = if(modelSet == null) AlertActor.activeModelSetPath() else modelSet
+    val df = AlertActor.alerts2modeldf(alerts, reuseLabels = true, modelSet = set) 
+    classifyAlerts(df, set)
       .collect
       .toSeq
   }
-  def classifyAlerts(alertdf:DataFrame)(implicit conf:Settings) = {
+  def classifyAlerts(alertdf:DataFrame, modelSet:String)(implicit conf:Settings) = {
     val spark = conf.getSparkSession
     import spark.implicits._
-    val model = getAlertClassifier()
+    val model = getAlertClassifier(modelSet)
     val predicted = model.transform(alertdf)
 
-    val labelIndexer = AlertActor.getLabelIndexer()
+    val labelIndexer = AlertActor.getLabelIndexer(modelSet)
     val labelConverter = new IndexToString()
       .setInputCol("predicted_vector")
       .setOutputCol("episomer_category")
@@ -217,7 +313,7 @@ object AlertActor {
       .select("id", "date", "topic", "country", "number_of_posts", "topwords", "topposts", "given_category", "episomer_category", "test", "augmented", "deleted")
       .as[TaggedAlert]
   }
-  def trainTest(alertsdf:DataFrame, run:AlertRun, trainRatio:Double)(implicit conf:Settings) = {
+  def trainTest(alertsdf:DataFrame, run:AlertRun, trainRatio:Double, modelSet:String)(implicit conf:Settings) = {
     val r = new Random(20121205)
     //If using balanced classes training set if given in R and no multiple runs can be performed
     if(run.balance_classes.get && run.runs > 1)
@@ -245,7 +341,7 @@ object AlertActor {
        new MulticlassClassificationEvaluator()
          .setLabelCol("category_vector")
          .setPredictionCol("predicted_vector")
-     val categories = AlertActor.getLabelIndexer().labelsArray(0)
+     val categories = AlertActor.getLabelIndexer(modelSet).labelsArray(0)
      
      val ret = AlertRun(
        ranking = 0,
@@ -278,15 +374,15 @@ object AlertActor {
     }.mkString("\n")
   }
 
-  def alerts2modeldf(alerts:Seq[TaggedAlert], reuseLabels:Boolean)(implicit conf:Settings) =  {
+  def alerts2modeldf(alerts:Seq[TaggedAlert], reuseLabels:Boolean, modelSet:String)(implicit conf:Settings) =  {
      val spark = conf.getSparkSession
      implicit val storage = conf.getSparkStorage
      import spark.implicits._
      val indexer = 
        if(reuseLabels)
-         AlertActor.getLabelIndexer()
+         AlertActor.getLabelIndexer(modelSet)
        else 
-         AlertActor.fitLabelIndexer(alerts)
+         AlertActor.fitLabelIndexer(alerts, modelSet)
 
      
      //Preparing Data
