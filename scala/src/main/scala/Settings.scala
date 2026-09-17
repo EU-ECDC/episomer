@@ -44,8 +44,24 @@ case class Settings(epiHome:String) {
         .elements
         .map(v => v.asInstanceOf[JsObject].fields
           .mapValues(f => f.asInstanceOf[JsString].value)
-        ).map(f => Language(f("name"), f("code"), f("vectors")))
+        ).map(f => Language(f("name"), f("code"), vectorsPathOf(f("vectors"))))
     )
+
+  // properties.json is shared by every instance reading the same data directory, and the "vectors"
+  // field in it is an absolute path written by whichever R process saved the file last. That path
+  // only means something on the machine that wrote it: a host run stores
+  // "/home/someone/EPI_HOME/languages/en.txt.gz", and the container - which mounts that same
+  // directory on /episomer-data - then fails every geolocation and every retraining on
+  //     [PATH_NOT_FOUND] Path does not exist: file:/home/someone/EPI_HOME/languages/en.txt.gz
+  // even though the file is right there under its own EPI_HOME.
+  //
+  // R never sees this because it rebuilds the path from conf$data_dir on every load (config.R,
+  // in read_properties()); this does the same on our side, re-anchoring the stored path on epiHome
+  // exactly as langIndexPath and the geo paths below already do. Only the directory is replaced -
+  // the file name is kept as stored, so a language whose vectors file is not named <code>.txt.gz
+  // keeps working.
+  private def vectorsPathOf(stored:String) =
+    Paths.get(epiHome, "languages", Paths.get(stored.replace("\\", "/")).getFileName.toString).toString
 
   def sparkCores = properties.fields.get("spark_cores").map(v => v.asInstanceOf[JsNumber].value.toInt)
   def sparkMemory =  properties.fields.get("spark_memory").map(v => v.asInstanceOf[JsString].value)

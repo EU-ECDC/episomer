@@ -410,6 +410,62 @@ test_that("retrain_languages() bounds its request by fs_batch_timeout and allows
   expect_equal(opts$low_speed_limit, 0)
 })
 
+test_that("retrain_languages() writes the evaluation where the fs is, local or remote", {
+  # The evaluation used to be written with file() + writeLines(), and file() on an http:// URL can
+  # only be opened for reading: on the default configuration (conf$fs_remote =
+  # "http://localhost:8080") the write died on "cannot open the connection", the file was never
+  # produced, and get_lang_traing_need() kept asking for a retraining that had just succeeded.
+  local_mocked_bindings(
+    POST = function(url, ...) structure(list(status_code = 200L), class = "response"),
+    status_code = function(x) 200L,
+    content = function(...) "[{\"test\":\"fr\"}]",
+    .package = "httr"
+  )
+
+  # local fs: the text lands on disk
+  local({
+    dest <- withr::local_tempfile(fileext = ".json")
+    local_conf(fs_remote = NULL, fs_batch_timeout = 3600)
+    local_mocked_bindings(
+      get_geotraining_df = function() data.frame(a = 1),
+      get_geotraining_evaluation_path = function() dest,
+      .package = "episomer"
+    )
+
+    retrain_languages()
+
+    expect_true(file.exists(dest))
+    expect_equal(readLines(dest, encoding = "UTF-8"), "[{\"test\":\"fr\"}]")
+  })
+
+  # remote fs: the text is uploaded to the same path instead, and nothing is left behind
+  uploaded <- NULL
+  local_conf(fs_remote = "http://localhost:8080", fs_batch_timeout = 3600)
+  local_mocked_bindings(
+    get_geotraining_df = function() data.frame(a = 1),
+    get_geotraining_evaluation_path = function()
+      "http://localhost:8080/file/geo-training-evaluation.json",
+    epifile.upload = function(localfile, dest, append = FALSE) {
+      uploaded <<- list(dest = dest, text = readLines(localfile, encoding = "UTF-8"))
+    },
+    .package = "episomer"
+  )
+
+  retrain_languages()
+
+  expect_equal(uploaded$dest, "http://localhost:8080/file/geo-training-evaluation.json")
+  expect_equal(uploaded$text, "[{\"test\":\"fr\"}]")
+})
+
+test_that("epifile.exists() answers logical(0) about no path at all", {
+  # get_lang_traing_need() filters its language codes by this answer, and sapply() over an empty
+  # vector returns an empty list, which is not a valid subscript
+  local_conf(fs_remote = NULL)
+
+  expect_identical(epifile.exists(character(0)), logical(0))
+  expect_identical(c("fr")[epifile.exists(character(0))], character(0))
+})
+
 test_that("options(timeout) does not bound an httr request, which is why it is not used", {
   # The reason the line above is not options(timeout = ): base R's setting is read by download.file()
   # and url(), and libcurl never looks at it. Asserted on the option list httr actually builds

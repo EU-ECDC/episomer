@@ -3469,7 +3469,12 @@ episomer_app <- function(
           )
       })
       # uploading geotagging training file
-      shiny::observe({
+      # observeEvent, not observe: the body reads input$geotraining_posts2add below, and a plain
+      # observe takes a reactive dependency on everything it reads. Moving the "posts to add"
+      # control therefore re-ran this whole block - copying the previously uploaded file over the
+      # training set again and launching a second full retraining, minutes of JVM work nobody
+      # asked for. observeEvent isolates the body and fires on the upload alone.
+      shiny::observeEvent(input$geotraining_upload, {
         df <- input$geotraining_upload
         if (!is.null(df) && nrow(df) > 0) {
           progress_start("processing new training set")
