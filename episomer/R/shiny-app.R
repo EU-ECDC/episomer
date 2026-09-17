@@ -3342,7 +3342,11 @@ episomer_app <- function(
       })
 
       # uploading alerts training file
-      shiny::observe({
+      # observeEvent, not observe: the body has to run on the upload and on nothing else. A plain
+      # observe takes a dependency on every reactive it reads, and each re-run copies the
+      # previously uploaded file over the training set again and launches another full retraining -
+      # minutes of JVM work nobody asked for. Same reason as the geotraining upload below.
+      shiny::observeEvent(input$alertsdb_upload, {
         df <- input$alertsdb_upload
         if (!is.null(df) && nrow(df) > 0) {
           progress_start("processing new training set")
