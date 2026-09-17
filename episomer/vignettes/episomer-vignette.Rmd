@@ -145,6 +145,13 @@ Its secondary objective is to enable users, through an interactive web interface
 ### Repository of episomer material and training
 More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/episomer/discussions). This [post](https://github.com/EU-ECDC/episomer/discussions/7) contains a summary of relevant links and materials to new users.
 
+<span style="color:red">Two companion documents are shipped with the package and cover topics deliberately left out of this one:</span>
+
+-   <span style="color:red">*episomer: containers and multi-machine deployment* — running `{episomer}` with Docker, and running it on several machines sharing a single database. See section *Running episomer in containers and on several machines*.</span>
+-   <span style="color:red">*Add a new social media* — for developers extending `{episomer}` to a platform it does not support yet.</span>
+
+<span style="color:red">Both are listed by `browseVignettes("episomer")`.</span>
+
 ## Hardware requirements
 
 The minimum and suggested hardware requirements for the computer are in the table below:
@@ -224,6 +231,8 @@ Before using `{episomer}`, the following items need to be installed:
     -   <span style="color:red">If using Linux or macOS, permanent scheduling is not supported by `{episomer}`: the services started by the wizard are attached to the R session that started them. If you need them to survive a reboot, plan them yourself with the tool of your operating system (for example `cron`, `systemd` or `launchd`).</span>
 
 #### Only for R developers
+
+<span style="color:red">If you would like to extend `{episomer}` to a social media platform it does not support yet, the vignette *Add a new social media* describes the common post format every platform is translated into, and the set of functions to implement for a new one.</span>
 
 If you would like to develop `{episomer}` further, then the following development tools are needed:
 
@@ -704,7 +713,7 @@ There are also the following subfolders:
 
 -   "jobs", containig information of logs produced by the different running processes
 
--   "runners", which contains one small JSON file per running service, saying which machine is currently in charge of it. It only matters when several machines share the same database &mdash; see the section *Running episomer on several machines* &mdash; and its released files are kept under "runners/old".
+-   "runners", which contains one small JSON file per running service, saying which machine is currently in charge of it. It only matters when several machines share the same database &mdash; see <span style="color:red">the vignette *episomer: containers and multi-machine deployment*</span> &mdash; and its released files are kept under "runners/old".
 
 
 #### Fs folder &gt; posts
@@ -1023,7 +1032,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 In the status section, you can tell if the embedded database, the <span style="color:red">data collection & processing</span> and the <span style="color:red">alerts</span> processes are running. <span style="color:red">These indicators are refreshed every 60 seconds and are read-only: to start or stop a service, run `episomer::setup()` and use option 7, *Run / stop episomer services* (see section *Installation > Setting up data collection and alert detection loop*).</span>
 
-<span style="color:red">Below them, a table lists the **runner leases**. A lease is what guarantees that a given piece of work is performed by one machine only: if two machines collected the same posts, each post would be stored twice and the alerts would be computed on doubled counts. The three status lines above answer “is this service running somewhere?”; this table says *where*, and shows a lease that nobody renews any more. The Shiny app itself never appears in it, since it reads the leases rather than holding one.</span>
+<span style="color:red">Below them, a table lists the **runner leases**. A lease is what guarantees that a given piece of work is performed by one machine only: if two machines collected the same posts, each post would be stored twice and the alerts would be computed on doubled counts. The three status lines above answer “is this service running somewhere?”; this table says *where*, and shows a lease that nobody renews any more. The Shiny app itself never appears in it, since it reads the leases rather than holding one. On a single-machine installation this table simply lists the services of that machine; the vignette *episomer: containers and multi-machine deployment* explains how to read it in full.</span>
 
 **<span style="color:red">Alerts pipeline</span>**
 
@@ -1171,259 +1180,14 @@ You can also download the data of each visualisation by clicking on the data but
 
 Alternatively, you can use the PDF or the Md button at the bottom of the filters to download a PDF or an HTML file of the dashboard Note that for this you will need to have MiKTeX or TinyTeX installed.
 
-## Running episomer on several machines
+## <span style="color:red">Running episomer in containers and on several machines</span>
 
-<span style="color:red">CLAUDE: TO BE UPDATED. You've been writing it before. TO be checked. ANd I think we should put in another vignette</span>
+<span style="color:red">Everything described so far runs on a single machine, and that is how `{episomer}` is deployed almost everywhere. Two other deployments are possible, and they now have a document of their own, *episomer: containers and multi-machine deployment*:</span>
 
+-   <span style="color:red">**In containers.** `{episomer}` ships with a `Dockerfile` and a `compose.yml` that start the episomer database, the post collection and the alert detection as three containers. A container has no interactive console, so the setup wizard cannot ask anything: settings and credentials are given through environment variables instead.</span>
+-   <span style="color:red">**On several machines sharing one database.** Typically because the post collection has become too heavy for one host, or because you want a second machine ready to take over when the first one is stopped for maintenance. A mechanism of *runner leases* guarantees that a given piece of work is performed by one machine only, so that no post is collected and stored twice. That document also contains the operator guide for reading the leases in the *Status* section of the configuration page.</span>
 
-Everything described so far runs perfectly well on a single machine, and that is how `{episomer}` is
-deployed almost everywhere. This section is about the other case: **one database, several machines**
-— typically because the post collection has become too heavy for one host, or because you want a
-second machine ready to take over when the first one is stopped for maintenance.
-
-### The shape of a multi-machine deployment
-
-There is exactly **one embedded database** (the `fs` service). It owns the Lucene indexes on its
-local disk and it is the only process allowed to open them. Every other machine talks to it over
-HTTP and holds no data of its own:
-
-```
-                    +--------------------------------------+
-                    |  machine A        fs (the database)  |
-                    |  Lucene indexes, runners/, *.json    |
-                    +--------------------------------------+
-                       ^                ^               ^
-             HTTP      |                |               |     HTTP
-       +---------------+                |               +----------------+
-       |                                |                                |
-+---------------+              +-----------------+             +------------------+
-| machine B     |              | machine C       |             | machine D        |
-| search loop   |              | search loop     |             | detect loop      |
-| (collection)  |              | (standby)       |             | (alerts)         |
-+---------------+              +-----------------+             +------------------+
-```
-
-Point every machine at the same database by setting `EPI_HOST` (or the `fs_url` / `fs_port`
-properties) to the address of the machine running `fs`. A machine that is only a `search` or a
-`detect` worker needs no data folder of its own beyond a scratch directory: `jobs/` for its logs and
-a handful of small local files.
-
-> The Shiny app is **not** a machine of that cluster. It reads and writes through the database like
-> everything else, it never runs a collection loop, and several people may open it at the same time.
-
-### One runner, one machine at a time
-
-The problem a shared database creates is duplication. If two machines run the post collection for
-Bluesky, both ask the API for the same posts and both store them — the alerts would then be computed
-on doubled counts. `{episomer}` prevents this with **runner leases**.
-
-A *runner* is a unit of work that only one machine may perform at a given moment:
-
-| Runner | Held by | What it does |
-|---|---|---|
-| `fs` | `fs_loop()` | the embedded database |
-| `fs_mon` | the monitor started by `fs_loop()` | watches the database and beats for it |
-| `search` | `search_loop()` | the parent of the collection service |
-| `search.<network>` | one collection worker per social medium, e.g. `search.bluesky` | collects posts from that network |
-| `detect` | `detect_loop()` | the "Requirements & alerts" pipeline |
-
-A **lease** is the right, granted for a limited time and renewable, to be one of those runners. It is
-one small JSON file per runner, stored on the database machine under `runners/`, and it works like a
-key left on a hook:
-
-* a service that starts **claims** the lease of its runner — it writes its identity in the file;
-* while it works it **renews** it regularly, which only updates the file's modification time. This
-  is the *heartbeat*;
-* if the file has not been renewed for longer than its **time-to-live (TTL)**, the holder is presumed
-  dead and another machine may take the runner over;
-* a service that stops properly **releases** its lease, so the takeover is immediate rather than
-  TTL-long;
-* before every meaningful write — posting collected posts, saving `topics.json`, saving `tasks.json`,
-  sending alert emails — a service **checks that it still holds its lease**, and exits cleanly if it
-  does not.
-
-A machine that cannot claim a lease does not start that runner. It says so in its log, naming the
-machine that holds it:
-
-```
-Runner 'search.bluesky' is already held by another instance (7f3a1c2e) running on host
-'machine-B' since 2026-08-28T09:14:02Z, last seen 12 seconds ago (lease TTL: 300 seconds).
-This instance will not start it.
-```
-
-The exclusivity is per *runner*, not per service, which is what allows two useful setups:
-
-* **standby** — machine C runs the same collection as machine B, fails to claim, and retries until
-  machine B stops or disappears;
-* **splitting the collection** — in principle machine B collects Bluesky while machine C collects
-  Mastodon, since `search.bluesky` and `search.mastodon.<host>` are two independent leases. Be aware
-  that this is *not* usable as it stands: `search_loop()` also claims the parent `search` lease
-  before starting its workers, so the second machine is refused before it reaches them. This is a
-  known and deliberate limit of the current release.
-
-### Naming your machines: `EPISOMER_INSTANCE`
-
-Every message and every status line about the leases names the machine that holds them, so give each
-machine a name you will recognise:
-
-```sh
-export EPISOMER_INSTANCE="machine-B"
-```
-
-Without it `{episomer}` falls back on the host name, which inside a container is a random hexadecimal
-string. Two machines must not share a value — not because it would be unsafe (`{episomer}` requires a
-second, local proof before it declares a holder dead), but because you would not be able to tell
-them apart in the logs or in the status table.
-
-The name is *not* stored in the database: it describes the machine, not the deployment, and it is
-read again at every start.
-
-### Settings
-
-Five properties tune the mechanism. They are stored in `properties.json`, which every machine reads,
-so they belong to the whole cluster. They are **deliberately absent from the Shiny configuration
-page**: a TTL mistyped there would break exclusivity for every machine at once, and these are
-deployment knobs rather than analysis settings. Set them in `properties.json`, or through the
-environment on a first deployment (`EPISOMER_OPTION_RUNNER_TTL_SEARCH=600` and so on).
-
-| Property | Default | What it is |
-|---|---|---|
-| `runner_heartbeat_span` | 30 s | time between two renewals |
-| `runner_ttl_fs` | 120 s | TTL of the `fs` and `fs_mon` leases |
-| `runner_ttl_search` | 300 s | TTL of `search` and `search.<network>` |
-| `runner_ttl_detect` | 1800 s | TTL of `detect` |
-| `runner_claim_guard` | 5 s | pause between claiming a lease and reading it back |
-
-Two rules of thumb are worth keeping:
-
-* **the TTL is your failover latency.** A machine that disappears without releasing anything — a
-  crash, a cut network, `docker kill` — is replaced one TTL later, never sooner. Lowering a TTL to
-  speed that up is the classic mistake: it makes healthy but busy services look dead, and *that*
-  produces the duplication the whole mechanism exists to prevent;
-* **keep the heartbeat roughly ten times shorter than the shortest TTL.** A few renewals lost in a
-  row — a slow database, a network hiccup — must not be enough to expire a live lease.
-
-`detect` has a much longer TTL than the others on purpose: one of its tasks (alert detection,
-geolocation, aggregation) can legitimately run for a very long time without writing anything, and a
-working service that looks dead is worse than a dead one noticed late.
-
-### A working example with Docker Compose
-
-`docker/compose.yml` ships a second collection service, `search-standby`, whose only purpose is to
-let you watch the mechanism work on a single laptop. It is in the `standby` profile, so the default
-`docker compose up` does not start it:
-
-```sh
-docker compose --profile standby up -d
-docker compose logs -f search-standby
-```
-
-You will see the standby refuse to start, exit, be restarted by Docker, and refuse again — that
-retry loop *is* the standby, and it costs one read of one small file per attempt. Then:
-
-```sh
-docker compose stop search          # clean stop: leases released, takeover within seconds
-docker compose kill search          # brutal stop: takeover after runner_ttl_search (300 s)
-```
-
-Watch the handover in the Shiny app, on the configuration page, in the services status table.
-
-### Operator guide: reading the runner leases {#leases}
-
-#### From the Shiny app
-
-The configuration page shows a **services status** table with one row per runner *currently holding
-a lease*, wherever in the cluster it runs:
-
-| Runner | Status | Host | Last seen | Since |
-|---|---|---|---|---|
-| `fs` | running | `machine-A (this machine)` | 4 s ago | 2026-08-28 07:02 UTC |
-| `search` | stale (no heartbeat for 5 min) | `machine-B` | 22 min ago | 2026-08-28 07:05 UTC |
-| `search.bluesky` | running | `machine-B` | 11 s ago | 2026-08-28 07:05 UTC |
-| `detect` | crashed here | `machine-A (this machine)` | 3 min ago | 2026-08-28 06:58 UTC |
-
-How to read it:
-
-* **a runner with no row is free.** Releasing a lease removes its file, so "nothing holds it" and
-  "it has never been started" look the same here — which is what you want. The table answers *who is
-  holding what*, not *what could be started*; the Running/Stopped labels above it answer that.
-* **`running`** — the holder renewed its lease less than one TTL ago. *Last seen* is the age of that
-  renewal and should stay below `runner_heartbeat_span` most of the time.
-* **`stale (no heartbeat for …)`** — nobody has renewed this lease for longer than its TTL. The
-  holder is presumed dead and any machine may now take the runner over. It usually means the machine
-  named in *Host* was stopped brutally, is unreachable, or has become too slow to renew. Look at that
-  machine before doing anything else.
-* **`crashed here`** — a stronger statement than `stale`, and a certainty rather than a presumption:
-  the holder was a process of *this very machine* and the operating system says it is gone. It is
-  reclaimable immediately, without waiting for the TTL. Restarting the service is the right move.
-* **`Host`** is the `EPISOMER_INSTANCE` of the holder, with `(this machine)` appended when it is the
-  machine you are reading the app from.
-* **`Since`** is when this holder became the holder; it does not move when the lease is renewed.
-  A long *Since* next to a short *Last seen* is exactly what a healthy runner looks like. It is shown
-  in UTC so that it can be compared with the files and with the logs of the other machines.
-
-One case deserves a mention because it looks like a bug and is not: on a healthy machine the parent
-`search` lease goes `stale` a few minutes after the service starts, while its `search.<network>`
-children stay `running`. `search_loop()` claims `search` and then spends its life waiting for its
-workers, with no iteration left to renew anything. The collection is fine; the children are the rows
-to trust.
-
-#### From the files
-
-Everything the table shows comes from `<data folder>/runners/` on the database machine, and reading
-it by hand is often the fastest way to understand a situation:
-
-```sh
-ls -l --time-style=full-iso runners/
-cat runners/search.bluesky.json
-```
-
-```json
-{
-  "runner": "search.bluesky",
-  "service": "search",
-  "instance_id": "7f3a1c2e9b",
-  "host": "machine-B",
-  "pid": 41,
-  "episomer_version": "4.0.5",
-  "claimed_at": "2026-08-28T07:05:11Z",
-  "renewed_at": "2026-08-28T07:05:11Z"
-}
-```
-
-Three things are worth knowing before drawing conclusions from it:
-
-1. **the freshness of a lease is the file's modification time, not anything inside the JSON.**
-   `renewed_at` is only rewritten when the whole file is rewritten, i.e. when the lease is claimed —
-   renewing merely touches the file. This is on purpose: the modification time is produced by the
-   single machine hosting the database, so no clock difference between the other machines can make a
-   dead lease look alive. Use `ls -l` (or the *Last seen* column), never `renewed_at`.
-2. **`instance_id` changes at every restart, `host` does not.** `host` is the `EPISOMER_INSTANCE`
-   value, i.e. the machine; `instance_id` identifies one *process*. Two lines with the same `host`
-   and different `instance_id` are the same machine having restarted.
-3. **`pid` is only meaningful on `host` itself**, and only when the two are read together — which is
-   what lets a crashed runner be detected instantly on its own machine rather than one TTL later.
-
-`runners/old/` holds the leases that were released, named `<runner>.<instance_id>.json`, with their
-modification time as the release time. Nothing reads that folder; it is a trail left for you, and it
-is the place to look to answer "when did that machine hand the collection over?".
-
-#### Common situations
-
-| Symptom | What it means | What to do |
-|---|---|---|
-| A service refuses to start, naming another host | That machine holds the lease and is alive | Stop it there, or let it release the lease |
-| Same, but naming *this* host | Another process of this machine is registered | The message names the PID to stop |
-| A row stays `stale` and nothing takes over | No other machine is configured to run that runner | Start it somewhere, or restart the machine named in *Host* |
-| A row is `stale` while the service is clearly working | The service is silent for longer than its TTL | Raise that TTL rather than lowering the heartbeat |
-| The app shows a service as running while its machine is off | The lease has not expired yet | Wait for the TTL; it is the failover latency |
-| `runners/` contains files but nothing is running | Services stopped without releasing | Normal after a crash; the files disappear when a new holder takes over |
-
-Finally, a limit to keep in mind: the leases are **cooperative, not enforced**. They stop the
-mistake, not a determined attacker — anyone who can reach the database can read, take or remove any
-lease, exactly as they can read or remove any other file it serves. Protect the database machine at
-the network level.
-
+<span style="color:red">Neither is required to use `{episomer}`, and the second vignette is more dedicated to an IT-related audience more than the users of the Shiny application.</span>
 
 ## Annex I: Downweighting the previous signals {#annexI}
 
