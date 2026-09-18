@@ -356,15 +356,27 @@ The following sections describe in detail the above general principles. The sett
 
 ###  Collection of posts
 
+Note: there is no limitation on the period for the search, but `{episomer}` limits by default the data collection on the last 30 days (this parameter can be change in the configuration page).
+
 #### Use of the Bluesky search API version
 
-`{episomer}` uses the Bluesky search API 'searchPost' endpoint [*https://docs.bsky.app/docs/api/app-bsky-feed-search-posts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustivieness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the app. There is no limit on the number period of messaged that can be obtained but by default, episomer will limit to last 30 days (this parameter can be changed in the configuration page). There is no limitation on the period for the search, but `{episomer}` limits by default the data collection on the last 30 days (this parameter can be change in the configuration page).
+`{episomer}` uses the Bluesky search API 'searchPost' endpoint [*https://docs.bsky.app/docs/api/app-bsky-feed-search-posts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustiveness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the app. 
 
 Other attributes of the `searchPost` endpoint includes:
 
 -   A maximum of 3000 requests every 5 minutes are supported by the Bluesky API
 
 -   Each request returns a maximum of 100 posts and/or reposts
+
+#### <span style="color:red">Use of the Mastodon </span> authentication
+
+<span style="color:red">`{episomer}` uses the Mastodon search API 'search' endpoint V2 [*https://docs.joinmastodon.org/methods/search/#v2*]. Accessing this service requires the creation of a new application within the Mastodon website (which depends on the Mastodon instance in which you want to work on) in order to obtain an access token. Once it's done, this service enable users to access published messages free of charge. </span>
+
+<span style="color:red">Other attributes of the `search v2` endpoint includes:</span>
+
+<span style="color:red">-   A maximum of 300 requests every 5 minutes are supported by the Mastodon API</span>
+
+<span style="color:red">-   Each request returns a maximum of 40 posts and/or reposts</span>
 
 #### <span style="color:red">Social media</span> authentication
 
