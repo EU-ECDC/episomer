@@ -2,8 +2,8 @@
 title: "episomer: containers and multi-machine deployment"
 author: "European Centre for Disease Prevention and Control (ECDC)"
 output: 
-  rmarkdown::html_vignette
-  #word_document:
+  #rmarkdown::html_vignette
+  word_document:
     # Same pair as the user documentation vignette: pandoc drops the style of a
     # <span style="color:red">, the filter turns it into the RedText character style that
     # reference-red.docx carries. See episomer-vignette.Rmd.
