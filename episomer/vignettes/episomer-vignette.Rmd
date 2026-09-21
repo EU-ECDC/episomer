@@ -2,14 +2,14 @@
 title: "episomer: user documentation"
 author: "European Centre for Disease Prevention and Control (ECDC)"
 output: 
-  #- rmarkdown::html_vignette
-  word_document:
+  - rmarkdown::html_vignette
+  #word_document:
     # The vignette marks everything that changed for the client review with
     # <span style="color:red">. Pandoc drops that style on its way to docx, so the filter turns it
     # into the RedText character style that reference-red.docx carries. Without the pair, the
     # review copy is entirely black.
-      reference_docx: reference-red.docx
-      pandoc_args: ["--lua-filter=red-span.lua"]
+      #reference_docx: reference-red.docx
+      #pandoc_args: ["--lua-filter=red-span.lua"]
 vignette: >
   %\VignetteIndexEntry{episomer: user documentation}
   %\VignetteEngine{knitr::rmarkdown}
