@@ -40,7 +40,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
         } else if(!silent){
             message("Please choose the location of the episomer data folder")
             if (.Platform$OS.type == "windows") {
-              data_dir <- choose.dir()
+              data_dir <- utils::choose.dir()
             } else {
               data_dir <- file.choose()
             }
