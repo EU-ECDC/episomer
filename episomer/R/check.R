@@ -268,7 +268,7 @@ check_series_present <- function(
     }
     for (p in dirs) {
       #  for(w in epilist.dirs(p)) {
-      if (length(epilist.files(p, ".*\\.fdt")) > 0) {
+      if (length(epilist.files(p, ".*\\.fdt", recursive = TRUE)) > 0) {
         found <- TRUE
         break
       }
@@ -455,7 +455,7 @@ check_last_sm_auth <- function() {
   if (exists("value", last_check_sm_auth) && last_check_sm_auth$value)
     TRUE else {
     warning(
-      "Cannot create a social media token, please choose an authentication method on the configuration page"
+      "Cannot create a social media token, please choose an authentication method using episomer::setup()"
     )
     FALSE
   }

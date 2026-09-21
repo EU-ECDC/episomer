@@ -410,6 +410,62 @@ test_that("retrain_languages() bounds its request by fs_batch_timeout and allows
   expect_equal(opts$low_speed_limit, 0)
 })
 
+test_that("retrain_languages() writes the evaluation where the fs is, local or remote", {
+  # The evaluation used to be written with file() + writeLines(), and file() on an http:// URL can
+  # only be opened for reading: on the default configuration (conf$fs_remote =
+  # "http://localhost:8080") the write died on "cannot open the connection", the file was never
+  # produced, and get_lang_traing_need() kept asking for a retraining that had just succeeded.
+  local_mocked_bindings(
+    POST = function(url, ...) structure(list(status_code = 200L), class = "response"),
+    status_code = function(x) 200L,
+    content = function(...) "[{\"test\":\"fr\"}]",
+    .package = "httr"
+  )
+
+  # local fs: the text lands on disk
+  local({
+    dest <- withr::local_tempfile(fileext = ".json")
+    local_conf(fs_remote = NULL, fs_batch_timeout = 3600)
+    local_mocked_bindings(
+      get_geotraining_df = function() data.frame(a = 1),
+      get_geotraining_evaluation_path = function() dest,
+      .package = "episomer"
+    )
+
+    retrain_languages()
+
+    expect_true(file.exists(dest))
+    expect_equal(readLines(dest, encoding = "UTF-8"), "[{\"test\":\"fr\"}]")
+  })
+
+  # remote fs: the text is uploaded to the same path instead, and nothing is left behind
+  uploaded <- NULL
+  local_conf(fs_remote = "http://localhost:8080", fs_batch_timeout = 3600)
+  local_mocked_bindings(
+    get_geotraining_df = function() data.frame(a = 1),
+    get_geotraining_evaluation_path = function()
+      "http://localhost:8080/file/geo-training-evaluation.json",
+    epifile.upload = function(localfile, dest, append = FALSE) {
+      uploaded <<- list(dest = dest, text = readLines(localfile, encoding = "UTF-8"))
+    },
+    .package = "episomer"
+  )
+
+  retrain_languages()
+
+  expect_equal(uploaded$dest, "http://localhost:8080/file/geo-training-evaluation.json")
+  expect_equal(uploaded$text, "[{\"test\":\"fr\"}]")
+})
+
+test_that("epifile.exists() answers logical(0) about no path at all", {
+  # get_lang_traing_need() filters its language codes by this answer, and sapply() over an empty
+  # vector returns an empty list, which is not a valid subscript
+  local_conf(fs_remote = NULL)
+
+  expect_identical(epifile.exists(character(0)), logical(0))
+  expect_identical(c("fr")[epifile.exists(character(0))], character(0))
+})
+
 test_that("options(timeout) does not bound an httr request, which is why it is not used", {
   # The reason the line above is not options(timeout = ): base R's setting is read by download.file()
   # and url(), and libcurl never looks at it. Asserted on the option list httr actually builds
@@ -466,4 +522,72 @@ test_that("epifile.mtime keeps answering about the other paths of a vector", {
   expect_length(got, 2L)
   expect_true(is.na(got[[1]]))
   expect_false(is.na(got[[2]]))
+})
+
+# The evaluation is what says the training set has already been trained on ---------------------------
+
+# get_lang_traing_need() answers by comparing dates, and every path that retrains writes the training
+# spreadsheet again after the retraining - update_geotraining_df() refreshes its Episomer match
+# columns with the models just trained. The evaluation therefore ends up a few seconds older than the
+# spreadsheet it evaluated, and setup() offered "Do you want to launch language model retrain?" at
+# every start, for ever, with nothing having changed. Measured on a real data directory: evaluation
+# 15:41:49, spreadsheet 15:42:03, fourteen seconds apart.
+
+test_that("mark_geotraining_evaluated() settles the retraining need a fresh training leaves open", {
+  data_dir <- withr::local_tempdir()
+  vectors <- file.path(data_dir, "fr.txt.gz")
+  writeLines("vectors", vectors)
+  local_conf(
+    fs_remote = NULL,
+    data_dir = data_dir,
+    languages = list(list(code = "fr", name = "French", vectors = vectors))
+  )
+  evaluation <- file.path(data_dir, "geo-training-evaluation.json")
+  training <- file.path(data_dir, "geo-training.xlsx")
+  local_mocked_bindings(
+    get_geotraining_evaluation_path = function() evaluation,
+    get_geotraining_path = function() training,
+    get_lang_vectors_path = function(code) vectors,
+    .package = "episomer"
+  )
+
+  # what a retraining leaves behind: the evaluation written first, the spreadsheet rewritten after
+  writeLines("[]", evaluation)
+  writeLines("training set", training)
+  Sys.setFileTime(evaluation, Sys.time() - 14)
+  expect_true(get_lang_traing_need())
+
+  mark_geotraining_evaluated()
+
+  expect_false(get_lang_traing_need())
+})
+
+test_that("mark_geotraining_evaluated() leaves a training set updated on its own asking to retrain", {
+  # the "update geotraining dataset" button rewrites the spreadsheet without retraining, and there
+  # the answer has to stay "yes" - which is why update_geotraining_df() does not touch the evaluation
+  data_dir <- withr::local_tempdir()
+  vectors <- file.path(data_dir, "fr.txt.gz")
+  writeLines("vectors", vectors)
+  local_conf(
+    fs_remote = NULL,
+    data_dir = data_dir,
+    languages = list(list(code = "fr", name = "French", vectors = vectors))
+  )
+  evaluation <- file.path(data_dir, "geo-training-evaluation.json")
+  training <- file.path(data_dir, "geo-training.xlsx")
+  local_mocked_bindings(
+    get_geotraining_evaluation_path = function() evaluation,
+    get_geotraining_path = function() training,
+    get_lang_vectors_path = function(code) vectors,
+    .package = "episomer"
+  )
+  writeLines("[]", evaluation)
+  writeLines("training set", training)
+  mark_geotraining_evaluated()
+  expect_false(get_lang_traing_need())
+
+  # the spreadsheet alone moves on
+  Sys.setFileTime(training, Sys.time() + 14)
+
+  expect_true(get_lang_traing_need())
 })

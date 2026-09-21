@@ -270,6 +270,10 @@ get_scala_stopwords_url <- function(code) {
 }
 
 epifile.exists <- function(path) {
+    # sapply() over an empty vector gives an empty list, and a list is not a valid subscript, so
+    # callers filtering a vector by this answer (get_lang_traing_need()) need logical(0) here
+    if(length(path) == 0)
+        return(logical(0))
     sapply(path, function(p) {
       if(!is_remote(p)) 
         file.exists(p)
@@ -430,6 +434,41 @@ epilist.dirs <- function(path, full.names = TRUE) {
         list.dirs(path, recursive = FALSE, full.names = full.names)
     else
         unlist(jsonlite::read_json(sprintf("%s?action=listdir&fullname=%s", path, tolower(full.names))))
+}
+
+# Wrapper for writeLines() accepting a destination on a remote fs.
+#
+# writeLines() needs a connection, and file() on an http:// URL can only ever be opened for
+# reading: writing the retraining evaluation straight to get_geotraining_evaluation_path() failed
+# with "cannot open the connection" as soon as the fs was reached over HTTP - which is the default,
+# conf$fs_remote being "http://localhost:8080" unless a caller says otherwise. The file was then
+# simply absent, and get_lang_traing_need() kept answering that the languages still need training.
+#
+# The text is always written locally first and then placed, atomically on a local disk (rename) or
+# by a single upload when the fs is remote, exactly as write_json_atomic() below.
+epiwriteLines <- function(text, path, encoding = "UTF-8") {
+  file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)
+  if(!is_remote(path)) {
+    dir_name <- substring(path, 1, nchar(path) - nchar(file_name) - 1)
+    swap_file <- tempfile(
+      pattern = paste("~", file_name, sep = ""),
+      tmpdir = dir_name
+    )
+  } else {
+    swap_file <- tempfile(
+      pattern = paste("~", file_name, sep = "")
+    )
+  }
+  con <- file(swap_file, encoding = encoding)
+  writeLines(text, con)
+  close(con)
+  if(!is_remote(path))
+    file.rename(swap_file, path)
+  else {
+    epifile.upload(swap_file, path)
+    file.remove(swap_file)
+  }
+  invisible(path)
 }
 
 # Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers

@@ -675,24 +675,6 @@ episomer_app <- function(
                   shiny::column(9, shiny::htmlOutput("conf_schedule_slots"))
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Password store"),
-                  shiny::column(
-                    9,
-                    shiny::selectInput(
-                      "conf_keyring",
-                      label = NULL,
-                      choices = c(
-                        "wincred",
-                        "macos",
-                        "file",
-                        "secret_service",
-                        "environment"
-                      ),
-                      selected = conf$keyring
-                    )
-                  )
-                ),
-                shiny::fluidRow(
                   shiny::column(3, "Spark cores"),
                   shiny::column(
                     9,
@@ -2638,7 +2620,6 @@ episomer_app <- function(
         list(
           conf_collect_span = input$conf_collect_span,
           conf_schedule_span = input$conf_schedule_span,
-          conf_keyring = input$conf_keyring,
           conf_spark_cores = input$conf_spark_cores,
           conf_spark_memory = input$conf_spark_memory,
           conf_onthefly_api = input$conf_onthefly_api,
@@ -3342,7 +3323,11 @@ episomer_app <- function(
       })
 
       # uploading alerts training file
-      shiny::observe({
+      # observeEvent, not observe: the body has to run on the upload and on nothing else. A plain
+      # observe takes a dependency on every reactive it reads, and each re-run copies the
+      # previously uploaded file over the training set again and launches another full retraining -
+      # minutes of JVM work nobody asked for. Same reason as the geotraining upload below.
+      shiny::observeEvent(input$alertsdb_upload, {
         df <- input$alertsdb_upload
         if (!is.null(df) && nrow(df) > 0) {
           progress_start("processing new training set")
@@ -3469,7 +3454,12 @@ episomer_app <- function(
           )
       })
       # uploading geotagging training file
-      shiny::observe({
+      # observeEvent, not observe: the body reads input$geotraining_posts2add below, and a plain
+      # observe takes a reactive dependency on everything it reads. Moving the "posts to add"
+      # control therefore re-ran this whole block - copying the previously uploaded file over the
+      # training set again and launching a second full retraining, minutes of JVM work nobody
+      # asked for. observeEvent isolates the body and fires on the upload alone.
+      shiny::observeEvent(input$geotraining_upload, {
         df <- input$geotraining_upload
         if (!is.null(df) && nrow(df) > 0) {
           progress_start("processing new training set")
@@ -3499,6 +3489,9 @@ episomer_app <- function(
                   progress_set(value = 0.5 + value / 2, message = message)
                 }
               )
+              # last, after the spreadsheet update just above rewrote the training set: same
+              # ordering as update_languages(), and for the same reason
+              mark_geotraining_evaluated()
               cd$geotraining_refresh_flag(Sys.time())
               #TO DO : afficher les résultats + observe qui met à jour si de nouveelles données sont uploadées
             },
