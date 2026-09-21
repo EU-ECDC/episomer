@@ -675,24 +675,6 @@ episomer_app <- function(
                   shiny::column(9, shiny::htmlOutput("conf_schedule_slots"))
                 ),
                 shiny::fluidRow(
-                  shiny::column(3, "Password store"),
-                  shiny::column(
-                    9,
-                    shiny::selectInput(
-                      "conf_keyring",
-                      label = NULL,
-                      choices = c(
-                        "wincred",
-                        "macos",
-                        "file",
-                        "secret_service",
-                        "environment"
-                      ),
-                      selected = conf$keyring
-                    )
-                  )
-                ),
-                shiny::fluidRow(
                   shiny::column(3, "Spark cores"),
                   shiny::column(
                     9,
@@ -2638,7 +2620,6 @@ episomer_app <- function(
         list(
           conf_collect_span = input$conf_collect_span,
           conf_schedule_span = input$conf_schedule_span,
-          conf_keyring = input$conf_keyring,
           conf_spark_cores = input$conf_spark_cores,
           conf_spark_memory = input$conf_spark_memory,
           conf_onthefly_api = input$conf_onthefly_api,
