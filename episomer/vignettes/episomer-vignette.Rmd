@@ -52,7 +52,7 @@ pkg_url <- package_desc$URL
 `{episomer}` has been created by building on `epitweetr` objectives and functionalities. The `{episomer}` package allows you to automatically monitor trends of posts by time, place and topic in social media platforms. This automated monitoring aims at the early detection of public health threats through the detection of signals (e.g. an unusual increase in the number of posts for a specific time, place and topic). This release of `{episomer}` collects posts from Bluesky <span style="color:red">and Mastodon</span>
  using theirs APIs (https://docs.bsky.app/, https://docs.joinmastodon.org/methods/search/), and can be extended to support other social media platforms. The `{episomer}` package was designed to focus on infectious diseases, and it can be extended to cover all hazards or other fields of study by modifying the topics and keywords.
 
-The general principle behind `{episomer}` is that it collects posts and related metadata according to specified topics. Posts are stored on your computer (<span style="color:red">to delete</span>) in a database that can be used to calculate statistics or as a search engine. `{episomer}` geolocalises the posts and collects information on keywords, URLs and hashtags within a post. Posts are aggregated according to topic and geographical location. Next, a signal detection algorithm identifies when the number of posts (by topic and geographical location) exceeds what is expected for a given day. If the number of posts exceeds what is expected, `{episomer}` sends out email alerts to notify those who need to further investigate these signals following the epidemic intelligence processes (filtering, validation, analysis and preliminary assessment).
+The general principle behind `{episomer}` is that it collects posts and related metadata according to specified topics. Posts are stored in a database that can be used to calculate statistics or as a search engine. `{episomer}` geolocalises the posts and collects information on keywords, URLs and hashtags within a post. Posts are aggregated according to topic and geographical location. Next, a signal detection algorithm identifies when the number of posts (by topic and geographical location) exceeds what is expected for a given day. If the number of posts exceeds what is expected, `{episomer}` sends out email alerts to notify those who need to further investigate these signals following the epidemic intelligence processes (filtering, validation, analysis and preliminary assessment).
 
 The package includes an interactive web application (Shiny app) with six pages: (i) dashboard, where a user can visualise and explore posts (Fig 1), (ii) alerts page, where you can view the current alerts and train machine learning models for alert classification on user-defined categories (Fig 2), (iii) geotag page, where you can evaluate the geolocation algorithm and provide annotations for improving its performance (Fig 3), (iv) data protection page, where you can search, anonymise and delete posts from the episomer database to support data deletion requests (Fig 4), (v) configuration page, where you can change settings and check the status of the underlying processes (Fig 5), and (vi) troubleshoot page, which provides automatic checks and hints for using `{episomer}` and all its functionalities (Fig 6). 
 
@@ -147,8 +147,8 @@ More information on episomer is available in the [episomer GitHub discussions](h
 
 <span style="color:red">Two companion documents are shipped with the package and cover topics deliberately left out of this one:</span>
 
--   <span style="color:red">*episomer: containers and multi-machine deployment* — running `{episomer}` with Docker, and running it on several machines sharing a single database. See section *Running episomer in containers and on several machines*.</span>
--   <span style="color:red">*Add a new social media* — for developers extending `{episomer}` to a platform it does not support yet.</span>
+-   <span style="color:red">*episomer: containers and multi-machine deployment* - running `{episomer}` with Docker, and running it on several machines sharing a single database. See section *Running episomer in containers and on several machines*.</span>
+-   <span style="color:red">*Add a new social media* - for developers extending `{episomer}` to a platform it does not support yet.</span>
 
 <span style="color:red">Both are listed by `browseVignettes("episomer")`.</span>
 
@@ -226,7 +226,7 @@ Before using `{episomer}`, the following items need to be installed:
 
 -   A scheduler
 
-    -   <span style="color:red">If using Windows, the R package `taskscheduleR` is recommended. It is declared in the *Suggests* of `{episomer}`, so it is not installed together with the package: install it yourself with `install.packages("taskscheduleR")`. When it is available, the services started by the wizard are registered as Windows scheduled tasks, so they keep running after the R session is closed and are restarted automatically. When it is missing, the services still start, but they are attached to the R session that started them and stop with it.</span>
+    -   <span style="color:red">If using Windows, the R package `taskscheduleR` is recommended. Install it with `install.packages("taskscheduleR")`. When it is available, the services started by the wizard are registered as Windows scheduled tasks, so they keep running after the R session is closed and are restarted automatically. When it is missing, the services still start, but they are attached to the R session that started them and stop with it.</span>
 
     -   <span style="color:red">If using Linux or macOS, permanent scheduling is not supported by `{episomer}`: the services started by the wizard are attached to the R session that started them. If you need them to survive a reboot, plan them yourself with the tool of your operating system (for example `cron`, `systemd` or `launchd`).</span>
 
@@ -275,7 +275,7 @@ Sys.getenv("JAVA_HOME")
 ```
 The Java binary (executable) should be located in the subfolder "bin" os JAVA\_HOME.
 
-The first time you run `{episomer}`, if it cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted <span style="color:red">social media</span> credentials. <span style="color:red">For subsequent usages of `{episomer}`, the keyring password is expected to be saved in an environment variable named EPISOMER_KR_PASSWORD</span>.
+The first time you run `{episomer}`, if it cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted <span style="color:red">social media</span> credentials. <span style="color:red">For subsequent usages of `{episomer}`, the keyring password is expected to be saved in an environment variable named EPISOMER_KR_PASSWORD. You can also save it on a file and the environment variable EPISOMER_KR_PASSWORD_FILE with the path of a file whose first line is the password. Environment variables can be set by filling the `.Renviron` file using `usethis::edit_r_environ()`</span>.
 
 #### Launching the episomer Shiny app
 
@@ -370,7 +370,7 @@ Other attributes of the `searchPost` endpoint includes:
 
 #### <span style="color:red">Use of the Mastodon </span> authentication
 
-<span style="color:red">`{episomer}` uses the Mastodon search API 'search' endpoint V2 [*https://docs.joinmastodon.org/methods/search/#v2*]. Accessing this service requires the creation of a new application within the Mastodon website (which depends on the Mastodon instance in which you want to work on) in order to obtain an access token. Once it's done, this service enable users to access published messages free of charge. </span>
+<span style="color:red">`{episomer}` uses the Mastodon search API 'search' endpoint V2 [*https://docs.joinmastodon.org/methods/search/#v2*]. Accessing this service requires the creation of a new application in the Mastodon website (the url depends on the Mastodon instance in which you want to work on) in order to obtain an access token. Once it's done, this service enable users to access published messages free of charge. </span>
 
 <span style="color:red">Other attributes of the `search v2` endpoint includes:</span>
 
@@ -1038,17 +1038,22 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 The status section enables you to quickly assess the latest time point and/or status of the processes for post collection (Post Search), and geolocation, aggregation and signal detection (Detection pipeline).
 
+<span style="color:red">TO BE UPDATED: image outdated</span>
+
+
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/status.png")
 ```
 
 In the status section, you can tell if the embedded database, the <span style="color:red">data collection & processing</span> and the <span style="color:red">alerts</span> processes are running. <span style="color:red">These indicators are refreshed every 60 seconds and are read-only: to start or stop a service, run `episomer::setup()` and use option 7, *Run / stop episomer services* (see section *Installation > Setting up data collection and alert detection loop*).</span>
 
-<span style="color:red">Below them, a table lists the **runner leases**. A lease is what guarantees that a given piece of work is performed by one machine only: if two machines collected the same posts, each post would be stored twice and the alerts would be computed on doubled counts. The three status lines above answer “is this service running somewhere?”; this table says *where*, and shows a lease that nobody renews any more. The Shiny app itself never appears in it, since it reads the leases rather than holding one. On a single-machine installation this table simply lists the services of that machine; the vignette *episomer: containers and multi-machine deployment* explains how to read it in full.</span>
+<span style="color:red">Below them, a table lists the runner leases. A lease is what guarantees that a given piece of work is performed by one machine only: if two machines collected the same posts, each post would be stored twice and the alerts would be computed on doubled counts. The three status lines above answer “is this service running somewhere?”; this table says *where*, and shows a lease that nobody renews any more. The Shiny app itself never appears in it, since it reads the leases rather than holding one. On a single-machine installation this table simply lists the services of that machine; the vignette *episomer: containers and multi-machine deployment* explains how to read it in full.</span>
 
 **<span style="color:red">Alerts pipeline</span>**
 
 <span style="color:red">The “Run alerts now” button can be used to force the start of the alerts task in case there is any error or issue. The tasks that download and prepare the dependencies, GeoNames and the language models are no longer triggered from here: use the wizard, options 3 to 5 (*Download dependencies*, *Update geonames*, *Update languages*). GeoNames and languages relate to the geolocation and language models used by `{episomer}`.</span>
+
+<span style="color:red">TO BE UPDATED: image outdated</span>
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '70%'}
@@ -1093,18 +1098,6 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 -   The **Launch slots** for the detection pipeline processes will be spaced out according to the "Detect span", with the first one starting at midnight. These values can be used in the subscribers file of the configuration page.
 
--   To avoid storing credentials in plain files, `{episomer}` uses a system dependent password store functionality, which is stored in the **Password store**. Depending on your system you can choose the mechanism that suits the environment where `{episomer}` is running. For details on each implementation see [*https://CRAN.R-project.org/package=keyring*]
-
-     -   wincred: (Windows only) uses the windows credential manager.
-
-     -   macos: (MAC only) uses the Mac OS keychain services
-
-     -   file: Uses password protected encrypted files
-
-     -   secret service: (Linux only) uses Linux secret service
-
-     -   environment: Uses environment variables (extra setup needed, see [*https://CRAN.R-project.org/package=keyring*])
-
 -   **Spark cores and spark memory:** The memory allocation for `{episomer}` in terms of CPU (Spark cores) and RAM (Spark Memory) is also defined in the “general” section. The default is 6 cores and 6 GB of RAM. This will depend on the CPU and RAM capacity of your machine and it has to be equal or less than that.
 
 -   **Geolocation threshold:** During the geolocation process, sets of words are processed and potential matches to existing locations are determined and given a score. The higher the score, the greater the probability that the geolocation is correct. A threshold is set in `{episomer}`, under which any matches are not considered good enough for geolocation. The scale goes from 1 to 10, and the default is set at 5.
@@ -1135,7 +1128,7 @@ When changing anything in the “general” section, do not forget to click on t
 
 **Social Medias**
 
-<span style="color:red">This section is now purely informational: it lists the social media `{episomer}` supports, currently Bluesky and Mastodon, together with the Mastodon instances that have been added, whether each of them is active and whether it is included in alert detection.</span>
+<span style="color:red">This section is purely informational: it lists the social media `{episomer}` supports, currently Bluesky and Mastodon, together with the Mastodon instances that have been added, whether each of them is active and whether it is included in alert detection.</span>
 
 <span style="color:red">These settings, and the credentials that go with them, are changed from the wizard (`episomer::setup()`, option 6, *Setup social media credentials*), described in section *How does it work? General architecture behind episomer > Collection of posts > Social media authentication*. There you can set:</span>
 
@@ -1153,19 +1146,27 @@ A query consists of keywords and operators that are used to match on post attrib
 
 In the topics section on the configuration page, you can view the topic, the associated query, the query length and how many active search plans are associated with the query. If more than one search plan is active, this means that `{episomer}` did not manage to collect all possible posts in the last session. Additionally, you can see the progress and the number of requests from the last search plan.
 
+<span style="color:red">TO BE UPDATED: image outdated</span>
+
+
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics.png")
 ```
 
 **Languages**
 
-In the languages section, you can determine which language models are used to identify text during the geolocation process. The default languages are French, English, Portuguese and Spanish. You can download and upload the language models in the “Available Languages” section and add and delete languages used by `{episomer}` in the “Active Languages” section. Please consider the computational cost of adding too many languages, depending on the capacity of your machine.
+In the languages section, you can determine which language models are used to identify text during the geolocation process. The default languages are French, English, Portuguese and Spanish. Please consider the computational cost of adding too many languages, depending on the capacity of your machine.
 
-**All default languages (English, French, Spanish and Portuguese) must be downloaded before adding new languages or deleting any of the default languages.**
+<span style="color:red">Languages settings are changed from the wizard (`episomer::setup()`, option 5, *Update languages*).</span>
+
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/languages.png")
 ```
+
+<span style="color:red">TO BE UPDATED: image outdated</span>
+
+
 
 ### The troubleshoot page
 The troubleshoot page has two functionalities "Create a snapshot file" and "Diagnostics"
@@ -1341,18 +1342,18 @@ After running the diagnostics in the troubleshoot page, you can see the checks a
 -   **tex**: a tex distribution is installed and accessible to `{episomer}`. Necessary for PDF creation.
 
 ### Management of episomer pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') in Windows 
-After activating the three pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') from the configuration page of `{episomer}` (Windows), three tasks will be created in the task scheduler and three terminal windows will be prompted. Please note that if the computer is logged/turned off or the terminal windows are closed, the pipelines will stop.
+After activating the three pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts'), three tasks will be created in the task scheduler and three terminal windows will be prompted. Please note that if the computer is logged/turned off or the terminal windows are closed, the pipelines will stop.
 
-If you activate these tasks from the configuration page of `{episomer}` again, the system will overwrite the tasks created in the task scheduler. Instead, after the first successful activation of these tasks from `{episomer}`, you can easily manage these from the task scheduler. You can stop these tasks by ending and disabling the tasks in the task scheduler, and you can restart these tasks by enabling and running these in the task scheduler.
+After the first successful activation of these tasks from `{episomer}`, you can easily manage these from the task scheduler. You can stop these tasks by ending and disabling the tasks in the task scheduler, and you can restart these tasks by enabling and running these in the task scheduler.
 
-You can also force stopping these tasks in the configuration page of `{episomer}` by clicking on 'stop'.
+You can also force stopping these tasks in the configuration page of `{episomer}` with the setup wizard, called with `episomer::setup()`.
 
 In the task scheduler, you can establish that the tasks “run whether the user is logged on or not” to avoid that these tasks stop when you log off or restart the computer. In this case, you may not see the prompted terminal windows when the tasks are running. 
 
 ### Management of episomer pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') in Linux and Mac
 Since the three pipelines ('episomer database', 'Data collection & processing', 'Requirements & alerts') in Linux or Mac have to be run manually, if the computer is logged/turned off or the terminal windows are closed, the pipelines will stop. Please remember to follow the steps in the section *Setting up post collection and the alert detection loop* to run these tasks again.
 
-The pipelines can be also stopped in the configuration page of `{episomer}` by clicking on 'stop'.
+The pipelines can be also stopped with the setup wizard, called with `episomer::setup()`.
 
 ### Running 'episomer database', 'Data collection and processing' and 'Requirements and alerts' pipelines
 
