@@ -2,14 +2,14 @@
 title: "episomer: user documentation"
 author: "European Centre for Disease Prevention and Control (ECDC)"
 output: 
-  #- rmarkdown::html_vignette
-  word_document:
+  - rmarkdown::html_vignette
+  #word_document:
     # The vignette marks everything that changed for the client review with
     # <span style="color:red">. Pandoc drops that style on its way to docx, so the filter turns it
     # into the RedText character style that reference-red.docx carries. Without the pair, the
     # review copy is entirely black.
-      reference_docx: reference-red.docx
-      pandoc_args: ["--lua-filter=red-span.lua"]
+      #reference_docx: reference-red.docx
+      #pandoc_args: ["--lua-filter=red-span.lua"]
 vignette: >
   %\VignetteIndexEntry{episomer: user documentation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -1368,17 +1368,6 @@ The error "failed while processing alerts Error in do_next_alerts(tasks): Cannot
 If it is the first installation, you should wait until geonames and/or languages tasks are completed and collected posts are geotagged and aggregated. Depending on the machine, these steps may take some hours.
 
 You should also checked that posts are being collected.
-
-### Change the user of the Bluesky authentication
-1. End and disable the 'Data collection & processing' and 'episomer database' pipelines in the task scheduler (Windows), close the R/terminal window with the pipelines or forcing the pipelines in the configuration page (Windows, Linux and Mac)
-
-2. Search for a file called “.rpost_token” in hidden files. It is usually saved in the Documents folder.
-
-3. Delete that file.
-
-4. Click on “Update properties” in the configuration page of `{episomer}`.
-
-5. Enable and run the pipelines in the task scheduler or active them in the configuration page (Windows), or run the command in a new R/terminal window with the pipelines (Windows, Linux and Mac). More details are available in the section *“Setting up post collection and the alert detection loop”*
 
 ### Downloading GeoNames and/or languages
 
