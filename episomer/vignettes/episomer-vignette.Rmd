@@ -1369,17 +1369,6 @@ If it is the first installation, you should wait until geonames and/or languages
 
 You should also checked that posts are being collected.
 
-### Change the user of the Bluesky authentication
-1. End and disable the 'Data collection & processing' and 'episomer database' pipelines in the task scheduler (Windows), close the R/terminal window with the pipelines or forcing the pipelines in the configuration page (Windows, Linux and Mac)
-
-2. Search for a file called “.rpost_token” in hidden files. It is usually saved in the Documents folder.
-
-3. Delete that file.
-
-4. Click on “Update properties” in the configuration page of `{episomer}`.
-
-5. Enable and run the pipelines in the task scheduler or active them in the configuration page (Windows), or run the command in a new R/terminal window with the pipelines (Windows, Linux and Mac). More details are available in the section *“Setting up post collection and the alert detection loop”*
-
 ### Downloading GeoNames and/or languages
 
 #### Languages to be added or deleted 
