@@ -373,7 +373,6 @@ ensure_snapshot_folder <- function() {
 update_config_from_input <- function(input) {
   conf$collect_span <- input$conf_collect_span
   conf$schedule_span <- input$conf_schedule_span
-  conf$keyring <- input$conf_keyring
   conf$spark_cores <- input$conf_spark_cores
   conf$spark_memory <- input$conf_spark_memory
   conf$onthefly_api <- input$conf_onthefly_api

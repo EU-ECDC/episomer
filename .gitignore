@@ -49,6 +49,7 @@ prerequisites
 
 # produced vignettes
 vignettes/*.html
+vignettes/*.docx
 vignettes/*.pdf
 
 # OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
