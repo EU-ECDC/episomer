@@ -367,9 +367,18 @@ epifile.copy <- function(from, to, overwrite = TRUE) {
             httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
             httr2::req_perform()
     else if (!is_remote(to)) {
-        if(!file.exists(dirname(to))) 
+        if(!file.exists(dirname(to)))
             dir.create(dirname(to), recursive = TRUE)
-        download.file(from, to, mode="wb")
+        # a remote file can be mid-write (e.g. fs_loop appending to fs.log) when this reads it, so
+        # the reported Content-Length and the actual bytes streamed can disagree; retry a few times
+        # rather than failing the whole caller (e.g. create_snapshot) on one flaky file
+        max_attempts <- 3
+        for (attempt in seq_len(max_attempts)) {
+            result <- tryCatch(download.file(from, to, mode = "wb", quiet = TRUE), error = function(e) e)
+            if (!inherits(result, "error")) break
+            if (attempt == max_attempts) stop(result)
+            Sys.sleep(1)
+        }
     }
     else #!is_remote(from)
         epifile.upload(from, to)

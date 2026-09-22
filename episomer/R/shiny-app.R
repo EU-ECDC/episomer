@@ -3761,15 +3761,21 @@ episomer_app <- function(
         `%>%` <- magrittr::`%>%`
         progress_start("Creating snapshot")
         shiny::isolate({
-          create_snapshot(
-            destination_dir = input$snapshot_folder,
-            types = input$snapshot_types,
-            posts_period = input$snapshot_post_period,
-            aggregated_period = input$snapshot_aggr_period,
-            compress = input$snapshot_compress,
-            progress = function(value, message) {
-              progress_set(value = value, message = message)
-            }
+          tryCatch(
+            create_snapshot(
+              destination_dir = input$snapshot_folder,
+              types = input$snapshot_types,
+              posts_period = input$snapshot_post_period,
+              aggregated_period = input$snapshot_aggr_period,
+              compress = input$snapshot_compress,
+              progress = function(value, message) {
+                progress_set(value = value, message = message)
+              }
+            ),
+            error = function(e) shiny::showNotification(
+              paste("Snapshot failed:", conditionMessage(e)),
+              type = "error", duration = NULL
+            )
           )
         })
         progress_close()
