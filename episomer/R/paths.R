@@ -187,13 +187,25 @@ get_sbt_file_dep_path <- function()
 # Get JAR directory
 get_jars_dest_path <- function() epipath("jars")
 
-# Get application JAR (embedded on package)
-get_app_jar_path <- function()
-  system.file(
-    "java",
-    "ecdc-episomer-bundle_2.13-1.0.jar",
-    package = get_package_name()
+# Directory where the embedded java bundle lives, split out from get_app_jar_path() so tests can
+# mock it instead of base::system.file()
+get_java_dir_path <- function() system.file("java", package = get_package_name())
+
+# Get application JAR (embedded on package). The jar filename carries its own version
+# (ecdc-episomer-bundle_2.13-<version>.jar, set from ../episomer/DESCRIPTION at sbt package
+# time), so it is located by pattern rather than by a hardcoded name.
+get_app_jar_path <- function() {
+  java_dir <- get_java_dir_path()
+  jars <- list.files(
+    java_dir,
+    pattern = "^ecdc-episomer-bundle_2\\.13-.*\\.jar$",
+    full.names = TRUE
   )
+  if (length(jars) == 0) {
+    return("")
+  }
+  jars[[1]]
+}
 
 # Get hadoop home path for winutils
 get_winutils_hadoop_home_path <- function() epipath("hadoop")
