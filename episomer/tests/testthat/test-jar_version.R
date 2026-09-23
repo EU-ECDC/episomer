@@ -101,3 +101,36 @@ test_that("check_jar_version warns and returns FALSE when get_app_jar_path finds
   expect_match(msg, "could not find the embedded java bundle jar")
   expect_false(suppressWarnings(check_jar_version()))
 })
+
+# check_app_jar_present() -- guards spark_job()/spark_df() so a missing jar fails loud instead of
+# silently producing "-cp ;jars/*" and the confusing downstream ClassNotFoundException
+
+test_that("check_app_jar_present passes silently when the jar exists", {
+  jar_path <- file.path(withr::local_tempdir(), "ecdc-episomer-bundle_2.13-4.1.1.jar")
+  file.create(jar_path)
+
+  local_mocked_bindings(
+    get_app_jar_path = function() jar_path,
+    .package = "episomer"
+  )
+
+  expect_true(check_app_jar_present())
+})
+
+test_that("check_app_jar_present errors when get_app_jar_path finds nothing", {
+  local_mocked_bindings(
+    get_app_jar_path = function() "",
+    .package = "episomer"
+  )
+
+  expect_error(check_app_jar_present(), "could not find its embedded java bundle jar")
+})
+
+test_that("check_app_jar_present errors when the jar path doesn't exist on disk", {
+  local_mocked_bindings(
+    get_app_jar_path = function() file.path(withr::local_tempdir(), "ecdc-episomer-bundle_2.13-1.0.jar"),
+    .package = "episomer"
+  )
+
+  expect_error(check_app_jar_present(), "could not find its embedded java bundle jar")
+})

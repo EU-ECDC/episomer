@@ -590,6 +590,20 @@ setup_can_run <- function() {
     ))
 }
 
+# stops spark_job()/spark_df() from silently building a broken classpath ("-cp ;jars/*", missing
+# the app jar segment entirely) when inst/java ships no jar matching the versioned pattern -- the
+# failure mode that surfaced as "Could not find or load main class org.ecdc.episomer.Episomer"
+check_app_jar_present <- function() {
+    jar_path <- get_app_jar_path()
+    if (identical(jar_path, "") || !epifile.exists(jar_path)) {
+        stop(
+            "episomer could not find its embedded java bundle jar in inst/java. ",
+            "The R package installation is incomplete or corrupted, please reinstall episomer."
+        )
+    }
+    invisible(TRUE)
+}
+
 # check that the embedded jar's own version (encoded in its filename) matches the R package
 # version -- catches a stale jar left behind by a partial rebuild (e.g. sbt package skipped)
 check_jar_version <- function() {
