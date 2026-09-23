@@ -11,7 +11,7 @@ else
     cd "$cdir/scala"
     sbt package
     mkdir -p "$cdir/episomer/inst/java"
-    cp "$cdir/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-1.0.jar" "$cdir/episomer/inst/java"
+    cp "$cdir"/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-*.jar "$cdir/episomer/inst/java"
     cd "$cdir"
 fi
 
