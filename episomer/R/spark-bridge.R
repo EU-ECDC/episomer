@@ -96,6 +96,7 @@ conf_geonames_as_arg <- function() {
 
 # making a spark call via system call without returning any value
 spark_job <- function(args) {
+  check_app_jar_present()
   # Setting BLAS environmebt variables
   set_blas_env()
   # Setting the R the JVM runs the secret scripts with
@@ -141,6 +142,7 @@ spark_job <- function(args) {
 
 # getting a spark data frame by piping a system call
 spark_df <- function(args, handler = NULL) {
+  check_app_jar_present()
   # Setting BLAS environmebt variables
   set_blas_env()
   # Setting the R the JVM runs the secret scripts with
