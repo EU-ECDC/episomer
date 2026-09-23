@@ -73,13 +73,13 @@ COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} ./scala /episomer/scala
 WORKDIR /episomer/scala
 RUN sbt package
 RUN mkdir -p /episomer/episomer/inst/java
-RUN cp /episomer/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-1.0.jar /tmp/ecdc-episomer-bundle_2.13-1.0.jar
+RUN cp /episomer/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-*.jar /tmp/
 
 
 ## Packaging episomer
 WORKDIR /episomer
 COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} . /episomer/
-RUN cp /tmp/ecdc-episomer-bundle_2.13-1.0.jar /episomer/episomer/inst/java
+RUN cp /tmp/ecdc-episomer-bundle_2.13-*.jar /episomer/episomer/inst/java
 RUN PACK=1 make package-step
 
 ## Installing episomer
