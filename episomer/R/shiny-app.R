@@ -42,7 +42,7 @@
 #' @importFrom ggplot2 ggsave
 #' @importFrom dplyr select
 #' @importFrom stats setNames
-#' @importFrom utils write.csv head
+#' @importFrom utils write.csv head packageVersion
 episomer_app <- function(
   data_dir = NA,
   profile = c("dashboard", "admin"),
@@ -1377,6 +1377,15 @@ episomer_app <- function(
 	   )
         ) 
     }
+    args <- c(
+      args,
+      list(
+        footer = shiny::tags$div(
+          style = "text-align: right; color: #888; font-size: 1em; padding: 5px 15px;",
+          paste0("{episomer} v", utils::packageVersion("episomer"))
+        )
+      )
+    )
     do.call(shiny::navbarPage, args)
   }
   # Defining server logic
