@@ -2488,153 +2488,6 @@ episomer_app <- function(
         )
       })
 
-      # registering the Data collection & processing runner after button is clicked
-      shiny::observeEvent(input$activate_search, {
-        # registering the scheduled task
-        issues <- loop_run_issues("search")
-        if (issues == "") {
-          register_search_runner_task()
-          # refresh task data to check if tasks are to be updated
-          refresh_config_data(cd, list("tasks"))
-        } else {
-          shiny::showModal(shiny::modalDialog(
-            title = "Warning",
-            issues,
-            footer = shiny::tagList(shiny::modalButton("OK"))
-          ))
-        }
-      })
-      shiny::observeEvent(input$stop_search, {
-        stop_search_runner_task()
-        # refresh task data to check if tasks are to be updated
-        refresh_config_data(cd, list("tasks"))
-      })
-
-      # registering the fs runner after button is clicked
-      shiny::observeEvent(input$activate_fs, {
-        issues <- loop_run_issues("fs")
-        if (issues == "") {
-          # registering the scheduled task
-          # wait_until_response = TRUE is passed explicitly to keep the behaviour this button has
-          # always had: register_fs_runner_task() used to wait whatever the argument said, and the
-          # refresh below is only meaningful once the database answers. It is now honoured, so the
-          # value has to be given here.
-          register_fs_runner_task(wait_until_response = TRUE)
-          # refresh task data to check if tasks are to be updated
-          refresh_config_data(cd, list("tasks"))
-        } else {
-          shiny::showModal(shiny::modalDialog(
-            title = "Warning",
-            issues,
-            footer = shiny::tagList(shiny::modalButton("OK"))
-          ))
-        }
-      })
-
-      shiny::observeEvent(input$stop_fs, {
-        # stop the scheduled task
-        stop_fs_runner_task()
-        # refresh task data to check if tasks are to be updated
-        refresh_config_data(cd, list("tasks"))
-      })
-
-      # registering the Requirements & alerts runner after button is clicked
-      shiny::observeEvent(input$activate_detect, {
-        # Unlike the two buttons above, this one was never gated by loop_run_issues(): it was the
-        # last place able to spawn a detect loop while another machine legitimately holds the
-        # `detect` lease. The check comes before anything else because the rest of this handler
-        # *writes*: it dates the one-shot tasks and saves the configuration, which the loop
-        # already running on the other machine would then pick up. Nothing should be touched when
-        # the answer is "it is running elsewhere".
-        issues <- loop_run_issues("detect")
-        if (issues != "") {
-          shiny::showModal(shiny::modalDialog(
-            title = "Warning",
-            issues,
-            footer = shiny::tagList(shiny::modalButton("OK"))
-          ))
-          return(invisible(NULL))
-        }
-        # Setting values configuration to trigger one shot tasks for the first time
-        if (is.na(conf$dep_updated_on)) {
-          conf$dep_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        }
-        if (is.na(conf$geonames_updated_on)) {
-          conf$geonames_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        }
-        if (is.na(conf$lang_updated_on)) {
-          conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        }
-        # Forcing refresh of tasks
-        cd$tasks_refresh_flag(Sys.time())
-        # saving properties to ensure the Requirements & alerts pipeline can see the changes and start running the tasks
-        save_config(
-          data_dir = conf$data_dir,
-          properties = TRUE,
-          sm_topics = list()
-        )
-
-        # registering the scheduled task
-        register_detect_runner_task()
-
-        # refresh task data to check if tasks are to be updated
-        refresh_config_data(cd, list("tasks"))
-      })
-
-      shiny::observeEvent(input$stop_detect, {
-        stop_detect_runner_task()
-        # refresh task data to check if tasks are to be updated
-        refresh_config_data(cd, list("tasks"))
-      })
-
-      # action to activate de dependency download tasks
-      shiny::observeEvent(input$update_dependencies, {
-        # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-        conf$dep_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        # forcing a task refresh :TODO test if this is still necessary
-        cd$tasks_refresh_flag(Sys.time())
-        # saving configuration so the Requirements & alerts pipeline will see the changes
-        save_config(
-          data_dir = conf$data_dir,
-          properties = TRUE,
-          sm_topics = list()
-        )
-        # refreshing the tasks data
-        refresh_config_data(cd, list("tasks"))
-      })
-
-      # action to activate the update geonames task
-      shiny::observeEvent(input$update_geonames, {
-        # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-        conf$geonames_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        # forcing a task refresh
-        cd$tasks_refresh_flag(Sys.time())
-        # saving configuration so the Requirements & alerts pipeline will see the changes
-        save_config(
-          data_dir = conf$data_dir,
-          properties = TRUE,
-          sm_topics = list()
-        )
-        # refreshing the tasks data
-        refresh_config_data(cd, list("tasks"))
-      })
-
-      # action to activate the update languages task
-      shiny::observeEvent(input$update_languages, {
-        # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-        conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-        # forcing a task refresh
-        cd$tasks_refresh_flag(Sys.time())
-        # saving configuration so the Requirements & alerts pipeline will see the changes
-        save_config(
-          data_dir = conf$data_dir,
-          properties = TRUE,
-          sm_topics = list()
-        )
-        # refreshing the tasks data
-        refresh_config_data(cd, list("tasks"))
-      })
-
       # action to activate the alerts task
       shiny::observeEvent(input$request_alerts, {
         # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
@@ -3198,8 +3051,7 @@ episomer_app <- function(
               cleaned_colnames_dt %in% colnames(dt)
             ]
 
-            
-dt %>%
+            dt %>%
               DT::datatable(
                 colnames = cleaned_colnames_dt,
                 filter = "top",
@@ -3827,10 +3679,13 @@ dt %>%
                 progress_set(value = value, message = message)
               }
             ),
-            error = function(e) shiny::showNotification(
-              paste("Snapshot failed:", conditionMessage(e)),
-              type = "error", duration = NULL
-            )
+            error = function(e) {
+              shiny::showNotification(
+                paste("Snapshot failed:", conditionMessage(e)),
+                type = "error",
+                duration = NULL
+              )
+            }
           )
         })
         progress_close()
