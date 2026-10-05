@@ -577,8 +577,20 @@ check_tar_gz <- function() {
 #' @export
 can_run <- function() {
     return(tryCatch(
-        check_64() && check_java_64() && check_java_deps() && check_java_present() && check_sm_auth() && check_winmsvcr100() && check_winutils() && check_languages() && check_geonames()
-        ,warning = function(m) {message(m);FALSE}
+      check_64() &&
+        check_java_64() &&
+        check_java_deps() &&
+        check_java_present() &&
+        check_sm_auth() &&
+        check_winmsvcr100() &&
+        check_winutils() &&
+        check_languages() &&
+        check_geonames() &&
+        check_move_from_temp(),
+      warning = function(m) {
+        message(m)
+        FALSE
+      }
     ))
 }
 
