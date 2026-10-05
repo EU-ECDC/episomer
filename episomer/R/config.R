@@ -381,8 +381,8 @@ get_instance_host <- function() {
 #' @description Load episomer application settings from the designated data directory
 #' @param data_dir Path to the directory containing the application settings (it must exist).
 #' If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
-#' default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-#'    "") Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer")
+#' default: default_data_dir(), i.e. conf$data_dir, then the EPI_HOME environment variable, then
+#'    file.path(tempdir(), "episomer")
 #' @param ignore_keyring Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE
 #' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
@@ -438,10 +438,7 @@ get_instance_host <- function() {
 #' @importFrom tools md5sum
 #' @importFrom readxl read_excel
 setup_config <- function(
-  data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if (
-    Sys.getenv("EPI_HOME") != ""
-  )
-    Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer"),
+  data_dir = default_data_dir(),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
@@ -1093,6 +1090,26 @@ get_topics_k_decays <- function() {
     dplyr::summarise(k_decay = conf$alert_k_decay) %>%
     dplyr::ungroup())
   setNames(t$k_decay, t$Topics)
+}
+
+# The data directory to use when a caller does not name one: the one the session already works
+# with, then EPI_HOME, then a throwaway directory under the session temporary folder.
+#
+# Split out of the setup_config() signature because episomer_app() needs the very same answer
+# before setup_config() has ever run. Reaching for conf$data_dir there - which is what it used to
+# do - hands setup_config() a NULL on a fresh session, i.e. a character(0) data_dir, and every
+# path derived from it (the prefix to_remote_if_needed() rewrites, the language vector paths)
+# becomes incoherent. The last resort is deliberately a temporary directory and not an error: with
+# fs_remote set, data_dir is only the prefix stripped off local-looking paths before they are
+# turned into API URLs, so its value does not matter as long as it is the same one everywhere.
+default_data_dir <- function() {
+  if (exists("data_dir", where = conf)) {
+    conf$data_dir
+  } else if (Sys.getenv("EPI_HOME") != "") {
+    Sys.getenv("EPI_HOME")
+  } else {
+    file.path(tempdir(), "episomer")
+  }
 }
 
 # Check config setup before continue

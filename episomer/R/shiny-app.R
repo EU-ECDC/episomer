@@ -1,8 +1,11 @@
 #' @title Run the episomer Shiny app
 #' @description Open the episomer Shiny app, to visualise the outputs of episomer and change settings.
 #' @param data_dir Path to the configuration file to extract the localisation of the central episomer instance. The preferred way to call this function is using the fs_remote parameter.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable
-#' This variable is ignored if fs_remote is provided, default: NA
+#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, falling back to a
+#' temporary directory. When fs_remote is provided it is not needed at all: every file is then read
+#' through the fs API and data_dir is only an internal path prefix, so
+#' \code{episomer_app(fs_remote = "http://host:8080")} runs on a machine with no data directory,
+#' default: NA
 #' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @param profile The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
@@ -77,8 +80,22 @@ episomer_app <- function(
     }
     fs_remote <- get_scala_api_endpoint()
   }
+  # Not conf$data_dir: when fs_remote was passed by the caller the block above is skipped, so on a
+  # fresh session nothing has filled conf yet and conf$data_dir is NULL - which setup_config()
+  # turns into a character(0) data_dir, and with it an incoherent prefix for
+  # to_remote_if_needed() and empty language vector paths. default_data_dir() gives the same
+  # answer the setup_config() default would, without needing conf to be populated first.
+  #
+  # With fs_remote set, that directory is never read nor written: epipath() (R/paths.R) answers
+  # API URLs and data_dir is only the prefix stripped off the few paths still built by hand. A
+  # temporary directory is therefore a legitimate value here, and episomer_app(fs_remote = ...)
+  # alone is enough to run the app on a machine that has no data directory of its own.
   setup_config(
-    data_dir = if (is.null(data_dir) || is.na(data_dir)) conf$data_dir else data_dir,
+    data_dir = if (is.null(data_dir) || is.na(data_dir)) {
+      default_data_dir()
+    } else {
+      data_dir
+    },
     fs_remote = fs_remote
   )
 
@@ -3868,10 +3885,6 @@ episomer_app <- function(
 
 
 #' @rdname episomer_app
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
-#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @return The Shiny server object containing the launched application
 #' @details The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations, 
 #' allow export them to Markdown or PDF.
@@ -3881,32 +3894,36 @@ episomer_app <- function(
 dashboard_app <- function(
   data_dir = NA,
   host = NULL,
-  port = NULL
+  port = NULL,
+  fs_remote = NULL
 ) {
   episomer_app(
     data_dir = data_dir,
     profile = "dashboard",
     host = host,
-    port = port
+    port = port,
+    fs_remote = fs_remote
   )
 }
 
 #' @rdname episomer_app
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
-#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @return The Shiny server object containing the launched application
 #' @details The admin app is contain all functionality for an administrator. It help the user to setup the post collection process, manage all settings,
 #' and setup the alert emails.
 #'
 #' All its functionality is described on the episomer vignette.
 #' @export
-admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
+admin_app <- function(
+  data_dir = NA,
+  host = NULL,
+  port = NULL,
+  fs_remote = NULL
+) {
   episomer_app(
     data_dir = data_dir,
     profile = "admin",
     host = host,
-    port = port
+    port = port,
+    fs_remote = fs_remote
   )
 }

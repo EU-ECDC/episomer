@@ -331,3 +331,18 @@ test_that("get_plans_paths substitutes .json extension correctly", {
   expect_match(result[["mastodon"]], "topics\\.mastodon\\.json$")
   expect_match(result[["bluesky"]], "topics\\.bluesky\\.json$")
 })
+
+# default_data_dir() is the answer episomer_app() needs *before* setup_config() has ever run, so
+# that episomer_app(fs_remote = ...) can be called without a data directory. Reaching for
+# conf$data_dir there used to hand setup_config() a NULL on a fresh session.
+test_that("default_data_dir falls back when conf holds no data_dir", {
+  local_conf()
+  withr::local_envvar(EPI_HOME = "")
+  expect_equal(default_data_dir(), file.path(tempdir(), "episomer"))
+
+  withr::local_envvar(EPI_HOME = "/from/env")
+  expect_equal(default_data_dir(), "/from/env")
+
+  local_conf(data_dir = "/from/conf")
+  expect_equal(default_data_dir(), "/from/conf")
+})

@@ -5,9 +5,7 @@
 \title{Load episomer application settings}
 \usage{
 setup_config(
-  data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if
-    (Sys.getenv("EPI_HOME") != "") Sys.getenv("EPI_HOME") else file.path(tempdir(),
-    "episomer"),
+  data_dir = default_data_dir(),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
@@ -20,8 +18,8 @@ setup_config(
 \arguments{
 \item{data_dir}{Path to the directory containing the application settings (it must exist).
 If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
-default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-   "") Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer")}
+default: default_data_dir(), i.e. conf$data_dir, then the EPI_HOME environment variable, then
+   file.path(tempdir(), "episomer")}
 
 \item{ignore_keyring}{Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE}
 
