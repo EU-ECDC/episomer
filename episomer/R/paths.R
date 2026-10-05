@@ -37,12 +37,34 @@ to_remote_dest <- function(path) {
    sub("^/", "", to_remote_relative(path))
 }
 
+# Turns a path built against the local data directory into the API URL serving the same file.
+# One path at a time: the is_remote() guard below is scalar, and the only caller (check.R) already
+# loops over the paths it has.
+#
+# The substitution is a literal, anchored, whole-segment one and not the gsub() on conf$data_dir it
+# used to be. That one had three ways of going wrong:
+#   * it joined two separators - conf$data_dir carries no trailing slash and the replacement ends
+#     with one, so "/data/users.xlsx" came out as "http://host/file//users.xlsx";
+#   * conf$data_dir was read as a *regular expression*, so any "." or "[" in the path of the data
+#     directory matched more than itself (hence the comment in setup_config() about it);
+#   * being a gsub(), it replaced every occurrence rather than the prefix, and a sibling directory
+#     sharing the start of the name ("/data2" against a data_dir of "/data") was rewritten too.
+# None of it showed on the default paths, which is why it survived: "/home/x/EPI_HOME" has no
+# metacharacter and appears once.
 to_remote_if_needed <- function(path) {
-   if(fs_remote() && !is_remote(path)) {
-     gsub(conf$data_dir, sprintf("%s/file/", conf$fs_remote), path)
-   } else {
+   if(!fs_remote() || is_remote(path))
+     return(path)
+   prefix <- sub("/+$", "", conf$data_dir)
+   base <- sub("/+$", "", conf$fs_remote)
+   # The part of the path that follows the data directory, kept only when what precedes it is the
+   # whole prefix and not just the start of a name: "" (the data directory itself) or "/..."
+   rest <- substring(path, nchar(prefix) + 1L)
+   under_data_dir <- startsWith(path, prefix) & (rest == "" | startsWith(rest, "/"))
+   ifelse(
+     under_data_dir,
+     paste(base, "file", sub("^/+", "", rest), sep = "/"),
      path
-   }
+   )
 }
 
 # Get path of properties files (written by Shiny app)

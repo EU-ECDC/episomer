@@ -167,6 +167,59 @@ test_that("to_remote_if_needed returns path unchanged when fs_remote disabled", 
   expect_equal(result, local_path)
 })
 
+test_that("to_remote_if_needed builds a single separator", {
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = "/data"
+  )
+
+  expect_equal(
+    to_remote_if_needed("/data/users.xlsx"),
+    "http://example.com:8080/file/users.xlsx"
+  )
+  expect_equal(
+    to_remote_if_needed("/data/geo/forced-geo.json"),
+    "http://example.com:8080/file/geo/forced-geo.json"
+  )
+  # A trailing slash on either side must not add one either
+  local_conf(
+    "fs_remote" = "http://example.com:8080/",
+    data_dir = "/data/"
+  )
+  expect_equal(
+    to_remote_if_needed("/data/users.xlsx"),
+    "http://example.com:8080/file/users.xlsx"
+  )
+})
+
+test_that("to_remote_if_needed treats the data dir as a literal, anchored prefix", {
+  # A regex metacharacter in the data directory used to match more than itself
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = "/data.v1"
+  )
+  expect_equal(
+    to_remote_if_needed("/dataxv1/users.xlsx"),
+    "/dataxv1/users.xlsx"
+  )
+
+  # A sibling whose name starts like the data directory is not under it
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = "/data"
+  )
+  expect_equal(
+    to_remote_if_needed("/data2/users.xlsx"),
+    "/data2/users.xlsx"
+  )
+
+  # Only the prefix is rewritten, not a later occurrence of the same text
+  expect_equal(
+    to_remote_if_needed("/data/backup/data/users.xlsx"),
+    "http://example.com:8080/file/backup/data/users.xlsx"
+  )
+})
+
 test_that("to_remote_if_needed handles paths without data_dir prefix", {
   local_conf(
     "fs_remote" = "http://example.com:8080",
@@ -330,21 +383,6 @@ test_that("get_plans_paths substitutes .json extension correctly", {
   # Should replace .json with .sm.json
   expect_match(result[["mastodon"]], "topics\\.mastodon\\.json$")
   expect_match(result[["bluesky"]], "topics\\.bluesky\\.json$")
-})
-
-# default_data_dir() is the answer episomer_app() needs *before* setup_config() has ever run, so
-# that episomer_app(fs_remote = ...) can be called without a data directory. Reaching for
-# conf$data_dir there used to hand setup_config() a NULL on a fresh session.
-test_that("default_data_dir falls back when conf holds no data_dir", {
-  local_conf()
-  withr::local_envvar(EPI_HOME = "")
-  expect_equal(default_data_dir(), file.path(tempdir(), "episomer"))
-
-  withr::local_envvar(EPI_HOME = "/from/env")
-  expect_equal(default_data_dir(), "/from/env")
-
-  local_conf(data_dir = "/from/conf")
-  expect_equal(default_data_dir(), "/from/conf")
 })
 
 # default_data_dir() is the answer episomer_app() needs *before* setup_config() has ever run, so

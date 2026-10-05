@@ -456,8 +456,8 @@ setup_config <- function(
   # language vector paths, the properties written to disk) keeps a single, expanded form.
   data_dir <- path.expand(data_dir)
   # On Windows only, backslashes are turned into forward slashes: path.expand() returns the home
-  # directory with backslashes, and data_dir is used as a regex in to_remote_if_needed()
-  # (R/paths.R) as well as inside quoted command lines. Forward slashes are understood everywhere
+  # directory with backslashes, and data_dir is compared against path prefixes in
+  # to_remote_if_needed() (R/paths.R) as well as used inside quoted command lines. Forward slashes are understood everywhere
   # on Windows and keep a single separator style in the paths derived from it. The substitution is
   # not done on the other platforms, where a backslash is a legal character in a file name.
   if (.Platform$OS.type == "windows") {
