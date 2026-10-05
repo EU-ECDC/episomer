@@ -418,11 +418,17 @@ test_that("ensure_snapshot_folder uses the data dir whenever there is a real one
 # under tempdir() that does not exist, and an archive dropped there is lost with the session.
 test_that("ensure_snapshot_folder falls back when the data dir is not on this machine", {
   absent <- file.path(withr::local_tempdir(), "no-such-data-dir")
-  withr::local_dir(withr::local_tempdir())
+  cwd <- withr::local_tempdir()
+  withr::local_dir(cwd)
+  home <- withr::local_tempdir()
+  withr::local_envvar(HOME = home)
   local_conf("fs_remote" = "http://example.com:8080", data_dir = absent)
 
   snapshot <- ensure_snapshot_folder()
   expect_false(startsWith(snapshot, absent))
+  # Not the working directory: started from a checkout, that is the source tree
+  expect_false(startsWith(snapshot, normalizePath(cwd)))
+  expect_equal(snapshot, file.path(path.expand("~"), "episomer-snapshot"))
   expect_true(dir.exists(snapshot))
   expect_false(is_remote(snapshot))
 })

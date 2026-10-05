@@ -371,14 +371,21 @@ get_alertsdb_runs_html <- function() {
 # Always a *local* directory: create_snapshot() (R/check.R) writes the archive with dir.create()
 # and normalizePath() on the machine running the app, whatever the files it collects come from.
 # The data directory is therefore the right base whenever there is one - which is the usual case,
-# the fs machine included. The working directory is only the fallback for an app running away from
-# the fs, where conf$data_dir is a placeholder under tempdir() (see episomer_app()): an archive
-# dropped there would be thrown away with the session. It stays a default, the field is editable.
+# the fs machine included.
+#
+# The fallback is for an app running away from the fs, where conf$data_dir is a placeholder under
+# tempdir() (see episomer_app()) and an archive dropped there would be thrown away with the
+# session. It is the home directory and deliberately not getwd(): the working directory of a
+# session started from a checkout is the source tree, and a snapshot of a remote installation has
+# no business being written there. The home directory is writable, stable across sessions and
+# never part of a repository, whatever the app was started from.
+#
+# It stays a default: the field it fills is editable.
 ensure_snapshot_folder <- function() {
   path <- if (has_local_data_dir()) {
     file.path(conf$data_dir, "snapshot")
   } else {
-    file.path(getwd(), "episomer-snapshot")
+    file.path(path.expand("~"), "episomer-snapshot")
   }
   if (!dir.exists(path)) dir.create(path, recursive = TRUE)
   path
