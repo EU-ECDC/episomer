@@ -3088,44 +3088,53 @@ episomer_app <- function(
           if (topposts == 0) {
             dt <- alerts %>%
               dplyr::select(
-                "date",
-                "hour",
-                "topic",
-                "country",
-                "episomer_category",
-                "tops",
-                "number_of_posts",
-                "known_ratio",
-                "limit",
-                "no_historic",
-                "bonferroni_correction",
-                "same_weekday_baseline",
-                "rank",
-                "with_quotes",
-                "alpha",
-                "alpha_outlier",
-                "k_decay"
-              ) %>%
+                dplyr::any_of(c(
+                  "date",
+                  "hour",
+                  "topic",
+                  "country",
+                  "episomer_category",
+                  "tops",
+                  "number_of_posts",
+                  "known_ratio",
+                  "limit",
+                  "no_historic",
+                  "bonferroni_correction",
+                  "same_weekday_baseline",
+                  "rank",
+                  "with_quotes",
+                  "alpha",
+                  "alpha_outlier",
+                  "k_decay"
+                ))
+              )
+
+            cleaned_colnames_dt <- c(
+              "Date" = "date",
+              "Hour" = "hour",
+              "Topic" = "topic",
+              "Region" = "country",
+              "Category" = "episomer_category",
+              "Tops" = "tops",
+              "Posts" = "number_of_posts",
+              "% from important user" = "known_ratio",
+              "Threshold" = "limit",
+              "Baseline" = "no_historic",
+              "Bonf. corr." = "bonferroni_correction",
+              "Same weekday baseline" = "same_weekday_baseline",
+              "Day rank" = "rank",
+              "With quotes" = "with_quotes",
+              "Alert FPR (alpha)" = "alpha",
+              "Outlier FPR (alpha)" = "alpha_outlier",
+              "Downweight strenght" = "k_decay"
+            )
+            cleaned_colnames_dt <- cleaned_colnames_dt[
+              cleaned_colnames_dt %in% colnames(dt)
+            ]
+
+            dt %>%
               DT::datatable(
-                colnames = c(
-                  "Date" = "date",
-                  "Hour" = "hour",
-                  "Topic" = "topic",
-                  "Region" = "country",
-                  "Category" = "episomer_category",
-                  "Tops" = "tops",
-                  "Posts" = "number_of_posts",
-                  "% from important user" = "known_ratio",
-                  "Threshold" = "limit",
-                  "Baseline" = "no_historic",
-                  "Bonf. corr." = "bonferroni_correction",
-                  "Same weekday baseline" = "same_weekday_baseline",
-                  "Day rank" = "rank",
-                  "With quotes" = "with_quotes",
-                  "Alert FPR (alpha)" = "alpha",
-                  "Outlier FPR (alpha)" = "alpha_outlier",
-                  "Downweight strenght" = "k_decay"
-                ),
+                colnames = cleaned_colnames_dt,
                 filter = "top",
                 escape = FALSE
               )
@@ -3163,26 +3172,36 @@ episomer_app <- function(
 
             dt <- alerts %>%
               dplyr::select(
-                "date",
-                "hour",
-                "topic",
-                "country",
-                "episomer_category",
-                "tops",
-                "number_of_posts",
-                "topposts"
-              ) %>%
+                dplyr::any_of(c(
+                  "date",
+                  "hour",
+                  "topic",
+                  "country",
+                  "episomer_category",
+                  "tops",
+                  "number_of_posts",
+                  "topposts"
+                ))
+              )
+
+            cleaned_colnames_dt <- c(
+              "Date" = "date",
+              "Hour" = "hour",
+              "Topic" = "topic",
+              "Region" = "country",
+              "Category" = "episomer_category",
+              "Tops" = "tops",
+              "Posts" = "number_of_posts",
+              "Top posts" = "topposts"
+            )
+            cleaned_colnames_dt <- cleaned_colnames_dt[
+              cleaned_colnames_dt %in% colnames(dt)
+            ]
+
+            
+dt %>%
               DT::datatable(
-                colnames = c(
-                  "Date" = "date",
-                  "Hour" = "hour",
-                  "Topic" = "topic",
-                  "Region" = "country",
-                  "Category" = "episomer_category",
-                  "Tops" = "tops",
-                  "Posts" = "number_of_posts",
-                  "Top posts" = "topposts"
-                ),
+                colnames = cleaned_colnames_dt,
                 filter = "top",
                 escape = FALSE
               )
