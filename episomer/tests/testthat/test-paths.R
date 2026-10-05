@@ -346,3 +346,37 @@ test_that("default_data_dir falls back when conf holds no data_dir", {
   local_conf(data_dir = "/from/conf")
   expect_equal(default_data_dir(), "/from/conf")
 })
+
+# default_data_dir() is the answer episomer_app() needs *before* setup_config() has ever run, so
+# that episomer_app(fs_remote = ...) can be called without a data directory. Reaching for
+# conf$data_dir there used to hand setup_config() a NULL on a fresh session.
+test_that("default_data_dir falls back when conf holds no data_dir", {
+  local_conf()
+  withr::local_envvar(EPI_HOME = "")
+  expect_equal(default_data_dir(), file.path(tempdir(), "episomer"))
+
+  withr::local_envvar(EPI_HOME = "/from/env")
+  expect_equal(default_data_dir(), "/from/env")
+
+  local_conf(data_dir = "/from/conf")
+  expect_equal(default_data_dir(), "/from/conf")
+})
+
+# The snapshot archive is always written on the machine running the app (create_snapshot() uses
+# dir.create()/normalizePath()), but on a remote fs conf$data_dir is a placeholder under tempdir(),
+# so the default destination must not be derived from it.
+test_that("ensure_snapshot_folder stays out of the data dir when the fs is remote", {
+  local_dir <- withr::local_tempdir()
+  local_conf("fs_remote" = NULL, data_dir = local_dir)
+  expect_equal(
+    ensure_snapshot_folder(),
+    file.path(local_dir, "snapshot")
+  )
+
+  withr::local_dir(withr::local_tempdir())
+  local_conf("fs_remote" = "http://example.com:8080", data_dir = local_dir)
+  snapshot <- ensure_snapshot_folder()
+  expect_false(startsWith(snapshot, local_dir))
+  expect_true(dir.exists(snapshot))
+  expect_false(is_remote(snapshot))
+})

@@ -276,7 +276,10 @@ can_render <- function(input, d) {
       check_series_present(),
       paste(
         'No aggregated data found on ',
-        paste(conf$data_dir, "series", sep = "/"),
+        # epipath() and not conf$data_dir: check_series_present() looks under epipath("fs", <series>)
+        # (R/check.R), so on a remote fs the message has to name the API location it actually
+        # looked at, not a local directory that was never read.
+        epipath("fs"),
         " please make sure the Requirements & alerts pipeline has successfully ran"
       )
     ),
@@ -363,9 +366,21 @@ get_alertsdb_runs_html <- function() {
   runs
 }
 
-# getting the default snapshot folder and create it if does not exists
+# Default destination offered for a snapshot, created if it does not exist yet.
+#
+# Deliberately a *local* directory in both modes: create_snapshot() (R/check.R) writes the archive
+# with dir.create() and normalizePath() on the machine running the app, whatever the files it
+# collects come from. Only the base changes - under the data directory when there is a real one,
+# under the working directory when the fs is remote, because conf$data_dir is then a placeholder
+# under tempdir() (see episomer_app()): an archive dropped there would be thrown away with the
+# session, and any path starting with that prefix is what to_remote_if_needed() rewrites into an
+# API URL. It stays a default: the field it fills is editable.
 ensure_snapshot_folder <- function() {
-  path <- file.path(conf$data_dir, "snapshot")
+  path <- if (fs_remote()) {
+    file.path(getwd(), "episomer-snapshot")
+  } else {
+    file.path(conf$data_dir, "snapshot")
+  }
   if (!dir.exists(path)) dir.create(path, recursive = TRUE)
   path
 }
