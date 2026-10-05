@@ -685,6 +685,30 @@ object LuceneActor {
       //, "place_full_name"->None.asInstanceOf[Option[String]]
       //, "linked_place_full_name"->None.asInstanceOf[Option[String]]
     )
+  // Posts are indexed without commit (commit_posts() is periodic) but are written to the geolocating
+  // file at once. If the process stopped before a commit, the file still holds posts the index lost:
+  // they are indexed again here, before geolocation looks them up. Posts already there are left alone.
+  def restoreMissingPosts()(implicit conf:Settings, storage:Storage, holder:IndexHolder) {
+    val geoNode = storage.getNode(conf.geolocatingPath)
+    if(geoNode.exists) {
+      var restored = 0
+      val refreshed = HashSet[String]()
+      geoNode.getContentAsLines.filter(_.trim.nonEmpty).foreach{ json =>
+        val TopicPosts(network, topic, ts) = EpiSerialisation.topicPostsFormat.read(JsonParser(json))
+        ts.items.foreach{ post =>
+          val key = LuceneActor.getIndexKey("posts", post.created_at)
+          val index = LuceneActor.getIndex("posts", key)
+          if(refreshed.add(key)) index.refreshReader()
+          if(!index.hasPost(post.id, topic, network)) {
+            index.indexPost(post, topic, network)
+            restored += 1
+          }
+        }
+      }
+      if(restored > 0)
+        l.msg(s"$restored posts found in the geolocating file but missing from the index (not committed before the last stop) have been indexed again")
+    }
+  }
   def geolocatePosts( 
     forcedGeo:Option[Map[String, String]], 
     forcedGeoCodes:Option[Map[String, String]], 
@@ -693,6 +717,7 @@ object LuceneActor {
     import spark.implicits._
     val sc = spark.sparkContext
     val startTime = System.nanoTime
+    restoreMissingPosts()
     // The geolocation models are read from disk when the pipeline below is built, and broadcast
     // inside it. A pipeline kept from before a retraining therefore goes on applying the previous
     // models: every post the search loop keeps sending would be geolocated by a model the user has
