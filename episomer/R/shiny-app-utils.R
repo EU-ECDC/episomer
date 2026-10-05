@@ -368,18 +368,17 @@ get_alertsdb_runs_html <- function() {
 
 # Default destination offered for a snapshot, created if it does not exist yet.
 #
-# Deliberately a *local* directory in both modes: create_snapshot() (R/check.R) writes the archive
-# with dir.create() and normalizePath() on the machine running the app, whatever the files it
-# collects come from. Only the base changes - under the data directory when there is a real one,
-# under the working directory when the fs is remote, because conf$data_dir is then a placeholder
-# under tempdir() (see episomer_app()): an archive dropped there would be thrown away with the
-# session, and any path starting with that prefix is what to_remote_if_needed() rewrites into an
-# API URL. It stays a default: the field it fills is editable.
+# Always a *local* directory: create_snapshot() (R/check.R) writes the archive with dir.create()
+# and normalizePath() on the machine running the app, whatever the files it collects come from.
+# The data directory is therefore the right base whenever there is one - which is the usual case,
+# the fs machine included. The working directory is only the fallback for an app running away from
+# the fs, where conf$data_dir is a placeholder under tempdir() (see episomer_app()): an archive
+# dropped there would be thrown away with the session. It stays a default, the field is editable.
 ensure_snapshot_folder <- function() {
-  path <- if (fs_remote()) {
-    file.path(getwd(), "episomer-snapshot")
-  } else {
+  path <- if (has_local_data_dir()) {
     file.path(conf$data_dir, "snapshot")
+  } else {
+    file.path(getwd(), "episomer-snapshot")
   }
   if (!dir.exists(path)) dir.create(path, recursive = TRUE)
   path

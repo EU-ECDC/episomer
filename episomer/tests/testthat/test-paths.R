@@ -401,20 +401,41 @@ test_that("default_data_dir falls back when conf holds no data_dir", {
 })
 
 # The snapshot archive is always written on the machine running the app (create_snapshot() uses
-# dir.create()/normalizePath()), but on a remote fs conf$data_dir is a placeholder under tempdir(),
-# so the default destination must not be derived from it.
-test_that("ensure_snapshot_folder stays out of the data dir when the fs is remote", {
+# dir.create()/normalizePath()), so the data directory is the right base whenever there is a real
+# one - which is the usual case, fs_remote being set even on a local install.
+test_that("ensure_snapshot_folder uses the data dir whenever there is a real one", {
   local_dir <- withr::local_tempdir()
-  local_conf("fs_remote" = NULL, data_dir = local_dir)
-  expect_equal(
-    ensure_snapshot_folder(),
-    file.path(local_dir, "snapshot")
-  )
 
+  local_conf("fs_remote" = NULL, data_dir = local_dir)
+  expect_equal(ensure_snapshot_folder(), file.path(local_dir, "snapshot"))
+
+  # The local install the user actually runs: a data directory on disk *and* an fs endpoint
+  local_conf("fs_remote" = "http://localhost:8080", data_dir = local_dir)
+  expect_equal(ensure_snapshot_folder(), file.path(local_dir, "snapshot"))
+})
+
+# Only an app running away from the fs has no data directory: conf$data_dir is then a placeholder
+# under tempdir() that does not exist, and an archive dropped there is lost with the session.
+test_that("ensure_snapshot_folder falls back when the data dir is not on this machine", {
+  absent <- file.path(withr::local_tempdir(), "no-such-data-dir")
   withr::local_dir(withr::local_tempdir())
-  local_conf("fs_remote" = "http://example.com:8080", data_dir = local_dir)
+  local_conf("fs_remote" = "http://example.com:8080", data_dir = absent)
+
   snapshot <- ensure_snapshot_folder()
-  expect_false(startsWith(snapshot, local_dir))
+  expect_false(startsWith(snapshot, absent))
   expect_true(dir.exists(snapshot))
   expect_false(is_remote(snapshot))
+})
+
+test_that("has_local_data_dir answers on the directory, not on fs_remote", {
+  local_dir <- withr::local_tempdir()
+
+  local_conf("fs_remote" = "http://localhost:8080", data_dir = local_dir)
+  expect_true(has_local_data_dir())
+
+  local_conf("fs_remote" = NULL, data_dir = file.path(local_dir, "absent"))
+  expect_false(has_local_data_dir())
+
+  local_conf("fs_remote" = "http://localhost:8080")
+  expect_false(has_local_data_dir())
 })

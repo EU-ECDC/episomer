@@ -662,14 +662,17 @@ episomer_app <- function(
               shiny::div(
                 id = "config_general_body",
                 shiny::fluidRow(
-                  # On a remote fs the data directory is a local placeholder (see the
-                  # setup_config() call in episomer_app()): nothing is read from it and showing
-                  # it would name a directory that holds none of the data on screen. The address
-                  # actually serving that data is the useful thing to display.
-                  shiny::column(3, if (fs_remote()) "Data source" else "Data dir"),
+                  # Not fs_remote(): that is TRUE on a local install too (see
+                  # has_local_data_dir() in R/paths.R). Only an app running away from the fs has
+                  # no data directory of its own, and there conf$data_dir is a placeholder under
+                  # tempdir() holding none of the data on screen - the address actually serving
+                  # that data is what is worth displaying.
+                  shiny::column(3, if (has_local_data_dir()) "Data dir" else "Data source"),
                   shiny::column(
                     9,
-                    shiny::span(if (fs_remote()) conf$fs_remote else conf$data_dir)
+                    shiny::span(
+                      if (has_local_data_dir()) conf$data_dir else conf$fs_remote
+                    )
                   )
                 ),
                 shiny::fluidRow(

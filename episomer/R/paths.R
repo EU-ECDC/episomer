@@ -5,6 +5,22 @@ epipath <- function(...) {
     else 
         get_scala_file_url(...)
 }
+# TRUE when conf$data_dir names a directory that exists on this machine, i.e. one the app can read
+# and write directly.
+#
+# fs_remote() does not answer that question, and using it here is what sent the snapshot default
+# into the working directory on a perfectly local install: it is TRUE in almost every session,
+# because setup_config() defaults fs_remote to "http://localhost:8080" and episomer_app() always
+# resolves an endpoint. It says "the files are reached through the API", which the fs machine
+# itself does too. What a local destination needs to know is whether there is a real directory,
+# and only an app running away from the fs has none.
+has_local_data_dir <- function() {
+  !is.null(conf$data_dir) &&
+    length(conf$data_dir) == 1 &&
+    !is.na(conf$data_dir) &&
+    dir.exists(conf$data_dir)
+}
+
 # to know if a path is remote or not
 is_remote <- function(path) {
    p <- urltools::url_parse(path)
