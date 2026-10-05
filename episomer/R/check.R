@@ -462,7 +462,21 @@ check_last_sm_auth <- function() {
 }
 
 # can move from temp to data directory
+#
+# What it guards against is a data directory on another file system than TMPDIR, where
+# file.rename() fails across the device boundary - a Windows hazard above all. An app running
+# away from the fs has no local data directory to move anything into: it reads and writes through
+# the API, the hazard cannot occur, and running the test anyway reported "ko" with a message
+# about TMPDIR and drive letters that named a tempdir() placeholder nobody had configured.
+#
+# It passes rather than being reported as skipped because check_all() has no third state: a check
+# answers TRUE or FALSE, and nothing here is broken. The test is deliberately left on the raw
+# file.rename()/file.remove() and not moved to epifile.*, which would measure a move on the fs
+# machine instead - another thing entirely.
 check_move_from_temp <- function() {
+  if (!has_local_data_dir()) {
+    return(TRUE)
+  }
   ok <- tryCatch(
     {
       temp <- tempfile()

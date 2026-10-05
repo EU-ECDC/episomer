@@ -445,3 +445,19 @@ test_that("has_local_data_dir answers on the directory, not on fs_remote", {
   local_conf("fs_remote" = "http://localhost:8080")
   expect_false(has_local_data_dir())
 })
+
+# check_move_from_temp() guards against a data directory sitting on another file system than
+# TMPDIR. An app reaching the fs through the API has no local data directory, so the hazard cannot
+# occur and the check must not report a failure naming a tempdir() placeholder.
+test_that("check_move_from_temp is moot without a local data dir", {
+  data_dir <- withr::local_tempdir()
+  local_conf("fs_remote" = "http://localhost:8080", data_dir = data_dir)
+  expect_true(check_move_from_temp())
+
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = file.path(withr::local_tempdir(), "no-such-data-dir")
+  )
+  expect_true(check_move_from_temp())
+  expect_silent(check_move_from_temp())
+})
