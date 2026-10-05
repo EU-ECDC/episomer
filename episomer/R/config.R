@@ -1174,6 +1174,92 @@ add_config_language <- function(code, name) {
   }
 }
 
+# Apply the language list given by the EPISOMER_LANGUAGES environment variable.
+#
+# The wizard (setup()) is the only place languages can be changed, and in a container it runs with
+# silent = TRUE: every question takes its default, so the language list of properties.json is kept
+# for ever and a deployment has no way to ask for another one. This variable is that way in:
+#
+#   EPISOMER_LANGUAGES="fr;en;es;pt"
+#
+# Semicolon-separated ISO codes, matched case-insensitively against the Code column of
+# languages.xlsx - the same list the wizard and the Shiny app offer. The separator is the one
+# already used by EPISOMER_OPTION_MASTODON_INSTANCES in compose.yml.
+#
+# Deliberately *not* an EPISOMER_OPTION_LANGUAGES, for two reasons:
+#  * EPISOMER_OPTION_* has lower precedence than properties.json (see setup_config()), so it would
+#    only ever apply to a brand new data directory - the opposite of what is wanted here, which is
+#    to change the languages of an existing EPI_HOME on the next start;
+#  * `languages` is a list of objects, which coerce_env_props() explicitly leaves alone.
+#
+# It is applied here rather than merged in setup_config() because changing the list is not just
+# writing a property: a removed language has vector and model files to delete, and an added one has
+# a download to trigger. Going through remove_config_language() / add_config_language() keeps that
+# bookkeeping - lang_updated_on included - identical to what the wizard does by hand.
+#
+# A no-op when the variable is unset, empty, or already describes the configured list: the common
+# case is a container restarting with the same compose file, and it must not bump lang_updated_on
+# (which would make get_lang_traing_need() ask for a retraining at every start).
+apply_env_languages <- function(raw = Sys.getenv("EPISOMER_LANGUAGES")) {
+  if (trimws(raw) == "") {
+    return(invisible(FALSE))
+  }
+  codes <- trimws(strsplit(raw, ";", fixed = TRUE)[[1]])
+  codes <- tolower(codes[codes != ""])
+  codes <- codes[!duplicated(codes)]
+  if (length(codes) == 0) {
+    stop(
+      "EPISOMER_LANGUAGES is set but lists no language. Episomer needs at least one language to run."
+    )
+  }
+  available <- get_available_languages()
+  known <- setNames(available$Label, tolower(available$Code))
+  unknown <- codes[!codes %in% names(known)]
+  if (length(unknown) > 0) {
+    stop(sprintf(
+      "Invalid value '%s' for environment variable EPISOMER_LANGUAGES: unknown language code(s) %s. Expected codes from the Code column of languages.xlsx, e.g. 'fr;en;es;pt'.",
+      raw,
+      paste(unknown, collapse = ", ")
+    ))
+  }
+  current <- tolower(unlist(lapply(conf$languages, `[[`, "code")))
+  to_remove <- setdiff(current, codes)
+  to_add <- setdiff(codes, current)
+  if (length(to_remove) == 0 && length(to_add) == 0) {
+    message(sprintf(
+      "EPISOMER_LANGUAGES matches the configured languages (%s), nothing to do",
+      paste(codes, collapse = ", ")
+    ))
+    return(invisible(FALSE))
+  }
+  # Additions first, removals second, and not the other way round: a variable replacing the whole
+  # list (EPISOMER_LANGUAGES=es on a data directory configured for en;fr) would otherwise empty
+  # conf$languages in between, and add_config_language() errors on an empty list.
+  for (code in to_add) {
+    message(sprintf(
+      "EPISOMER_LANGUAGES: adding language %s (%s), its vectors will be downloaded",
+      known[[code]],
+      code
+    ))
+    add_config_language(code, known[[code]])
+  }
+  for (code in to_remove) {
+    message(sprintf("EPISOMER_LANGUAGES: removing language %s", code))
+    remove_config_language(code)
+    # Only the local files: a language removed from the configuration is one nothing will ask the
+    # geotagging for any more, and leaving a 5 GB vector file behind in the data directory is how
+    # EPI_HOME quietly fills a volume.
+    remove_language_files(code)
+  }
+  # Reordered to follow the variable, so that the list the dashboard shows is the list the compose
+  # file reads - add_config_language() appends, which would otherwise leave the kept languages
+  # first and the added ones at the end.
+  order <- match(codes, tolower(unlist(lapply(conf$languages, `[[`, "code"))))
+  conf$languages <- conf$languages[order]
+  save_config()
+  invisible(TRUE)
+}
+
 # Get the current known users list from the important users files
 get_known_users <- function() {
   gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])

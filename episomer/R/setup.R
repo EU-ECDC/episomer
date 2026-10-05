@@ -65,6 +65,11 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
  
     dir.create(data_dir, showWarnings=FALSE, recursive=TRUE)
     setup_config(data_dir, fs_remote = NULL)
+
+    # Before anything reads conf$languages below - the missing/to-train lists of `defaults`, and
+    # option 5 further down. In a container the wizard runs silent, so this is the only way a
+    # deployment gets to change the language list; see apply_env_languages() in R/config.R.
+    apply_env_languages()
     
     ####################################################################################
     ###  MAIN wizard menu  #############################################################
