@@ -72,6 +72,8 @@ case class Settings(epiHome:String) {
   def langIndexPath =  Paths.get(epiHome, "geo","lang_vectors.index").toString 
   def togeolocatePath =  Paths.get(epiHome, "geo","togeolocate.json").toString 
   def geolocatingPath =  Paths.get(epiHome, "geo","geolocating.json").toString 
+  // Posts indexed since the last commit of the index, see LuceneActor.journalPosts
+  def commitingPath =  Paths.get(epiHome, "geo","commiting.json").toString 
   def toaggregatePath =  Paths.get(epiHome, "geo","toaggregate.json").toString 
   def aggregatingPath =  Paths.get(epiHome, "geo","aggregating.json").toString 
   def collectionPath =  Paths.get(epiHome, "collections").toString 
