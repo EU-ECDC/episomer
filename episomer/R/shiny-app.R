@@ -1378,9 +1378,17 @@ episomer_app <- function(
           )
         )
   }
+  # Full-screen spinner shown while Shiny is busy (assets in inst/www)
+  busy_spinner <- htmltools::htmlDependency(
+    name = "episomer-busy-spinner",
+    version = as.character(utils::packageVersion("episomer")),
+    src = system.file("www", package = "episomer"),
+    script = "busy-spinner.js",
+    stylesheet = "busy-spinner.css"
+  )
   # Defining navigation UI
   ui_app <- function(profile) {
-    args = list("episomer", id = "navbar_shinyapp")
+    args = list("episomer", id = "navbar_shinyapp", header = list(busy_spinner))
     if("dashboard" %in% profile) {
         args = c(args, list(shiny::tabPanel("Dashboard", value = "dashboard_page", dashboard_page)))
     }
