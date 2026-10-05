@@ -87,6 +87,16 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
         EpisomerActor.Success(s"$c geolocated properly processed")
       }
       .pipeTo(sender())
+    case LuceneActor.RestoreJournalRequest() =>
+      implicit val holder = LuceneActor.holder
+      Future{
+        LuceneActor.restoreMissingPosts()
+        // empties the journal, or does nothing but delete it when nothing was missing
+        LuceneActor.commit(closeDirectory = false)
+      }.onComplete {
+        case Success(_) =>
+        case Failure(t) => l.msg(s"Error restoring the posts not committed before the last stop, will retry on next geolocation: ${t.getMessage}: ${t.getStackTrace.mkString("\n")}")
+      }
     case ts:LuceneActor.CommitRequest =>
       implicit val holder = LuceneActor.holder
       Future{
@@ -400,6 +410,7 @@ object LuceneActor {
   case class GeolocatedPostsCreated (geolocated:GeolocatedPosts, dates:Seq[Instant])
   case class GeolocatePostsRequest(items:TopicPosts)
   case class CommitRequest()
+  case class RestoreJournalRequest()
   case class CloseRequest()
   case class SearchRequest(
     query:Option[String], 
