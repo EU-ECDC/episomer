@@ -46,9 +46,14 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
       implicit val holder = LuceneActor.holder
       Future{
         val dateMap = ts.items.groupBy(t => t.created_at.toString.take(10))
-        dateMap.foreach{case (date, posts) =>
-          val index = LuceneActor.getIndex("posts", posts(0).created_at)
-          posts.foreach{t => index.indexPost(t, topic, network)}
+        // The journal and the indexing share the lock that commit() takes: a commit can then never
+        // empty the journal between the two, which would leave a post indexed but not journaled.
+        holder.dirs.synchronized {
+          LuceneActor.journalPosts(TopicPosts(network, topic, ts))
+          dateMap.foreach{case (date, posts) =>
+            val index = LuceneActor.getIndex("posts", posts(0).created_at)
+            posts.foreach{t => index.indexPost(t, topic, network)}
+          }
         }
         dateMap.keys.toSeq
       }
@@ -418,7 +423,7 @@ object LuceneActor {
   case class PeriodResponse(first:Option[String], last:Option[String], last_hour:Option[Int])
   case class RecalculateHashRequest()
   def getHolder(writeEnabled:Boolean) = IndexHolder(writeEnabled = writeEnabled)
-  def commitRequest()(implicit holder:IndexHolder, ec:ExecutionContext) {
+  def commitRequest()(implicit holder:IndexHolder, ec:ExecutionContext, conf:Settings) {
     var dismissCommit = false
     holder.dirs.synchronized {
       if(holder.commiting)
@@ -471,11 +476,11 @@ object LuceneActor {
     Future("In progress")
   }
 
-  def commit()(implicit holder:IndexHolder)  {
+  def commit()(implicit holder:IndexHolder, conf:Settings)  {
     commit(closeDirectory = true)
   }
 
-  def commit(closeDirectory:Boolean= true)(implicit holder:IndexHolder)  {
+  def commit(closeDirectory:Boolean= true)(implicit holder:IndexHolder, conf:Settings)  {
     val now = System.nanoTime
     holder.dirs.synchronized {
       holder.dirs.foreach{ case (key, path) =>
@@ -491,6 +496,9 @@ object LuceneActor {
           }
         case _ =>
       }
+      // Everything journaled is now in the committed index (the journal cannot grow while this lock
+      // is held), so it is not needed anymore. Not reached if a commit above failed.
+      conf.getSparkStorage.getNode(conf.commitingPath).delete()
       if(closeDirectory) {
         holder.indexes.clear
         holder.dirs.clear
@@ -685,28 +693,48 @@ object LuceneActor {
       //, "place_full_name"->None.asInstanceOf[Option[String]]
       //, "linked_place_full_name"->None.asInstanceOf[Option[String]]
     )
-  // Posts are indexed without commit (commit_posts() is periodic) but are written to the geolocating
-  // file at once. If the process stopped before a commit, the file still holds posts the index lost:
-  // they are indexed again here, before geolocation looks them up. Posts already there are left alone.
-  def restoreMissingPosts()(implicit conf:Settings, storage:Storage, holder:IndexHolder) {
-    val geoNode = storage.getNode(conf.geolocatingPath)
-    if(geoNode.exists) {
-      var restored = 0
-      val refreshed = HashSet[String]()
-      geoNode.getContentAsLines.filter(_.trim.nonEmpty).foreach{ json =>
-        val TopicPosts(network, topic, ts) = EpiSerialisation.topicPostsFormat.read(JsonParser(json))
-        ts.items.foreach{ post =>
-          val key = LuceneActor.getIndexKey("posts", post.created_at)
-          val index = LuceneActor.getIndex("posts", key)
-          if(refreshed.add(key)) index.refreshReader()
-          if(!index.hasPost(post.id, topic, network)) {
-            index.indexPost(post, topic, network)
-            restored += 1
+  // Posts are indexed without commit (commit_posts() is periodic), so the ones indexed when the fs
+  // stopped are not in the index when it starts again. Each batch of posts is therefore appended to
+  // the commiting file before being indexed, and that file is deleted by commit() once they are
+  // committed. What it still holds at startup is what the last run lost.
+  def journalPosts(posts:TopicPosts)(implicit conf:Settings, holder:IndexHolder) {
+    if(posts.posts.items.size > 0) {
+      implicit val st = conf.getSparkStorage
+      val node = st.getNode(conf.commitingPath)
+      holder.dirs.synchronized {
+        if(node.exists) node.setContent("\n", WriteMode.append)
+        node.setContent(EpiSerialisation.topicPostsFormat.write(posts).toString, WriteMode.append)
+      }
+    }
+  }
+  // The journal is only checked on the first geolocation after a start: what it holds afterwards was
+  // indexed by this very process. Done at the start of the geolocation because that is when a missing
+  // post would be noticed (indexGeolocated). Posts already in the index are left alone.
+  @volatile var journalRestored = false
+  def restoreMissingPosts()(implicit conf:Settings, holder:IndexHolder) {
+    if(!journalRestored) {
+      holder.dirs.synchronized {
+        val node = conf.getSparkStorage.getNode(conf.commitingPath)
+        if(node.exists) {
+          var restored = 0
+          val refreshed = HashSet[String]()
+          node.getContentAsLines.filter(_.trim.nonEmpty).foreach{ json =>
+            val TopicPosts(network, topic, ts) = EpiSerialisation.topicPostsFormat.read(JsonParser(json))
+            ts.items.foreach{ post =>
+              val key = LuceneActor.getIndexKey("posts", post.created_at)
+              val index = LuceneActor.getIndex("posts", key)
+              if(refreshed.add(key)) index.refreshReader()
+              if(!index.hasPost(post.id, topic, network)) {
+                index.indexPost(post, topic, network)
+                restored += 1
+              }
+            }
           }
+          if(restored > 0)
+            l.msg(s"$restored posts found in the commiting file but missing from the index (not committed before the last stop) have been indexed again")
         }
       }
-      if(restored > 0)
-        l.msg(s"$restored posts found in the geolocating file but missing from the index (not committed before the last stop) have been indexed again")
+      journalRestored = true
     }
   }
   def geolocatePosts( 
@@ -928,7 +956,7 @@ object LuceneActor {
             }
           }.get
     val numAggr = ds.collect.sum 
-    LuceneActor.commit(closeDirectory = false)(holder)
+    LuceneActor.commit(closeDirectory = false)(holder, conf)
     l.msg(s"${(System.nanoTime - startTime)/1e9d} secs for aggregating ${numAggr} posts in ${collection.name}")
   }
 
