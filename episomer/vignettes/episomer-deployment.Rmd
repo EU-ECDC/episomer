@@ -22,148 +22,173 @@ knitr::opts_chunk$set(
 )
 ```
 
-<span style="color:red">This document assumes a reader who administers the machines `{episomer}`
+This document assumes a reader who administers the machines `{episomer}`
 runs on: someone comfortable with a terminal, with Docker or Kubernetes, and with environment
-variables.</span>
+variables.
 
 # Running episomer in containers
 
-<span style="color:red">A container deployment of `{episomer}` is described by three files at the root of the
+A container deployment of `{episomer}` is described by three files at the root of the
 source repository: a `Dockerfile`, which describes the image, a `compose.yml`, which describes the
 services to run, and a `Makefile`, which holds the shortcuts used to drive them. None of the three
 is in the installed R package — neither the CRAN version nor a `.tar.gz` of the package contains
 them — and there is no ready-made image to pull, so a container deployment starts by cloning the
-sources and building an image from them.</span>
+sources and building an image from them.
 
-## <span style="color:red">What the image contains</span>
+## What the image contains
 
-<span style="color:red">The `Dockerfile` builds in three stages:</span>
+The `Dockerfile` builds in three stages:
 
--   <span style="color:red">**base** — a `rocker/r-base` image with the runtime prerequisites
+-   **base** — a `rocker/r-base` image with the runtime prerequisites
     already installed: a Java 21 runtime, the system libraries the R dependencies need, and the
     LaTeX and pandoc installation the dashboard uses to export PDF and Markdown reports. A reader of
     the *Prerequisites* section of the main user documentation will recognise the list; in a
-    container it is already done for you.</span>
--   <span style="color:red">**build** — adds the Java JDK and sbt, compiles the Scala code into the
-    JAR that `{episomer}` embeds, installs the R dependencies and then `{episomer}` itself.</span>
--   <span style="color:red">**final** — the base image plus the installed R library. It runs as an
+    container it is already done for you.
+-   **build** — adds the Java JDK and sbt, compiles the Scala code into the
+    JAR that `{episomer}` embeds, installs the R dependencies and then `{episomer}` itself.
+-   **final** — the base image plus the installed R library. It runs as an
     unprivileged user (uid 1000 by default, configurable with the `EPISOMER_USER` build
-    argument).</span>
+    argument).
 
-<span style="color:red">One image serves every role. Which service a container runs is decided at run time by
+One image serves every role. Which service a container runs is decided at run time by
 the `EPISOMER_RUN` environment variable, which the entry point of the image reads. You do not
 normally set it yourself: `compose.yml` already gives each of its three services the right value.
 It is worth knowing about for two reasons — it is what makes three containers out of one image, and
 it is what you would set on a fourth service if you wanted to serve the Shiny app from a container
-too:</span>
+too:
 
-| <span style="color:red">`EPISOMER_RUN`</span> | <span style="color:red">What the container runs</span> |
+| `EPISOMER_RUN` | What the container runs |
 |---|---|
-| <span style="color:red">`FS`</span> | <span style="color:red">the episomer database, after a silent `setup()` that downloads and prepares everything missing</span> |
-| <span style="color:red">`SEARCH`</span> | <span style="color:red">the post collection and processing loop</span> |
-| <span style="color:red">`DETECT`</span> | <span style="color:red">the requirements and alert detection loop</span> |
-| <span style="color:red">`APP`</span> | <span style="color:red">the full Shiny app</span> |
-| <span style="color:red">`DASH`</span> | <span style="color:red">the Shiny app, dashboard page only</span> |
-| <span style="color:red">`ADMIN`</span> | <span style="color:red">the Shiny app, admin pages only</span> |
+| `FS` | the episomer database, after a silent `setup()` that downloads and prepares everything missing |
+| `SEARCH` | the post collection and processing loop |
+| `DETECT` | the requirements and alert detection loop |
+| `APP` | the full Shiny app |
+| `DASH` | the Shiny app, dashboard page only |
+| `ADMIN` | the Shiny app, admin pages only |
 
-<span style="color:red">A container started without `EPISOMER_RUN` says so and sleeps, rather than
-guessing.</span>
+A container started without `EPISOMER_RUN` says so and sleeps, rather than
+guessing.
 
-## <span style="color:red">Configuring episomer through the environment</span>
+## Configuring episomer through the environment
 
-<span style="color:red">A container has no interactive console, so the setup wizard cannot ask
-anything. Everything it would ask is instead given through environment variables.</span>
+A container has no interactive console, so the setup wizard cannot ask
+anything. Everything it would ask is instead given through environment variables.
 
-### <span style="color:red">Where things live</span>
+### Where things live
 
-| <span style="color:red">Variable</span> | <span style="color:red">What it is</span> |
+| Variable | What it is |
 |---|---|
-| <span style="color:red">`EPI_HOME`</span> | <span style="color:red">the data directory inside the container, i.e. what you would pass to `setup("data_dir")`. In `compose.yml` it is `/episomer-data`, backed by a volume.</span> |
-| <span style="color:red">`EPI_HOST`</span> | <span style="color:red">the address of the episomer database, for every container that is not the database itself (`http://fs:8080` in `compose.yml`). See also *Running episomer on several machines*.</span> |
-| <span style="color:red">`EPISOMER_INSTANCE`</span> | <span style="color:red">the name this container is known by in the logs and in the services status table. Always set it: a container host name is a random hexadecimal string.</span> |
-| <span style="color:red">`EPISOMER_LOGS_TO_STDOUT`</span> | <span style="color:red">set it to `TRUE` in a container. `{episomer}` writes one log file per service under `<data directory>/jobs` by default, which is the right shape for a machine an operator logs into and the wrong one for a container: `docker logs` and `kubectl logs` read the standard output of the container and nothing else, so with the default the logs exist and are unreachable.</span> |
+| `EPI_HOME` | the data directory inside the container, i.e. what you would pass to `setup("data_dir")`. In `compose.yml` it is `/episomer-data`, backed by a volume. |
+| `EPI_HOST` | the address of the episomer database, for every container that is not the database itself (`http://fs:8080` in `compose.yml`). See also *Running episomer on several machines*. |
+| `EPISOMER_INSTANCE` | the name this container is known by in the logs and in the services status table. Always set it: a container host name is a random hexadecimal string. |
+| `EPISOMER_LOGS_TO_STDOUT` | set it to `TRUE` in a container. `{episomer}` writes one log file per service under `<data directory>/jobs` by default, which is the right shape for a machine an operator logs into and the wrong one for a container: `docker logs` and `kubectl logs` read the standard output of the container and nothing else, so with the default the logs exist and are unreachable. |
 
-### <span style="color:red">Settings: `EPISOMER_OPTION_*`</span>
+### Settings: `EPISOMER_OPTION_*`
 
-<span style="color:red">Any setting of `properties.json` can be given through the environment by
+Any setting of `properties.json` can be given through the environment by
 prefixing its name with `EPISOMER_OPTION_` and writing it in upper case. For instance
 `EPISOMER_OPTION_RUNNER_TTL_SEARCH=600` sets the `runner_ttl_search` property, and
-`EPISOMER_OPTION_SM_ACTIVATED_MASTODON=TRUE` activates Mastodon.</span>
+`EPISOMER_OPTION_SM_ACTIVATED_MASTODON=TRUE` activates Mastodon.
 
-<span style="color:red">Two things are worth knowing:</span>
+Two things are worth knowing:
 
--   <span style="color:red">**the precedence is defaults < `EPISOMER_OPTION_*` < `properties.json`.**
+-   **the precedence is defaults < `EPISOMER_OPTION_*` < `properties.json`.**
     An environment variable therefore only sets a property that `properties.json` does not already
     carry — which, since `{episomer}` saves every property when it saves its configuration, in
     practice means the very first start on a fresh data directory. On an existing data directory,
-    edit `properties.json`.</span>
--   <span style="color:red">**values are typed and checked at startup.** A property whose default is
+    edit `properties.json`.
+-   **values are typed and checked at startup.** A property whose default is
     a number must be given a number, one whose default is a boolean must be given a boolean
     (`TRUE`/`FALSE`, or `1`/`0`). An unusable value stops the container immediately, with a message
-    naming the variable, rather than being discovered hours later in the middle of a loop.</span>
+    naming the variable, rather than being discovered hours later in the middle of a loop.
 
-<span style="color:red">The social media of the deployment are set the same way, which is what
-replaces option 6 of the wizard:</span>
+The social media of the deployment are set the same way, which is what
+replaces option 6 of the wizard:
 
-| <span style="color:red">Variable</span> | <span style="color:red">What it does</span> |
+| Variable | What it does |
 |---|---|
-| <span style="color:red">`EPISOMER_OPTION_SM_ACTIVATED_BLUESKY`</span> | <span style="color:red">whether posts are collected from Bluesky</span> |
-| <span style="color:red">`EPISOMER_OPTION_SM_ALERTS_BLUESKY`</span> | <span style="color:red">whether Bluesky posts contribute to alert detection</span> |
-| <span style="color:red">`EPISOMER_OPTION_SM_ACTIVATED_MASTODON`</span> | <span style="color:red">whether posts are collected from Mastodon</span> |
-| <span style="color:red">`EPISOMER_OPTION_SM_ALERTS_MASTODON`</span> | <span style="color:red">whether Mastodon posts contribute to alert detection</span> |
-| <span style="color:red">`EPISOMER_OPTION_MASTODON_INSTANCES`</span> | <span style="color:red">the Mastodon instances to collect from, separated by semicolons, e.g. `mastodon.social;mstdn.party`</span> |
+| `EPISOMER_OPTION_SM_ACTIVATED_BLUESKY` | whether posts are collected from Bluesky |
+| `EPISOMER_OPTION_SM_ALERTS_BLUESKY` | whether Bluesky posts contribute to alert detection |
+| `EPISOMER_OPTION_SM_ACTIVATED_MASTODON` | whether posts are collected from Mastodon |
+| `EPISOMER_OPTION_SM_ALERTS_MASTODON` | whether Mastodon posts contribute to alert detection |
+| `EPISOMER_OPTION_MASTODON_INSTANCES` | the Mastodon instances to collect from, separated by semicolons, e.g. `mastodon.social;mstdn.party` |
 
-### <span style="color:red">Credentials: `EPISOMER_SECRET_*`</span>
+### Languages: `EPISOMER_LANGUAGES`
 
-<span style="color:red">Credentials never go into `properties.json`; they are kept in an encrypted
+The languages of the deployment are set with a single variable, which replaces the language
+question of the setup wizard:
+
+```sh
+EPISOMER_LANGUAGES="en;fr;pt;es"
+```
+
+It is a list of language codes separated by semicolons, taken from the same list as the wizard and
+the Shiny app and matched without regard to case. Unlike the `EPISOMER_OPTION_*` settings it is
+applied **at every start**, including on an existing data directory, which is what lets you change
+the languages of a deployment that is already running:
+
+-   **an added language** is downloaded at the next start (its word vectors are large), and is
+    taken into account by the language model retraining;
+-   **a removed language** has its local vector files deleted, so that the data directory does not
+    quietly fill the volume. The posts already collected are not touched;
+-   **an unchanged list** does nothing, so a container restarting with the same compose file does
+    not trigger a retraining;
+-   **an unknown code, or an empty list,** stops the container immediately with a message naming the
+    variable.
+
+The variable is read by the `fs` service only, the one that runs the setup.
+
+### Credentials: `EPISOMER_SECRET_*`
+
+Credentials never go into `properties.json`; they are kept in an encrypted
 keyring, and in a container that keyring is a password-protected file inside the data directory. Two
-kinds of variables feed it:</span>
+kinds of variables feed it:
 
--   <span style="color:red">`EPISOMER_KR_PASSWORD`, the password that unlocks the keyring, or
+-   `EPISOMER_KR_PASSWORD`, the password that unlocks the keyring, or
     `EPISOMER_KR_PASSWORD_FILE`, the path of a file whose first line is that password. Without one
     of the two, a non-interactive `{episomer}` cannot open its keyring and stops with a message
-    saying so.</span>
--   <span style="color:red">one `EPISOMER_SECRET_<NAME>` per credential, or
+    saying so.
+-   one `EPISOMER_SECRET_<NAME>` per credential, or
     `EPISOMER_SECRET_<NAME>_FILE` pointing at a file that contains it. The `_FILE` form is the one to
     use: it is what Docker secrets and Kubernetes secret mounts provide, and it keeps the value out
-    of the container's environment, where `docker inspect` would show it.</span>
+    of the container's environment, where `docker inspect` would show it.
 
-<span style="color:red">The names follow the social media:</span>
+The names follow the social media:
 
-| <span style="color:red">Credential</span> | <span style="color:red">Variable</span> |
+| Credential | Variable |
 |---|---|
-| <span style="color:red">Bluesky user</span> | <span style="color:red">`EPISOMER_SECRET_BLUESKY_USER`</span> |
-| <span style="color:red">Bluesky password</span> | <span style="color:red">`EPISOMER_SECRET_BLUESKY_PASSWORD`</span> |
-| <span style="color:red">Mastodon access token for one instance</span> | <span style="color:red">`EPISOMER_SECRET_MASTODON_<INSTANCE>_TOKEN`, where `<INSTANCE>` is the instance domain in upper case with its dots replaced by underscores — `mstdn.party` becomes `EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN`</span> |
+| Bluesky user | `EPISOMER_SECRET_BLUESKY_USER` |
+| Bluesky password | `EPISOMER_SECRET_BLUESKY_PASSWORD` |
+| Mastodon access token for one instance | `EPISOMER_SECRET_MASTODON_<INSTANCE>_TOKEN`, where `<INSTANCE>` is the instance domain in upper case with its dots replaced by underscores — `mstdn.party` becomes `EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN` |
 
-## <span style="color:red">The provided Docker Compose deployment</span>
+## The provided Docker Compose deployment
 
-<span style="color:red">`compose.yml` starts the three services of a working
-`{episomer}`:</span>
+`compose.yml` starts the three services of a working
+`{episomer}`:
 
--   <span style="color:red">**`fs`** — the episomer database. It is the only service that holds data:
+-   **`fs`** — the episomer database. It is the only service that holds data:
     the data directory is mounted into it as a volume, and it publishes the database port. Before
     starting the database it runs the setup wizard silently (`setup(silent = TRUE, launch =
     FALSE)`), which downloads and prepares whatever is missing — Java dependencies, GeoNames,
     language models — and then starts the database. The first start of a fresh data directory is
-    therefore long.</span>
--   <span style="color:red">**`search`** — the post collection. It waits for `fs` to be healthy,
+    therefore long.
+-   **`search`** — the post collection. It waits for `fs` to be healthy,
     talks to it over HTTP through `EPI_HOST`, and mounts only the `jobs` sub-directory. Its own
     health check asks `{episomer}` whether the social media authentication still works, so a
     container whose credentials have expired is reported as unhealthy rather than quietly collecting
-    nothing.</span>
--   <span style="color:red">**`detect`** — the requirements and alert detection pipeline, with the
-    same shape.</span>
+    nothing.
+-   **`detect`** — the requirements and alert detection pipeline, with the
+    same shape.
 
-<span style="color:red">`search` and `detect` are declared `restart: on-failure`, which is what makes
+`search` and `detect` are declared `restart: on-failure`, which is what makes
 a container that cannot claim its lease — see the next part — retry until the lease is free, instead
-of exiting for good.</span>
+of exiting for good.
 
-### <span style="color:red">Starting it</span>
+### Starting it
 
-<span style="color:red">Work from a clone of the `{episomer}` source repository. The whole clone is the build context: the image is built from the R sources and the Scala sources it contains, and the packaging step run inside it goes through the `Makefile`, which is why the three files have to travel together.</span>
+Work from a clone of the `{episomer}` source repository. The whole clone is the build context: the image is built from the R sources and the Scala sources it contains, and the packaging step run inside it goes through the `Makefile`, which is why the three files have to travel together.
 
-<span style="color:red">Everything else is one file to write, named `.env`, next to `compose.yml`. Docker Compose reads it by itself; it carries both the values `compose.yml` interpolates and the credentials Compose hands to the containers as secrets.</span>
+Everything else is one file to write, named `.env`, next to `compose.yml`. Docker Compose reads it by itself; it carries both the values `compose.yml` interpolates and the credentials Compose hands to the containers as secrets.
 
 ```sh
 # .env, next to compose.yml
@@ -185,7 +210,7 @@ EPISOMER_SECRET_MASTODON_MASTODON_SOCIAL_TOKEN=...
 EPISOMER_SECRET_MASTODON_MSTDN_PARTY_TOKEN=...
 ```
 
-<span style="color:red">Then, from that directory:</span>
+Then, from that directory:
 
 ```sh
 docker compose up --build -d     # build the image if needed, then start fs, search and detect
@@ -194,39 +219,39 @@ docker compose logs -f fs        # follow one service
 docker compose down              # stop everything
 ```
 
-<span style="color:red">The very first `up` is long: it compiles the Scala code and installs every R dependency into the image, and then the `fs` container runs the setup wizard silently and downloads GeoNames and the language models. Follow it with `docker compose logs -f fs`; `search` and `detect` wait for the database to report itself healthy before they start.</span>
+The very first `up` is long: it compiles the Scala code and installs every R dependency into the image, and then the `fs` container runs the setup wizard silently and downloads GeoNames and the language models. Follow it with `docker compose logs -f fs`; `search` and `detect` wait for the database to report itself healthy before they start.
 
-<span style="color:red">The `Makefile` offers the same two operations as `make compose-up` and `make compose-down`. They do one thing more than the commands above: instead of reading the credentials from `.env`, they fetch them from a `pass` password store, under names such as `epitools/ecdc_bluesky_user`. It is the better option if you already keep your secrets in `pass`; if you do not, use `.env` and the plain `docker compose` commands above, which need nothing else installed.</span>
+The `Makefile` offers the same two operations as `make compose-up` and `make compose-down`. They do one thing more than the commands above: instead of reading the credentials from `.env`, they fetch them from a `pass` password store, under names such as `epitools/ecdc_bluesky_user`. It is the better option if you already keep your secrets in `pass`; if you do not, use `.env` and the plain `docker compose` commands above, which need nothing else installed.
 
-### <span style="color:red">A word on the credentials</span>
+### A word on the credentials
 
-<span style="color:red">`.env` is a plain text file. It is convenient, and it is what Compose expects, but it must be treated as a secret: keep it out of version control and restrict it to its owner (`chmod 600 .env`).</span>
+`.env` is a plain text file. It is convenient, and it is what Compose expects, but it must be treated as a secret: keep it out of version control and restrict it to its owner (`chmod 600 .env`).
 
-<span style="color:red">Two alternatives avoid writing the credentials down at all. The variables can simply be exported in the shell that calls `docker compose`, which is what a CI system or an orchestrator's secret store does naturally. Or the `secrets` section of `compose.yml` can be changed from `environment:` to `file:`, so that Compose reads each credential from a file you provide rather than from a variable. The containers see no difference either way: they only ever read `/run/secrets/...`.</span>
+Two alternatives avoid writing the credentials down at all. The variables can simply be exported in the shell that calls `docker compose`, which is what a CI system or an orchestrator's secret store does naturally. Or the `secrets` section of `compose.yml` can be changed from `environment:` to `file:`, so that Compose reads each credential from a file you provide rather than from a variable. The containers see no difference either way: they only ever read `/run/secrets/...`.
 
-<span style="color:red">One last thing to keep consistent: the Mastodon instances appear in three places that must agree — `EPISOMER_OPTION_MASTODON_INSTANCES` in `compose.yml`, the matching `EPISOMER_SECRET_MASTODON_<INSTANCE>_TOKEN_FILE` entries next to it, and the values in `.env`. Collecting from a different instance means editing all three.</span>
+One last thing to keep consistent: the Mastodon instances appear in three places that must agree — `EPISOMER_OPTION_MASTODON_INSTANCES` in `compose.yml`, the matching `EPISOMER_SECRET_MASTODON_<INSTANCE>_TOKEN_FILE` entries next to it, and the values in `.env`. Collecting from a different instance means editing all three.
 
-<span style="color:red">Note that `compose.yml` starts no Shiny app: the three services above are
+Note that `compose.yml` starts no Shiny app: the three services above are
 what a server deployment needs, and the app is expected to be run where the analysts are. To serve
 it from a container as well, add a service using the same image with `EPISOMER_RUN` set to `APP`,
-`DASH` or `ADMIN`, `EPI_HOST` pointing at `fs`, and its port published.</span>
+`DASH` or `ADMIN`, `EPI_HOST` pointing at `fs`, and its port published.
 
-## <span style="color:red">Two addresses, not one</span>
+## Two addresses, not one
 
-<span style="color:red">Two settings of `compose.yml` look redundant and are not, and a deployment
-that changes one without the other will not work:</span>
+Two settings of `compose.yml` look redundant and are not, and a deployment
+that changes one without the other will not work:
 
--   <span style="color:red">`EPISOMER_OPTION_FS_URL` is the *interface the database binds*, not an
+-   `EPISOMER_OPTION_FS_URL` is the *interface the database binds*, not an
     address anything dials. It is a wildcard (`http://0.0.0.0`) because that is the one value that
     works unchanged under Docker and under Kubernetes, where a service name resolves to an address
-    the container does not itself hold.</span>
--   <span style="color:red">`EPISOMER_OPTION_FS_SETUP_HOST` and `EPISOMER_OPTION_FS_SETUP_PORT` are
+    the container does not itself hold.
+-   `EPISOMER_OPTION_FS_SETUP_HOST` and `EPISOMER_OPTION_FS_SETUP_PORT` are
     where the *temporary* database of the language model retraining binds. They are deliberately as
     narrow as possible — loopback, on a port that is neither published nor routed — because while
     that retraining runs, the collection and the alert detection must **not** find a database, or
-    they would start working against untrained language models.</span>
+    they would start working against untrained language models.
 
-<span style="color:red">Opposite requirements, hence opposite values.</span>
+Opposite requirements, hence opposite values.
 
 # Running episomer on several machines
 
@@ -278,7 +303,7 @@ A *runner* is a unit of work that only one machine may perform at a given moment
 | `fs_mon` | the monitor started by `fs_loop()` | watches the database and beats for it |
 | `search` | `search_loop()` | the parent of the collection service |
 | `search.<network>` | one collection worker per social medium, e.g. `search.bluesky` | collects posts from that network |
-| `detect` | `detect_loop()` | the <span style="color:red">alerts</span> pipeline |
+| `detect` | `detect_loop()` | the alerts pipeline |
 
 A **lease** is the right, granted for a limited time and renewable, to be one of those runners. It is
 one small JSON file per runner, stored on the database machine under `runners/`, and it works like a
@@ -337,7 +362,7 @@ Five properties tune the mechanism. They are stored in `properties.json`, which 
 so they belong to the whole cluster. They are **deliberately absent from the Shiny configuration
 page**: a TTL mistyped there would break exclusivity for every machine at once, and these are
 deployment knobs rather than analysis settings. Set them in `properties.json`, or through the
-environment on a first deployment (`EPISOMER_OPTION_RUNNER_TTL_SEARCH=600` and so on<span style="color:red">; the precedence rule described in the section on `EPISOMER_OPTION_*` settings applies, so the environment only has the last word on a fresh data directory</span>).
+environment on a first deployment (`EPISOMER_OPTION_RUNNER_TTL_SEARCH=600` and so on; the precedence rule described in the section on `EPISOMER_OPTION_*` settings applies, so the environment only has the last word on a fresh data directory).
 
 | Property | Default | What it is |
 |---|---|---|
@@ -364,14 +389,14 @@ working service that looks dead is worse than a dead one noticed late.
 
 ## From the Shiny app
 
-The configuration page shows<span style="color:red">, in its *Status* section,</span> a table with
+The configuration page shows, in its *Status* section, a table with
 one row per runner *currently holding a lease*, wherever in the cluster it runs:
 
 | Runner | Status | Host | Last seen | Since |
 |---|---|---|---|---|
-| <span style="color:red">episomer database (`fs`)</span> | running | `machine-A (this machine)` | 4 s ago | 2026-08-28 07:02 UTC |
-| <span style="color:red">Data collection & processing (`search.bluesky`)</span> | <span style="color:red">stale (no heartbeat for 8 min)</span> | `machine-B` | <span style="color:red">22 min ago</span> | 2026-08-28 07:05 UTC |
-| <span style="color:red">Alerts (`detect`)</span> | crashed here | `machine-A (this machine)` | 3 min ago | 2026-08-28 06:58 UTC |
+| episomer database (`fs`) | running | `machine-A (this machine)` | 4 s ago | 2026-08-28 07:02 UTC |
+| Data collection & processing (`search.bluesky`) | stale (no heartbeat for 8 min) | `machine-B` | 22 min ago | 2026-08-28 07:05 UTC |
+| Alerts (`detect`) | crashed here | `machine-A (this machine)` | 3 min ago | 2026-08-28 06:58 UTC |
 
 How to read it:
 
@@ -393,13 +418,13 @@ How to read it:
   A long *Since* next to a short *Last seen* is exactly what a healthy runner looks like. It is shown
   in UTC so that it can be compared with the files and with the logs of the other machines.
 
-<span style="color:red">Two runners are deliberately kept out of that table, because they are
+Two runners are deliberately kept out of that table, because they are
 internal plumbing rather than services a reader would recognise: `fs_mon`, the watchdog that keeps
 the episomer database alive, which would read as a second database next to it; and `search`, the
 parent lease of the collection. `search_loop()` claims `search` and then spends its life waiting for
 its workers, with no iteration left to renew anything, so that lease goes stale a few minutes after a
 perfectly healthy start. Its `search.<network>` children are the rows that say whether collection is
-actually happening, and they are the rows to trust.</span>
+actually happening, and they are the rows to trust.
 
 ## From the files
 
@@ -452,9 +477,9 @@ is the place to look to answer "when did that machine hand the collection over?"
 | The app shows a service as running while its machine is off | The lease has not expired yet | Wait for the TTL; it is the failover latency |
 | `runners/` contains files but nothing is running | Services stopped without releasing | Normal after a crash; the files disappear when a new holder takes over |
 
-# <span style="color:red">Related documents</span>
+# Related documents
 
--   <span style="color:red">*episomer: user documentation* — the main document: installation on a
-    single machine, the setup wizard, the Shiny app and the methodology.</span>
--   <span style="color:red">*Add a new social media* — a developer-oriented vignette describing how
-    to extend `{episomer}` to a social media platform it does not support yet.</span>
+-   *episomer: user documentation* — the main document: installation on a
+    single machine, the setup wizard, the Shiny app and the methodology.
+-   *Add a new social media* — a developer-oriented vignette describing how
+    to extend `{episomer}` to a social media platform it does not support yet.
