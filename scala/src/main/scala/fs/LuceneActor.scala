@@ -494,6 +494,10 @@ object LuceneActor {
   def commit(closeDirectory:Boolean= true)(implicit holder:IndexHolder, conf:Settings)  {
     val now = System.nanoTime
     holder.dirs.synchronized {
+      // The journal is deleted below: what it holds from the previous run has to be in the index
+      // before, whatever triggers this commit first (a commit_posts() or a delete can come before
+      // the first geolocation, and RestoreJournalRequest may have failed).
+      restoreMissingPosts()
       holder.dirs.foreach{ case (key, path) =>
           val i = holder.indexes(key)
           if(i.writeEnabled && i.writer.get.isOpen) {
@@ -718,9 +722,10 @@ object LuceneActor {
       }
     }
   }
-  // The journal is only checked on the first geolocation after a start: what it holds afterwards was
-  // indexed by this very process. Done at the start of the geolocation because that is when a missing
-  // post would be noticed (indexGeolocated). Posts already in the index are left alone.
+  // The journal is only checked once after a start: what it holds afterwards was indexed by this very
+  // process. Done at startup (RestoreJournalRequest), and again by the first geolocation (that is when
+  // a missing post would be noticed, in indexGeolocated) and by the first commit (which deletes the
+  // journal) in case that failed. Posts already in the index are left alone.
   @volatile var journalRestored = false
   def restoreMissingPosts()(implicit conf:Settings, holder:IndexHolder) {
     if(!journalRestored) {
@@ -729,18 +734,27 @@ object LuceneActor {
         if(node.exists) {
           var restored = 0
           val refreshed = HashSet[String]()
+          var unreadable = 0
           node.getContentAsLines.filter(_.trim.nonEmpty).foreach{ json =>
-            val TopicPosts(network, topic, ts) = EpiSerialisation.topicPostsFormat.read(JsonParser(json))
-            ts.items.foreach{ post =>
-              val key = LuceneActor.getIndexKey("posts", post.created_at)
-              val index = LuceneActor.getIndex("posts", key)
-              if(refreshed.add(key)) index.refreshReader()
-              if(!index.hasPost(post.id, topic, network)) {
-                index.indexPost(post, topic, network)
-                restored += 1
-              }
+            // A container killed in the middle of an append leaves a truncated last line. It is
+            // skipped: failing here would block the geolocation, and the next commit would then
+            // delete the journal without the other lines having been restored.
+            Try(EpiSerialisation.topicPostsFormat.read(JsonParser(json))) match {
+              case Failure(_) => unreadable += 1
+              case Success(TopicPosts(network, topic, ts)) =>
+                ts.items.foreach{ post =>
+                  val key = LuceneActor.getIndexKey("posts", post.created_at)
+                  val index = LuceneActor.getIndex("posts", key)
+                  if(refreshed.add(key)) index.refreshReader()
+                  if(!index.hasPost(post.id, topic, network)) {
+                    index.indexPost(post, topic, network)
+                    restored += 1
+                  }
+                }
             }
           }
+          if(unreadable > 0)
+            l.msg(s"$unreadable unreadable lines skipped in the commiting file (probably written when the fs was stopped)")
           if(restored > 0)
             l.msg(s"$restored posts found in the commiting file but missing from the index (not committed before the last stop) have been indexed again")
         }
