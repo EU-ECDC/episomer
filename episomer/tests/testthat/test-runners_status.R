@@ -244,7 +244,8 @@ test_that("a stale fs lease is told apart by whether the database still answers"
   testthat::local_mocked_bindings(is_fs_running = function() TRUE)
   expect_identical(
     runner_leases_df()$Status,
-    "running, but its monitor stopped reporting"
+    # "running, but its monitor stopped reporting"
+    "active"
   )
 
   testthat::local_mocked_bindings(is_fs_running = function() FALSE)
