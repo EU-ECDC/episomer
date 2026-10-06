@@ -761,73 +761,7 @@ episomer_app <- function(
                     value = conf$geolocation_threshold
                   )
                 )
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "GeoNames URL"),
-                shiny::column(
-                  9,
-                  shiny::textInput(
-                    "conf_geonames_url",
-                    label = NULL,
-                    value = conf$geonames_url
-                  )
-                )
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "Simplified GeoNames"),
-                shiny::column(
-                  9,
-                  shiny::checkboxInput(
-                    "conf_geonames_simplify",
-                    label = NULL,
-                    value = conf$geonames_simplify
-                  )
-                )
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "Stream database results"),
-                shiny::column(
-                  9,
-                  shiny::checkboxInput(
-                    "conf_onthefly_api",
-                    label = NULL,
-                    value = conf$onthefly_api
-                  )
-                )
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "Maven repository"),
-                shiny::column(
-                  9,
-                  shiny::textInput(
-                    "conf_maven_repo",
-                    label = NULL,
-                    value = conf$maven_repo
-                  )
-                )
-              ),
-              shiny::conditionalPanel(
-                condition = "false",
-                shiny::textInput(
-                  "os_type",
-                  value = .Platform$OS.type,
-                  label = NULL
-                )
-              ),
-              shiny::conditionalPanel(
-                condition = "input.os_type == 'windows'",
-                shiny::fluidRow(
-                  shiny::column(3, "Winutils URL"),
-                  shiny::column(
-                    9,
-                    shiny::textInput(
-                      "conf_winutils_url",
-                      label = NULL,
-                      value = conf$winutils_url
-                    )
-                  )
-                )
-              ),
+              ),      
               shiny::fluidRow(
                 shiny::column(3, "Region disclaimer"),
                 shiny::column(
@@ -2576,12 +2510,7 @@ episomer_app <- function(
           conf_schedule_span = input$conf_schedule_span,
           conf_spark_cores = input$conf_spark_cores,
           conf_spark_memory = input$conf_spark_memory,
-          conf_onthefly_api = input$conf_onthefly_api,
           geolocation_threshold = input$geolocation_threshold,
-          conf_geonames_url = input$conf_geonames_url,
-          conf_maven_repo = input$conf_maven_repo,
-          conf_winutils_url = input$conf_winutils_url,
-          conf_geonames_simplify = input$conf_geonames_simplify,
           conf_regions_disclaimer = input$conf_regions_disclaimer,
           conf_alpha = input$conf_alpha,
           conf_alpha_outlier = input$conf_alpha_outlier,
