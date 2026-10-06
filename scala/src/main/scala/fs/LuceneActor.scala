@@ -75,12 +75,14 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
       implicit val holder = LuceneActor.holder
       Future{
         val indexes = dates.flatMap(d => LuceneActor.getReadIndexes("posts", Some(d), Some(d)))
-        items.foreach{g =>
+        val missing = items.filter{g =>
           var found = false 
           for(index <- indexes if !found) {
             found = index.indexGeolocated(g)
           }
+          !found
         }
+        LuceneActor.reportMissingGeolocated(missing.map(g => s"${g.topic.toLowerCase}_${g.id}_${g.network}"))
         items.size
       }
       .map{c =>
@@ -398,7 +400,9 @@ case class IndexHolder(
   var geolocating:Boolean = false,
   var aggregating:Boolean = false,
   var commiting:Boolean = false,
-  var toGeolocate:Option[Dataset[Int]] = None,
+  // One line per geolocated post: empty when it was updated, its topic_post_id when it is missing
+  // from the index
+  var toGeolocate:Option[Dataset[String]] = None,
   // Modification time of the geolocation models that toGeolocate holds, see geolocatePosts
   var geoModelStamps:Map[String, Long] = Map[String, Long](),
   val commitRequests:HashSet[String] = HashSet[String]()
@@ -862,8 +866,8 @@ object LuceneActor {
                     indexes(iKey) = LuceneActor.getIndex("posts", iKey)
                     indexes(iKey).refreshReader()
                   }
-                  indexes(iKey).indexGeolocated(geo)
-                  1
+                  if(indexes(iKey).indexGeolocated(geo)) ""
+                  else s"${geo.topic.toLowerCase}_${geo.id}_${geo.network}"
                 }
               }
           )
@@ -871,10 +875,18 @@ object LuceneActor {
     }
 
     val midTime = System.nanoTime
-    val numGeo = holder.toGeolocate.get.unpersist.collect.sum
+    val (geolocated, missing) = holder.toGeolocate.get.unpersist.collect.partition(_.isEmpty)
     val endTime = System.nanoTime
     LuceneActor.commit(closeDirectory = false)
-    l.msg(s"${(endTime - midTime)/1e9d} secs for geolocating ${numGeo} posts")
+    reportMissingGeolocated(missing.toSeq)
+    l.msg(s"${(endTime - midTime)/1e9d} secs for geolocating ${geolocated.size} posts")
+  }
+  // A post that is geolocated but not in the index was most likely lost by a stop before its commit.
+  // Logged once per run with the ids: the whole geolocating file is processed again when a run fails,
+  // so a count per post would repeat the same missing posts on every retry.
+  def reportMissingGeolocated(missing:Seq[String]) {
+    if(missing.nonEmpty)
+      l.msg(s"${missing.size} geolocated posts are missing from the index and were not updated (topic_post_id): ${missing.take(20).mkString(", ")}${if(missing.size > 20) ", ..." else ""}")
   }
 
 
