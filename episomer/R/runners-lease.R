@@ -1082,15 +1082,15 @@ runner_leases_df <- function() {
 # shows up as its workers going stale in the rows this label sends the reader to.
 runner_lease_status_label <- function(lease) {
   if (identical(lease$status, "running")) {
-    return("running")
+    return("active")
   }
   if (isTRUE(lease$holder_dead_locally)) {
-    return("crashed here")
+    return("stopped unexpectedly on this machine")
   }
   if (identical(lease$runner, "search")) {
-    return("supervisor (no heartbeat by design, see the search.* rows)")
+    return("coordinates collection, sends no activity signal by design: see the search.* rows for its real state")
   }
-  sprintf("stale (no heartbeat for %s)", format_lease_duration(lease$ttl))
+  sprintf("no activity for %s (probably stopped)", format_lease_duration(lease$ttl))
 }
 
 # Which machine holds the runner. The marker matters in the single-machine deployment, where every
