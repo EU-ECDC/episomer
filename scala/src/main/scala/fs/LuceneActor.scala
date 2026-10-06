@@ -75,12 +75,14 @@ class LuceneActor(conf:Settings) extends Actor with ActorLogging {
       implicit val holder = LuceneActor.holder
       Future{
         val indexes = dates.flatMap(d => LuceneActor.getReadIndexes("posts", Some(d), Some(d)))
-        items.foreach{g =>
+        val missing = items.filter{g =>
           var found = false 
           for(index <- indexes if !found) {
             found = index.indexGeolocated(g)
           }
+          !found
         }
+        LuceneActor.reportMissingGeolocated(missing.map(g => s"${g.topic.toLowerCase}_${g.id}_${g.network}"))
         items.size
       }
       .map{c =>
@@ -398,7 +400,9 @@ case class IndexHolder(
   var geolocating:Boolean = false,
   var aggregating:Boolean = false,
   var commiting:Boolean = false,
-  var toGeolocate:Option[Dataset[Int]] = None,
+  // One line per geolocated post: empty when it was updated, its topic_post_id when it is missing
+  // from the index
+  var toGeolocate:Option[Dataset[String]] = None,
   // Modification time of the geolocation models that toGeolocate holds, see geolocatePosts
   var geoModelStamps:Map[String, Long] = Map[String, Long](),
   val commitRequests:HashSet[String] = HashSet[String]()
@@ -494,6 +498,10 @@ object LuceneActor {
   def commit(closeDirectory:Boolean= true)(implicit holder:IndexHolder, conf:Settings)  {
     val now = System.nanoTime
     holder.dirs.synchronized {
+      // The journal is deleted below: what it holds from the previous run has to be in the index
+      // before, whatever triggers this commit first (a commit_posts() or a delete can come before
+      // the first geolocation, and RestoreJournalRequest may have failed).
+      restoreMissingPosts()
       holder.dirs.foreach{ case (key, path) =>
           val i = holder.indexes(key)
           if(i.writeEnabled && i.writer.get.isOpen) {
@@ -718,9 +726,10 @@ object LuceneActor {
       }
     }
   }
-  // The journal is only checked on the first geolocation after a start: what it holds afterwards was
-  // indexed by this very process. Done at the start of the geolocation because that is when a missing
-  // post would be noticed (indexGeolocated). Posts already in the index are left alone.
+  // The journal is only checked once after a start: what it holds afterwards was indexed by this very
+  // process. Done at startup (RestoreJournalRequest), and again by the first geolocation (that is when
+  // a missing post would be noticed, in indexGeolocated) and by the first commit (which deletes the
+  // journal) in case that failed. Posts already in the index are left alone.
   @volatile var journalRestored = false
   def restoreMissingPosts()(implicit conf:Settings, holder:IndexHolder) {
     if(!journalRestored) {
@@ -729,18 +738,27 @@ object LuceneActor {
         if(node.exists) {
           var restored = 0
           val refreshed = HashSet[String]()
+          var unreadable = 0
           node.getContentAsLines.filter(_.trim.nonEmpty).foreach{ json =>
-            val TopicPosts(network, topic, ts) = EpiSerialisation.topicPostsFormat.read(JsonParser(json))
-            ts.items.foreach{ post =>
-              val key = LuceneActor.getIndexKey("posts", post.created_at)
-              val index = LuceneActor.getIndex("posts", key)
-              if(refreshed.add(key)) index.refreshReader()
-              if(!index.hasPost(post.id, topic, network)) {
-                index.indexPost(post, topic, network)
-                restored += 1
-              }
+            // A container killed in the middle of an append leaves a truncated last line. It is
+            // skipped: failing here would block the geolocation, and the next commit would then
+            // delete the journal without the other lines having been restored.
+            Try(EpiSerialisation.topicPostsFormat.read(JsonParser(json))) match {
+              case Failure(_) => unreadable += 1
+              case Success(TopicPosts(network, topic, ts)) =>
+                ts.items.foreach{ post =>
+                  val key = LuceneActor.getIndexKey("posts", post.created_at)
+                  val index = LuceneActor.getIndex("posts", key)
+                  if(refreshed.add(key)) index.refreshReader()
+                  if(!index.hasPost(post.id, topic, network)) {
+                    index.indexPost(post, topic, network)
+                    restored += 1
+                  }
+                }
             }
           }
+          if(unreadable > 0)
+            l.msg(s"$unreadable unreadable lines skipped in the commiting file (probably written when the fs was stopped)")
           if(restored > 0)
             l.msg(s"$restored posts found in the commiting file but missing from the index (not committed before the last stop) have been indexed again")
         }
@@ -848,8 +866,8 @@ object LuceneActor {
                     indexes(iKey) = LuceneActor.getIndex("posts", iKey)
                     indexes(iKey).refreshReader()
                   }
-                  indexes(iKey).indexGeolocated(geo)
-                  1
+                  if(indexes(iKey).indexGeolocated(geo)) ""
+                  else s"${geo.topic.toLowerCase}_${geo.id}_${geo.network}"
                 }
               }
           )
@@ -857,10 +875,18 @@ object LuceneActor {
     }
 
     val midTime = System.nanoTime
-    val numGeo = holder.toGeolocate.get.unpersist.collect.sum
+    val (geolocated, missing) = holder.toGeolocate.get.unpersist.collect.partition(_.isEmpty)
     val endTime = System.nanoTime
     LuceneActor.commit(closeDirectory = false)
-    l.msg(s"${(endTime - midTime)/1e9d} secs for geolocating ${numGeo} posts")
+    reportMissingGeolocated(missing.toSeq)
+    l.msg(s"${(endTime - midTime)/1e9d} secs for geolocating ${geolocated.size} posts")
+  }
+  // A post that is geolocated but not in the index was most likely lost by a stop before its commit.
+  // Logged once per run with the ids: the whole geolocating file is processed again when a run fails,
+  // so a count per post would repeat the same missing posts on every retry.
+  def reportMissingGeolocated(missing:Seq[String]) {
+    if(missing.nonEmpty)
+      l.msg(s"${missing.size} geolocated posts are missing from the index and were not updated (topic_post_id): ${missing.take(20).mkString(", ")}${if(missing.size > 20) ", ..." else ""}")
   }
 
 

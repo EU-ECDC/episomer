@@ -349,7 +349,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
           this.writer.get.updateDocument(new Term("topic_post_id", s"${geo.topic.toLowerCase}_${geo.id}_${geo.network}"), doc)
           true
       case _ =>
-        print("weird... a postid seems to be missing..... ")
+        // reported by the callers, which know whether the post is missing from every index
         false
     }     
   }
