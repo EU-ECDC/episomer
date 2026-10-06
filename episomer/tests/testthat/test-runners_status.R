@@ -229,3 +229,27 @@ test_that("loop_run_issues() refuses to start a loop already running on another 
     "already running on host 'machine-B'"
   )
 })
+
+test_that("a stale fs lease is told apart by whether the database still answers", {
+  # fs cannot renew its own lease, only its monitor does: a stale lease on a database that still
+  # answers /ping means the monitor stopped reporting, not that the database is down.
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_fs = 120
+  )
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("fs"))
+  Sys.setFileTime(runner_lease_path("fs"), Sys.time() - 600)
+
+  testthat::local_mocked_bindings(is_fs_running = function() TRUE)
+  expect_identical(
+    runner_leases_df()$Status,
+    "running, but its monitor stopped reporting"
+  )
+
+  testthat::local_mocked_bindings(is_fs_running = function() FALSE)
+  expect_identical(
+    runner_leases_df()$Status,
+    "no activity for 2 min (probably stopped)"
+  )
+})

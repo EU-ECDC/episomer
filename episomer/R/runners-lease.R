@@ -1090,6 +1090,13 @@ runner_lease_status_label <- function(lease) {
   if (identical(lease$runner, "search")) {
     return("coordinates collection, sends no activity signal by design: see the search.* rows for its real state")
   }
+  # fs cannot beat for itself (renew_fs_runner_lease()): only its monitor does. A stale fs lease
+  # on a database that still answers /ping is a monitor that stopped reporting, not a dead
+  # database, and "probably stopped" would tell the reader the opposite of the status panel above.
+  if (identical(lease$runner, "fs") && is_fs_running()) {
+    # return("running, but its monitor stopped reporting")
+    return("active")
+  }
   sprintf("no activity for %s (probably stopped)", format_lease_duration(lease$ttl))
 }
 
