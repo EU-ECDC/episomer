@@ -1095,6 +1095,8 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 -   **Geolocation threshold:** During the geolocation process, sets of words are processed and potential matches to existing locations are determined and given a score. The higher the score, the greater the probability that the geolocation is correct. A threshold is set in `{episomer}`, under which any matches are not considered good enough for geolocation. The scale goes from 1 to 10, and the default is set at 5.
 
+-   **Stream database results:** Whether to store files on disk instead of performing streaming evaluation of aggregated data frames coming from the episomer database. If loading the dashboard takes too long, try selecting/unselecting this.
+
 -   **Region disclaimer:** If you would like to add a disclaimer to the map you are using. This disclaimer is added to the image export of the dashboard map, and also the PDF export of the dashboard.
 
 ```{r echo=FALSE, fig.cap="", out.width = '30%'}

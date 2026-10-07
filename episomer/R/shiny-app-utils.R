@@ -394,6 +394,7 @@ update_config_from_input <- function(input) {
   conf$schedule_span <- input$conf_schedule_span
   conf$spark_cores <- input$conf_spark_cores
   conf$spark_memory <- input$conf_spark_memory
+  conf$onthefly_api <- input$conf_onthefly_api
   conf$geolocation_threshold <- input$geolocation_threshold
   conf$regions_disclaimer <- input$conf_regions_disclaimer
   conf$alert_alpha <- input$conf_alpha

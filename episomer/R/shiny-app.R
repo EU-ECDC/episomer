@@ -761,7 +761,18 @@ episomer_app <- function(
                     value = conf$geolocation_threshold
                   )
                 )
-              ),      
+              ),
+              shiny::fluidRow(
+                shiny::column(3, "Stream database results"),
+                shiny::column(
+                  9,
+                  shiny::checkboxInput(
+                    "conf_onthefly_api",
+                    label = NULL,
+                    value = conf$onthefly_api
+                  )
+                )
+              ),
               shiny::fluidRow(
                 shiny::column(3, "Region disclaimer"),
                 shiny::column(
@@ -2510,6 +2521,7 @@ episomer_app <- function(
           conf_schedule_span = input$conf_schedule_span,
           conf_spark_cores = input$conf_spark_cores,
           conf_spark_memory = input$conf_spark_memory,
+          conf_onthefly_api = input$conf_onthefly_api,
           geolocation_threshold = input$geolocation_threshold,
           conf_regions_disclaimer = input$conf_regions_disclaimer,
           conf_alpha = input$conf_alpha,
