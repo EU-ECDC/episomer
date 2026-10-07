@@ -396,10 +396,6 @@ update_config_from_input <- function(input) {
   conf$spark_memory <- input$conf_spark_memory
   conf$onthefly_api <- input$conf_onthefly_api
   conf$geolocation_threshold <- input$geolocation_threshold
-  conf$geonames_url <- input$conf_geonames_url
-  conf$maven_repo <- input$conf_maven_repo
-  conf$winutils_url <- input$conf_winutils_url
-  conf$geonames_simplify <- input$conf_geonames_simplify
   conf$regions_disclaimer <- input$conf_regions_disclaimer
   conf$alert_alpha <- input$conf_alpha
   conf$alert_alpha_outlier <- input$conf_alpha_outlier

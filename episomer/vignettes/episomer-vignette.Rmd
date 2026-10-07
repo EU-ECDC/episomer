@@ -2,7 +2,7 @@
 title: "episomer: user documentation"
 author: "European Centre for Disease Prevention and Control (ECDC)"
 output: 
-  - rmarkdown::html_vignette
+  rmarkdown::html_vignette  
 vignette: >
   %\VignetteIndexEntry{episomer: user documentation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -505,7 +505,7 @@ In a parallel process to the collection of posts, `{episomer}` attempts to geolo
 
 The post location is extracted and stored by `{episomer}` based on the geolocation information found within a post text. In case a quoted post, it will extract the geolocation information from the original content and the text accompagning the quote. If neither are available, no post location is stored based on post text.
 
-`{episomer}` identifies if a post text contains reference to a particular location by breaking down the post text into sets of words and evaluating those which are more likely to be a location by using a machine learning model. If several parts of the text are likely to be a location, `{episomer}` will chose the one closest to a topic based on keywords provided. After the location candidate has been identified `{episomer}` matches these words against a reference database, which is geonames.org. This is a geographical database available and accessible through various web services, under a Creative Commons attribution licence. The GeoNames.org database contains over 25,000,000 geographical names. `{episomer}` uses by default those with a known population (so just over 500,000 names). You can change this default parameter in the Shiny app configuration page, by unchecking "Simplified geonames". The database also contains longitude and latitude attributes of localities and variant spellings (cross-references), which are useful for finding purposes, as well as non-Roman script spellings of many of these names.
+`{episomer}` identifies if a post text contains reference to a particular location by breaking down the post text into sets of words and evaluating those which are more likely to be a location by using a machine learning model. If several parts of the text are likely to be a location, `{episomer}` will chose the one closest to a topic based on keywords provided. After the location candidate has been identified `{episomer}` matches these words against a reference database, which is geonames.org. This is a geographical database available and accessible through various web services, under a Creative Commons attribution licence. The GeoNames.org database contains over 25,000,000 geographical names. `{episomer}` uses by default those with a known population (so just over 500,000 names). The database also contains longitude and latitude attributes of localities and variant spellings (cross-references), which are useful for finding purposes, as well as non-Roman script spellings of many of these names.
 
 The matches can be performed at any level of administrative geography. The matching is powered by Apache Lucene, which is an open-source high-performance full-featured text search engine library.
 
@@ -1095,15 +1095,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 -   **Geolocation threshold:** During the geolocation process, sets of words are processed and potential matches to existing locations are determined and given a score. The higher the score, the greater the probability that the geolocation is correct. A threshold is set in `{episomer}`, under which any matches are not considered good enough for geolocation. The scale goes from 1 to 10, and the default is set at 5.
 
--   **Geonames URL:** The URL used to download the GeoNames database (used for generating locations) is in the general section. Should this URL ever change, you can make the amendment here.
-
--   **Simplified geonames:** As GeoNames is a very large file, a simplified version of it is used by default, including only existing geographical locations where the population is known. You can uncheck this option if you wish to use the whole GeoNames database.
-
 -   **Stream database results:** Whether to store files on disk instead of performing streaming evaluation of aggregated data frames coming from the episomer database. If loading the dashboard takes too long, try selecting/unselecting this.
-
--   **Maven repository:** This is the URL of the maven repository that will be used to download the JAR dependencies for the detect loop, mainly Spark and Lucene.
-
--   **Winutils URL:** This is the URL that will be used to download winutils.exe. This is a Windows binary necessary for running Spark locally on Windows. If you do not want to use this version you can produce it yourself by downloading Hadoop 2.8.4 or higher and compiling it on a Windows machine.
 
 -   **Region disclaimer:** If you would like to add a disclaimer to the map you are using. This disclaimer is added to the image export of the dashboard map, and also the PDF export of the dashboard.
 
