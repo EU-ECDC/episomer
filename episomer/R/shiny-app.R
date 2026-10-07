@@ -73,11 +73,13 @@ episomer_app <- function(
     # short-circuit on conf$fs_remote and hand back what we are trying to compute. The secrets are
     # skipped: this pass reads two properties and must not be a reason to ask for the encryption
     # password, the real load below does that.
-    if (is.null(data_dir) || is.na(data_dir)) {
-      setup_config_if_not_already()
-    } else {
-      setup_config(data_dir = data_dir, fs_remote = NULL, ignore_keyring = TRUE)
-    }
+    # setup_config()'s default fs_remote is http://localhost:8080, which would make this pass read
+    # properties.json through the API - the very service whose absence we have to report.
+    setup_config(
+      data_dir = if (is.null(data_dir) || is.na(data_dir)) default_data_dir() else data_dir,
+      fs_remote = NULL,
+      ignore_keyring = TRUE
+    )
     fs_remote <- get_scala_api_endpoint()
   }
   # Not conf$data_dir: when fs_remote was passed by the caller the block above is skipped, so on a
@@ -90,6 +92,23 @@ episomer_app <- function(
   # API URLs and data_dir is only the prefix stripped off the few paths still built by hand. A
   # temporary directory is therefore a legitimate value here, and episomer_app(fs_remote = ...)
   # alone is enough to run the app on a machine that has no data directory of its own.
+  # Pinged by hand rather than with is_fs_running(): the setup_config() below already reads
+  # properties.json through the API, so it fails with an unreadable connection error when the
+  # database is down, and is_fs_running() itself needs a configuration that does not exist yet.
+  fs_up <- tryCatch(
+    httr::GET(url = paste(fs_remote, "ping", sep = "/"), httr::timeout(1.0))$status_code == 200,
+    error = function(e) FALSE,
+    warning = function(w) FALSE
+  )
+  if (!fs_up) {
+    stop(
+      sprintf(
+        "The episomer database does not answer on %s - it must be started in order to run the shiny app, please run it using episomer::setup()",
+        fs_remote
+      ),
+      call. = FALSE
+    )
+  }
   setup_config(
     data_dir = if (is.null(data_dir) || is.na(data_dir)) {
       default_data_dir()
@@ -98,12 +117,6 @@ episomer_app <- function(
     },
     fs_remote = fs_remote
   )
-
-  if (!is_fs_running()) {
-    stop(
-      "The episomer database must be started in order to run the shiny app - please run it using episomer::setup()"
-    )
-  }
 
   # Loading data for dashboard and configuration
   d <- refresh_dashboard_data()
