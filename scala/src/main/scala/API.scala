@@ -135,6 +135,8 @@ object API {
     val pid = ProcessID.writePID(conf.pidPath("fs.java"))
 
     removeLockFiles()
+    // posts the previous run indexed without committing are indexed again before anything else
+    luceneRunner ! LuceneActor.RestoreJournalRequest()
     val route =
       extractUri { uri =>
         path("ping") {

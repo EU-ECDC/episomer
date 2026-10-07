@@ -381,8 +381,8 @@ get_instance_host <- function() {
 #' @description Load episomer application settings from the designated data directory
 #' @param data_dir Path to the directory containing the application settings (it must exist).
 #' If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
-#' default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-#'    "") Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer")
+#' default: default_data_dir(), i.e. conf$data_dir, then the EPI_HOME environment variable, then
+#'    file.path(tempdir(), "episomer")
 #' @param ignore_keyring Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE
 #' @param ignore_properties Whether to skip loading settings managed by the Shiny app in properties.json file, Default: FALSE
 #' @param ignore_topics Whether to skip loading settings defined in the topics.xlsx file and download plans from topics.json file, default: FALSE
@@ -438,10 +438,7 @@ get_instance_host <- function() {
 #' @importFrom tools md5sum
 #' @importFrom readxl read_excel
 setup_config <- function(
-  data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if (
-    Sys.getenv("EPI_HOME") != ""
-  )
-    Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer"),
+  data_dir = default_data_dir(),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
@@ -459,8 +456,8 @@ setup_config <- function(
   # language vector paths, the properties written to disk) keeps a single, expanded form.
   data_dir <- path.expand(data_dir)
   # On Windows only, backslashes are turned into forward slashes: path.expand() returns the home
-  # directory with backslashes, and data_dir is used as a regex in to_remote_if_needed()
-  # (R/paths.R) as well as inside quoted command lines. Forward slashes are understood everywhere
+  # directory with backslashes, and data_dir is compared against path prefixes in
+  # to_remote_if_needed() (R/paths.R) as well as used inside quoted command lines. Forward slashes are understood everywhere
   # on Windows and keep a single separator style in the paths derived from it. The substitution is
   # not done on the other platforms, where a backslash is a legal character in a file name.
   if (.Platform$OS.type == "windows") {
@@ -1095,6 +1092,26 @@ get_topics_k_decays <- function() {
   setNames(t$k_decay, t$Topics)
 }
 
+# The data directory to use when a caller does not name one: the one the session already works
+# with, then EPI_HOME, then a throwaway directory under the session temporary folder.
+#
+# Split out of the setup_config() signature because episomer_app() needs the very same answer
+# before setup_config() has ever run. Reaching for conf$data_dir there - which is what it used to
+# do - hands setup_config() a NULL on a fresh session, i.e. a character(0) data_dir, and every
+# path derived from it (the prefix to_remote_if_needed() rewrites, the language vector paths)
+# becomes incoherent. The last resort is deliberately a temporary directory and not an error: with
+# fs_remote set, data_dir is only the prefix stripped off local-looking paths before they are
+# turned into API URLs, so its value does not matter as long as it is the same one everywhere.
+default_data_dir <- function() {
+  if (exists("data_dir", where = conf)) {
+    conf$data_dir
+  } else if (Sys.getenv("EPI_HOME") != "") {
+    Sys.getenv("EPI_HOME")
+  } else {
+    file.path(tempdir(), "episomer")
+  }
+}
+
 # Check config setup before continue
 stop_if_no_config <- function(
   error_message = "Cannot continue without setting up a configuration."
@@ -1172,6 +1189,92 @@ add_config_language <- function(code, name) {
       ))
     )
   }
+}
+
+# Apply the language list given by the EPISOMER_LANGUAGES environment variable.
+#
+# The wizard (setup()) is the only place languages can be changed, and in a container it runs with
+# silent = TRUE: every question takes its default, so the language list of properties.json is kept
+# for ever and a deployment has no way to ask for another one. This variable is that way in:
+#
+#   EPISOMER_LANGUAGES="fr;en;es;pt"
+#
+# Semicolon-separated ISO codes, matched case-insensitively against the Code column of
+# languages.xlsx - the same list the wizard and the Shiny app offer. The separator is the one
+# already used by EPISOMER_OPTION_MASTODON_INSTANCES in compose.yml.
+#
+# Deliberately *not* an EPISOMER_OPTION_LANGUAGES, for two reasons:
+#  * EPISOMER_OPTION_* has lower precedence than properties.json (see setup_config()), so it would
+#    only ever apply to a brand new data directory - the opposite of what is wanted here, which is
+#    to change the languages of an existing EPI_HOME on the next start;
+#  * `languages` is a list of objects, which coerce_env_props() explicitly leaves alone.
+#
+# It is applied here rather than merged in setup_config() because changing the list is not just
+# writing a property: a removed language has vector and model files to delete, and an added one has
+# a download to trigger. Going through remove_config_language() / add_config_language() keeps that
+# bookkeeping - lang_updated_on included - identical to what the wizard does by hand.
+#
+# A no-op when the variable is unset, empty, or already describes the configured list: the common
+# case is a container restarting with the same compose file, and it must not bump lang_updated_on
+# (which would make get_lang_traing_need() ask for a retraining at every start).
+apply_env_languages <- function(raw = Sys.getenv("EPISOMER_LANGUAGES")) {
+  if (trimws(raw) == "") {
+    return(invisible(FALSE))
+  }
+  codes <- trimws(strsplit(raw, ";", fixed = TRUE)[[1]])
+  codes <- tolower(codes[codes != ""])
+  codes <- codes[!duplicated(codes)]
+  if (length(codes) == 0) {
+    stop(
+      "EPISOMER_LANGUAGES is set but lists no language. Episomer needs at least one language to run."
+    )
+  }
+  available <- get_available_languages()
+  known <- setNames(available$Label, tolower(available$Code))
+  unknown <- codes[!codes %in% names(known)]
+  if (length(unknown) > 0) {
+    stop(sprintf(
+      "Invalid value '%s' for environment variable EPISOMER_LANGUAGES: unknown language code(s) %s. Expected codes from the Code column of languages.xlsx, e.g. 'fr;en;es;pt'.",
+      raw,
+      paste(unknown, collapse = ", ")
+    ))
+  }
+  current <- tolower(unlist(lapply(conf$languages, `[[`, "code")))
+  to_remove <- setdiff(current, codes)
+  to_add <- setdiff(codes, current)
+  if (length(to_remove) == 0 && length(to_add) == 0) {
+    message(sprintf(
+      "EPISOMER_LANGUAGES matches the configured languages (%s), nothing to do",
+      paste(codes, collapse = ", ")
+    ))
+    return(invisible(FALSE))
+  }
+  # Additions first, removals second, and not the other way round: a variable replacing the whole
+  # list (EPISOMER_LANGUAGES=es on a data directory configured for en;fr) would otherwise empty
+  # conf$languages in between, and add_config_language() errors on an empty list.
+  for (code in to_add) {
+    message(sprintf(
+      "EPISOMER_LANGUAGES: adding language %s (%s), its vectors will be downloaded",
+      known[[code]],
+      code
+    ))
+    add_config_language(code, known[[code]])
+  }
+  for (code in to_remove) {
+    message(sprintf("EPISOMER_LANGUAGES: removing language %s", code))
+    remove_config_language(code)
+    # Only the local files: a language removed from the configuration is one nothing will ask the
+    # geotagging for any more, and leaving a 5 GB vector file behind in the data directory is how
+    # EPI_HOME quietly fills a volume.
+    remove_language_files(code)
+  }
+  # Reordered to follow the variable, so that the list the dashboard shows is the list the compose
+  # file reads - add_config_language() appends, which would otherwise leave the kept languages
+  # first and the added ones at the end.
+  order <- match(codes, tolower(unlist(lapply(conf$languages, `[[`, "code"))))
+  conf$languages <- conf$languages[order]
+  save_config()
+  invisible(TRUE)
 }
 
 # Get the current known users list from the important users files

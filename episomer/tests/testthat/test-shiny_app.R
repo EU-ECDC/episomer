@@ -32,6 +32,7 @@ withr::with_tempdir({
         )
       },
       setup_config = function(...) TRUE,
+      fs_answers_ping = function(...) TRUE,
       .package = "episomer"
     )
 
@@ -83,6 +84,7 @@ withr::with_tempdir({
       },
       refresh_config_data = function(...) list(),
       setup_config = function(...) TRUE,
+      fs_answers_ping = function(...) TRUE,
       .package = "episomer"
     )
 
@@ -135,6 +137,7 @@ withr::with_tempdir({
       },
       refresh_config_data = function(...) list(),
       setup_config = function(...) TRUE,
+      fs_answers_ping = function(...) TRUE,
       .package = "episomer"
     )
 
@@ -173,6 +176,7 @@ withr::with_tempdir({
     local_mocked_bindings(
       get_episomer_kr_password = function() "test_password_123",
       setup_config = function(...) stop("Configuration failed"),
+      fs_answers_ping = function(...) TRUE,
       .package = "episomer"
     )
 
@@ -209,6 +213,7 @@ withr::with_tempdir({
         stop("Dashboard data refresh failed")
       },
       setup_config = function(...) TRUE,
+      fs_answers_ping = function(...) TRUE,
       .package = "episomer"
     )
 
@@ -255,6 +260,7 @@ withr::with_tempdir({
       },
       refresh_config_data = function(...) stop("Config data refresh failed"),
       setup_config = function(...) TRUE,
+      fs_answers_ping = function(...) TRUE,
       .package = "episomer"
     )
 

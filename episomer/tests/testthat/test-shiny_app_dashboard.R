@@ -40,6 +40,7 @@ local_dashboard_app <- function(fs_running = TRUE, .env = parent.frame()) {
       )
     },
     setup_config = function(...) TRUE,
+    fs_answers_ping = function(...) TRUE,
     refresh_dashboard_data = function(e = new.env(), fixed_period = NULL) {
       e$sms <- c(Bluesky = "bluesky")
       e$topics <- c("", covid = "covid", flu = "flu")

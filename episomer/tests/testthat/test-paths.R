@@ -167,6 +167,59 @@ test_that("to_remote_if_needed returns path unchanged when fs_remote disabled", 
   expect_equal(result, local_path)
 })
 
+test_that("to_remote_if_needed builds a single separator", {
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = "/data"
+  )
+
+  expect_equal(
+    to_remote_if_needed("/data/users.xlsx"),
+    "http://example.com:8080/file/users.xlsx"
+  )
+  expect_equal(
+    to_remote_if_needed("/data/geo/forced-geo.json"),
+    "http://example.com:8080/file/geo/forced-geo.json"
+  )
+  # A trailing slash on either side must not add one either
+  local_conf(
+    "fs_remote" = "http://example.com:8080/",
+    data_dir = "/data/"
+  )
+  expect_equal(
+    to_remote_if_needed("/data/users.xlsx"),
+    "http://example.com:8080/file/users.xlsx"
+  )
+})
+
+test_that("to_remote_if_needed treats the data dir as a literal, anchored prefix", {
+  # A regex metacharacter in the data directory used to match more than itself
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = "/data.v1"
+  )
+  expect_equal(
+    to_remote_if_needed("/dataxv1/users.xlsx"),
+    "/dataxv1/users.xlsx"
+  )
+
+  # A sibling whose name starts like the data directory is not under it
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = "/data"
+  )
+  expect_equal(
+    to_remote_if_needed("/data2/users.xlsx"),
+    "/data2/users.xlsx"
+  )
+
+  # Only the prefix is rewritten, not a later occurrence of the same text
+  expect_equal(
+    to_remote_if_needed("/data/backup/data/users.xlsx"),
+    "http://example.com:8080/file/backup/data/users.xlsx"
+  )
+})
+
 test_that("to_remote_if_needed handles paths without data_dir prefix", {
   local_conf(
     "fs_remote" = "http://example.com:8080",
@@ -330,4 +383,77 @@ test_that("get_plans_paths substitutes .json extension correctly", {
   # Should replace .json with .sm.json
   expect_match(result[["mastodon"]], "topics\\.mastodon\\.json$")
   expect_match(result[["bluesky"]], "topics\\.bluesky\\.json$")
+})
+
+# default_data_dir() is the answer episomer_app() needs *before* setup_config() has ever run, so
+# that episomer_app(fs_remote = ...) can be called without a data directory. Reaching for
+# conf$data_dir there used to hand setup_config() a NULL on a fresh session.
+test_that("default_data_dir falls back when conf holds no data_dir", {
+  local_conf()
+  withr::local_envvar(EPI_HOME = "")
+  expect_equal(default_data_dir(), file.path(tempdir(), "episomer"))
+
+  withr::local_envvar(EPI_HOME = "/from/env")
+  expect_equal(default_data_dir(), "/from/env")
+
+  local_conf(data_dir = "/from/conf")
+  expect_equal(default_data_dir(), "/from/conf")
+})
+
+# The snapshot archive is always written on the machine running the app (create_snapshot() uses
+# dir.create()/normalizePath()), so the data directory is the right base whenever there is a real
+# one - which is the usual case, fs_remote being set even on a local install.
+test_that("ensure_snapshot_folder uses the data dir whenever there is a real one", {
+  local_dir <- withr::local_tempdir()
+
+  local_conf("fs_remote" = NULL, data_dir = local_dir)
+  expect_equal(ensure_snapshot_folder(), file.path(local_dir, "snapshot"))
+
+  # The local install the user actually runs: a data directory on disk *and* an fs endpoint
+  local_conf("fs_remote" = "http://localhost:8080", data_dir = local_dir)
+  expect_equal(ensure_snapshot_folder(), file.path(local_dir, "snapshot"))
+})
+
+# Only an app running away from the fs has no data directory: conf$data_dir is then a placeholder
+# under tempdir() that does not exist, and an archive dropped there is lost with the session.
+test_that("ensure_snapshot_folder falls back when the data dir is not on this machine", {
+  absent <- file.path(withr::local_tempdir(), "no-such-data-dir")
+  cwd <- withr::local_tempdir()
+  withr::local_dir(cwd)
+  local_conf("fs_remote" = "http://example.com:8080", data_dir = absent)
+
+  snapshot <- ensure_snapshot_folder()
+  expect_false(startsWith(snapshot, absent))
+  expect_equal(snapshot, file.path(getwd(), "episomer-snapshots"))
+  expect_true(dir.exists(snapshot))
+  expect_false(is_remote(snapshot))
+})
+
+test_that("has_local_data_dir answers on the directory, not on fs_remote", {
+  local_dir <- withr::local_tempdir()
+
+  local_conf("fs_remote" = "http://localhost:8080", data_dir = local_dir)
+  expect_true(has_local_data_dir())
+
+  local_conf("fs_remote" = NULL, data_dir = file.path(local_dir, "absent"))
+  expect_false(has_local_data_dir())
+
+  local_conf("fs_remote" = "http://localhost:8080")
+  expect_false(has_local_data_dir())
+})
+
+# check_move_from_temp() guards against a data directory sitting on another file system than
+# TMPDIR. An app reaching the fs through the API has no local data directory, so the hazard cannot
+# occur and the check must not report a failure naming a tempdir() placeholder.
+test_that("check_move_from_temp is moot without a local data dir", {
+  data_dir <- withr::local_tempdir()
+  local_conf("fs_remote" = "http://localhost:8080", data_dir = data_dir)
+  expect_true(check_move_from_temp())
+
+  local_conf(
+    "fs_remote" = "http://example.com:8080",
+    data_dir = file.path(withr::local_tempdir(), "no-such-data-dir")
+  )
+  expect_true(check_move_from_temp())
+  expect_silent(check_move_from_temp())
 })

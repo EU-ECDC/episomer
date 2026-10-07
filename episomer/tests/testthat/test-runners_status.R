@@ -38,7 +38,7 @@ test_that("runner_leases_df() lists one row per live lease, in reading order", {
     df$Runner,
     c("fs", "search", "search.bluesky", "detect")
   )
-  expect_identical(unique(df$Status), "running")
+  expect_identical(unique(df$Status), "active")
   expect_identical(
     df$Host,
     c(
@@ -90,9 +90,9 @@ test_that("runner_leases_df() tells a lease nobody renews from a holder that cra
 
   expect_identical(
     df$Status[df$Runner == "detect"],
-    "stale (no heartbeat for 5 min)"
+    "no activity for 5 min (probably stopped)"
   )
-  expect_identical(df$Status[df$Runner == "search"], "crashed here")
+  expect_identical(df$Status[df$Runner == "search"], "stopped unexpectedly on this machine")
 })
 
 test_that("the parent search lease is named a supervisor rather than reported stale", {
@@ -119,10 +119,10 @@ test_that("the parent search lease is named a supervisor rather than reported st
 
   expect_identical(
     df$Status[df$Runner == "search"],
-    "supervisor (no heartbeat by design, see the search.* rows)"
+    "coordinates collection, sends no activity signal by design: see the search.* rows for its real state"
   )
   # the worker is the row that reports whether anything is actually collecting...
-  expect_identical(df$Status[df$Runner == "search.bluesky"], "running")
+  expect_identical(df$Status[df$Runner == "search.bluesky"], "active")
   # ... and it is displayed right under its parent, which is what the wording sends the reader to
   expect_identical(df$Runner, c("search", "search.bluesky"))
 })
@@ -144,7 +144,7 @@ test_that("a per-network search worker nobody renews is still reported stale", {
 
   expect_identical(
     runner_leases_df()$Status,
-    "stale (no heartbeat for 5 min)"
+    "no activity for 5 min (probably stopped)"
   )
 })
 
@@ -227,5 +227,30 @@ test_that("loop_run_issues() refuses to start a loop already running on another 
   expect_match(
     loop_run_issues("search"),
     "already running on host 'machine-B'"
+  )
+})
+
+test_that("a stale fs lease is told apart by whether the database still answers", {
+  # fs cannot renew its own lease, only its monitor does: a stale lease on a database that still
+  # answers /ping means the monitor stopped reporting, not that the database is down.
+  local_lease_conf(
+    instance_id = "instance-A",
+    instance_host = "machine-A",
+    runner_ttl_fs = 120
+  )
+  with_instance("instance-B", host = "machine-B", code = write_runner_lease("fs"))
+  Sys.setFileTime(runner_lease_path("fs"), Sys.time() - 600)
+
+  testthat::local_mocked_bindings(is_fs_running = function() TRUE)
+  expect_identical(
+    runner_leases_df()$Status,
+    # "running, but its monitor stopped reporting"
+    "active"
+  )
+
+  testthat::local_mocked_bindings(is_fs_running = function() FALSE)
+  expect_identical(
+    runner_leases_df()$Status,
+    "no activity for 2 min (probably stopped)"
   )
 })

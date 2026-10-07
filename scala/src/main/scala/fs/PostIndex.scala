@@ -241,6 +241,20 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
     this.writer.get.updateDocument(pkTerm, doc)
   }
 
+  def hasPost(id:String, topic:String, network:String) = {
+    implicit val searcher = this.useSearcher()
+    Try{
+      search(new TermQuery(new Term("topic_post_id", s"${topic.toLowerCase}_${id}_${network}")), maxHits = 1, sort = QuerySort.index).scoreDocs.size > 0
+    } match {
+      case Success(r) =>
+        this.releaseSearcher(searcher)
+        r
+      case Failure(e) =>
+        this.releaseSearcher(searcher)
+        throw e
+    }
+  }
+
   def searchPostToGeo(id:String, topic:String, network:String) = {
     implicit val searcher = this.useSearcher()
     Try{
@@ -335,7 +349,7 @@ case class PostIndex(var reader:IndexReader, writer:Option[IndexWriter], var sea
           this.writer.get.updateDocument(new Term("topic_post_id", s"${geo.topic.toLowerCase}_${geo.id}_${geo.network}"), doc)
           true
       case _ =>
-        print("weird... a postid seems to be missing..... ")
+        // reported by the callers, which know whether the post is missing from every index
         false
     }     
   }

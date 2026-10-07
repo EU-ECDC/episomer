@@ -211,6 +211,10 @@ search_loop_worker <- function(
   }
   # Infinite loop for getting posts if it is successfully registered as the search runner
   req2Commit <- 0
+  # The fs buffers the posts it indexes until commit_posts(), and the ones not committed when it stops
+  # are lost. A request count alone is too slow for a topic that gets few posts, so
+  # whichever comes first decides: more than 100 requests, or search_commit_interval() seconds.
+  last_commit <- Sys.time()
   # Consecutive failed requests, whatever the topic they were made for: a network that answers is
   # a network that answers for every topic, so one counter for the worker rather than one per plan.
   # Reset by any request that goes through, read by search_max_request_failures().
@@ -323,6 +327,8 @@ search_loop_worker <- function(
           # (R/runners-lease.R).
           stop_if_lease_lost()
           commit_posts()
+          req2Commit <- 0
+          last_commit <- Sys.time()
           save_config(
             data_dir = conf$data_dir,
             sm_topics = list(network),
@@ -422,17 +428,22 @@ search_loop_worker <- function(
               }
               req2Commit <- req2Commit + 1
               if (!sandboxed) {
-                if (req2Commit > 100) {
+                if (
+                  req2Commit > 100 ||
+                    difftime(Sys.time(), last_commit, units = "secs") >=
+                      search_commit_interval()
+                ) {
                   # Guard point: same reasoning as the periodic save above, at the other place where
                   # this loop flushes what it collected. Checked here rather than on every request -
                   # the expensive guard is the one in search_topic(), which protects the posts
                   # themselves.
                   stop_if_lease_lost()
-  		# setting a timestamp for indicating proper run of search loop
-  	        search_touch()
+                  # setting a timestamp for indicating proper run of search loop
+                  search_touch()
                   # commiting posts
                   commit_posts()
                   req2Commit <- 0
+                  last_commit <- Sys.time()
                 }
               }
             }
@@ -544,6 +555,12 @@ search_max_request_failures <- function() {
 # once the other end is back. The waiting is done by sleep_with_heartbeat(), so even the longest
 # backoff keeps proving the runner is alive and stops at once if another instance took over
 # (R/runners-lease.R).
+# Seconds after which the posts buffered by the fs are committed even if 100 requests were not made
+# since the last commit. A function rather than a constant so that a test can change it.
+search_commit_interval <- function() {
+  300
+}
+
 search_retry_wait <- function(failures) {
   wait <- min(5 * 2^(failures - 1), 300)
   msg(paste("Waiting", wait, "seconds before trying this request again"))

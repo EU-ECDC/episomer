@@ -14,13 +14,17 @@ episomer_app(
   fs_remote = NULL
 )
 
-dashboard_app(data_dir = NA, host = NULL, port = NULL)
+dashboard_app(data_dir = NA, host = NULL, port = NULL, fs_remote = NULL)
 
-admin_app(data_dir = NA, host = NULL, port = NULL)
+admin_app(data_dir = NA, host = NULL, port = NULL, fs_remote = NULL)
 }
 \arguments{
-\item{data_dir}{Path to the 'data directory' containing application settings, models and collected posts.
-If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
+\item{data_dir}{Path to the configuration file to extract the localisation of the central episomer instance. The preferred way to call this function is using the fs_remote parameter.
+If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, falling back to a
+temporary directory. When fs_remote is provided it is not needed at all: every file is then read
+through the fs API and data_dir is only an internal path prefix, so
+\code{episomer_app(fs_remote = "http://host:8080")} runs on a machine with no data directory,
+default: NA}
 
 \item{profile}{The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")}
 

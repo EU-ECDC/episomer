@@ -3,13 +3,6 @@ title: "episomer: user documentation"
 author: "European Centre for Disease Prevention and Control (ECDC)"
 output: 
   - rmarkdown::html_vignette
-  #word_document:
-    # The vignette marks everything that changed for the client review with
-    # <span style="color:red">. Pandoc drops that style on its way to docx, so the filter turns it
-    # into the RedText character style that reference-red.docx carries. Without the pair, the
-    # review copy is entirely black.
-      #reference_docx: reference-red.docx
-      #pandoc_args: ["--lua-filter=red-span.lua"]
 vignette: >
   %\VignetteIndexEntry{episomer: user documentation}
   %\VignetteEngine{knitr::rmarkdown}
@@ -49,7 +42,7 @@ pkg_url <- package_desc$URL
 
 ## Description
 
-`{episomer}` has been created by building on `epitweetr` objectives and functionalities. The `{episomer}` package allows you to automatically monitor trends of posts by time, place and topic in social media platforms. This automated monitoring aims at the early detection of public health threats through the detection of signals (e.g. an unusual increase in the number of posts for a specific time, place and topic). This release of `{episomer}` collects posts from Bluesky <span style="color:red">and Mastodon</span>
+`{episomer}` has been created by building on `{epitweetr}` objectives and functionalities. The `{episomer}` package allows you to automatically monitor trends of posts by time, place and topic in social media platforms. This automated monitoring aims at the early detection of public health threats through the detection of signals (e.g. an unusual increase in the number of posts for a specific time, place and topic). This release of `{episomer}` collects posts from Bluesky and Mastodon
  using theirs APIs (https://docs.bsky.app/, https://docs.joinmastodon.org/methods/search/), and can be extended to support other social media platforms. The `{episomer}` package was designed to focus on infectious diseases, and it can be extended to cover all hazards or other fields of study by modifying the topics and keywords.
 
 The general principle behind `{episomer}` is that it collects posts and related metadata according to specified topics. Posts are stored in a database that can be used to calculate statistics or as a search engine. `{episomer}` geolocalises the posts and collects information on keywords, URLs and hashtags within a post. Posts are aggregated according to topic and geographical location. Next, a signal detection algorithm identifies when the number of posts (by topic and geographical location) exceeds what is expected for a given day. If the number of posts exceeds what is expected, `{episomer}` sends out email alerts to notify those who need to further investigate these signals following the epidemic intelligence processes (filtering, validation, analysis and preliminary assessment).
@@ -58,7 +51,7 @@ The package includes an interactive web application (Shiny app) with six pages: 
 
 On the dashboard, users can view the aggregated number of posts over time, the location of these posts on a map and different most frequent elements found in or extracted from these posts (words, hashtags and URLs). These visualisations can be filtered by the topic, location and time period you are interested in. Other filters are available and include the possibility to adjust the time unit of the timeline, whether quotes should be included, the sensitivity of the prediction interval for the signal detection, and the number of days used to calculate the threshold for signals. This information is also downloadable directly from this interface in the form of data, pictures, and/or reports.
 
-More information on the methodology used is available in the [episomer peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
+More information on the methodology used is available in the [{epitweetr} peer-review publication](https://www.eurosurveillance.org/content/10.2807/1560-7917.ES.2022.27.39.2200177). In addition, you can also visit the [general post](https://github.com/EU-ECDC/episomer/discussions/7) in the discussion forum of the GitHub episomer repository for additional materials and training.
 
 **Shiny app dashboard:**
 
@@ -96,7 +89,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 **Shiny app configuration page:**
 
-<span style="color:red">TO BE UPDATED</span>
+TO BE UPDATED
 
 <center>Fig 5: Shiny app configuration page</center>
 
@@ -145,12 +138,12 @@ Its secondary objective is to enable users, through an interactive web interface
 ### Repository of episomer material and training
 More information on episomer is available in the [episomer GitHub discussions](https://github.com/EU-ECDC/episomer/discussions). This [post](https://github.com/EU-ECDC/episomer/discussions/7) contains a summary of relevant links and materials to new users.
 
-<span style="color:red">Two companion documents are shipped with the package and cover topics deliberately left out of this one:</span>
+Two additional documents are included with the `{episomer}` package on the following topics:
 
--   <span style="color:red">*episomer: containers and multi-machine deployment* - running `{episomer}` with Docker, and running it on several machines sharing a single database. See section *Running episomer in containers and on several machines*.</span>
--   <span style="color:red">*Add a new social media* - for developers extending `{episomer}` to a platform it does not support yet.</span>
+-   *episomer: containers and multi-machine deployment* - running `{episomer}` with Docker, and running it on several machines sharing a single database. See section *Running episomer in containers and on several machines*.
+-   *Add a new social media* - for developers extending `{episomer}` to a platform it does not support yet.
 
-<span style="color:red">Both are listed by `browseVignettes("episomer")`.</span>
+Both are listed by `browseVignettes("episomer")`.
 
 ## Hardware requirements
 
@@ -172,26 +165,26 @@ The CPU and RAM usage can be configured in the Shiny app configuration page (see
 
 ### Installation steps
 
-<span style="color:red">`{episomer}` is installed and operated through a single entry point: the setup wizard, called with `episomer::setup()`. The wizard is an interactive menu run from the R console, and it takes care of everything that used to be scattered across the configuration page of the Shiny app: downloading the external dependencies, downloading and indexing GeoNames, downloading and training the language models, registering the social media credentials, starting and stopping the `{episomer}` services, and launching the Shiny app itself.</span>
+`{episomer}` is installed and operated through a single entry point: the setup wizard, called with `episomer::setup()`. The setup wizard is an interactive menu run from the R console, and it takes care of everything that used to be scattered across the configuration page of the Shiny app: downloading the external dependencies, downloading and indexing GeoNames, downloading and training the language models, adding the social media credentials, starting and stopping the `{episomer}` services, and launching the Shiny app itself.
 
 You can find below a summary of the steps required to install `{episomer}`. Further detailed information is available in the corresponding sections.
 
-1. Ensure all pre-requisites are installed <span style="color:red">(in particular R, and a Java version between 21 and 25)</span>
+1. Ensure all pre-requisites are installed (in particular R, and a Java version between 21 and 25)
 2. Install episomer (CRAN version or different version using tar.gz file)
-3. Select the folder (or create a new folder) for `{episomer}`<span style="color:red">: this is the *data directory*, where all settings, posts, models and logs are stored</span>
-4. <span style="color:red">Run the setup wizard from an R console, giving the full path of your data directory, and choose option 1, *Run missing steps*:</span>
+3. Select the folder (or create a new folder) for `{episomer}`: this is the *data directory*, where all settings, posts, models and logs are stored
+4. Run the setup wizard from an R console, giving the full path of your data directory, and choose option 1, *Run missing steps*:
 
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
 setup("data_dir")
 ```
 
-5. <span style="color:red">Let the wizard run through its steps. It will download the Java dependencies, download, assemble and index GeoNames, download and train the language models, ask for your social media credentials, start the three `{episomer}` services and finally offer to open the Shiny app. The first run takes a while, as GeoNames and the language models are large downloads.</span>
-6. <span style="color:red">Check the troubleshoot page of the Shiny app</span>
-7. <span style="color:red">Modify the parameters in the configuration page as needed. You must provide the SMTP settings used to send the alert and status emails, together with the list of subscribers. Compared with previous versions of `{episomer}`, the social media credentials are **not** set here any more: they are managed by the wizard (option 6, *Setup social media credentials*). The remaining parameters have default values that you can modify if needed. Settings are auto-saved after changing them.</span>
-8. <span style="color:red">The alerts task may show an error if posts have not been aggregated yet. Wait a few minutes and click on 'Run alerts now' in the configuration page.</span>
+5. Let the setup wizard run through its steps. It will download the Java dependencies, download, assemble and index GeoNames, download and train the language models, ask for your social media credentials, start the three `{episomer}` services and finally give the option to open the Shiny app. The first run takes a while, as GeoNames and the language models are large downloads.
+6. Open the Shiny app and check the troubleshoot page
+7. Modify the parameters in the configuration page as needed for your needs. You must provide the SMTP settings used to send the alert and status emails, together with the list of subscribers. Compared with previous versions of `{episomer}`, the social media credentials are **not** set here any more: these are managed by the setup wizard (option 6, *Setup social media credentials*). The remaining parameters have default values that you can modify if needed. Settings are auto-saved after changing them.
+8. The alerts are computed automatically by the detect service, at regular intervals (every 90 minutes by default, see Schedule span in the configuration page). The first run may show an error if posts have not been aggregated yet. This is not a problem: wait a few minutes, or click on 'Run alerts now' in the configuration page to trigger the computation immediately instead of waiting for the next scheduled run.
 
-<span style="color:red">The wizard can be called again at any time, and its other menu entries let you replay a single step: *Download dependencies*, *Update geonames*, *Update languages*, *Setup social media credentials*, *Run / stop episomer services* and *Run the shiny app*. Option 2, *Run all steps*, forces every step to be replayed even when it has already been completed.</span>
+The setup wizard can be started again at any time, and it allows you to run any single step: *Download dependencies*, *Update geonames*, *Update languages*, *Setup social media credentials*, *Run / stop episomer services* and *Run the shiny app*. Option 2, *Run all steps*, forces every step to be rerun even when it has already been completed.
 
 ### Prerequisites 
 
@@ -201,7 +194,7 @@ Before using `{episomer}`, the following items need to be installed:
 
 -   R version 3.6.3 or higher
 
--   Java <span style="color:red">21-25</span> 64-bit, e.g. [*https://learn.microsoft.com/en-us/java/openjdk/download*](https://learn.microsoft.com/en-us/java/openjdk/download) refers to the Microsoft releases of java for multiple platforms including Windows and Mac.
+-   Java 21-25 64-bit, e.g. [*https://learn.microsoft.com/en-us/java/openjdk/download*](https://learn.microsoft.com/en-us/java/openjdk/download) refers to the Microsoft releases of java for multiple platforms including Windows and Mac.
 
 -   If you are running it on Windows, you will also need Microsoft Visual C++ which in most cases is likely to be pre-installed:
 
@@ -226,13 +219,13 @@ Before using `{episomer}`, the following items need to be installed:
 
 -   A scheduler
 
-    -   <span style="color:red">If using Windows, the R package `taskscheduleR` is recommended. Install it with `install.packages("taskscheduleR")`. When it is available, the services started by the wizard are registered as Windows scheduled tasks, so they keep running after the R session is closed and are restarted automatically. When it is missing, the services still start, but they are attached to the R session that started them and stop with it.</span>
+    -   If using Windows, the R package `taskscheduleR` is recommended. Install it with `install.packages("taskscheduleR")`. When it is available, the services started by the setup wizard are registered as Windows scheduled tasks, so they keep running after the R session is closed and are restarted automatically. When it is missing, the services still start, but they are attached to the R session that started them and stop with it.
 
-    -   <span style="color:red">If using Linux or macOS, permanent scheduling is not supported by `{episomer}`: the services started by the wizard are attached to the R session that started them. If you need them to survive a reboot, plan them yourself with the tool of your operating system (for example `cron`, `systemd` or `launchd`).</span>
+    -   If using Linux or macOS, permanent scheduling is not supported by `{episomer}`: the services started by the setup wizard are attached to the R session that started them. If you need them to survive a reboot, plan them yourself with the tool of your operating system (for example `cron`, `systemd` or `launchd`).
 
 #### Only for R developers
 
-<span style="color:red">If you would like to extend `{episomer}` to a social media platform it does not support yet, the vignette *Add a new social media* describes the common post format every platform is translated into, and the set of functions to implement for a new one.</span>
+If you would like to extend `{episomer}` to a social media platform it does not support yet, the vignette *Add a new social media* describes the common post format every platform is translated into, and the set of functions to implement for a new one.
 
 If you would like to develop `{episomer}` further, then the following development tools are needed:
 
@@ -268,33 +261,33 @@ Additionally, if you want to use a Java version different than your system's def
 system("java -version")
 ```
 
-This command should return the version of the java version available to R. In case this command returns something different than a version between <span style="color:red">21 and 25</span>, you have yo provide the location of the right version of java by setting the JAVA\_HOME environment variable. Please follow your specific operating system (OS) instructions for doing so. You should be able to detect the current value of JAVA\_HOME by running this instruction: 
+This command should return the version of the java version available to R. In case this command returns something different than a version between 21 and 25, you have to provide the location of the right version of java by setting the JAVA\_HOME environment variable. Please follow your specific operating system (OS) instructions for doing so. You should be able to detect the current value of JAVA\_HOME by running this instruction: 
 
 ```{r, eval=FALSE, echo=TRUE}
 Sys.getenv("JAVA_HOME")
 ```
 The Java binary (executable) should be located in the subfolder "bin" os JAVA\_HOME.
 
-The first time you run `{episomer}`, if it cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted <span style="color:red">social media</span> credentials. <span style="color:red">For subsequent usages of `{episomer}`, the keyring password is expected to be saved in an environment variable named EPISOMER_KR_PASSWORD. You can also save it on a file and the environment variable EPISOMER_KR_PASSWORD_FILE with the path of a file whose first line is the password. Environment variables can be set by filling the `.Renviron` file using `usethis::edit_r_environ()`</span>.
+The first time you run `{episomer}`, if it cannot identify a secure password store provided by the operating system, you will see a pop-up window requesting a keyring password (Linux and Mac). This is a password necessary for storing encrypted social media credentials. For subsequent usages of `{episomer}`, the keyring password is expected to be saved in an environment variable named EPISOMER_KR_PASSWORD. You can also save the password in a file by specifying its path in the EPISOMER_KR_PASSWORD_FILE environment variable. The first line of the file must contain the password. Environment variables can be set by filling the `.Renviron` file using `usethis::edit_r_environ()`.
 
 #### Launching the episomer Shiny app
 
-<span style="color:red">The recommended way to launch the Shiny app is the setup wizard. Start it from an R console, replacing “data_dir” with the designated data directory (full path), which is a local folder you choose to store posts, time series, configuration files and logs in:</span>
+The recommended way to launch the Shiny app is the setup wizard. Start it from an R console, replacing “data_dir” with the designated data directory (full path), which is a local folder you choose to store posts, time series, configuration files and logs in:
 
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
 setup("data_dir")
 ```
 
-<span style="color:red">Then choose option 8, *Run the shiny app*. The wizard asks which version of the app you want to open:</span>
+Then choose option 8, *Run the shiny app*. The setup wizard asks which version of the Shiny app you want to open:
 
--   <span style="color:red">*Open the full shiny app*: all six pages.</span>
--   <span style="color:red">*Open the dashboard only app*: the dashboard page alone, which is the read-only view you can expose to a wider audience.</span>
--   <span style="color:red">*Open the admin only app*: the alerts, geotag, data protection, configuration and troubleshoot pages, without the dashboard.</span>
+-   *Open the full Shiny app*: all six pages.
+-   *Open the dashboard only app*: the dashboard page alone, which is the page you can expose to a wider audience in your institution.
+-   *Open the admin only app*: the alerts, geotag, data protection, configuration and troubleshoot pages, without the dashboard.
 
-<span style="color:red">The Shiny app reads and writes everything through the embedded database, so the database must be running before the app starts. If it is not, the wizard offers to start it for you. If the database runs somewhere else (another machine, a container), tell `{episomer}` where with the `EPI_HOST` environment variable.</span>
+The Shiny app reads and writes everything through the embedded database, so the database must be running before the Shiny app starts. If it is not, the setup wizard offers to start it for you. If the database runs somewhere else (another machine, a container), tell `{episomer}` where with the `EPI_HOST` environment variable.
 
-<span style="color:red">Advanced users can still call the app directly, which is what the wizard does internally, and which is convenient in a launcher script:</span>
+Advanced users can still call the Shiny app directly (which is what the setup wizard does internally):
 
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
@@ -305,36 +298,36 @@ Please note that the data directory entered in R should have '/' instead of '\\'
 
 Alternatively, you can use a launcher: In an executable .bat or shell file type the following (replacing “data\_dir” with the designated data directory):
 
-R --vanilla -e episomer::episomer\_app("data\_dir") <span style="color:red">(or `R --vanilla -e episomer::setup("data\_dir")` to go through the wizard)</span>
+R --vanilla -e episomer::episomer\_app("data\_dir") (or `R --vanilla -e episomer::setup("data\_dir")` to go through the setup wizard)
 
 You can check that all requirements are properly installed in the troubleshoot page. More information is available in section *The interactive user application (Shiny app)>Dashboard:The interactive user interface for visualisation>The troubleshoot page*
 
 ### Setting up data collection and alert detection loop
 
-<span style="color:red">In order to use `{episomer}`, three services must be running: the **episomer database** (`fs`), the **search loop** which collects and processes posts, and the **detect loop** which runs the requirements and the alert detection. They are all started and stopped from the setup wizard, on every operating system. Compared with previous version of `{episomer}` there are no longer 'activate' buttons in the configuration page of the Shiny app.</span>
+In order to use `{episomer}`, three services must be running: the **episomer database** (`fs`), the **search loop** which collects and processes posts, and the **detect loop** which runs the requirements and the alert detection. They are all started and stopped from the setup wizard, on every operating system. Compared with previous version of `{episomer}` there are no longer 'activate' buttons in the configuration page of the Shiny app.
 
-<span style="color:red">Start the wizard from an R console, replacing 'data_dir' with the full path of your data folder e.g. 'C:/Users/name/episomer':</span>
+Start the setup wizard from an R console, replacing 'data_dir' with the full path of your data folder e.g. 'C:/Users/name/episomer':
 
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
 setup("data_dir")
 ```
 
-<span style="color:red">Then choose option 7, *Run / stop episomer services*. The menu lists, for each service, whether it is currently running on this machine and offers the opposite action:</span>
+Then choose option 7, *Run / stop episomer services*. The menu lists, for each service, whether it is currently running on this machine and offers the opposite action:
 
--   <span style="color:red">*Start all services*: starts the database, the search loop and the detect loop in one go. This is what option 1 and option 2 of the main menu do automatically.</span>
--   <span style="color:red">*Start / Stop episomer database*</span>
--   <span style="color:red">*Start / Stop search loop*</span>
--   <span style="color:red">*Start / Stop detect loop*</span>
--   <span style="color:red">*Stop all services*</span>
+-   *Start all services*: starts the database, the search loop and the detect loop in one go. This is what option 1 and option 2 of the main menu do automatically.
+-   *Start / Stop episomer database*
+-   *Start / Stop search loop*
+-   *Start / Stop detect loop*
+-   *Stop all services*
 
-<span style="color:red">The wizard refuses to start the services while the prerequisites are not met, and says which one is missing: the Java dependencies must have been downloaded, GeoNames must have been indexed, the language models must have been trained, and the social media authentication must succeed before the search loop can start. Run option 1, *Run missing steps*, to fix them.</span>
+The setup wizard refuses to start the services while the prerequisites are not met, and says which one is missing: the Java dependencies must have been downloaded, GeoNames must have been indexed, the language models must have been trained, and the social media authentication must succeed before the search loop can start. Run option 1, *Run missing steps*, to fix them.
 
-<span style="color:red">You can confirm that the services are running in the *Status* section of the Shiny app configuration page, where each of them is reported as running or stopped, and in the troubleshoot page. The status section also shows a table of the *runner leases*: when several machines share the same database, it tells which machine currently holds each service.</span>
+You can confirm that the services are running in the *Status* section of the Shiny app configuration page, where each of them is reported as running or stopped, and in the troubleshoot page. The status section also shows which machine is running each service, in case several machines share the same `{episomer}` database.
 
-<span style="color:red">On Windows, and provided that the `taskscheduleR` package is installed, the services are registered as Windows scheduled tasks, so they survive the end of the R session and can also be started or stopped from the Windows Task Scheduler. On Linux and macOS the services are attached to the R session that started them.</span>
+On Windows, and provided that the `taskscheduleR` package is installed, the services are registered as Windows scheduled tasks, so they continue even if the R session is closed, and can also be started or stopped from the Windows Task Scheduler. On Linux and macOS the services are attached to the R session that started them.
 
-<span style="color:red">The loops can also be started directly from their own R session, which is what the scheduled tasks do and what a multi-machine deployment uses:</span>
+The `{episomer}` services can also be started directly from their own R session, which is what the scheduled tasks do and what a multi-machine deployment uses:
 
 ```{r, eval=FALSE, echo=TRUE}
 library(episomer)
@@ -343,7 +336,7 @@ search_loop("data_dir") # post collection and processing
 detect_loop("data_dir") # requirements and alert detection
 ```
 
-You will be able to visualise posts after <span style="color:red">the search loop and the episomer database</span> are activated and the languages task has finished successfully.
+You will be able to visualise posts after the search service and the `{episomer}` database are activated and the languages task has finished successfully.
 
 You can start working with the generated signals. **Happy signal detection!**
 
@@ -360,7 +353,7 @@ Note: there is no limitation on the period for the search, but `{episomer}` limi
 
 #### Use of the Bluesky search API version
 
-`{episomer}` uses the Bluesky search API 'searchPost' endpoint [*https://docs.bsky.app/docs/api/app-bsky-feed-search-posts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustiveness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the app. 
+`{episomer}` uses the Bluesky search API 'searchPost' endpoint [*https://docs.bsky.app/docs/api/app-bsky-feed-search-posts*]. This service enable authenticated users to access published messages free of charge. There are no mentions on exhaustiveness of this endpoint in the documentaton but it appears to return same results as Bluesky search feature in the Shiny app. 
 
 Other attributes of the `searchPost` endpoint includes:
 
@@ -368,39 +361,39 @@ Other attributes of the `searchPost` endpoint includes:
 
 -   Each request returns a maximum of 100 posts and/or reposts
 
-#### <span style="color:red">Use of the Mastodon </span> authentication
+#### Use of the Mastodon  authentication
 
-<span style="color:red">`{episomer}` uses the Mastodon search API 'search' endpoint V2 [*https://docs.joinmastodon.org/methods/search/#v2*]. Accessing this service requires the creation of a new application in the Mastodon website (the url depends on the Mastodon instance in which you want to work on) in order to obtain an access token. Once it's done, this service enable users to access published messages free of charge. </span>
+`{episomer}` uses the Mastodon search API 'search' endpoint V2 [*https://docs.joinmastodon.org/methods/search/#v2*]. Accessing this service requires the creation of a new application in the Mastodon website (the url depends on the Mastodon instance in which you want to work on) in order to obtain an access token. Once it's done, this service enable users to access published Mastodon posts free of charge. 
 
-<span style="color:red">Other attributes of the `search v2` endpoint includes:</span>
+Other attributes of the `search v2` endpoint includes:
 
-<span style="color:red">-   A maximum of 300 requests every 5 minutes are supported by the Mastodon API</span>
+-   A maximum of 300 requests every five minutes are supported by the Mastodon API
 
-<span style="color:red">-   Each request returns a maximum of 40 posts and/or reposts</span>
+-   Each request returns a maximum of 40 posts and/or reposts
 
-#### <span style="color:red">Social media</span> authentication
+#### Social media authentication
 
-<span style="color:red">Social media credentials are set up from the setup wizard, `episomer::setup()`, option 6, *Setup social media credentials*. They are no longer entered in the configuration page of the Shiny app, which now only displays, for information, which social media are collected.</span>
+Social media credentials are set up from the setup wizard, `episomer::setup()`, option 6, *Setup social media credentials*. They are no longer entered in the configuration page of the Shiny app, which now only displays, for information, from which social media posts are being collected.
 
-<span style="color:red">The wizard shows one menu per social media supported by `{episomer}`, and rebuilds it after each action so that it always reflects the current state. For each social media you can:</span>
+The setup wizard shows one menu per social media supported by `{episomer}`, and rebuilds it after each action so that it always reflects the current state. For each social media you can:
 
--   <span style="color:red">**Activate / deactivate** it, i.e. decide whether `{episomer}` collects posts from it. At least one social media must remain active.</span>
--   <span style="color:red">**Include / exclude** it in alert detection, i.e. decide whether its posts contribute to the signal detection.</span>
--   <span style="color:red">**Set or update its credentials**.</span>
+-   **Activate / deactivate** it, i.e. decide whether `{episomer}` collects posts from it. At least one social media must remain active.
+-   **Include / exclude** it in alert detection, i.e. decide whether its posts contribute to the signal detection.
+-   **Set or update its credentials**.
 
-<span style="color:red">For **Bluesky**, the wizard asks for the user and the password you use on the login page of Bluesky, and asks for the password twice to guard against typing mistakes.</span>
+For **Bluesky**, the setup wizard asks for the user and the password you use on the login page of Bluesky, and asks for the password twice to guard against typing mistakes.
 
-<span style="color:red">**Mastodon** is federated: there is no single Mastodon to log into, but a set of independent instances, each with its own accounts and its own access tokens. The wizard therefore offers two extra entries, *Add a Mastodon instance or update its token* and *Remove a Mastodon instance*. You give the domain of the instance (e.g. `mastodon.social`) and then the access token issued by that instance. `{episomer}` will collect posts from every instance you have added, each one becoming a network of its own named `mastodon.<instance>`, with its own topics and its own collection plans.</span>
+**Mastodon** is federated: which means there is no single Mastodon to log into, but a set of independent instances, each with its own accounts and its own access tokens. The setup wizard therefore offers two extra entries, *Add a Mastodon instance or update its token* and *Remove a Mastodon instance*. You give the domain of the instance (e.g. `mastodon.social`) and then the access token issued by that instance. `{episomer}` will collect posts from every instance you have added, each one becoming a network of its own named `mastodon.<instance>`, with its own topics and its own collection plans.
 
-<span style="color:red">All credentials are stored encrypted in the keyring of your operating system, never in the data directory.</span>
+All credentials are stored encrypted in the keyring of your operating system, never in the data directory.
 
 #### Topics and post collection queries
 
 After authentication, you need to specify a list of topics in `{episomer}` to indicate which posts to collect. For each topic, you have one or more queries that `{episomer}` uses to collect the relevant posts (e.g. several queries for a topic using different terminology and/or languages). 
 
-A query consists of keywords and operators that are used to match post attributes. Since episomer is designed to support multiple social media, it has its own structure for writinh queries which is translated to match each provider syntax. The expected format of queries is defined by the follwoing rules.
+A query consists of keywords and operators that are used to match post attributes. Since episomer is designed to support multiple social media, it has its own structure for writing queries which is translated to match each provider syntax. The expected format of queries is defined by the following rules.
 -   No parenthesis are supported
--   Sub queries be sepparated by the OR keyword e.g. *measles OR sarampion*
+-   Sub queries be separated by the OR keyword e.g. *measles OR sarampion*
 -   If a subquery contain multiple terms they have to be concatenated with the AND keyword e.g. *measles AND feaver OR sarampion AND fiebre*
 -   Excluded terms can be included at the end of a subquery or as a separate subquery using a minus sign. They are always applied to all subqueriese.g.  *measles AND feaver OR sarampion AND fiebre -vaccination - vacunas* 
 -   You can provide synonyms on terms of a subquery using the "/" operator e.g. the previous example can be rewritten as  *measles/sarampion AND feaver/fiebre -vaccination - vacunas*. Use synonyms with caution. When the OR syntax is not supported natively the number of underlying queries grows as an geometric progression.
@@ -409,7 +402,7 @@ A query consists of keywords and operators that are used to match post attribute
 
 `{episomer}` comes with a default list of topics as used by the ECDC Epidemic Intelligence team. You can view details of the list of topics in the Shiny app configuration page (see screenshot below). In addition, the colour coding in the downloadable file allows users to see if the query for a topic is too long (red colour) and the topic should be split in several queries.
 
-<span style="color:red">Image to be updated since we now have a "network" column in thetable.</span>
+Image to be updated since we now have a "network" column in thetable.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics.png")
@@ -419,13 +412,13 @@ In the configuration page, you can also download the list of topics, modify and 
 
 -   The name of the topic, with the header “Topic” in the Excel spreadsheet. The name of the topic is not visible in reports and it is the identifier of the topic. Modifying this field its equivalent to remove and create a new topic. This name should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter and it is case insensitive.
 
--   The label of the topic, with the header “Label” in the Excel spreadsheet. The label of the topic is shown on reports and can be changed wihout impact in data collection. This label should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter.
+-   The label of the topic, with the header “Label” in the Excel spreadsheet. The label of the topic is shown on reports and can be changed without impact in data collection. This label should include alphanumeric characters, spaces, dashes and underscores only. Note that it should start with a letter.
 
 -   The query, with the header “Query” in the Excel spreadsheet. This is the query `{episomer}` uses in its requests to obtain posts from the social media API's. See above for syntax and constraints of queries.
 
 The topics.xlsx file additionally includes the following fields:
 
--   An ID, with the header “\#” in the Excel spreadsheet, this number is just a reference for you and has no impact in the application.
+-   An ID, with the header “\#” in the Excel spreadsheet, this number is just a reference for you and has no impact in the Shiny application.
 
 -   An alpha parameter, with the header “Signal alpha (FPR)” in the Excel spreadsheet. FPR stands for "false positive rate". Increasing the alpha will decrease the threshold for signal detection, resulting in an increased sensitivity and possibly obtaining more signals. Setting this alpha can be done empirically and according to the importance and nature of the topic.
 
@@ -446,7 +439,7 @@ When uploading your own file, please modify the topic and query fields, but do n
 
 #### Scheduled plans to collect posts
 
-As a reminder, `{episomer}` is scheduled to respect the rate limits of underlying data providers and performs multiple requests to obtain published messages. Each request return up to 100 posts. The requests return posts and quotes. These are returned in JSON format, which is a light-weighted data format.
+As a reminder, `{episomer}` is scheduled to respect the rate limits of underlying data providers and performs multiple requests to obtain published messages. Each request returns up to 100 posts. The requests return posts and quotes. These are returned in JSON format, which is a light-weighted data format.
 
 In order to collect the maximum number of posts, given the API limitations, and in order for popular topics not to prevent other topics from being adequately collected, `{episomer}` uses “search plans” for each query.
 
@@ -496,7 +489,7 @@ Each “search plan” stores the following information:
 
 -   As a result of the two previous rules, requests for topics with less messages will end first and will produce higher progress than topics with higher volume of tweets. Particularly when a topic has more messaged than those allowed to be downloaded by the API rate limits, these plans will be paused as newer plans are scheduled for future completion. The rationale behind this is that topics with such a large number of posts that the 4-hour search window is not sufficient to collect them, are likely to already be a known topic of interest. Therefore, priority should be given to smaller topics and possibly less well-known topics.
 
-An example was the COVID-19 pandemic in 2020. In early 2020, there was limited information available regarding COVID-19, which allowed detecting signals with meaningful information or updates (e.g. new countries reporting cases or confirming that it was caused by a coronavirus). However, throughout the pandemic, this topic became more popular and the broad topic of COVID-19 was not effective for signal detection and was taking up a lot of time and requests for `epitweetr`. In such a case it is more relevant to prioritise the collection of smaller topics such as sub-topics related to COVID-19 (e.g. vaccine AND COVID-19), or to make sure you do not miss other events with less social media attention.
+An example was the COVID-19 pandemic in 2020. In early 2020, there was limited information available regarding COVID-19, which allowed detecting signals with meaningful information or updates (e.g. new countries reporting cases or confirming that it was caused by a coronavirus). However, throughout the pandemic, this topic became more popular and the broad topic of COVID-19 was not effective for signal detection and was taking up a lot of time and requests for `{epitweetr}`. In such a case it is more relevant to prioritise the collection of smaller topics such as sub-topics related to COVID-19 (e.g. vaccine AND COVID-19), or to make sure you do not miss other events with less social media attention.
 
 If search plans cannot be finished, several search plans per query may be in a queue:
 
@@ -549,7 +542,7 @@ The threshold is empirically chosen and can be evaluated against a human read of
 
 In the Geotag page, `{episomer}` will allow you to download the data that was used to build the classifiers for location identificaion. The predefined annotations are based on location vs non-location words. Locations are extracted from geonames.org database. Non-location words are obtained from common words in the downloaded models that are not present in GeoNames. You will be able to add posts to the annotation database and to manually annotate them until you reach the expected level of performance.
 
-To help you on the evaluation process, `{episomer}` will calculate standard machine learning metrics for evaluating its capacity to identify the right location of geolocation words..
+To help you on the evaluation process, `{episomer}` will calculate standard machine learning metrics for evaluating its capacity to identify the right location of geolocation words.
 
 
 #### Stored geolocated post information
@@ -693,7 +686,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 ###  Folder structure
 
-`{episomer}` stores and aggregates posts. When launching the application, you have to designate the location for storing the data and the configuratio files as the “data folder”.
+`{episomer}` stores and aggregates posts. When launching the Shiny application, you have to designate the location for storing the data and the configuratio files as the “data folder”.
 
 Within the **data** folder there are three JSON files:
 
@@ -723,9 +716,9 @@ There are also the following subfolders:
 
 -   "collections", which contains the aggregations produced by `{episomer}`
 
--   "jobs", containig information of logs produced by the different running processes
+-   "jobs", containing information of logs produced by the different running processes
 
--   "runners", which contains one small JSON file per running service, saying which machine is currently in charge of it. It only matters when several machines share the same database &mdash; see <span style="color:red">the vignette *episomer: containers and multi-machine deployment*</span> &mdash; and its released files are kept under "runners/old".
+-   "runners", which contains one JSON file per running service, saying which machine is currently running the service. This is only relevant when several machines share the same database (see the vignette *episomer: containers and multi-machine deployment*) and its released files are kept under "runners/old".
 
 
 #### Fs folder &gt; posts
@@ -792,7 +785,7 @@ Note that whatever options/settings you select on the dashboard, will have no ef
 
 **Social Media**
 
-You can select one item from the drop-down list of social media to display in the dashboard. Currently only Bluesky is available.
+You can select one item from the drop-down list of social media to display in the dashboard. Currently Bluesky and Mastodon are available.
 
 **Topics**
 
@@ -915,7 +908,7 @@ The alerts page summarises the signals detected within the specified study perio
 
 #### Find alerts
 
-Shows alerts generated by episomer. If you have provided a training set for alert classification, the category evaluated at the time of generation will be displated. If the alert is part of the training setthe vategory displayed would be the one specified by you.
+Shows alerts generated by episomer. If you have provided a training set for alert classification, the category evaluated at the time of generation will be displayed. If the alert is part of the training set the category displayed would be the one specified by you.
 
 The lisf of alerts can be filtered based on the following elements: date, topics, countries/regions. These three filters will define the scope of alerts to search. Also two modifiers are available for searching:
 
@@ -973,7 +966,7 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 ```
 
 ### The geotag page
-This page supports the improvement of the geolocation algorithm. Episomer will allow you to download the data that was used to build the classifiers for location identification. The predefined annotations are based on location vs non location words. Locations are extracted from geonames.org data base. Non location words are obtained from common words on the downloaded models that are not present on GoNames. You will be able to add posts to the annotation datanbase and to manually annotate them until you reach the expected level of performance.
+This page supports the improvement of the geolocation algorithm. Episomer will allow you to download the data that was used to build the classifiers for location identification. The predefined annotations are based on location vs non location words. Locations are extracted from geonames.org data base. Non location words are obtained from common words on the downloaded models that are not present on GeoNames. You will be able to add posts to the annotation datanbase and to manually annotate them until you reach the expected level of performance.
 
 To help you on the evaluation process `{episomer}` will calculate standard machine learning metrics for evaluating its capacity to identify the right location in texts. These metrics are separately calculated by different type of texts: Post location, Post text, Post user description and total.
 
@@ -1002,7 +995,7 @@ The geolocation spreadsheet has the following columns:
 -   Post part: The post part if associated to a post. It can be any of: "text", "user description" or "user location".
 -   Episomer match: The location found by `{episomer}`
 -   Episomer country match: The country of the location found by `{episomer}`.
--   Episomer country code match: The country code of the location found by `{episomer}`.
+-   Episomer country code match: The country code of the location found by `{episomer}` (using the ISO-3166 alpha2 nomenclature).
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
@@ -1023,11 +1016,11 @@ The following controls are available:
 
 ### The configuration page
 
-In the configuration page, you can change settings of the tool, you can check the status of the various processes/pipelines of the tool and you can add, delete and modify topics and their associated requests, languages for geolocation and the list of the “important users” and email alert subscribers. The following sections describe the configuration page in more detail.
+In the configuration page, you can change some settings of the tool and check the status of the various processes/pipelines. The following sections describe the configuration page in more detail.
 
-<span style="color:red">Note that the configuration page is no longer where `{episomer}` is operated. Everything that starts, stops or installs something has moved to the setup wizard, `episomer::setup()`: the buttons that activated and stopped the services, the buttons that ran the dependencies, GeoNames and languages tasks, and the social media credentials. What remains in the configuration page is the settings, the topics and the lists, plus a read-only view of what the services are doing.</span>
+Note that the configuration page is no longer managing `{episomer}` services, dependencies, GeoNames, languages tasks and social media credentials. These aspects are now managed by the setup wizard, `episomer::setup()`: the buttons that activated and stopped the services, the buttons that ran the dependencies, GeoNames and languages tasks, and the social media credentials. What remains in the configuration page is the settings, the topics and the lists of the “important users” and email alert subscribers, plus a read-only view of what the services are doing.
 
-<span style="color:red">TO BE UPDATED: image outdated</span>
+TO BE UPDATED: image outdated
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
@@ -1038,22 +1031,22 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 The status section enables you to quickly assess the latest time point and/or status of the processes for post collection (Post Search), and geolocation, aggregation and signal detection (Detection pipeline).
 
-<span style="color:red">TO BE UPDATED: image outdated</span>
+TO BE UPDATED: image outdated
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/status.png")
 ```
 
-In the status section, you can tell if the embedded database, the <span style="color:red">data collection & processing</span> and the <span style="color:red">alerts</span> processes are running. <span style="color:red">These indicators are refreshed every 60 seconds and are read-only: to start or stop a service, run `episomer::setup()` and use option 7, *Run / stop episomer services* (see section *Installation > Setting up data collection and alert detection loop*).</span>
+In the status section, you can tell if the embedded database, the data collection & processing and the alerts processes are running. These indicators are refreshed every 60 seconds and are read-only. To start or stop a service, run `episomer::setup()` and use option 7, *Run / stop episomer services* (see section *Installation > Setting up data collection and alert detection loop*).
 
-<span style="color:red">Below them, a table lists the runner leases. A lease is what guarantees that a given piece of work is performed by one machine only: if two machines collected the same posts, each post would be stored twice and the alerts would be computed on doubled counts. The three status lines above answer “is this service running somewhere?”; this table says *where*, and shows a lease that nobody renews any more. The Shiny app itself never appears in it, since it reads the leases rather than holding one. On a single-machine installation this table simply lists the services of that machine; the vignette *episomer: containers and multi-machine deployment* explains how to read it in full.</span>
+Below them, a table lists the task allocations. An allocation is a mechanism that ensures a given task is performed by only one machine: if two machines collected the same posts, each post would be recorded twice and the alerts would be calculated based on doubled counts. The three status lines above answer “is this service running somewhere?”; this table says *where*. On a single-machine installation this table simply lists the services of that machine; the vignette *episomer: containers and multi-machine deployment* explains how to read it in full.
 
-**<span style="color:red">Alerts pipeline</span>**
+**Alerts pipeline**
 
-<span style="color:red">The “Run alerts now” button can be used to force the start of the alerts task in case there is any error or issue. The tasks that download and prepare the dependencies, GeoNames and the language models are no longer triggered from here: use the wizard, options 3 to 5 (*Download dependencies*, *Update geonames*, *Update languages*). GeoNames and languages relate to the geolocation and language models used by `{episomer}`.</span>
+The “Run alerts now” button can be used to force the start of the alerts task in case there is any error or issue, or instead of waiting for the next scheduled run. The tasks that download and prepare the dependencies, GeoNames and the language models are no longer triggered from here: instead, use the setup wizard, options 3 to 5 (*Download dependencies*, *Update geonames*, *Update languages*). GeoNames and languages relate to the geolocation and language models used by `{episomer}`.
 
-<span style="color:red">TO BE UPDATED: image outdated</span>
+TO BE UPDATED: image outdated
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '70%'}
@@ -1126,15 +1119,15 @@ If **Unsafe certificates** is checked, then `{episomer}` will use your SMTP serv
 
 When changing anything in the “general” section, do not forget to click on the “Update Properties” button.
 
-**Social Medias**
+**Social Media platforms**
 
-<span style="color:red">This section is purely informational: it lists the social media `{episomer}` supports, currently Bluesky and Mastodon, together with the Mastodon instances that have been added, whether each of them is active and whether it is included in alert detection.</span>
+This section lists the social media platforms `{episomer}` supports, currently Bluesky and Mastodon, together with the Mastodon instances that have been added, and whether each of them is active and included in alert detection.
 
-<span style="color:red">These settings, and the credentials that go with them, are changed from the wizard (`episomer::setup()`, option 6, *Setup social media credentials*), described in section *How does it work? General architecture behind episomer > Collection of posts > Social media authentication*. There you can set:</span>
+These settings, and the credentials that go with them, are changed from the setup wizard (`episomer::setup()`, option 6, *Setup social media credentials*), described in section *How does it work? General architecture behind episomer > Collection of posts > Social media authentication*. There you can set:
 
--   Which social media are active. This parameter can limit which social media are used for data collection and therefore available in the dashboad.
--   Which social media are considered for alerts. This parameter social media being considered for alert detection. Please note that numer of messaged are sum between all social media before calculating alerts.
--   API credentials for data collection. In the case of Bluesky you have to input a valid username and password<span style="color:red">, and in the case of Mastodon an instance domain and the access token issued by that instance</span>.
+-   Which social media are active. This parameter can limit which social media are used for data collection and therefore available in the dashboard.
+-   Which social media are considered for alerts. This parameter social media being considered for alert detection. Please note that number of messages are sum between all social media before calculating alerts.
+-   API credentials for data collection. In the case of Bluesky you have to input a valid username and password, and in the case of Mastodon an instance domain and the access token issued by that instance.
 
 **Topics**
 
@@ -1146,7 +1139,7 @@ A query consists of keywords and operators that are used to match on post attrib
 
 In the topics section on the configuration page, you can view the topic, the associated query, the query length and how many active search plans are associated with the query. If more than one search plan is active, this means that `{episomer}` did not manage to collect all possible posts in the last session. Additionally, you can see the progress and the number of requests from the last search plan.
 
-<span style="color:red">TO BE UPDATED: image outdated</span>
+TO BE UPDATED: image outdated
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
@@ -1157,14 +1150,14 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 In the languages section, you can determine which language models are used to identify text during the geolocation process. The default languages are French, English, Portuguese and Spanish. Please consider the computational cost of adding too many languages, depending on the capacity of your machine.
 
-<span style="color:red">Languages settings are changed from the wizard (`episomer::setup()`, option 5, *Update languages*).</span>
+Languages settings are changed from the setup wizard (`episomer::setup()`, option 5, *Update languages*).
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/languages.png")
 ```
 
-<span style="color:red">TO BE UPDATED: image outdated</span>
+TO BE UPDATED: image outdated
 
 
 
@@ -1193,14 +1186,14 @@ You can also download the data of each visualisation by clicking on the data but
 
 Alternatively, you can use the PDF or the Md button at the bottom of the filters to download a PDF or an HTML file of the dashboard Note that for this you will need to have MiKTeX or TinyTeX installed.
 
-## <span style="color:red">Running episomer in containers and on several machines</span>
+## Running episomer in containers and on several machines
 
-<span style="color:red">Everything described so far runs on a single machine, and that is how `{episomer}` is deployed almost everywhere. Two other deployments are possible, and they now have a document of their own, *episomer: containers and multi-machine deployment*:</span>
+Everything described so far runs on a single machine, and that is how `{episomer}` is deployed almost everywhere. Two other deployments are possible, and they now have a document of their own, *episomer: containers and multi-machine deployment*:
 
--   <span style="color:red">**In containers.** `{episomer}` ships with a `Dockerfile` and a `compose.yml` that start the episomer database, the post collection and the alert detection as three containers. A container has no interactive console, so the setup wizard cannot ask anything: settings and credentials are given through environment variables instead.</span>
--   <span style="color:red">**On several machines sharing one database.** Typically because the post collection has become too heavy for one host, or because you want a second machine ready to take over when the first one is stopped for maintenance. A mechanism of *runner leases* guarantees that a given piece of work is performed by one machine only, so that no post is collected and stored twice. That document also contains the operator guide for reading the leases in the *Status* section of the configuration page.</span>
+-   **In containers.** `{episomer}` is provided with a `Dockerfile` and a `compose.yml` that start the episomer database, the post collection and the alert detection as three containers. A container has no interactive console, so the setup wizard does not work in this type of deployment; thus, settings and credentials are given through environment variables instead.
+-   **On several machines sharing one database.** Typically because the post collection has become too heavy for one host, or because you want a second machine ready to take over when the first one is stopped for maintenance. A mechanism of *runner leases* guarantees that a given piece of work is performed by one machine only, so that no post is collected and stored twice.
 
-<span style="color:red">Neither is required to use `{episomer}`, and the second vignette is more dedicated to an IT-related audience more than the users of the Shiny application.</span>
+Neither is required to use `{episomer}`, and the second vignette is more dedicated to an IT-related audience more than the users of the Shiny application.
 
 ## Annex I: Downweighting the previous signals {#annexI}
 
