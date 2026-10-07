@@ -2,7 +2,7 @@
 title: "episomer: user documentation"
 author: "European Centre for Disease Prevention and Control (ECDC)"
 output: 
-  - rmarkdown::html_vignette
+  rmarkdown::html_vignette  
 vignette: >
   %\VignetteIndexEntry{episomer: user documentation}
   %\VignetteEngine{knitr::rmarkdown}
