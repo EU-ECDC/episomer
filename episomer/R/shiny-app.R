@@ -95,11 +95,7 @@ episomer_app <- function(
   # Pinged by hand rather than with is_fs_running(): the setup_config() below already reads
   # properties.json through the API, so it fails with an unreadable connection error when the
   # database is down, and is_fs_running() itself needs a configuration that does not exist yet.
-  fs_up <- tryCatch(
-    httr::GET(url = paste(fs_remote, "ping", sep = "/"), httr::timeout(1.0))$status_code == 200,
-    error = function(e) FALSE,
-    warning = function(w) FALSE
-  )
+  fs_up <- fs_answers_ping(fs_remote)
   if (!fs_up) {
     stop(
       sprintf(
@@ -3881,5 +3877,14 @@ admin_app <- function(
     host = host,
     port = port,
     fs_remote = fs_remote
+  )
+}
+
+# TRUE when the embedded database answers its /ping endpoint (a separate function so tests can mock it)
+fs_answers_ping <- function(fs_remote) {
+  tryCatch(
+    httr::GET(url = paste(fs_remote, "ping", sep = "/"), httr::timeout(1.0))$status_code == 200,
+    error = function(e) FALSE,
+    warning = function(w) FALSE
   )
 }
