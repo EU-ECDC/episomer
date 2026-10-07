@@ -2991,7 +2991,7 @@ episomer_app <- function(
               cleaned_colnames_dt %in% colnames(dt)
             ]
 
-            dt %>%
+            my_dt <- dt %>%
               DT::datatable(
                 colnames = cleaned_colnames_dt,
                 filter = "top",
@@ -3057,7 +3057,7 @@ episomer_app <- function(
               cleaned_colnames_dt %in% colnames(dt)
             ]
 
-            dt %>%
+            my_dt <- dt %>%
               DT::datatable(
                 colnames = cleaned_colnames_dt,
                 filter = "top",
@@ -3065,7 +3065,7 @@ episomer_app <- function(
               )
           }
           progress_close()
-          dt
+          my_dt
         })
       })
 
