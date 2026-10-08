@@ -389,6 +389,8 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
         list.files(path, pattern = pattern, full.names = full.names, recursive = recursive)
     else {
         files <- unlist(jsonlite::read_json(sprintf("%s?action=list&fullname=%s&recursive=%s", path, tolower(full.names), tolower(recursive))))
+        if(full.names)
+          files <- to_fs_remote_url(files)
         if(!is.null(pattern))
              files <- files[grepl(pattern, files)]
         files
@@ -442,7 +444,10 @@ epilist.dirs <- function(path, full.names = TRUE) {
     if(!is_remote(path))
         list.dirs(path, recursive = FALSE, full.names = full.names)
     else
-        unlist(jsonlite::read_json(sprintf("%s?action=listdir&fullname=%s", path, tolower(full.names))))
+        {
+          dirs <- unlist(jsonlite::read_json(sprintf("%s?action=listdir&fullname=%s", path, tolower(full.names))))
+          if(full.names) to_fs_remote_url(dirs) else dirs
+        }
 }
 
 # Wrapper for writeLines() accepting a destination on a remote fs.
