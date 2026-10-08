@@ -1767,7 +1767,11 @@ episomer_app <- function(
             ),
             margin = list(l = 30, r = 30, b = 100, t = 80),
             annotations = list(
-              text = chart$labels$caption,
+              text = text <- if (!is.null(chart$labels$caption)) {
+                chart$labels$caption
+              } else {
+                ""
+              },
               font = list(size = 10),
               showarrow = FALSE,
               xref = 'paper',
@@ -1804,7 +1808,11 @@ episomer_app <- function(
             ),
             margin = list(l = 30, r = 30, b = 100, t = 80),
             annotations = list(
-              text = chart$labels$caption,
+              text = if (!is.null(chart$labels$caption)) {
+                chart$labels$caption
+              } else {
+                ""
+              },
               font = list(size = 10),
               showarrow = FALSE,
               xref = 'paper',
