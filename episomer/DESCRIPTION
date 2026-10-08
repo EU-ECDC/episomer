@@ -100,7 +100,8 @@ Imports:
     cli,
     askpass,
     bit64,
-    shinyjs
+    shinyjs,
+    zip
 Suggests: 
     knitr,
     taskscheduleR,
