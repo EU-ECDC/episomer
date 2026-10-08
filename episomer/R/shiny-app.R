@@ -248,8 +248,8 @@ episomer_app <- function(
               value = conf$alert_same_weekday_baseline
             ),
             shiny::fluidRow(
-              shiny::column(4, shiny::downloadButton("export_pdf", "PDF")),
-              shiny::column(4, shiny::downloadButton("export_md", "Md"))
+              shiny::column(4, dash_download_button("export_pdf", "PDF")),
+              shiny::column(4, dash_download_button("export_md", "Md"))
             )
           ),
           shiny::column(
@@ -2224,24 +2224,35 @@ episomer_app <- function(
           )
         },
         content = function(file) {
-          export_dashboard(
-            "pdf_document",
-            file,
-            input$sms,
-            input$topics,
-            input$countries,
-            input$period_type,
-            input$period,
-            input$with_quotes,
-            input$location_type,
-            input$alpha_filter,
-            input$alpha_outlier_filter,
-            input$k_decay_filter,
-            input$history_filter,
-            input$bonferroni_correction,
-            input$same_weekday_baseline,
-            "tags",
-            "topwords"
+          progress_start("Exporting dashboard")
+          tryCatch(
+            {
+              export_dashboard(
+                "pdf_document",
+                file,
+                input$sms,
+                input$topics,
+                input$countries,
+                input$period_type,
+                input$period,
+                input$with_quotes,
+                input$location_type,
+                input$alpha_filter,
+                input$alpha_outlier_filter,
+                input$k_decay_filter,
+                input$history_filter,
+                input$bonferroni_correction,
+                input$same_weekday_baseline,
+                "tags",
+                "topwords"
+              )
+              progress_close()
+            },
+            error = function(e) {
+              app_error(e, env = cd)
+              # re-raising so shiny aborts the download instead of serving an empty file
+              stop(e)
+            }
           )
         }
       )
@@ -2262,29 +2273,40 @@ episomer_app <- function(
             "tags",
             "_",
             "topwords",
-            ".md",
+            ".zip",
             sep = ""
           )
         },
         content = function(file) {
-          export_dashboard(
-            "md_document",
-            file,
-            input$sms,
-            input$topics,
-            input$countries,
-            input$period_type,
-            input$period,
-            input$with_quotes,
-            input$location_type,
-            input$alpha_filter,
-            input$alpha_outlier_filter,
-            input$k_decay_filter,
-            input$history_filter,
-            input$bonferroni_correction,
-            input$same_weekday_baseline,
-            "tags",
-            "topwords"
+          progress_start("Exporting dashboard")
+          tryCatch(
+            {
+              export_dashboard(
+                "md_document",
+                file,
+                input$sms,
+                input$topics,
+                input$countries,
+                input$period_type,
+                input$period,
+                input$with_quotes,
+                input$location_type,
+                input$alpha_filter,
+                input$alpha_outlier_filter,
+                input$k_decay_filter,
+                input$history_filter,
+                input$bonferroni_correction,
+                input$same_weekday_baseline,
+                "tags",
+                "topwords"
+              )
+              progress_close()
+            },
+            error = function(e) {
+              app_error(e, env = cd)
+              # re-raising so shiny aborts the download instead of serving an empty file
+              stop(e)
+            }
           )
         }
       )
