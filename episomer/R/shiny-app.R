@@ -121,6 +121,17 @@ episomer_app <- function(
   }
 
   if ("dashboard" %in% profile) {
+    # Download button of a dashboard chart: rendered disabled, and kept so by
+    # Shiny until the server enables it, since there is nothing to download
+    # before the first successful Run
+    dash_download_button <- function(id, label) {
+      shiny::downloadButton(
+        id,
+        label,
+        class = "dash-download",
+        `data-shiny-disable-auto-enable` = NA
+      )
+    }
     # Defining dashboard page UI
     ################################################
     ######### DASHBOARD PAGE #######################
@@ -237,8 +248,8 @@ episomer_app <- function(
               value = conf$alert_same_weekday_baseline
             ),
             shiny::fluidRow(
-              shiny::column(4, shiny::downloadButton("export_pdf", "PDF")),
-              shiny::column(4, shiny::downloadButton("export_md", "Md"))
+              shiny::column(4, dash_download_button("export_pdf", "PDF")),
+              shiny::column(4, dash_download_button("export_md", "Md"))
             )
           ),
           shiny::column(
@@ -252,11 +263,11 @@ episomer_app <- function(
                 shiny::fluidRow(
                   shiny::column(
                     2,
-                    shiny::downloadButton("download_line_data", "Data")
+                    dash_download_button("download_line_data", "Data")
                   ),
                   shiny::column(
                     2,
-                    shiny::downloadButton("export_line", "image")
+                    dash_download_button("export_line", "image")
                   )
                 ),
                 plotly::plotlyOutput("line_chart")
@@ -268,9 +279,9 @@ episomer_app <- function(
                 shiny::fluidRow(
                   shiny::column(
                     3,
-                    shiny::downloadButton("download_map_data", "Data")
+                    dash_download_button("download_map_data", "Data")
                   ),
-                  shiny::column(3, shiny::downloadButton("export_map", "image"))
+                  shiny::column(3, dash_download_button("export_map", "image"))
                 ),
                 plotly::plotlyOutput(
                   "map_chart"
@@ -281,11 +292,11 @@ episomer_app <- function(
                 shiny::fluidRow(
                   shiny::column(
                     3,
-                    shiny::downloadButton("download_top1_data", "Data")
+                    dash_download_button("download_top1_data", "Data")
                   ),
                   shiny::column(
                     3,
-                    shiny::downloadButton("export_top1", "image")
+                    dash_download_button("export_top1", "image")
                   ),
                   shiny::column(6, "")
                 ),
@@ -298,11 +309,11 @@ episomer_app <- function(
                 shiny::fluidRow(
                   shiny::column(
                     3,
-                    shiny::downloadButton("download_top2_data", "Data")
+                    dash_download_button("download_top2_data", "Data")
                   ),
                   shiny::column(
                     3,
-                    shiny::downloadButton("export_top2", "image")
+                    dash_download_button("export_top2", "image")
                   ),
                   shiny::column(6, "")
                 ),
@@ -313,7 +324,7 @@ episomer_app <- function(
                 shiny::fluidRow(
                   shiny::column(
                     3,
-                    shiny::downloadButton("download_top3_data", "Data")
+                    dash_download_button("download_top3_data", "Data")
                   ),
                 ),
                 shiny::fluidRow(
@@ -506,7 +517,6 @@ episomer_app <- function(
     ################################################
     config_page <-
       shiny::fluidPage(
-        shinyjs::useShinyjs(),
         shiny::tags$style(shiny::HTML(
           "
             .config-toggle-title {
@@ -1368,7 +1378,7 @@ episomer_app <- function(
     args <- list(
       "episomer",
       id = "navbar_shinyapp",
-      header = list(busy_spinner)
+      header = list(busy_spinner, shinyjs::useShinyjs())
     )
     if ("dashboard" %in% profile) {
       args <- c(
@@ -1446,6 +1456,19 @@ episomer_app <- function(
         shiny::validate(shiny::need(is.null(res$error), res$error))
         res[[part]]
       }
+
+      # The chart download buttons are only usable once a Run has succeeded,
+      # and are disabled again if a later Run fails
+      shiny::observe({
+        res <- dash()
+        disabled <- is.null(res) || !is.null(res$error)
+        shinyjs::runjs(sprintf(
+          "$('a.dash-download').toggleClass('disabled', %1$s)
+            .attr('aria-disabled', %1$s ? 'true' : null)
+            .attr('tabindex', %1$s ? '-1' : null);",
+          tolower(disabled)
+        ))
+      })
 
       ################################################
       ######### FILTERS LOGIC ########################
@@ -1744,7 +1767,11 @@ episomer_app <- function(
             ),
             margin = list(l = 30, r = 30, b = 100, t = 80),
             annotations = list(
-              text = chart$labels$caption,
+              text = text <- if (!is.null(chart$labels$caption)) {
+                chart$labels$caption
+              } else {
+                ""
+              },
               font = list(size = 10),
               showarrow = FALSE,
               xref = 'paper',
@@ -1781,7 +1808,11 @@ episomer_app <- function(
             ),
             margin = list(l = 30, r = 30, b = 100, t = 80),
             annotations = list(
-              text = chart$labels$caption,
+              text = if (!is.null(chart$labels$caption)) {
+                chart$labels$caption
+              } else {
+                ""
+              },
               font = list(size = 10),
               showarrow = FALSE,
               xref = 'paper',
@@ -2201,24 +2232,35 @@ episomer_app <- function(
           )
         },
         content = function(file) {
-          export_dashboard(
-            "pdf_document",
-            file,
-            input$sms,
-            input$topics,
-            input$countries,
-            input$period_type,
-            input$period,
-            input$with_quotes,
-            input$location_type,
-            input$alpha_filter,
-            input$alpha_outlier_filter,
-            input$k_decay_filter,
-            input$history_filter,
-            input$bonferroni_correction,
-            input$same_weekday_baseline,
-            "tags",
-            "topwords"
+          progress_start("Exporting dashboard")
+          tryCatch(
+            {
+              export_dashboard(
+                "pdf_document",
+                file,
+                input$sms,
+                input$topics,
+                input$countries,
+                input$period_type,
+                input$period,
+                input$with_quotes,
+                input$location_type,
+                input$alpha_filter,
+                input$alpha_outlier_filter,
+                input$k_decay_filter,
+                input$history_filter,
+                input$bonferroni_correction,
+                input$same_weekday_baseline,
+                "tags",
+                "topwords"
+              )
+              progress_close()
+            },
+            error = function(e) {
+              app_error(e, env = cd)
+              # re-raising so shiny aborts the download instead of serving an empty file
+              stop(e)
+            }
           )
         }
       )
@@ -2239,29 +2281,40 @@ episomer_app <- function(
             "tags",
             "_",
             "topwords",
-            ".md",
+            ".zip",
             sep = ""
           )
         },
         content = function(file) {
-          export_dashboard(
-            "md_document",
-            file,
-            input$sms,
-            input$topics,
-            input$countries,
-            input$period_type,
-            input$period,
-            input$with_quotes,
-            input$location_type,
-            input$alpha_filter,
-            input$alpha_outlier_filter,
-            input$k_decay_filter,
-            input$history_filter,
-            input$bonferroni_correction,
-            input$same_weekday_baseline,
-            "tags",
-            "topwords"
+          progress_start("Exporting dashboard")
+          tryCatch(
+            {
+              export_dashboard(
+                "md_document",
+                file,
+                input$sms,
+                input$topics,
+                input$countries,
+                input$period_type,
+                input$period,
+                input$with_quotes,
+                input$location_type,
+                input$alpha_filter,
+                input$alpha_outlier_filter,
+                input$k_decay_filter,
+                input$history_filter,
+                input$bonferroni_correction,
+                input$same_weekday_baseline,
+                "tags",
+                "topwords"
+              )
+              progress_close()
+            },
+            error = function(e) {
+              app_error(e, env = cd)
+              # re-raising so shiny aborts the download instead of serving an empty file
+              stop(e)
+            }
           )
         }
       )

@@ -83,6 +83,25 @@ to_remote_if_needed <- function(path) {
    )
 }
 
+# Puts the URLs answered by the fs API back on conf$fs_remote.
+#
+# The API builds the URLs it lists from the request URI as the *server* saw it. Behind a TLS
+# terminating ingress or a Kubernetes service that is not the address the client used (http instead
+# of https, an internal host or port), and is_remote() then refuses the URL: the next call on it
+# (e.g. epilist.files() on a directory just listed) falls back to the local disk and finds nothing.
+# Only what follows "/file" is the server's own; scheme, host and port are replaced by the ones the
+# client is configured with. Anything that is not an http(s) URL with a "/file" segment is kept.
+to_fs_remote_url <- function(urls) {
+  if (length(urls) == 0 || !fs_remote()) return(urls)
+  base <- sub("/+$", "", conf$fs_remote)
+  m <- regexpr("/file(/|$)", urls)
+  ifelse(
+    grepl("^https?://", urls) & m > 0,
+    paste0(base, substring(urls, ifelse(m > 0, m, 1L))),
+    urls
+  )
+}
+
 # Get path of properties files (written by Shiny app)
 get_properties_path <- function() epipath("properties.json")
 

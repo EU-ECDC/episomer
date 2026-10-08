@@ -268,7 +268,8 @@ check_series_present <- function(
     }
     for (p in dirs) {
       #  for(w in epilist.dirs(p)) {
-      if (length(epilist.files(p, ".*\\.fdt", recursive = TRUE)) > 0) {
+      # a small index can hold only compound segments (.cfs), with no .fdt outside them
+      if (length(epilist.files(p, "\\.(fdt|cfs)$", recursive = TRUE)) > 0) {
         found <- TRUE
         break
       }
