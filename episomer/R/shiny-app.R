@@ -121,15 +121,17 @@ episomer_app <- function(
   }
 
   if ("dashboard" %in% profile) {
-    # Download button of a dashboard chart: rendered disabled, and kept so by
-    # Shiny until the server enables it, since there is nothing to download
-    # before the first successful Run
+    # Download button of a dashboard chart: rendered disabled, since there is
+    # nothing to download before the first successful Run. It uses its own
+    # `dash-disabled` class because Shiny's download binding removes its own
+    # `disabled` class as soon as the handler URL arrives at session start.
     dash_download_button <- function(id, label) {
       shiny::downloadButton(
         id,
         label,
-        class = "dash-download",
-        `data-shiny-disable-auto-enable` = NA
+        class = "dash-download dash-disabled",
+        `aria-disabled` = "true",
+        tabindex = "-1"
       )
     }
     # Defining dashboard page UI
@@ -1378,7 +1380,15 @@ episomer_app <- function(
     args <- list(
       "episomer",
       id = "navbar_shinyapp",
-      header = list(busy_spinner, shinyjs::useShinyjs())
+      header = list(
+        busy_spinner,
+        shinyjs::useShinyjs(),
+        shiny::tags$style(shiny::HTML(
+          "a.dash-download.dash-disabled {
+             pointer-events: none; opacity: 0.55; cursor: not-allowed;
+           }"
+        ))
+      )
     )
     if ("dashboard" %in% profile) {
       args <- c(
@@ -1463,7 +1473,7 @@ episomer_app <- function(
         res <- dash()
         disabled <- is.null(res) || !is.null(res$error)
         shinyjs::runjs(sprintf(
-          "$('a.dash-download').toggleClass('disabled', %1$s)
+          "$('a.dash-download').toggleClass('dash-disabled', %1$s)
             .attr('aria-disabled', %1$s ? 'true' : null)
             .attr('tabindex', %1$s ? '-1' : null);",
           tolower(disabled)
