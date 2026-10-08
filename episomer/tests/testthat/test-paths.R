@@ -457,3 +457,38 @@ test_that("check_move_from_temp is moot without a local data dir", {
   expect_true(check_move_from_temp())
   expect_silent(check_move_from_temp())
 })
+
+test_that("to_fs_remote_url puts server-built URLs back on fs_remote", {
+  local_conf(
+    "fs_remote" = "https://episomer.example.org",
+    data_dir = "/data"
+  )
+
+  # What the API answers behind an ingress: the internal scheme, host and port
+  listed <- c(
+    "http://svc-fs.ns.svc:8080/file/geo/all-geos.parquet.index/lucIndex1",
+    "http://svc-fs.ns.svc:8080/file/alerts/2026"
+  )
+  fixed <- to_fs_remote_url(listed)
+  expect_equal(
+    fixed,
+    c(
+      "https://episomer.example.org/file/geo/all-geos.parquet.index/lucIndex1",
+      "https://episomer.example.org/file/alerts/2026"
+    )
+  )
+  expect_true(all(sapply(fixed, is_remote)))
+  # the unfixed ones are the ones is_remote() used to refuse
+  expect_false(any(sapply(listed, is_remote)))
+
+  # Already matching, relative names and empty input are untouched
+  ok <- "https://episomer.example.org/file/a"
+  expect_equal(to_fs_remote_url(ok), ok)
+  expect_equal(to_fs_remote_url("lucIndex1"), "lucIndex1")
+  expect_equal(to_fs_remote_url(character(0)), character(0))
+})
+
+test_that("to_fs_remote_url does nothing without fs_remote", {
+  local_conf("fs_remote" = NULL, data_dir = "/data")
+  expect_equal(to_fs_remote_url("http://h:1/file/a"), "http://h:1/file/a")
+})
