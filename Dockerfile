@@ -12,28 +12,19 @@ RUN if ! getent group "${EPISOMER_USER}" >/dev/null; then \
     mkdir -p /episomer/episomer/java /episomer-data /opt/episomer-library && \
     chown -R "${EPISOMER_USER}:${EPISOMER_USER}" /episomer /episomer-data /opt/episomer-library
 
-## Runtime system dependencies (curl is used by the compose healthcheck)
+## Keep runtime libraries, Java, and the PDF toolchain in the final image.
+## curl is used by the compose healthcheck; lmodern is needed by rmarkdown PDF export.
+## texlive-fonts-extra is only needed in the build stage for the package manual.
 RUN apt-get update && \
-    apt-get install -y curl && \
-    apt-get clean
-
-## Installing JAVA runtime (the JDK is only needed to compile Scala, see build stage)
-RUN apt-get update && \
-    apt-get install -y openjdk-21-jre-headless && \
-    apt-get clean
-
-## deb dependencies
-RUN apt-get update && \
-    apt-get install -y libfontconfig1-dev libcurl4-openssl-dev libuv1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev && \
-    apt-get install -y libjpeg-dev libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev libsecret-1-dev && \
-    apt-get clean
-
-## Runtime documentation dependencies: the dashboard exports a PDF via rmarkdown.
-## lmodern is required by the default rmarkdown pdf_document template.
-## texlive-fonts-extra is only needed to build the package manual, see build stage.
-RUN apt-get update && \
-    apt-get install -y texlive-latex-base texlive-fonts-recommended texlive-latex-extra lmodern pandoc && \
-    apt-get clean
+    apt-get install -y \
+      curl openjdk-21-jre-headless \
+      libfontconfig1-dev libcurl4-openssl-dev libuv1-dev libharfbuzz-dev \
+      libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev \
+      libwebp-dev libxml2-dev libudunits2-dev libabsl-dev libgdal-dev \
+      libsecret-1-dev \
+      texlive-latex-base texlive-fonts-recommended texlive-latex-extra \
+      lmodern pandoc && \
+    rm -rf /var/lib/apt/lists/*
 
 FROM base AS build
 
@@ -43,16 +34,12 @@ ARG EPISOMER_USER=1000
 RUN apt-get update && \
     apt-get install -y apt-transport-https gnupg git openjdk-21-jdk-headless \
                        cmake gdal-bin texlive-fonts-extra && \
-    apt-get clean
+    rm -rf /var/lib/apt/lists/*
 
-## Installing SBT
-RUN mkdir -p /git
-WORKDIR /git
-RUN git clone https://github.com/sbt/sbt.git
+## Installing SBT without the repository history
+RUN git clone --depth 1 --branch 1.12.x https://github.com/sbt/sbt.git /git/sbt && \
+    chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 WORKDIR /git/sbt
-RUN git fetch origin 1.12.x
-RUN git checkout origin/1.12.x
-RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 
 ## Installing R package dependencies
 
