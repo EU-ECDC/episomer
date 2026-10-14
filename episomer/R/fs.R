@@ -389,6 +389,9 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
         list.files(path, pattern = pattern, full.names = full.names, recursive = recursive)
     else {
         files <- unlist(jsonlite::read_json(sprintf("%s?action=list&fullname=%s&recursive=%s", path, tolower(full.names), tolower(recursive))))
+        # an fs API older than the fix in API.scala, running on Windows, joins the part below the
+        # listed directory with "\" ("http://host/file/alerts\2026\2026.10.07-alerts.json")
+        files <- gsub("\\", "/", files, fixed = TRUE)
         if(full.names)
           files <- to_fs_remote_url(files)
         if(!is.null(pattern))
