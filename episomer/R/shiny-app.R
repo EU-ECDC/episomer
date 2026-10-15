@@ -211,7 +211,7 @@ episomer_app <- function(
             shiny::sliderInput(
               "alpha_filter",
               label = shiny::h4("Signal false positive rate"),
-              min = 0,
+              min = 0.005,
               max = 0.3,
               value = conf$alert_alpha,
               step = 0.005
@@ -241,7 +241,8 @@ episomer_app <- function(
             shiny::numericInput(
               "history_filter",
               label = shiny::h4("Days in baseline"),
-              value = conf$alert_history
+              value = conf$alert_history,
+              min = 1
             ),
             shiny::h4("Same weekday baseline"),
             shiny::checkboxInput(
