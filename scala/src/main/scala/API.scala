@@ -119,6 +119,12 @@ object API {
         path("ping") {
           complete("pong")
         } ~
+        path("version") { // version of the jar running this service, as set by build.sbt (= R package version)
+          get {
+            val version = Option(getClass.getPackage).flatMap(p => Option(p.getImplementationVersion)).getOrElse("unknown")
+            complete(HttpEntity(ContentTypes.`application/json`, JsObject(Map(("version", JsString(version)))).toString()))
+          }
+        } ~
         path("posts") { // checks if path/url starts with model
           get {
             parameters("q".?, 
