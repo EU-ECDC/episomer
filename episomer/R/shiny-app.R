@@ -1542,7 +1542,7 @@ episomer_app <- function(
           session,
           "alpha_filter",
           value = val,
-          min = 0,
+          min = 0.005,
           max = 0.3,
           step = 0.005
         )
@@ -1911,7 +1911,7 @@ episomer_app <- function(
               "</a>"
             )
           ) %>%
-          dplyr::rename(Url = .data$top, Frequency = .data$frequency) %>%
+          dplyr::rename(Url = "top", Frequency = "frequency") %>%
           DT::datatable(escape = FALSE)
       })
 
@@ -3434,11 +3434,11 @@ episomer_app <- function(
           if (nrow(df) > 0) {
             ret <- df %>%
               dplyr::select(
-                .data$test,
-                .data$tp,
-                .data$tn,
-                .data$fp,
-                .data$fn
+                "test",
+                "tp",
+                "tn",
+                "fp",
+                "fn"
               ) %>%
               dplyr::group_by(.data$test) %>%
               dplyr::summarise(
@@ -3460,11 +3460,11 @@ episomer_app <- function(
                   3
                 )
               ) %>%
-              dplyr::rename(Category = .data$test) %>%
-              dplyr::rename("True positives" = .data$tp) %>%
-              dplyr::rename("False positives" = .data$fp) %>%
-              dplyr::rename("True negatives" = .data$tn) %>%
-              dplyr::rename("False negatives" = .data$fn)
+              dplyr::rename(Category = "test") %>%
+              dplyr::rename("True positives" = "tp") %>%
+              dplyr::rename("False positives" = "fp") %>%
+              dplyr::rename("True negatives" = "tn") %>%
+              dplyr::rename("False negatives" = "fn")
           }
         }
         ret

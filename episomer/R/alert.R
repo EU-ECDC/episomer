@@ -244,7 +244,10 @@ get_reporting_date_counts <- function(
         max(
           as.POSIXlt(df$created_date) + (as.integer(df$created_hour) - 1) * 3600
         ),
-        "%H"
+        "%H",
+        # created_date + created_hour is built in UTC: format it in UTC too, otherwise the hour
+        # shifts with the timezone of the machine and an incomplete last hour is counted as full
+        tz = "UTC"
       )))
     #Handling going to previous day if last full hour is negative
     if (last_full_hour < 0) {
@@ -378,7 +381,7 @@ calculate_region_alerts <- function(
     } else {
       df %>%
         dplyr::rename(
-          known_users = .data$known_original
+          known_users = "known_original"
         ) %>%
         mutate(posts = .data$original)
     }
@@ -524,8 +527,8 @@ calculate_regions_alerts <- function(
         same_weekday_baseline = same_weekday_baseline,
         logenv = logenv
       )
-    alerts <- dplyr::rename(alerts, date = .data$reporting_date)
-    alerts <- dplyr::rename(alerts, number_of_posts = .data$count)
+    alerts <- dplyr::rename(alerts, date = "reporting_date")
+    alerts <- dplyr::rename(alerts, number_of_posts = "count")
     alerts$date <- as.Date(alerts$date, origin = '1970-01-01')
     if (nrow(alerts) > 0) alerts$country <- all_regions[[regions[[i]]]]$name
     alerts$known_ratio = alerts$known_users / alerts$number_of_posts
@@ -550,24 +553,24 @@ calculate_regions_alerts <- function(
       ) %>%
       dplyr::ungroup() %>%
       dplyr::select(
-        .data$d,
-        .data$c,
-        .data$ku,
-        .data$a,
-        .data$l,
-        .data$country,
-        .data$kr,
-        .data$l,
-        .data$b
+        "d",
+        "c",
+        "ku",
+        "a",
+        "l",
+        "country",
+        "kr",
+        "l",
+        "b"
       ) %>%
       dplyr::rename(
-        date = .data$d,
-        number_of_posts = .data$c,
-        alert = .data$a,
-        known_users = .data$ku,
-        known_ratio = .data$kr,
-        limit = .data$l,
-        baseline = .data$b
+        date = "d",
+        number_of_posts = "c",
+        alert = "a",
+        known_users = "ku",
+        known_ratio = "kr",
+        limit = "l",
+        baseline = "b"
       )
   }
   return(df)
@@ -1576,23 +1579,23 @@ get_alert_tables <- function(
           dplyr::filter(is.na(t) | .data$topic == t) %>%
           dplyr::arrange(dplyr::desc(.data$number_of_posts)) %>%
           dplyr::select(
-            `Date` = .data$`date`,
-            `Hour` = .data$`hour`,
-            `Topic` = .data$`topic`,
-            `Region` = .data$`country`,
-            `Tops` = .data$`tops`,
-            `Category` = .data$`episomer_category`,
-            `Posts` = .data$`number_of_posts`,
-            `% from important user` = .data$`known_ratio`,
-            `Threshold` = .data$`limit`,
-            `Baseline` = .data$`no_historic`,
-            `Alert confidence` = .data$`alpha`,
-            `Outliers confidence` = .data$`alpha_outlier`,
-            `Downweight strength` = .data$`k_decay`,
-            `Bonf. corr.` = .data$`bonferroni_correction`,
-            `Same weekday baseline` = .data$`same_weekday_baseline`,
-            `Day_rank` = .data$`rank`,
-            `With reposts` = .data$`with_quotes`
+            `Date` = "date",
+            `Hour` = "hour",
+            `Topic` = "topic",
+            `Region` = "country",
+            `Tops` = "tops",
+            `Category` = "episomer_category",
+            `Posts` = "number_of_posts",
+            `% from important user` = "known_ratio",
+            `Threshold` = "limit",
+            `Baseline` = "no_historic",
+            `Alert confidence` = "alpha",
+            `Outliers confidence` = "alpha_outlier",
+            `Downweight strength` = "k_decay",
+            `Bonf. corr.` = "bonferroni_correction",
+            `Same weekday baseline` = "same_weekday_baseline",
+            `Day_rank` = "rank",
+            `With reposts` = "with_quotes"
           ) %>%
           xtable::xtable() %>%
           print(

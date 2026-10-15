@@ -553,7 +553,7 @@ get_aggregated_period <- function() {
           list(first = NA, last = NA)
         },
         error = function(e) {
-          warning(e)
+          warning(conditionMessage(e), call. = FALSE)
           list(first = NA, last = NA)
         }
       )
