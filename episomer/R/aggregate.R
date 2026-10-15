@@ -97,21 +97,24 @@ get_aggregates <- function(
     }
   }
   if (reuse_filter && !"created_date" %in% names(cached[[dataset]])) {
-      reuse_filter <- FALSE
+    reuse_filter <- FALSE
   }
   if (reuse_filter) {
     # On cache hit returning from cache
     ret <- (cached[[dataset]] %>%
       dplyr::filter(
-        (if (exists("period", where = filter))
+        (if (exists("period", where = filter)) {
           .data$created_date >= filter$period[[1]] &
-            .data$created_date <= filter$period[[2]] else TRUE)
+            .data$created_date <= filter$period[[2]]
+        } else {
+          TRUE
+        })
       ))
     for (field in names(filter)) {
       if (
         exists(field, where = filter) &&
           !(field %in% c("last_aggregate", "period")) &&
-	  nrow(ret) > 0
+          nrow(ret) > 0
       ) {
         filt <- filter[[field]]
         ret <- ret %>%
@@ -128,7 +131,7 @@ get_aggregates <- function(
       "?jsonnl=true&serie=",
       URLencode(dataset, reserved = T)
     )
-    if (!is.null(top_field) && !is.null(top_freq))
+    if (!is.null(top_field) && !is.null(top_freq)) {
       q_url <- paste0(
         q_url,
         "&topField=",
@@ -136,13 +139,15 @@ get_aggregates <- function(
         "&topFrequency=",
         top_freq
       )
+    }
     for (field in names(filter)) {
-      if (field == "topic")
+      if (field == "topic") {
         q_url <- paste0(
           q_url,
           "&topic=",
           URLencode(paste0(filter$topic, collapse = ";"), reserved = T)
-        ) else if (field == "period")
+        )
+      } else if (field == "period") {
         q_url <- paste0(
           q_url,
           "&from=",
@@ -155,7 +160,8 @@ get_aggregates <- function(
             strftime(filter$period[[2]], format = "%Y-%m-%d"),
             reserved = T
           )
-        ) else if (field != "last_aggregate")
+        )
+      } else if (field != "last_aggregate") {
         q_url <- paste0(
           q_url,
           "&filter=",
@@ -163,6 +169,7 @@ get_aggregates <- function(
           ":",
           URLencode(paste0(filter[[field]], collapse = ";"), reserved = T)
         )
+      }
     }
 
     measure_time <- function(f) {
@@ -174,17 +181,15 @@ get_aggregates <- function(
       ret
     }
     #message(q_url)
-    agg_df = (
-      if (conf$onthefly_api)
-        jsonlite::stream_in(url(q_url), verbose = FALSE) 
-      else {
-        dest = paste0(tempfile("aggregate_"), ".json")
-        download.file(url = q_url, destfile = dest, quiet = TRUE)
-        on.exit(if (file.exists(dest)) file.remove(dest))
-        df <- jsonlite::stream_in(file(dest), verbose = FALSE)
-        df
-      }
-    )
+    agg_df <- (if (conf$onthefly_api) {
+      jsonlite::stream_in(url(q_url), verbose = FALSE)
+    } else {
+      dest <- paste0(tempfile("aggregate_"), ".json")
+      download.file(url = q_url, destfile = dest, quiet = TRUE)
+      on.exit(if (file.exists(dest)) file.remove(dest))
+      df <- jsonlite::stream_in(file(dest), verbose = FALSE)
+      df
+    })
     # Calculating the created week
     if (nrow(agg_df) > 0) {
       agg_df$created_week <- strftime(
@@ -266,8 +271,9 @@ register_series <- function() {
     "'",
     unlist(lapply(
       conf$languages,
-      function(l)
+      function(l) {
         lapply(get_stop_words(l$code), function(t) paste(l$code, t, sep = "_"))
+      }
     )),
     "'",
     sep = "",
@@ -558,17 +564,20 @@ get_aggregated_period <- function() {
         }
       )
 
-      if (is.na(fs_period$first))
-        list(first = NA, last = NA, last_hour = NA) else
+      if (is.na(fs_period$first)) {
+        list(first = NA, last = NA, last_hour = NA)
+      } else {
         list(
           first = as.Date(fs_period$first),
           last = as.Date(fs_period$last),
           last_hour = fs_period$last_hour
         )
+      }
     }
     cached$last_agg_request <- Sys.time()
-    if (is.na(cached$last_agg_request_value$last))
+    if (is.na(cached$last_agg_request_value$last)) {
       rm("last_agg_request", envir = cached)
+    }
   }
   cached$last_agg_request_value
 }

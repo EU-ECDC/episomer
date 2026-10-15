@@ -13,7 +13,7 @@ removeURLS <- function(htmlString) {
 
 #' @noRd
 remove_newlines <- function(htmlString) {
-  gsub(pattern = "[\r\n]", replacement = "",x = htmlString)
+  gsub(pattern = "[\r\n]", replacement = "", x = htmlString)
 }
 
 #' @noRd
@@ -25,12 +25,13 @@ remove_nbsp <- function(htmlString) {
 
 #' @noRd
 clean_messages <- function(text) {
-  if(is.null(text))
-     NULL
-  else
-    text %>% 
-      removeHTMLtags()%>% 
-      removeURLS()%>% 
-      remove_newlines()%>%
+  if (is.null(text)) {
+    NULL
+  } else {
+    text %>%
+      removeHTMLtags() %>%
+      removeURLS() %>%
+      remove_newlines() %>%
       remove_nbsp()
+  }
 }

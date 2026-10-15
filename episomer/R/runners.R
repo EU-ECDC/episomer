@@ -321,7 +321,10 @@ register_fs_runner_task <- function(
   if (!wait_until_response) {
     return(invisible(NULL))
   }
-  message(sprintf("Waiting until the fs runner answers on %s", get_scala_ping_url()))
+  message(sprintf(
+    "Waiting until the fs runner answers on %s",
+    get_scala_ping_url()
+  ))
   # Bounded when the caller asks for it. The wait used to be unbounded, which is survivable for an
   # operator watching a console and not at all for an unattended deployment: a database that cannot
   # bind its address - a Kubernetes service name resolving to a cluster IP the pod does not hold is
@@ -329,21 +332,24 @@ register_fs_runner_task <- function(
   # failing with something to read.
   deadline <- Sys.time() + timeout
   while (TRUE) {
-     if(is_fs_running()) {
-         message("fs is running")
-         return(invisible(NULL))
-     }
-     if (Sys.time() >= deadline) {
-       stop(sprintf(
-         "The episomer database did not answer on %s after %s seconds. Its log is in %s.",
-         get_scala_ping_url(),
-         timeout,
-         if (logs_to_stdout()) "the standard output of this process" else
-           file.path(conf$data_dir, "jobs", "fs.log")
-       ))
-     }
-     cat(".")
-     Sys.sleep(2)
+    if (is_fs_running()) {
+      message("fs is running")
+      return(invisible(NULL))
+    }
+    if (Sys.time() >= deadline) {
+      stop(sprintf(
+        "The episomer database did not answer on %s after %s seconds. Its log is in %s.",
+        get_scala_ping_url(),
+        timeout,
+        if (logs_to_stdout()) {
+          "the standard output of this process"
+        } else {
+          file.path(conf$data_dir, "jobs", "fs.log")
+        }
+      ))
+    }
+    cat(".")
+    Sys.sleep(2)
   }
 }
 
@@ -368,11 +374,11 @@ stop_all_runner_tasks <- function() {
   # so the question to ask is "is there something here to kill?", never "is this runner running
   # somewhere in the cluster?". Now that is_*_running() reads the lease (plan issue 7), a runner
   # held by another machine would otherwise send us killing a process that does not exist here.
-  if(is_runner_running_locally("detect")) {
+  if (is_runner_running_locally("detect")) {
     message("Detect loop is running, stopping it")
     stop_detect_runner_task()
   }
-  if(search_has_local_process()) {
+  if (search_has_local_process()) {
     message("Search loop is running, stopping it")
     stop_search_runner_task()
   }
@@ -386,7 +392,7 @@ stop_all_runner_tasks <- function() {
   release_dead_local_runner_leases()
   # fs keeps its /ping check: it is not lease-based today and stays that way (plan section 6.2),
   # and it is the only reliable way to know whether the Scala service itself has stopped.
-  if(is_fs_running()) {
+  if (is_fs_running()) {
     message("Fs loop is running, stopping it")
     stop_fs_runner_task()
   }
@@ -630,8 +636,8 @@ register_runner_task <- function(
   script <- paste(script_folder, script_name, sep = "/")
   # Copying the script
   file.copy(from = script_base, to = script, overwrite = TRUE)
-  taskname = paste("episomer", task_name, "loop", sep = "_")
-  rscript_args = paste(
+  taskname <- paste("episomer", task_name, "loop", sep = "_")
+  rscript_args <- paste(
     c(paste("\"", conf$data_dir, "\"", sep = ""), runner_args),
     collapse = " "
   )
@@ -642,7 +648,10 @@ register_runner_task <- function(
       # Registering the task as a schedule task using taskscheduleR
       # Note that the date format is being guess using %DATE% shell variable
       # This value can be overridden by conf$fore_date_format setting
-      message(sprintf("Registering and running %s as a Windows scheduler task", task_name))
+      message(sprintf(
+        "Registering and running %s as a Windows scheduler task",
+        task_name
+      ))
       message(sprintf("Logs written to %s", gsub(".R", ".log", script)))
       taskscheduleR::taskscheduler_create(
         taskname,
@@ -650,9 +659,11 @@ register_runner_task <- function(
         rscript_args = rscript_args,
         Rexe = rscript_exe_for_schtasks(),
         schedule = "HOUR",
-        startdate = if (conf$force_date_format == "")
-          tail(strsplit(shell("echo %DATE%", intern = TRUE), " ")[[1]], 1) else
-          strftime(Sys.time(), conf$force_date_format),
+        startdate = if (conf$force_date_format == "") {
+          tail(strsplit(shell("echo %DATE%", intern = TRUE), " ")[[1]], 1)
+        } else {
+          strftime(Sys.time(), conf$force_date_format)
+        },
         schtasks_extra = "/F"
       )
       taskscheduleR::taskscheduler_runnow(taskname)
@@ -670,41 +681,44 @@ register_runner_task <- function(
   }
 
   if (run_attached) {
-      # running the requested task as a separate thread. This is useful for testing episomer from the shiny app but it does not permanently schedule the task.
-      # calculating alerts per topic
-      message(sprintf("Running %s as a service attached to this session (for permanent scheduling add the following code to startup tasks)", task_name))
-      cm <- paste(script, rscript_args)
-      script_log <- paste(task_name, "log", sep = ".")
-      # "" is what system2() understands as "do not redirect": the child keeps the standard output
-      # and error of this process, which in a container is the one place an operator can read
-      # (`docker logs`, `kubectl logs`) and the only one anything collects. A file is still the
-      # default everywhere else - see logs_to_stdout(), R/config.R.
-      log <- if (logs_to_stdout()) "" else file.path(script_folder, script_log)
-      message(sprintf(
-        "Rscript '%s' %s > %s",
-        script,
-        rscript_args,
-        if (log == "") "the standard output of this process" else log
-      ))
-      message(sprintf(
-        "Logs written to %s",
-        if (log == "") "the standard output of this process" else log
-      ))
-      # shQuote()d, because system2() quotes its `command` and *not* its `args`: it pastes them
-      # into one command line as they are. Both of the first two hold a path, and the default data
-      # directory of a Windows installation sits under "C:/Users/<given name> <family name>", so
-      # unquoted they were split at the space and Rscript was handed "C:/Users/Yohann" as the
-      # script to run. It then exited without writing a line, which is why the only symptom was
-      # register_fs_runner_task(wait_until_response = TRUE) waiting on a database that never came
-      # up, next to an empty jobs/fs.log. The same is true on Linux; it went unnoticed because
-      # /episomer-data has no space in it.
-      system2(
-        rscript_exe_attached(),
-        args = shQuote(c(script, conf$data_dir, runner_args)),
-        stdout = log,
-        stderr = log,
-        wait = FALSE
-      )
+    # running the requested task as a separate thread. This is useful for testing episomer from the shiny app but it does not permanently schedule the task.
+    # calculating alerts per topic
+    message(sprintf(
+      "Running %s as a service attached to this session (for permanent scheduling add the following code to startup tasks)",
+      task_name
+    ))
+    cm <- paste(script, rscript_args)
+    script_log <- paste(task_name, "log", sep = ".")
+    # "" is what system2() understands as "do not redirect": the child keeps the standard output
+    # and error of this process, which in a container is the one place an operator can read
+    # (`docker logs`, `kubectl logs`) and the only one anything collects. A file is still the
+    # default everywhere else - see logs_to_stdout(), R/config.R.
+    log <- if (logs_to_stdout()) "" else file.path(script_folder, script_log)
+    message(sprintf(
+      "Rscript '%s' %s > %s",
+      script,
+      rscript_args,
+      if (log == "") "the standard output of this process" else log
+    ))
+    message(sprintf(
+      "Logs written to %s",
+      if (log == "") "the standard output of this process" else log
+    ))
+    # shQuote()d, because system2() quotes its `command` and *not* its `args`: it pastes them
+    # into one command line as they are. Both of the first two hold a path, and the default data
+    # directory of a Windows installation sits under "C:/Users/<given name> <family name>", so
+    # unquoted they were split at the space and Rscript was handed "C:/Users/Yohann" as the
+    # script to run. It then exited without writing a line, which is why the only symptom was
+    # register_fs_runner_task(wait_until_response = TRUE) waiting on a database that never came
+    # up, next to an empty jobs/fs.log. The same is true on Linux; it went unnoticed because
+    # /episomer-data has no space in it.
+    system2(
+      rscript_exe_attached(),
+      args = shQuote(c(script, conf$data_dir, runner_args)),
+      stdout = log,
+      stderr = log,
+      wait = FALSE
+    )
   }
 }
 
@@ -716,7 +730,7 @@ stop_runner_task <- function(task_name) {
   message(paste("Stopping", task_name))
   # Filtering by OS, currently only Windows is supported
   if (.Platform$OS.type == "windows") {
-    taskname = paste("episomer", task_name, "loop", sep = "_")
+    taskname <- paste("episomer", task_name, "loop", sep = "_")
     # Asked before /End and /Change: a runner started attached to a session - which is what happens
     # whenever taskscheduleR is not installed, see register_runner_task() - has no scheduled task at
     # all, and schtasks then writes "ERROR: The system cannot find the file specified." and
@@ -740,9 +754,7 @@ stop_runner_task <- function(task_name) {
         task_name
       ))
     }
-  } else {
-  
-  }
+  } else {}
   # If processes are still running then forcing stop by killing the processes.
   #
   # A killed runner releases nothing by itself: R runs no exit handler on a signal, so the
@@ -889,7 +901,7 @@ kill_task <- function(pidfile, type = "R") {
 #'    message('Please choose the episomer data directory')
 #'    setup_config(file.choose())
 #'    missing_search_jobs()
-#'} 
+#'}
 #' @rdname runners
 #' @export
 missing_search_jobs <- function() {
@@ -973,10 +985,13 @@ is_fs_running <- function() {
 # stop with an error if the embedded database service is not running.
 stop_if_no_fs <- function(msg = NULL) {
   if (!is_fs_running()) {
-    if (!is.null(msg)) stop(msg) else
+    if (!is.null(msg)) {
+      stop(msg)
+    } else {
       stop(
         "This function needs the episomer database to be running.\nYou can activate it for this session with the command register_fs_runner_task() or on a separate session with fs_loop().\nBe aware that for data to be displayed, the collect task must have ran previously"
       )
+    }
   }
 }
 
@@ -1008,8 +1023,9 @@ is_detect_running <- function() {
 
 remove_running_task_pid <- function(name) {
   pid_path <- get_running_task_pid_path(name)
-  if(file.exists(pid_path))
+  if (file.exists(pid_path)) {
     unlink(pid_path)
+  }
 }
 
 # TRUE when a process of this machine is registered as `name` and still alive.
@@ -1068,7 +1084,11 @@ pid_field_or_blank <- function(value) {
 # The three fields of the PID file of `name`, each NA when the file does not carry it.
 read_running_task_pid_record <- function(name) {
   path <- get_running_task_pid_path(name)
-  record <- function(pid = NA_integer_, host = NA_character_, start = NA_character_) {
+  record <- function(
+    pid = NA_integer_,
+    host = NA_character_,
+    start = NA_character_
+  ) {
     list(pid = pid, host = host, start_time = start)
   }
   if (!file.exists(path)) {
@@ -1281,7 +1301,11 @@ runner_process_image <- function(type) {
 # binary, so a runner started by `Rscript run.R` reports "R" here.
 pid_command_name <- function(pid) {
   out <- suppressWarnings(tryCatch(
-    system(paste("ps -p", pid, "-o comm="), intern = TRUE, ignore.stderr = TRUE),
+    system(
+      paste("ps -p", pid, "-o comm="),
+      intern = TRUE,
+      ignore.stderr = TRUE
+    ),
     error = function(e) character(0)
   ))
   out <- trimws(out)
@@ -1314,17 +1338,22 @@ loop_run_issues <- function(loop_name) {
     }
   } else if (loop_name == "search") {
     auth_ok <- check_sm_auth()
-    if(!auth_ok) {
+    if (!auth_ok) {
       "episomer could not create an authentication token, please make sure you have entered valid credentials in the configuration page and click on 'Save settings'"
-    } else if (is.na(t$dependencies$status) || t$dependencies$status != "success") {
+    } else if (
+      is.na(t$dependencies$status) || t$dependencies$status != "success"
+    ) {
       "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Dependencies'"
     } else if (is.na(t$geonames$status) || t$geonames$status != "success") {
       "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Geonames'"
     } else if (is.na(t$languages$status) || t$languages$status != "success") {
       "Please make sure 'Requirement & alerts' task has been activated and successfully completed the tasks for 'Languages'"
+    } else {
+      ""
     }
-      else ""
   } else if (loop_name == "detect") {
     ""
-  } else stop(paste("Unlnown loop", loop_name))
+  } else {
+    stop(paste("Unlnown loop", loop_name))
+  }
 }

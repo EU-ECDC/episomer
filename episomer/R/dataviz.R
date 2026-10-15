@@ -62,7 +62,7 @@ trend_line <- function(
   # If countries are names they have to be changes to region indexes
   if (is.character(countries) && length(countries) > 0) {
     reg <- get_country_items()
-    countries = (1:length(reg))[sapply(
+    countries <- (1:length(reg))[sapply(
       1:length(reg),
       function(i) reg[[i]]$name %in% countries
     )]
@@ -153,7 +153,7 @@ plot_trendline <- function(
     country = df$country[which(df$alert == 1)],
     y = vapply(
       which(df$alert == 1),
-      function(i) df$rank[[i]] * (max(df$limit, na.rm=TRUE)) / 30,
+      function(i) df$rank[[i]] * (max(df$limit, na.rm = TRUE)) / 30,
       double(1)
     ),
     # adding hover text for alerts
@@ -229,8 +229,11 @@ plot_trendline <- function(
     big.mark = " ",
     scientific = FALSE
   )
-  total_count <- if (is.na(total_count)) NA else
+  total_count <- if (is.na(total_count)) {
+    NA
+  } else {
     format(total_count, big.mark = " ", scientific = FALSE)
+  }
   location_message <- (paste("(n=", scope_count, ")", sep = ""))
 
   # plotting
@@ -246,7 +249,7 @@ plot_trendline <- function(
     ggplot2::geom_line(ggplot2::aes(colour = .data$country)) +
     {
       # Alert Points
-      if (nrow(time_alarm) > 0)
+      if (nrow(time_alarm) > 0) {
         ggplot2::geom_point(
           data = time_alarm,
           mapping = ggplot2::aes(
@@ -257,10 +260,11 @@ plot_trendline <- function(
           shape = 2,
           size = 2
         )
+      }
     } +
     {
       # Line shadow
-      if (length(df$lim_start[!is.na(df$lim_start)]) > 0)
+      if (length(df$lim_start[!is.na(df$lim_start)]) > 0) {
         ggplot2::geom_ribbon(
           ggplot2::aes(
             ymin = .data$lim_start,
@@ -271,6 +275,7 @@ plot_trendline <- function(
           linetype = 2,
           alpha = 0.1
         )
+      }
     } +
     # Title
     ggplot2::labs(
@@ -284,8 +289,11 @@ plot_trendline <- function(
           " to ",
           date_max,
           "\n in ",
-          if (as.integer(countries) == 1) "the world" else
-            regions[[as.integer(countries)]]$name,
+          if (as.integer(countries) == 1) {
+            "the world"
+          } else {
+            regions[[as.integer(countries)]]$name
+          },
           " ",
           location_message
         ),
@@ -314,7 +322,7 @@ plot_trendline <- function(
     ) +
     ggplot2::scale_x_date(
       date_labels = {
-        x = df$date
+        x <- df$date
         # custom logic for x axis
         days <- as.numeric(max(x) - min(x))
         weeks <- days / 7
@@ -376,12 +384,14 @@ plot_trendline <- function(
     ) +
     ggplot2::theme_classic(base_family = get_font_family()) +
     {
-      if (length(unique(df$country)) == 1)
+      if (length(unique(df$country)) == 1) {
         ggplot2::scale_color_manual(values = c("#65B32E"))
+      }
     } +
     {
-      if (length(unique(df$country)) == 1)
+      if (length(unique(df$country)) == 1) {
         ggplot2::scale_fill_manual(values = c("#65B32E"))
+      }
     } +
     ggplot2::theme(
       plot.title = ggplot2::element_text(
@@ -493,7 +503,7 @@ create_map <- function(
 
   # If countries are names, they have to be changed to region indexes
   if (is.character(countries) && length(countries) > 0) {
-    countries = (1:length(regions))[sapply(
+    countries <- (1:length(regions))[sapply(
       1:length(regions),
       function(i) regions[[i]]$name %in% countries
     )]
@@ -509,15 +519,25 @@ create_map <- function(
   detailed <- length(country_codes) == 1
 
   # Getting the aggregated data based on the national or subnational level
-  df <- (if (!detailed)
+  df <- (if (!detailed) {
     get_aggregates(
       dataset = "country_counts",
-      filter = list(topic = tolower(topic), period = list(date_min, date_max), network = sms )
-    ) else
+      filter = list(
+        topic = tolower(topic),
+        period = list(date_min, date_max),
+        network = sms
+      )
+    )
+  } else {
     get_aggregates(
       dataset = "geolocated",
-      filter = list(topic = tolower(topic), period = list(date_min, date_max), network = sms)
-    ))
+      filter = list(
+        topic = tolower(topic),
+        period = list(date_min, date_max),
+        network = sms
+      )
+    )
+  })
 
   # retunrning empty chart if no data is found
   if (nrow(df) == 0) {
@@ -535,8 +555,11 @@ create_map <- function(
         (!is.na(.data$geo_country_code)) &
         .data$created_date >= date_min &
         .data$created_date <= date_max &
-        ((if (length(country_codes) == 0) TRUE else
-          .data$geo_country_code %in% country_codes))
+        ((if (length(country_codes) == 0) {
+          TRUE
+        } else {
+          .data$geo_country_code %in% country_codes
+        }))
     ))
 
   # Adding reposts if requested
@@ -577,13 +600,16 @@ create_map <- function(
   df <- (df %>%
     dplyr::filter(
       !is.na(.data$country_code) &
-        (if (length(country_codes) == 0) TRUE else
-          .data$country_code %in% country_codes) &
+        (if (length(country_codes) == 0) {
+          TRUE
+        } else {
+          .data$country_code %in% country_codes
+        }) &
         .data$posts > 0 &
         (if (detailed) !(.data$geo_code %in% country_codes) else TRUE)
     ))
   # aggregating by country or geo code depending on national or subnational level
-  df <- (if (detailed)
+  df <- (if (detailed) {
     df %>%
       dplyr::group_by(.data$country_code, .data$geo_code) %>%
       dplyr::summarize(
@@ -592,11 +618,13 @@ create_map <- function(
         Lat = mean(.data$latitude),
         geo_name = max(.data$geo_name, na.rm = TRUE)
       ) %>%
-      dplyr::ungroup() else
+      dplyr::ungroup()
+  } else {
     df %>%
       dplyr::group_by(.data$country_code) %>%
       dplyr::summarize(count = sum(.data$posts)) %>%
-      dplyr::ungroup())
+      dplyr::ungroup()
+  })
   # returning an empty chart if no rows are found
   if (nrow(df) == 0) {
     return(get_empty_chart(
@@ -621,14 +649,19 @@ create_map <- function(
   if (!detailed) {
     df$Long <- sapply(
       unname(map[df$country_code]),
-      function(i)
-        if (!is.na(i)) mean(c(regions[[i]]$minLong, regions[[i]]$maxLong)) else
+      function(i) {
+        if (!is.na(i)) {
+          mean(c(regions[[i]]$minLong, regions[[i]]$maxLong))
+        } else {
           NA
+        }
+      }
     )
     df$Lat <- sapply(
       unname(map[df$country_code]),
-      function(i)
+      function(i) {
         if (!is.na(i)) mean(c(regions[[i]]$minLat, regions[[i]]$maxLat)) else NA
+      }
     )
   }
   df$MinLat <- sapply(
@@ -658,9 +691,12 @@ create_map <- function(
 
   # Getting the projection to use which will center the global bounding box
   full_world <- (1 %in% countries || 2 %in% countries)
-  proj <- (if (!is.null(proj)) proj else if (full_world)
+  proj <- (if (!is.null(proj)) {
+    proj
+  } else if (full_world) {
     # Using Robinson projection for world map
-    "+proj=robin" else
+    "+proj=robin"
+  } else {
     # Using projection Lambert Azimuthal Equal Area for partial maps
     paste(
       "+proj=laea",
@@ -669,7 +705,8 @@ create_map <- function(
       " +lat_0=",
       lat_center,
       sep = ""
-    ))
+    )
+  })
   # Projecting the country counts data frame on the target coordinate system this projected data frame contains the bubble X,Y coordinates
 
   # We create a sf object from the data containing messages locations
@@ -692,7 +729,9 @@ create_map <- function(
         .data$label_y <= max_lat + 20
     ) %>%
     # We have weird codes for some countries (e.g FRANCE has -99)
-    mutate(iso_a2_clean = dplyr::if_else(iso_a2 == "-99", iso_a2_eh, iso_a2)) %>%
+    mutate(
+      iso_a2_clean = dplyr::if_else(iso_a2 == "-99", iso_a2_eh, iso_a2)
+    ) %>%
     # LAKES ARE MISSING
     dplyr::mutate(
       selected = ifelse(
@@ -740,8 +779,9 @@ create_map <- function(
   maxCount <- max(df$count)
   cutsCandidates <- unique(sapply(
     c(maxCount / 50, maxCount / 20, maxCount / 5, maxCount),
-    function(v)
+    function(v) {
       max(1, ceiling((v / (10^floor(log10(v))))) * (10^floor(log10(v))))
+    }
   ))
   proj_df$countGroup <- sapply(
     proj_df$count,
@@ -800,21 +840,23 @@ create_map <- function(
       data = countries_geo_proj_filtered,
       aes(fill = selected, label = Details)
     ) +
-    (if (forplotly)
+    (if (forplotly) {
       # customistion for plotly legend
       ggplot2::geom_sf(
         data = proj_df,
         aes(size = count, fill = plotlycuts, label = Details),
         color = "#65B32E",
         alpha = I(8 / 10)
-      ) else
+      )
+    } else {
       ggplot2::geom_sf(
         data = proj_df,
         aes(size = .data$count),
         fill = "#65B32E",
         color = "#65B32E",
         alpha = I(8 / 10)
-      )) +
+      )
+    }) +
     ggplot2::coord_sf(
       crs = sf::st_crs(countries_geo_proj_filtered),
       datum = sf::st_crs(countries_geo_proj_filtered),
@@ -824,8 +866,8 @@ create_map <- function(
     ggplot2::scale_size_continuous(
       name = "Number of messages",
       breaks = {
-        x = cuts
-        x[length(x)] = maxCount
+        x <- cuts
+        x[length(x)] <- maxCount
         x
       },
       labels = cuts
@@ -983,15 +1025,19 @@ create_topchart <- function(
     "tag"
   } else if (serie == "urls") {
     "url"
-  })  
+  })
 
   # getting the data from topwords series
-  filter <- (if (length(country_codes) > 0)
+  filter <- (if (length(country_codes) > 0) {
     list(
       topic = f_topic,
       period = list(date_min, date_max),
-      geo_country_code = country_codes, network = sms
-    ) else list(topic = f_topic, period = list(date_min, date_max), network = sms))
+      geo_country_code = country_codes,
+      network = sms
+    )
+  } else {
+    list(topic = f_topic, period = list(date_min, date_max), network = sms)
+  })
 
   df <- try(get_aggregates(
     dataset = dataset,
@@ -1018,8 +1064,11 @@ create_topchart <- function(
       .data$topic == f_topic &
         .data$created_date >= date_min &
         .data$created_date <= date_max &
-        (if (length(country_codes) == 0) TRUE else
-          .data$geo_country_code %in% country_codes)
+        (if (length(country_codes) == 0) {
+          TRUE
+        } else {
+          .data$geo_country_code %in% country_codes
+        })
     ))
 
   # dealing with reposts if requested
@@ -1106,8 +1155,9 @@ get_font_family <- function() {
   if (
     .Platform$OS.type == "windows" &&
       is.null(grDevices::windowsFonts("Helvetica")[[1]])
-  )
+  ) {
     grDevices::windowsFonts(Helvetica = grDevices::windowsFont("Helvetica"))
+  }
   "Helvetica"
 }
 

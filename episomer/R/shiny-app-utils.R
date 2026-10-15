@@ -26,7 +26,9 @@ format_status_duration <- function(since) {
 refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
   e$topics <- {
     # character(0) with no topic yet: sapply() would return an empty list, which cannot index the labels
-    codes <- unique(as.character(unlist(lapply(conf$topics, function(t) t$topic))))
+    codes <- unique(as.character(unlist(lapply(conf$topics, function(t) {
+      t$topic
+    }))))
     names <- if (length(codes) > 0) get_topics_labels()[codes] else character(0)
     sort(setNames(c("", codes), c("", unname(names))))
   }
@@ -36,34 +38,43 @@ refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
   }
   e$sms <- {
     sms <- active_social_media() %>% sm_family() %>% unique()
-    setNames(sms, paste0(toupper(substr(sms, 1, 1)), substr(sms, 2, nchar(sms))))
+    setNames(
+      sms,
+      paste0(toupper(substr(sms, 1, 1)), substr(sms, 2, nchar(sms)))
+    )
   }
   agg_dates <- get_aggregated_period()
   if (is.na(agg_dates$first) || is.na(agg_dates$last)) {
-    agg_dates$first = Sys.Date()
-    agg_dates$last = Sys.Date()
+    agg_dates$first <- Sys.Date()
+    agg_dates$last <- Sys.Date()
   }
   e$date_min <- strftime(agg_dates$first, format = "%Y-%m-%d")
   e$date_max <- strftime(agg_dates$last, format = "%Y-%m-%d")
   collected_days <- agg_dates$last - agg_dates$first
-  e$fixed_period <- (if (!is.null(fixed_period)) fixed_period else if (
-    is.na(collected_days)
-  )
-    "custom" else if (collected_days < 7) "custom" else "last 7 days")
-  e$date_start <- (if (e$fixed_period == "custom" && exists("date_start", e))
-    e$date_start else if (e$fixed_period == "last 7 days" && collected_days > 7)
-    strftime(agg_dates$last - 7, format = "%Y-%m-%d") else if (
-    e$fixed_period == "last 30 days" && collected_days > 30
-  )
-    strftime(agg_dates$last - 30, format = "%Y-%m-%d") else if (
-    e$fixed_period == "last 60 days" && collected_days > 60
-  )
-    strftime(agg_dates$last - 60, format = "%Y-%m-%d") else if (
-    e$fixed_period == "last 180 days" && collected_days > 180
-  )
-    strftime(agg_dates$last - 180, format = "%Y-%m-%d") else e$date_min)
+  e$fixed_period <- (if (!is.null(fixed_period)) {
+    fixed_period
+  } else if (is.na(collected_days)) {
+    "custom"
+  } else if (collected_days < 7) {
+    "custom"
+  } else {
+    "last 7 days"
+  })
+  e$date_start <- (if (e$fixed_period == "custom" && exists("date_start", e)) {
+    e$date_start
+  } else if (e$fixed_period == "last 7 days" && collected_days > 7) {
+    strftime(agg_dates$last - 7, format = "%Y-%m-%d")
+  } else if (e$fixed_period == "last 30 days" && collected_days > 30) {
+    strftime(agg_dates$last - 30, format = "%Y-%m-%d")
+  } else if (e$fixed_period == "last 60 days" && collected_days > 60) {
+    strftime(agg_dates$last - 60, format = "%Y-%m-%d")
+  } else if (e$fixed_period == "last 180 days" && collected_days > 180) {
+    strftime(agg_dates$last - 180, format = "%Y-%m-%d")
+  } else {
+    e$date_min
+  })
   e$date_end <- e$date_max
-  
+
   if (!exists("topics_refresh_flag", envir = e)) {
     e$topics_refresh_flag <- shiny::reactiveVal(0)
   }
@@ -218,8 +229,9 @@ refresh_config_data_impl <- function(e, limit) {
       update <- TRUE
     }
     if (update) {
-      if (epifile.exists(get_tasks_path()))
+      if (epifile.exists(get_tasks_path())) {
         e$tasks_refresh_flag(epifile.mtime(get_tasks_path()))
+      }
       tasks <- get_tasks()
       sorted_tasks <- order(sapply(tasks, function(l) l$order))
       e$tasks <- tasks[sorted_tasks]
@@ -231,44 +243,50 @@ refresh_config_data_impl <- function(e, limit) {
         ),
         Scheduled = sapply(
           e$tasks,
-          function(t)
+          function(t) {
             strftime(
               t$scheduled_for,
               format = "%Y-%m-%d %H:%M:%OS",
               origin = '1970-01-01'
             )
+          }
         ),
         `Last Start` = sapply(
           e$tasks,
-          function(t)
+          function(t) {
             strftime(
               t$started_on,
               format = "%Y-%m-%d %H:%M:%OS",
               origin = '1970-01-01'
             )
+          }
         ),
         `Last End` = sapply(
           e$tasks,
-          function(t)
+          function(t) {
             strftime(
               t$end_on,
               format = "%Y-%m-%d %H:%M:%OS",
               origin = '1970-01-01'
             )
+          }
         ),
         Message = sapply(
           e$tasks,
-          function(t)
-            if (exists("message", where = t) && !is.null(t$message))
-              t$message else ""
+          function(t) {
+            if (exists("message", where = t) && !is.null(t$message)) {
+              t$message
+            } else {
+              ""
+            }
+          }
         )
       )
       row.names(e$tasks_df) <- sapply(e$tasks, function(t) t$order)
     }
   }
   # Updating geolocation test related fields
-  if ("geo" %in% limit) {
-  }
+  if ("geo" %in% limit) {}
   return(e)
 }
 
@@ -315,7 +333,9 @@ get_alertsdb_html <- function() {
     shiny::need(!is.null(alerts), 'No alerts generated for the selected period')
   )
   alerts$topposts <- sapply(alerts$topposts, function(postsbylang) {
-    if (length(postsbylang) == 0) "" else {
+    if (length(postsbylang) == 0) {
+      ""
+    } else {
       paste(
         "<UL>",
         lapply(1:length(postsbylang), function(i) {
@@ -353,7 +373,9 @@ get_alertsdb_runs_html <- function() {
   runs$sensitivity_by_class <- gsub("\n", "<BR>", runs$sensitivity_by_class)
   runs$fscore_by_class <- gsub("\n", "<BR>", runs$fscore_by_class)
   runs$custom_parameters <- sapply(runs$custom_parameters, function(params) {
-    if (length(params) == 0) "" else {
+    if (length(params) == 0) {
+      ""
+    } else {
       paste(
         "<UL>",
         lapply(1:length(params), function(i) {
@@ -392,7 +414,9 @@ ensure_snapshot_folder <- function() {
   } else {
     file.path(getwd(), "episomer-snapshots")
   }
-  if (!dir.exists(path)) dir.create(path, recursive = TRUE)
+  if (!dir.exists(path)) {
+    dir.create(path, recursive = TRUE)
+  }
   path
 }
 

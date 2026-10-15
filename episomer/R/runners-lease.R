@@ -55,8 +55,12 @@ runner_service <- function(name) {
 runner_lease_ttl <- function(name) {
   service <- runner_service(name)
   value <- conf[[paste0("runner_ttl_", service)]]
-  if (is.null(value)) value <- runner_lease_ttl_defaults()[[service]]
-  if (is.null(value)) value <- runner_lease_ttl_fallback
+  if (is.null(value)) {
+    value <- runner_lease_ttl_defaults()[[service]]
+  }
+  if (is.null(value)) {
+    value <- runner_lease_ttl_fallback
+  }
   as.numeric(value)
 }
 
@@ -64,7 +68,9 @@ runner_lease_ttl <- function(name) {
 # (see claim_runner_lease()). Configuration too (conf$runner_claim_guard, plan issue 3).
 runner_claim_guard <- function() {
   value <- conf$runner_claim_guard
-  if (is.null(value)) value <- 5
+  if (is.null(value)) {
+    value <- 5
+  }
   as.numeric(value)
 }
 
@@ -277,7 +283,9 @@ claim_runner_lease <- function(name, guard = runner_claim_guard()) {
 # competing write landing exactly there - which is the one thing the confirmation read exists for,
 # and which cannot be reproduced by mocking Sys.sleep() (testthat refuses to mock base functions).
 runner_claim_wait <- function(guard) {
-  if (guard > 0) Sys.sleep(guard)
+  if (guard > 0) {
+    Sys.sleep(guard)
+  }
   invisible(NULL)
 }
 
@@ -318,7 +326,9 @@ runner_wait_interval_default <- 15
 # deployment that would rather have its supervisor notice.
 runner_wait_timeout <- function() {
   value <- conf$runner_wait_timeout
-  if (is.null(value)) value <- runner_wait_timeout_default
+  if (is.null(value)) {
+    value <- runner_wait_timeout_default
+  }
   value <- suppressWarnings(as.numeric(value))
   # a negative or unreadable timeout would mean "give up before trying", which no caller wants
   if (length(value) != 1 || is.na(value) || value < 0) {
@@ -332,7 +342,9 @@ runner_wait_timeout <- function() {
 # nothing measurable: one read of one lease file, i.e. one small GET on the fs machine.
 runner_wait_interval <- function() {
   value <- conf$runner_wait_interval
-  if (is.null(value)) value <- runner_wait_interval_default
+  if (is.null(value)) {
+    value <- runner_wait_interval_default
+  }
   value <- suppressWarnings(as.numeric(value))
   # zero or negative would turn the retry loop into a busy loop hammering the fs
   if (length(value) != 1 || is.na(value) || value <= 0) {
@@ -450,7 +462,9 @@ runner_heartbeat_span_default <- 30
 # value is used in arithmetic and may come from an EPISOMER_OPTION_* environment variable.
 runner_heartbeat_span <- function() {
   value <- conf$runner_heartbeat_span
-  if (is.null(value)) value <- runner_heartbeat_span_default
+  if (is.null(value)) {
+    value <- runner_heartbeat_span_default
+  }
   value <- suppressWarnings(as.numeric(value))
   # A span of zero, negative or unreadable would turn sleep_with_heartbeat() into a busy loop
   if (length(value) != 1 || is.na(value) || value <= 0) {
@@ -484,7 +498,10 @@ renew_runner_lease_if_due <- function(
 #
 # A runner name of NULL means this process holds no lease at all (the Shiny app, a sandboxed loop,
 # a function called from the console): nothing is ever due, and that is not an error.
-heartbeat_is_due <- function(name = conf$runner_name, span = runner_heartbeat_span()) {
+heartbeat_is_due <- function(
+  name = conf$runner_name,
+  span = runner_heartbeat_span()
+) {
   if (is.null(name)) {
     return(FALSE)
   }
@@ -746,7 +763,11 @@ runner_lease_status <- function(name) {
   dead_locally <- lease_holder_is_dead_locally(lease, name)
   list(
     runner = name,
-    status = if (dead_locally || (!is.na(age) && age > ttl)) "stale" else "running",
+    status = if (dead_locally || (!is.na(age) && age > ttl)) {
+      "stale"
+    } else {
+      "running"
+    },
     host = lease$host,
     instance_id = lease$instance_id,
     pid = lease$pid,
@@ -940,8 +961,11 @@ runner_running_elsewhere_message <- function(name) {
   if (!identical(status$status, "running")) {
     return("")
   }
-  host <- if (length(status$host) != 1 || is.na(status$host)) NA_character_ else
+  host <- if (length(status$host) != 1 || is.na(status$host)) {
+    NA_character_
+  } else {
     as.character(status$host)
+  }
   if (identical(host, as.character(conf$instance_host))) {
     return("")
   }
@@ -1088,7 +1112,9 @@ runner_lease_status_label <- function(lease) {
     return("stopped on this machine")
   }
   if (identical(lease$runner, "search")) {
-    return("coordinates collection, sends no activity signal by design: see the search.* rows for its real state")
+    return(
+      "coordinates collection, sends no activity signal by design: see the search.* rows for its real state"
+    )
   }
   # fs cannot beat for itself (renew_fs_runner_lease()): only its monitor does. A stale fs lease
   # on a database that still answers /ping is a monitor that stopped reporting, not a dead
@@ -1097,14 +1123,20 @@ runner_lease_status_label <- function(lease) {
     # return("running, but its monitor stopped reporting")
     return("active")
   }
-  sprintf("no activity for %s (probably stopped)", format_lease_duration(lease$ttl))
+  sprintf(
+    "no activity for %s (probably stopped)",
+    format_lease_duration(lease$ttl)
+  )
 }
 
 # Which machine holds the runner. The marker matters in the single-machine deployment, where every
 # row is local and an unmarked host name would leave the reader wondering.
 runner_lease_host_label <- function(lease) {
-  host <- if (is.null(lease$host) || is.na(lease$host)) "unknown" else
+  host <- if (is.null(lease$host) || is.na(lease$host)) {
+    "unknown"
+  } else {
     as.character(lease$host)
+  }
   if (identical(host, as.character(conf$instance_host))) {
     return(paste(host, "(this machine)"))
   }
@@ -1129,7 +1161,11 @@ runner_lease_since_label <- function(lease) {
     return("unknown")
   }
   claimed_at <- as.character(lease$claimed_at)
-  parsed <- suppressWarnings(as.POSIXct(claimed_at, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC"))
+  parsed <- suppressWarnings(as.POSIXct(
+    claimed_at,
+    format = "%Y-%m-%dT%H:%M:%S",
+    tz = "UTC"
+  ))
   if (length(parsed) != 1 || is.na(parsed)) {
     return(claimed_at)
   }
