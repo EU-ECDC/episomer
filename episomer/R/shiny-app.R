@@ -121,17 +121,36 @@ episomer_app <- function(
   }
 
   if ("dashboard" %in% profile) {
+    # PDF export needs a LaTeX distribution; checked once at startup (the
+    # troubleshoot page reports the same check, so the warning is silenced)
+    tex_available <- suppressWarnings(check_tex())
+
     # Download button of a dashboard chart: rendered disabled, since there is
     # nothing to download before the first successful Run. It uses its own
     # `dash-disabled` class because Shiny's download binding removes its own
     # `disabled` class as soon as the handler URL arrives at session start.
-    dash_download_button <- function(id, label) {
-      shiny::downloadButton(
+    # With `unavailable`, the button stays disabled for good and shows that
+    # message on hover (the wrapper gets the hover, since the link ignores
+    # pointer events while disabled).
+    dash_download_button <- function(id, label, unavailable = NULL) {
+      button <- shiny::downloadButton(
         id,
         label,
-        class = "dash-download dash-disabled",
+        class = if (is.null(unavailable)) {
+          "dash-download dash-disabled"
+        } else {
+          "dash-download dash-disabled dash-unavailable"
+        },
         `aria-disabled` = "true",
         tabindex = "-1"
+      )
+      if (is.null(unavailable)) {
+        return(button)
+      }
+      shiny::tags$span(
+        title = unavailable,
+        style = "display: inline-block;",
+        button
       )
     }
     # Defining dashboard page UI
@@ -251,7 +270,19 @@ episomer_app <- function(
               value = conf$alert_same_weekday_baseline
             ),
             shiny::fluidRow(
-              shiny::column(4, dash_download_button("export_pdf", "PDF")),
+              shiny::column(
+                4,
+                dash_download_button(
+                  "export_pdf",
+                  "PDF",
+                  unavailable = if (!tex_available) {
+                    paste(
+                      "PDF export unavailable: no LaTeX distribution (pdflatex)",
+                      "was found. See the troubleshoot page to install one."
+                    )
+                  }
+                )
+              ),
               shiny::column(4, dash_download_button("export_md", "Md"))
             )
           ),
@@ -1475,12 +1506,14 @@ episomer_app <- function(
       }
 
       # The chart download buttons are only usable once a Run has succeeded,
-      # and are disabled again if a later Run fails
+      # and are disabled again if a later Run fails. Unavailable buttons (see
+      # dash_download_button) are left alone: they stay disabled.
       shiny::observe({
         res <- dash()
         disabled <- is.null(res) || !is.null(res$error)
         shinyjs::runjs(sprintf(
-          "$('a.dash-download').toggleClass('dash-disabled', %1$s)
+          "$('a.dash-download:not(.dash-unavailable)')
+            .toggleClass('dash-disabled', %1$s)
             .attr('aria-disabled', %1$s ? 'true' : null)
             .attr('tabindex', %1$s ? '-1' : null);",
           tolower(disabled)
