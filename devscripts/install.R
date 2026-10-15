@@ -11,7 +11,12 @@ installer_name <- (
 )
 
 # Installing
-devtools::install_local(sprintf("install/%s", installer_name[[1]]), dependencies=T) 
+install_no_deps <- nzchar(Sys.getenv("INSTALL_NO_DEPS"))
+lib <- .libPaths()[1]
+if (install_no_deps && nzchar(Sys.getenv("R_LIBS_USER")))
+  lib <- Sys.getenv("R_LIBS_USER")
+remotes::install_local(sprintf("install/%s", installer_name[[1]]),
+                       lib = lib, dependencies = !install_no_deps)
 
 if(Sys.getenv("RENV")!="" && ("renv" %in% installed.packages()[,"Package"]))
 	renv::snapshot()

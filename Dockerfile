@@ -1,4 +1,5 @@
-FROM docker.io/rocker/r-base:latest AS base
+# Ubuntu-based Rocker images use Posit Package Manager's precompiled CRAN packages on amd64.
+FROM docker.io/rocker/r-ver:4.6.1 AS base
 
 ARG EPISOMER_USER=1000
 
@@ -67,10 +68,10 @@ RUN cp /episomer/scala/target/scala-2.13/ecdc-episomer-bundle_2.13-*.jar /tmp/
 WORKDIR /episomer
 COPY --chown=${EPISOMER_USER}:${EPISOMER_USER} . /episomer/
 RUN cp /tmp/ecdc-episomer-bundle_2.13-*.jar /episomer/episomer/inst/java
-RUN PACK=1 make package-step
+RUN PACK=1 SOURCE_ONLY=1 make package-step
 
 ## Installing episomer
-RUN INSTALL=1 make package-step
+RUN INSTALL=1 INSTALL_NO_DEPS=1 make package-step
 
 FROM base AS final
 

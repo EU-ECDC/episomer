@@ -31,24 +31,23 @@ if(Sys.getenv("PACK")!="") {
     if(any(grepl("episomer.*", sessionInfo())))
       detach("package:episomer", unload=TRUE)
     
-    installer_path <- c(
-      devtools::build("episomer", binary=FALSE, vignettes=TRUE, manual=TRUE)
-      ,devtools::build("episomer", binary=TRUE, vignettes=TRUE, manual=TRUE)
-    )
-    
-    #install.packages(file.path(installer_path[[2]]), dependencies = FALSE)
+    installer_path <- devtools::build("episomer", binary=FALSE, vignettes=TRUE, manual=TRUE)
+    if(Sys.getenv("SOURCE_ONLY") == "") {
+      installer_path <- c(installer_path, devtools::build("episomer", binary=TRUE, vignettes=TRUE, manual=TRUE))
+    }
+
     devtools::load_all("episomer")
-    
+
     #moving installer
-    installer_name <- (
-      c(paste("episomer_",packageVersion("episomer"),".tar.gz", sep = ""),
+    installer_name <- paste("episomer_", packageVersion("episomer"), ".tar.gz", sep = "")
+    if(Sys.getenv("SOURCE_ONLY") == "") {
+      installer_name <- c(installer_name,
         if(.Platform$OS.type == "windows")
-          paste("episomer_",packageVersion("episomer"),".zip", sep = "") 
+          paste("episomer_", packageVersion("episomer"), ".zip", sep = "")
         else
-          paste("episomer_",packageVersion("episomer"),"_R_x86_64-pc-linux-gnu.tar.gz", sep = "") 
-      )
-    )
-    
+          paste("episomer_", packageVersion("episomer"), "_R_x86_64-pc-linux-gnu.tar.gz", sep = ""))
+    }
+
     file.rename(file.path(installer_path), file.path("install", installer_name))
 }
 
