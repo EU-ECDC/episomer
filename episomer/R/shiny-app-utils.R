@@ -25,8 +25,9 @@ format_status_duration <- function(since) {
 # Get or updates data used for dashboard filters based on configuration values and aggregated period
 refresh_dashboard_data <- function(e = new.env(), fixed_period = NULL) {
   e$topics <- {
-    codes <- unique(sapply(conf$topics, function(t) t$topic))
-    names <- get_topics_labels()[codes]
+    # character(0) with no topic yet: sapply() would return an empty list, which cannot index the labels
+    codes <- unique(as.character(unlist(lapply(conf$topics, function(t) t$topic))))
+    names <- if (length(codes) > 0) get_topics_labels()[codes] else character(0)
     sort(setNames(c("", codes), c("", unname(names))))
   }
   e$countries <- {
@@ -206,7 +207,9 @@ refresh_config_data_impl <- function(e, limit) {
 
     # Detecting if some change has happened since last evaluation
     if (!exists("tasks_refresh_flag", where = e)) {
-      e$tasks_refresh_flag <- shiny::reactiveVal()
+      # 0 and not NULL: tasks.json may not exist yet, and comparing its mtime with NULL later on
+      # would give logical(0) and an error in the condition below
+      e$tasks_refresh_flag <- shiny::reactiveVal(0)
       update <- TRUE
     } else if (
       epifile.exists(get_tasks_path()) &&

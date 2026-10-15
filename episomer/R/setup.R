@@ -805,7 +805,7 @@ setup <- function(data_dir = NULL, silent = FALSE, launch = TRUE) {
         )
         # Performing requested action
         if (sh_ans != end_ans && !is_fs_running()) {
-            if (interactive()) {
+            if (is_interactive()) {
                 fs_for_shiny_ans <- choose_between(
                     "The episomer database must be started in order to run the shiny app - do you want to start it ?",
                     list(
@@ -879,10 +879,13 @@ choice <- function(txt, bold = FALSE) {
 }
 alert <- function(txt) crayon::style(txt, crayon::combine_styles(crayon::bold, crayon::magenta, crayon::bgWhite))
 
+# interactive() is inlined by the byte compiler, so tests cannot replace it: they replace this
+is_interactive <- function() interactive()
+
 pause <- function(silent=FALSE) { if(!silent) Sys.sleep(0.5)}
 
 choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
-    if(length(options) > 0) {
+    if(length(ops) > 0) {
         answered <- FALSE
         while (!answered) {
             pause(silent)
@@ -901,7 +904,7 @@ choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
                                 ""
                             )
                         ),
-                        k == default
+                        !is.null(default) && k == default
                     )
                 }),
                 collapse = "\n"
@@ -922,7 +925,7 @@ choose_between <- function(question, ops=list(), silent=FALSE, default=NULL) {
                 message(sprintf("%s %s", message_end, default))
                 return(default)
             }
-            answered <- exists(ans, where = ops)
+            answered <- nzchar(ans) && exists(ans, where = ops)
             if (!answered) {
                 pause()
                 message(alert(sprintf(
