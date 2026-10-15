@@ -1542,7 +1542,7 @@ episomer_app <- function(
           session,
           "alpha_filter",
           value = val,
-          min = 0,
+          min = 0.005,
           max = 0.3,
           step = 0.005
         )
