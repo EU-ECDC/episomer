@@ -7,8 +7,8 @@
 sm_api_translate_query_bluesky(parsed)
 }
 \arguments{
-\item{parsed}{list. Named list containing two attributes 'ors' and 'neg'. 
-'ors' is a list containing subqueries that should be contatenated with an OR logic 
+\item{parsed}{list. Named list containing two attributes 'ors' and 'neg'.
+'ors' is a list containing subqueries that should be contatenated with an OR logic
   - each subquery in 'ors' is a list containing terms that should be concatecated with an AND logic
       - each term in 'ors subqueries' is a list of synonyms for a particular literal
 'neg' is a list of terms that should be removed from any result of the query}
@@ -17,6 +17,6 @@ sm_api_translate_query_bluesky(parsed)
 Translate a parsed query to the social media query format
 }
 \details{
-This function receive as a parameter a parsed query from the a topic in the list of topics. 
+This function receive as a parameter a parsed query from the a topic in the list of topics.
 It can return one or many queries that matches the expected results using the underlying social media API
 }

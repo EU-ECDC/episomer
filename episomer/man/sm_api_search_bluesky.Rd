@@ -32,7 +32,7 @@ The plan should be used to extract the precise time-span to request messages
 - Response attributes
   - network: string
   - posts: [...]
-  - count: number, 
+  - count: number,
   - pagination:\{...\}
 - post in posts
     - id: string

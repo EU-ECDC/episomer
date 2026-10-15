@@ -13,7 +13,7 @@ Nothing
 Indexing downloaded languages models and proceed to retrain based on manual or automatic annotations
 }
 \details{
-Index locally downloaded fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models} and train entity detection models. 
+Index locally downloaded fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models} and train entity detection models.
 A fasttext model is a collection of vectors for a language automatically produced scrolling a big corpus of text that can be used to capture the semantic of a word.
 
 The URL to download the vectors from are set on the configuration tab of the Shiny app.

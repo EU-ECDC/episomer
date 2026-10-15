@@ -43,7 +43,7 @@ search_posts(
 If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
 }
 \value{
-a data frame containing the posts matching the selected filters, the data frame contains the following columns: user_name, created_date, is_geo_located, is_quote, text, 
+a data frame containing the posts matching the selected filters, the data frame contains the following columns: user_name, created_date, is_geo_located, is_quote, text,
 text_loc, user_id, hash, quote_lang, totalCount, created_at, topic_post_id, topic, lang, user_name, quoted_text, id, quopted_text_loc, tags
 }
 \description{

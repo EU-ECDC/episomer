@@ -257,7 +257,7 @@ this machine or on any other machine sharing the same episomer database - see
    message('Please choose the episomer data directory')
    setup_config(file.choose())
    missing_search_jobs()
-} 
+}
 \dontrun{
    library(episomer)
    message('Please choose the episomer data directory')
