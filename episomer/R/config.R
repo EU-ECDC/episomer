@@ -1279,7 +1279,7 @@ apply_env_languages <- function(raw = Sys.getenv("EPISOMER_LANGUAGES")) {
 
 # Get the current known users list from the important users files
 get_known_users <- function() {
-  gsub("@", "", readxl::read_excel(get_known_users_path())[[1]])
+  gsub("@", "", epiread_excel(get_known_users_path())[[1]])
 }
 
 # The properties declaring the social media: the per family switches and, for federated families,

@@ -105,6 +105,10 @@ refresh_config_data_impl <- function(e, limit) {
   if (!exists("subscribers_refresh_flag", where = e)) {
     e$subscribers_refresh_flag <- shiny::reactiveVal()
   }
+  #Creating the flag for important users refresh
+  if (!exists("users_refresh_flag", where = e)) {
+    e$users_refresh_flag <- shiny::reactiveVal()
+  }
   #Creating the flag for geotraining refresh
   if (!exists("geotraining_refresh_flag", where = e)) {
     e$geotraining_refresh_flag <- shiny::reactiveVal()

@@ -1048,7 +1048,8 @@ episomer_app <- function(
                     accept = ".xlsx"
                   )
                 )
-              )
+              ),
+              DT::dataTableOutput("config_users")
             ),
             ################################################
             ######### SUSCRIBERS PANEL #####################
@@ -2735,6 +2736,27 @@ episomer_app <- function(
         }
       )
 
+      # rendering important users (first run update on next statement)
+      output$config_users <- DT::renderDataTable({
+        DT::datatable(
+          epiread_excel(get_known_users_path()),
+          rownames = FALSE,
+          filter = "top",
+          escape = TRUE
+        )
+      })
+
+      # updating the important users table on change of the users file
+      shiny::observe({
+        # Adding a dependency to users refresh
+        cd$users_refresh_flag()
+        DT::replaceData(
+          DT::dataTableProxy('config_users'),
+          epiread_excel(get_known_users_path()),
+          rownames = FALSE
+        )
+      })
+
       # uploading new important users
       shiny::observe({
         df <- input$conf_users_upload
@@ -2745,6 +2767,7 @@ episomer_app <- function(
             epipath("users.xlsx"),
             overwrite = TRUE
           )
+          cd$users_refresh_flag(Sys.time())
         }
       })
 
