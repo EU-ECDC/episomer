@@ -92,7 +92,7 @@ test_that("runner_leases_df() tells a lease nobody renews from a holder that cra
     df$Status[df$Runner == "detect"],
     "no activity for 5 min (probably stopped)"
   )
-  expect_identical(df$Status[df$Runner == "search"], "stopped unexpectedly on this machine")
+  expect_identical(df$Status[df$Runner == "search"], "stopped on this machine")
 })
 
 test_that("the parent search lease is named a supervisor rather than reported stale", {

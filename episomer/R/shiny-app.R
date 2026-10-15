@@ -121,15 +121,36 @@ episomer_app <- function(
   }
 
   if ("dashboard" %in% profile) {
-    # Download button of a dashboard chart: rendered disabled, and kept so by
-    # Shiny until the server enables it, since there is nothing to download
-    # before the first successful Run
-    dash_download_button <- function(id, label) {
-      shiny::downloadButton(
+    # PDF export needs a LaTeX distribution; checked once at startup (the
+    # troubleshoot page reports the same check, so the warning is silenced)
+    tex_available <- suppressWarnings(check_tex())
+
+    # Download button of a dashboard chart: rendered disabled, since there is
+    # nothing to download before the first successful Run. It uses its own
+    # `dash-disabled` class because Shiny's download binding removes its own
+    # `disabled` class as soon as the handler URL arrives at session start.
+    # With `unavailable`, the button stays disabled for good and shows that
+    # message on hover (the wrapper gets the hover, since the link ignores
+    # pointer events while disabled).
+    dash_download_button <- function(id, label, unavailable = NULL) {
+      button <- shiny::downloadButton(
         id,
         label,
-        class = "dash-download",
-        `data-shiny-disable-auto-enable` = NA
+        class = if (is.null(unavailable)) {
+          "dash-download dash-disabled"
+        } else {
+          "dash-download dash-disabled dash-unavailable"
+        },
+        `aria-disabled` = "true",
+        tabindex = "-1"
+      )
+      if (is.null(unavailable)) {
+        return(button)
+      }
+      shiny::tags$span(
+        title = unavailable,
+        style = "display: inline-block;",
+        button
       )
     }
     # Defining dashboard page UI
@@ -209,7 +230,7 @@ episomer_app <- function(
             shiny::sliderInput(
               "alpha_filter",
               label = shiny::h4("Signal false positive rate"),
-              min = 0,
+              min = 0.005,
               max = 0.3,
               value = conf$alert_alpha,
               step = 0.005
@@ -239,7 +260,8 @@ episomer_app <- function(
             shiny::numericInput(
               "history_filter",
               label = shiny::h4("Days in baseline"),
-              value = conf$alert_history
+              value = conf$alert_history,
+              min = 1
             ),
             shiny::h4("Same weekday baseline"),
             shiny::checkboxInput(
@@ -248,7 +270,19 @@ episomer_app <- function(
               value = conf$alert_same_weekday_baseline
             ),
             shiny::fluidRow(
-              shiny::column(4, dash_download_button("export_pdf", "PDF")),
+              shiny::column(
+                4,
+                dash_download_button(
+                  "export_pdf",
+                  "PDF",
+                  unavailable = if (!tex_available) {
+                    paste(
+                      "PDF export unavailable: no LaTeX distribution (pdflatex)",
+                      "was found. See the troubleshoot page to install one."
+                    )
+                  }
+                )
+              ),
               shiny::column(4, dash_download_button("export_md", "Md"))
             )
           ),
@@ -572,6 +606,10 @@ episomer_app <- function(
                 shiny::column(7, shiny::htmlOutput("fs_running"))
               ),
               shiny::fluidRow(
+                shiny::column(5, "Database package version"),
+                shiny::column(7, shiny::htmlOutput("fs_jar_version"))
+              ),
+              shiny::fluidRow(
                 shiny::column(5, "Data collection & processing"),
                 shiny::column(7, shiny::htmlOutput("search_running"))
               ),
@@ -608,7 +646,7 @@ episomer_app <- function(
                   shiny::sliderInput(
                     "conf_alpha",
                     label = NULL,
-                    min = 0,
+                    min = 0.005,
                     max = 0.3,
                     value = conf$alert_alpha,
                     step = 0.005
@@ -650,7 +688,8 @@ episomer_app <- function(
                   shiny::numericInput(
                     "conf_history",
                     label = NULL,
-                    value = conf$alert_history
+                    value = conf$alert_history,
+                    min = 1
                   )
                 )
               ),
@@ -1040,7 +1079,8 @@ episomer_app <- function(
                     accept = ".xlsx"
                   )
                 )
-              )
+              ),
+              DT::dataTableOutput("config_users")
             ),
             ################################################
             ######### SUSCRIBERS PANEL #####################
@@ -1378,7 +1418,15 @@ episomer_app <- function(
     args <- list(
       "episomer",
       id = "navbar_shinyapp",
-      header = list(busy_spinner, shinyjs::useShinyjs())
+      header = list(
+        busy_spinner,
+        shinyjs::useShinyjs(),
+        shiny::tags$style(shiny::HTML(
+          "a.dash-download.dash-disabled {
+             pointer-events: none; opacity: 0.55; cursor: not-allowed;
+           }"
+        ))
+      )
     )
     if ("dashboard" %in% profile) {
       args <- c(
@@ -1458,12 +1506,14 @@ episomer_app <- function(
       }
 
       # The chart download buttons are only usable once a Run has succeeded,
-      # and are disabled again if a later Run fails
+      # and are disabled again if a later Run fails. Unavailable buttons (see
+      # dash_download_button) are left alone: they stay disabled.
       shiny::observe({
         res <- dash()
         disabled <- is.null(res) || !is.null(res$error)
         shinyjs::runjs(sprintf(
-          "$('a.dash-download').toggleClass('disabled', %1$s)
+          "$('a.dash-download:not(.dash-unavailable)')
+            .toggleClass('dash-disabled', %1$s)
             .attr('aria-disabled', %1$s ? 'true' : null)
             .attr('tabindex', %1$s ? '-1' : null);",
           tolower(disabled)
@@ -1492,7 +1542,7 @@ episomer_app <- function(
           session,
           "alpha_filter",
           value = val,
-          min = 0,
+          min = 0.005,
           max = 0.3,
           step = 0.005
         )
@@ -1861,7 +1911,7 @@ episomer_app <- function(
               "</a>"
             )
           ) %>%
-          dplyr::rename(Url = .data$top, Frequency = .data$frequency) %>%
+          dplyr::rename(Url = "top", Frequency = "frequency") %>%
           DT::datatable(escape = FALSE)
       })
 
@@ -2457,6 +2507,26 @@ episomer_app <- function(
         )
       })
 
+      # rendering the jar version of the fs service, flagging a mismatch with this app's package
+      output$fs_jar_version <- shiny::renderText({
+        cd$process_refresh_flag()
+        app_version <- as.character(utils::packageVersion(get_package_name()))
+        fs_version <- if (cd$fs_running) get_fs_jar_version() else NA_character_
+        if (is.na(fs_version)) {
+          "<span style='color:#888'>Unknown (database stopped or too old to report its version)</span>"
+        } else if (identical(fs_version, app_version)) {
+          paste0("<span style='color:#348017'>", fs_version, "</span>")
+        } else {
+          paste0(
+            "<span style='color:#F75D59'>Mismatch: database runs ",
+            fs_version,
+            ", app is ",
+            app_version,
+            "</span>"
+          )
+        }
+      })
+
       # rendering the Requirements & alerts running status
       output$detect_running <- shiny::renderText({
         # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
@@ -2699,6 +2769,27 @@ episomer_app <- function(
         }
       )
 
+      # rendering important users (first run update on next statement)
+      output$config_users <- DT::renderDataTable({
+        DT::datatable(
+          epiread_excel(get_known_users_path()),
+          rownames = FALSE,
+          filter = "top",
+          escape = TRUE
+        )
+      })
+
+      # updating the important users table on change of the users file
+      shiny::observe({
+        # Adding a dependency to users refresh
+        cd$users_refresh_flag()
+        DT::replaceData(
+          DT::dataTableProxy('config_users'),
+          epiread_excel(get_known_users_path()),
+          rownames = FALSE
+        )
+      })
+
       # uploading new important users
       shiny::observe({
         df <- input$conf_users_upload
@@ -2706,9 +2797,10 @@ episomer_app <- function(
           uploaded <- df$datapath[[1]]
           epifile.copy(
             uploaded,
-            paste(conf$data_dir, "users.xlsx", sep = "/"),
+            epipath("users.xlsx"),
             overwrite = TRUE
           )
+          cd$users_refresh_flag(Sys.time())
         }
       })
 
@@ -2718,36 +2810,6 @@ episomer_app <- function(
         # Adding dependency with lang refresh
         cd$langs_refresh_flag()
         DT::datatable(cd$langs)
-      })
-
-      # downloading current languages
-      output$conf_lang_download <- shiny::downloadHandler(
-        filename = function() "languages.xlsx",
-        content = function(file) {
-          epifile.copy(get_available_languages_path(), file)
-        }
-      )
-
-      # downloading original languages file
-      output$conf_orig_lang_download <- shiny::downloadHandler(
-        filename = function() "languages.xlsx",
-        content = function(file) {
-          epifile.copy(get_default_available_languages_path(), file)
-        }
-      )
-
-      # uploading new language file
-      shiny::observe({
-        df <- input$conf_lang_upload
-        if (!is.null(df) && nrow(df) > 0) {
-          uploaded <- df$datapath[[1]]
-          epifile.copy(
-            uploaded,
-            paste(conf$data_dir, "languages.xlsx", sep = "/"),
-            overwrite = TRUE
-          )
-          refresh_config_data(e = cd, limit = list("langs"))
-        }
       })
 
       ######### TASKS LOGIC ##################
@@ -2886,7 +2948,7 @@ episomer_app <- function(
           uploaded <- df$datapath[[1]]
           epifile.copy(
             uploaded,
-            paste(conf$data_dir, "subscribers.xlsx", sep = "/"),
+            epipath("subscribers.xlsx"),
             overwrite = TRUE
           )
           cd$subscribers_refresh_flag(Sys.time())
@@ -2943,7 +3005,7 @@ episomer_app <- function(
           uploaded <- df$datapath[[1]]
           epifile.copy(
             uploaded,
-            paste(conf$data_dir, "countries.xlsx", sep = "/"),
+            epipath("countries.xlsx"),
             overwrite = TRUE
           )
           # get_country_items() memoises the parsed file for the whole session, so a new upload is
@@ -3372,11 +3434,11 @@ episomer_app <- function(
           if (nrow(df) > 0) {
             ret <- df %>%
               dplyr::select(
-                .data$test,
-                .data$tp,
-                .data$tn,
-                .data$fp,
-                .data$fn
+                "test",
+                "tp",
+                "tn",
+                "fp",
+                "fn"
               ) %>%
               dplyr::group_by(.data$test) %>%
               dplyr::summarise(
@@ -3398,11 +3460,11 @@ episomer_app <- function(
                   3
                 )
               ) %>%
-              dplyr::rename(Category = .data$test) %>%
-              dplyr::rename("True positives" = .data$tp) %>%
-              dplyr::rename("False positives" = .data$fp) %>%
-              dplyr::rename("True negatives" = .data$tn) %>%
-              dplyr::rename("False negatives" = .data$fn)
+              dplyr::rename(Category = "test") %>%
+              dplyr::rename("True positives" = "tp") %>%
+              dplyr::rename("False positives" = "fp") %>%
+              dplyr::rename("True negatives" = "tn") %>%
+              dplyr::rename("False negatives" = "fn")
           }
         }
         ret

@@ -408,13 +408,13 @@ plot_trendline <- function(
       legend.position = ifelse(length(countries) < 2, "none", "right")
     )
 
-  df <- dplyr::rename(df, "Country" = .data$country)
+  df <- dplyr::rename(df, "Country" = "country")
 
   df <- dplyr::rename(
     df,
-    "Number of messages" = .data$number_of_posts,
-    "Message date" = .data$date,
-    "Topic" = .data$topic
+    "Number of messages" = "number_of_posts",
+    "Message date" = "date",
+    "Topic" = "topic"
   )
   # returning data and chart
   list("chart" = fig_line, "data" = df)
@@ -571,7 +571,7 @@ create_map <- function(
 
   # Setting country codes as requested location types as requested
   # this is to deal with location type and aggregation level (national vs subnational)
-  df <- df %>% dplyr::rename(country_code = .data$geo_country_code)
+  df <- df %>% dplyr::rename(country_code = "geo_country_code")
 
   #Applying country filter after country type
   df <- (df %>%

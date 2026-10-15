@@ -1085,7 +1085,7 @@ runner_lease_status_label <- function(lease) {
     return("active")
   }
   if (isTRUE(lease$holder_dead_locally)) {
-    return("stopped unexpectedly on this machine")
+    return("stopped on this machine")
   }
   if (identical(lease$runner, "search")) {
     return("coordinates collection, sends no activity signal by design: see the search.* rows for its real state")

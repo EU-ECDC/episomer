@@ -253,6 +253,10 @@ get_scala_ping_url <- function() {
   paste(get_scala_api_endpoint(), "ping", sep = "/")
 }
 
+get_scala_version_url <- function() {
+  paste(get_scala_api_endpoint(), "version", sep = "/")
+}
+
 get_scala_recalc_hash_url <- function() {
   paste(get_scala_api_endpoint(), "recalculate-hash", sep = "/")
 } 
@@ -1149,4 +1153,14 @@ commit_posts <- function() {
       100
     )))
   }
+}
+
+# Version of the jar executed by the fs service, or NA when fs is unreachable or too old to
+# expose /version. Compared in the Shiny config page with the version of the installed package.
+get_fs_jar_version <- function() {
+  tryCatch({
+    res <- httr::GET(url = get_scala_version_url(), httr::timeout(2.0))
+    if (res$status_code != 200) return(NA_character_)
+    jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"))$version
+  }, error = function(e) NA_character_)
 }
