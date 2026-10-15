@@ -107,7 +107,9 @@ sm_api_get_token <- function(network) {
 #' menu, check_sm_auth) without the cost of a network round-trip.
 #' @param network char, network the name of the social media
 sm_api_has_credentials <- function(network) {
-  get(sprintf("sm_api_has_credentials_%s", sm_family(network)))(network = network)
+  get(sprintf("sm_api_has_credentials_%s", sm_family(network)))(
+    network = network
+  )
 }
 
 #' Translate a parsed query to the social media query format
@@ -144,7 +146,7 @@ sm_api_update_plan_after_request <- function(plan, results) {
 #' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
 #' @param network char, the name of the social media
 #' @param shiny_input_list list, the shiny input object to extract the information from if not provided the password will be requested interactively
-sm_api_set_auth <- function(network, shiny_input_list=NULL) {
+sm_api_set_auth <- function(network, shiny_input_list = NULL) {
   get(sprintf("sm_api_set_auth_%s", sm_family(network)))(
     shiny_input_list = shiny_input_list,
     network = network

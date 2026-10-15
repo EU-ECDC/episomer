@@ -1,10 +1,12 @@
 # get the Java path using JAVA_HOME if set
 java_path <- function() {
-  if (Sys.getenv("JAVA_HOME") == "") "java" else if (
-    .Platform$OS.type == "windows"
-  )
-    paste("\"", Sys.getenv("JAVA_HOME"), "\\bin\\", "java\"", sep = "") else
+  if (Sys.getenv("JAVA_HOME") == "") {
+    "java"
+  } else if (.Platform$OS.type == "windows") {
+    paste("\"", Sys.getenv("JAVA_HOME"), "\\bin\\", "java\"", sep = "")
+  } else {
     paste("\"", Sys.getenv("JAVA_HOME"), "/bin/", "java\"", sep = "")
+  }
 }
 
 # Setting the blas environment variables depending on chosen configuration and OS
@@ -16,7 +18,7 @@ set_blas_env <- function() {
           "C:/Program Files (x86)/IntelSWTools/compilers_and_libraries/windows/redist/intel64_win/mkl"
         )
     ) {
-      mkl_path = "C:\\Program Files (x86)\\IntelSWTools\\compilers_and_libraries\\windows\\redist\\intel64_win\\mkl"
+      mkl_path <- "C:\\Program Files (x86)\\IntelSWTools\\compilers_and_libraries\\windows\\redist\\intel64_win\\mkl"
       Sys.setenv(PATH = paste(mkl_path, Sys.getenv("PATH"), sep = ";"))
     }
   }
@@ -54,8 +56,12 @@ get_blas_java_opt <- function() {
         )
     ) {
       "-Dcom.github.fommil.netlib.NativeSystemBLAS.natives=mkl_rt.dll"
-    } else ""
-  } else ""
+    } else {
+      ""
+    }
+  } else {
+    ""
+  }
 }
 
 # getting a string for passing languages as parameter for system calls
@@ -109,7 +115,11 @@ spark_job <- function(args) {
       Sys.setenv(
         OPENBLAS_NUM_THREADS = 1,
         HADOOP_HOME = get_winutils_hadoop_home_path(),
-        PATH = paste(file.path(get_winutils_hadoop_home_path(), "bin"), Sys.getenv("PATH"), sep = ";")
+        PATH = paste(
+          file.path(get_winutils_hadoop_home_path(), "bin"),
+          Sys.getenv("PATH"),
+          sep = ";"
+        )
       ) #Default windows environment variables
       ""
     },
@@ -154,9 +164,10 @@ spark_df <- function(args, handler = NULL) {
     sep = ""
   )
   cmd <- paste(
-    if (.Platform$OS.type != "windows")
+    if (.Platform$OS.type != "windows") {
       #Default non windows environment variables
-      "export OPENBLAS_NUM_THREADS=1" else {
+      "export OPENBLAS_NUM_THREADS=1"
+    } else {
       Sys.setenv(
         OPENBLAS_NUM_THREADS = 1,
         HADOOP_HOME = get_winutils_hadoop_home_path()
@@ -220,7 +231,9 @@ spark_df <- function(args, handler = NULL) {
     unlink(tmp_file)
     ret
   }
-  if (.Platform$OS.type == "windows") unlink(t)
+  if (.Platform$OS.type == "windows") {
+    unlink(t)
+  }
   df
 }
 
@@ -259,12 +272,13 @@ spark_df <- function(args, handler = NULL) {
 #' @export
 #' @importFrom utils download.file
 download_dependencies <- function(jars = TRUE, winutils = TRUE) {
-    if(jars)
-        download_sbt_dependencies()
-    
-    if (.Platform$OS.type == "windows" && winutils) {
-        download_winutils()
-    }
+  if (jars) {
+    download_sbt_dependencies()
+  }
+
+  if (.Platform$OS.type == "windows" && winutils) {
+    download_winutils()
+  }
 }
 
 # Download SBT dependencies from maven (scala, spark, lucene, pekko, netlib (BLAS), httpclient) into package folder
@@ -280,7 +294,7 @@ download_sbt_dependencies <- function() {
     l <- nchar(p[[4]])
     substr(p[[5]], l + 2, nchar(p[[5]]))
   })
-  versions <-  gsub("\\.([^\\.]*)$", "", versions)
+  versions <- gsub("\\.([^\\.]*)$", "", versions)
   versions2 <- gsub("-(.*)$", "", versions)
   urls <- paste(
     conf$maven_repo,
@@ -300,7 +314,9 @@ download_sbt_dependencies <- function() {
   )
 
   #Creating destination directory
-  if (!dir.exists(get_jars_dest_path())) dir.create(get_jars_dest_path()) else {
+  if (!dir.exists(get_jars_dest_path())) {
+    dir.create(get_jars_dest_path())
+  } else {
     #Deleting existing files
     existing <- list.files(get_jars_dest_path(), full.names = TRUE)
     tryCatch(
@@ -337,22 +353,35 @@ download_sbt_dependencies <- function() {
   )
 
   # iterating over all files
-  tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
+  tryCatch2 <- function(exp, handler) {
+    tryCatch(exp, error = handler, warning = handler)
+  }
   for (i in 1:length(urls)) {
-    tryCatch2({
+    tryCatch2(
+      {
         # downloading files on first format
         message(paste("downloading", urls[[i]]), "-->", dest_file[[i]])
         download.file(url = urls[[i]], destfile = dest_file[[i]], mode = "wb")
       },
       handler = function(c) {
-	tryCatch2({
+        tryCatch2(
+          {
             # downloading files on second format
-            message(paste("downloading v2(w)", urls2[[i]]), "-->", dest_file[[i]])
-            download.file(url = urls2[[i]], destfile = dest_file[[i]], mode = "wb")
-        },
-        function(e) {
+            message(
+              paste("downloading v2(w)", urls2[[i]]),
+              "-->",
+              dest_file[[i]]
+            )
+            download.file(
+              url = urls2[[i]],
+              destfile = dest_file[[i]],
+              mode = "wb"
+            )
+          },
+          function(e) {
             stop(e)
-        })
+          }
+        )
       }
     )
   }
@@ -361,16 +390,18 @@ download_sbt_dependencies <- function() {
 # Download winutils (necessary for spark on Windows,
 # for more details on winutils please see https://issues.apache.org/jira/browse/HADOOP-13223 and https://issues.apache.org/jira/browse/HADOOP-16816
 download_winutils <- function() {
-  if (!dir.exists(get_winutils_hadoop_home_path()))
+  if (!dir.exists(get_winutils_hadoop_home_path())) {
     dir.create(get_winutils_hadoop_home_path())
-  if (!dir.exists(file.path(get_winutils_hadoop_home_path(), "bin")))
+  }
+  if (!dir.exists(file.path(get_winutils_hadoop_home_path(), "bin"))) {
     dir.create(file.path(get_winutils_hadoop_home_path(), "bin"))
+  }
   # downloading winutils
-  url = conf$winutils_url
-  dest = get_winutils_path()
-  download.file(url = url, destfile = dest, mode = "wb" )
+  url <- conf$winutils_url
+  dest <- get_winutils_path()
+  download.file(url = url, destfile = dest, mode = "wb")
   url <- sub("winutils.exe", "hadoop.dll", url)
-  dest <- sub("winutils.exe", "hadoop.dll", dest) 
+  dest <- sub("winutils.exe", "hadoop.dll", dest)
   # downloading hadoop dll
-  download.file(url = url, destfile = dest, mode = "wb" )
+  download.file(url = url, destfile = dest, mode = "wb")
 }

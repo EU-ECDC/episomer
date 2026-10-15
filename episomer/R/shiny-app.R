@@ -76,7 +76,11 @@ episomer_app <- function(
     # setup_config()'s default fs_remote is http://localhost:8080, which would make this pass read
     # properties.json through the API - the very service whose absence we have to report.
     setup_config(
-      data_dir = if (is.null(data_dir) || is.na(data_dir)) default_data_dir() else data_dir,
+      data_dir = if (is.null(data_dir) || is.na(data_dir)) {
+        default_data_dir()
+      } else {
+        data_dir
+      },
       fs_remote = NULL,
       ignore_keyring = TRUE
     )
@@ -3894,7 +3898,7 @@ episomer_app <- function(
 
 #' @rdname episomer_app
 #' @return The Shiny server object containing the launched application
-#' @details The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations, 
+#' @details The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations,
 #' allow export them to Markdown or PDF.
 #'
 #' All its functionality is described on the episomer vignette.
@@ -3939,7 +3943,11 @@ admin_app <- function(
 # TRUE when the embedded database answers its /ping endpoint (a separate function so tests can mock it)
 fs_answers_ping <- function(fs_remote) {
   tryCatch(
-    httr::GET(url = paste(fs_remote, "ping", sep = "/"), httr::timeout(1.0))$status_code == 200,
+    httr::GET(
+      url = paste(fs_remote, "ping", sep = "/"),
+      httr::timeout(1.0)
+    )$status_code ==
+      200,
     error = function(e) FALSE,
     warning = function(w) FALSE
   )

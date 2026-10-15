@@ -30,7 +30,13 @@ line_chart_from_filters <- function(
   )
 }
 # Defining line chart from shiny app filters
-map_chart_from_filters <- function(sms, topics, countries, period, with_quotes) {
+map_chart_from_filters <- function(
+  sms,
+  topics,
+  countries,
+  period,
+  with_quotes
+) {
   create_map(
     sms = sms,
     topic = topics,
@@ -52,8 +58,11 @@ top_chart_from_filters <- function(
   with_quotes,
   top
 ) {
-  fcountries = if (length(fcountries) == 0 || 1 %in% fcountries) c(1) else
+  fcountries <- if (length(fcountries) == 0 || 1 %in% fcountries) {
+    c(1)
+  } else {
     as.integer(fcountries)
+  }
   regions <- get_country_items()
   countries <- Reduce(
     function(l1, l2) {

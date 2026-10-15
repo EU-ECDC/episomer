@@ -1,5 +1,3 @@
-
-
 #' @title Get the \code{\link{detect_loop}} task status
 #' @description Reads the status of the \code{\link{detect_loop}} tasks and update it with changes requested by the Shiny app
 #' @param statuses Character vector for limiting the status of the returned tasks, default: list()
@@ -51,14 +49,26 @@ get_tasks <- function(statuses = list()) {
     )
     # casting date time values (they are interpreted as character by jsonlite)
     for (i in 1:length(t)) {
-      t[[i]]$scheduled_for <- if (inherits(t[[i]]$scheduled_for, "numeric"))
-        as.POSIXlt(t[[i]]$scheduled_for / 1000, origin = "1970-01-01") else NA
-      t[[i]]$started_on <- if (inherits(t[[i]]$started_on, "numeric"))
-        as.POSIXlt(t[[i]]$started_on / 1000, origin = "1970-01-01") else NA
-      t[[i]]$end_on <- if (inherits(t[[i]]$end_on, "numeric"))
-        as.POSIXlt(t[[i]]$end_on / 1000, origin = "1970-01-01") else NA
-      t[[i]]$status <- if (inherits(t[[i]]$status, "character"))
-        t[[i]]$status else NA
+      t[[i]]$scheduled_for <- if (inherits(t[[i]]$scheduled_for, "numeric")) {
+        as.POSIXlt(t[[i]]$scheduled_for / 1000, origin = "1970-01-01")
+      } else {
+        NA
+      }
+      t[[i]]$started_on <- if (inherits(t[[i]]$started_on, "numeric")) {
+        as.POSIXlt(t[[i]]$started_on / 1000, origin = "1970-01-01")
+      } else {
+        NA
+      }
+      t[[i]]$end_on <- if (inherits(t[[i]]$end_on, "numeric")) {
+        as.POSIXlt(t[[i]]$end_on / 1000, origin = "1970-01-01")
+      } else {
+        NA
+      }
+      t[[i]]$status <- if (inherits(t[[i]]$status, "character")) {
+        t[[i]]$status
+      } else {
+        NA
+      }
     }
     t
   } else {
@@ -78,7 +88,7 @@ get_tasks <- function(statuses = list()) {
     )
   } else if (exists("alerts", where = tasks) && tasks$alerts$order != 1) {
     #dealing with bad order case after migration
-    tasks$alerts$order = 1
+    tasks$alerts$order <- 1
   }
   tasks
 }
@@ -117,8 +127,11 @@ plan_tasks <- function(statuses = list()) {
           #if next slot is in future set it. If it is in past, set now
           tasks[[i]]$scheduled_for <- if (
             length(next_slots) > 0 && next_slots[[1]] > now
-          )
-            next_slots[[1]] else now + (i - 1) / 1000
+          ) {
+            next_slots[[1]]
+          } else {
+            now + (i - 1) / 1000
+          }
         }
         change <- TRUE
         break # only first task is set to scheduled
@@ -126,11 +139,16 @@ plan_tasks <- function(statuses = list()) {
     }
   }
   # saving changes done on tasks
-  if (change) save_tasks(tasks)
+  if (change) {
+    save_tasks(tasks)
+  }
 
   # filtering the returned tasks by requested status
-  if (length(statuses) == 0) tasks else
+  if (length(statuses) == 0) {
+    tasks
+  } else {
     tasks[sapply(tasks, function(t) t$status %in% statuses)]
+  }
 }
 
 # get detect loop day slots based on start hour
@@ -190,8 +208,11 @@ save_tasks <- function(tasks) {
 #' @export
 detect_loop <- function(data_dir = NA) {
   # ensuring that config is set or using the one provided as a parameter
-  if (is.na(data_dir)) setup_config_if_not_already() else
+  if (is.na(data_dir)) {
+    setup_config_if_not_already()
+  } else {
     setup_config(data_dir = data_dir)
+  }
 
   # registering the detect runner (PID file + lease), waiting for the lease if another instance
   # still holds it, or stopping if a process of this very machine is already the detect runner.
@@ -229,32 +250,40 @@ detect_loop <- function(data_dir = NA) {
       if (
         length(tasks[sapply(
           tasks,
-          function(t)
+          function(t) {
             !is.na(t$status) &&
               (t$status %in%
                 c("failed", "running", "aborted") ||
                 (t$status %in% c("scheduled") && t$scheduled_for <= Sys.time()))
+          }
         )]) >
           0
       ) {
         # getting the position of the task to execute (first in one of the active status)
         i_next <- order(sapply(
           tasks,
-          function(t)
+          function(t) {
             if (
               !is.na(t$status) &&
                 t$status %in% c("aborted", "scheduled", "failed", "running")
-            )
-              t$order else 999
+            ) {
+              t$order
+            } else {
+              999
+            }
+          }
         ))[[1]]
         # proceeding if task is not already aborted (otherwise keep looping)
         if (tasks[[i_next]]$status != "aborted") {
           # increasing number of failures if failed of running
           if (tasks[[i_next]]$status %in% c("failed", "running")) {
-            tasks[[i_next]]$failures = (if (
+            tasks[[i_next]]$failures <- (if (
               !exists("failures", where = tasks[[i_next]])
-            )
-              1 else tasks[[i_next]]$failures + 1)
+            ) {
+              1
+            } else {
+              tasks[[i_next]]$failures + 1
+            })
           }
           # setting to aborted if the max number of retries has been reached
           if (
@@ -262,8 +291,8 @@ detect_loop <- function(data_dir = NA) {
               c("failed", "running") &&
               tasks[[i_next]]$failures > 1
           ) {
-            tasks[[i_next]]$status = "aborted"
-            tasks[[i_next]]$message = paste(
+            tasks[[i_next]]$status <- "aborted"
+            tasks[[i_next]]$message <- paste(
               "Max number of retries reached",
               tasks[[i_next]]$message,
               sep = "\n"
@@ -288,7 +317,9 @@ detect_loop <- function(data_dir = NA) {
               tasks <- generate_alerts(tasks)
             }
             # resetting failures to zero if successfully executed
-            if (tasks[[i_next]]$status == "success") tasks[[i_next]]$failures = 0
+            if (tasks[[i_next]]$status == "success") {
+              tasks[[i_next]]$failures <- 0
+            }
 
             # saving tasks
             # Guard point again: the task above can run for a very long time, so holding the lease
@@ -301,22 +332,32 @@ detect_loop <- function(data_dir = NA) {
         last_sleeping_message + (conf$schedule_span * 60) < Sys.time() &&
           length(tasks[sapply(
             tasks,
-            function(t)
+            function(t) {
               !is.na(t$status) &&
                 (t$status %in% c("scheduled") && t$scheduled_for >= Sys.time())
+            }
           )]) >
             0
       ) {
         #nothing to do (and not aborted tasks and 'nothing to do' message has not yet been shown for current detect slot
         i_next <- order(sapply(
           tasks,
-          function(t)
-            if (!is.na(t$status) && t$status %in% c("scheduled")) t$order else 999
+          function(t) {
+            if (!is.na(t$status) && t$status %in% c("scheduled")) {
+              t$order
+            } else {
+              999
+            }
+          }
         ))[[1]]
         message(paste(
           Sys.time(),
           ": Nothing else todo. Going to sleep each 5 seconds until ",
-          format(tasks[[i_next]]$scheduled_for, tz = Sys.timezone(), usetz = TRUE)
+          format(
+            tasks[[i_next]]$scheduled_for,
+            tz = Sys.timezone(),
+            usetz = TRUE
+          )
         ))
         last_sleeping_message <- Sys.time()
       }
@@ -392,12 +433,14 @@ update_alerts_task <- function(
   start = FALSE,
   end = FALSE
 ) {
-  if (start) tasks$alerts$started_on = Sys.time()
-  if (end) tasks$alerts$end_on = Sys.time()
-  tasks$alerts$status = status
-  tasks$alerts$message = message
+  if (start) {
+    tasks$alerts$started_on <- Sys.time()
+  }
+  if (end) {
+    tasks$alerts$end_on <- Sys.time()
+  }
+  tasks$alerts$status <- status
+  tasks$alerts$message <- message
   save_tasks(tasks)
   return(tasks)
 }
-
-

@@ -61,64 +61,71 @@ search_loop <- function(
     on.exit(unregister_runner(), add = TRUE)
   }
 
-  if(log_to_file) {
-      jobs_dir <- file.path(conf$data_dir, "jobs")
-      if (!file.exists(jobs_dir)) {
-        dir.create(jobs_dir, showWarnings = FALSE)
-      }
+  if (log_to_file) {
+    jobs_dir <- file.path(conf$data_dir, "jobs")
+    if (!file.exists(jobs_dir)) {
+      dir.create(jobs_dir, showWarnings = FALSE)
+    }
   }
   sms <- active_social_media()
   cores <- as.numeric(length(sms))
-  cl <- parallel::makePSOCKcluster(cores, outfile="")
+  cl <- parallel::makePSOCKcluster(cores, outfile = "")
   on.exit(parallel::stopCluster(cl), add = TRUE)
   data_dir <- conf$data_dir
-  parallel::clusterExport(cl, list("log_to_file", "data_dir", "sandboxed"), envir=rlang::current_env())
-  
+  parallel::clusterExport(
+    cl,
+    list("log_to_file", "data_dir", "sandboxed"),
+    envir = rlang::current_env()
+  )
+
   # running search loops
   # parLapply() only returns when every worker has returned, which normally never happens: the
   # workers run infinite loops. It does happen when a worker gives its network up because another
   # instance took its lease - search_loop_worker() then returns "lease-lost" instead of raising -
   # so the outcomes are collected and explained below rather than thrown away.
   outcomes <- parallel::parLapply(cl, sms, function(sm) {
-      # redirecting output to the sm file
-      if(log_to_file) {
-          jobs_dir <- file.path(data_dir, "jobs")
-          outcon <- file(file.path(jobs_dir, sprintf("search.%s.log", sm)), open = "a")
-          sink(outcon)
-          sink(outcon, type = "message")
-          # Undoing the redirection is not cosmetic: a worker leaving without it hands its PSOCK
-          # node back to the cluster with both sinks still pointing at a network log file, so
-          # anything the node is asked to do next writes there instead of where it should.
-          on.exit(
-            {
-              sink(NULL, type = "message")
-              sink(NULL)
-              close(outcon)
-            },
-            add = TRUE
-          )
-      }
-      episomer::setup_config(data_dir)
-      m <- paste("Running search agent for ",sm, Sys.time())
-      message(m)
-      # A worker that raises has its error carried back to this parent process by `parallel`, which
-      # only hands it over once *every* node has returned - and the other networks are still
-      # looping, so that is never. The error text was simply lost, and the log of the dead network
-      # stopped mid-collection with nothing to say why. Catching it here writes it down while the
-      # sinks above still point at that network's log, and turns it into an outcome
-      # report_search_loop_outcomes() can name.
-      tryCatch(
-        episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests),
-        error = function(e) {
-          message(sprintf(
-            "%s [ERROR]: the search worker for %s stopped: %s",
-            Sys.time(),
-            sm,
-            conditionMessage(e)
-          ))
-          paste("error:", conditionMessage(e))
-        }
+    # redirecting output to the sm file
+    if (log_to_file) {
+      jobs_dir <- file.path(data_dir, "jobs")
+      outcon <- file(
+        file.path(jobs_dir, sprintf("search.%s.log", sm)),
+        open = "a"
       )
+      sink(outcon)
+      sink(outcon, type = "message")
+      # Undoing the redirection is not cosmetic: a worker leaving without it hands its PSOCK
+      # node back to the cluster with both sinks still pointing at a network log file, so
+      # anything the node is asked to do next writes there instead of where it should.
+      on.exit(
+        {
+          sink(NULL, type = "message")
+          sink(NULL)
+          close(outcon)
+        },
+        add = TRUE
+      )
+    }
+    episomer::setup_config(data_dir)
+    m <- paste("Running search agent for ", sm, Sys.time())
+    message(m)
+    # A worker that raises has its error carried back to this parent process by `parallel`, which
+    # only hands it over once *every* node has returned - and the other networks are still
+    # looping, so that is never. The error text was simply lost, and the log of the dead network
+    # stopped mid-collection with nothing to say why. Catching it here writes it down while the
+    # sinks above still point at that network's log, and turns it into an outcome
+    # report_search_loop_outcomes() can name.
+    tryCatch(
+      episomer::search_loop_worker(sm, data_dir, sandboxed, max_requests),
+      error = function(e) {
+        message(sprintf(
+          "%s [ERROR]: the search worker for %s stopped: %s",
+          Sys.time(),
+          sm,
+          conditionMessage(e)
+        ))
+        paste("error:", conditionMessage(e))
+      }
+    )
   })
   report_search_loop_outcomes(sms, outcomes)
 }
@@ -160,7 +167,11 @@ report_search_loop_outcomes <- function(networks, outcomes) {
     "All search loop proccesses ended, which is unexpected -",
     paste(
       networks,
-      vapply(outcomes, function(o) paste(format(o), collapse = " "), character(1)),
+      vapply(
+        outcomes,
+        function(o) paste(format(o), collapse = " "),
+        character(1)
+      ),
       sep = ": ",
       collapse = ", "
     )
@@ -287,7 +298,9 @@ search_loop_worker <- function(
             msg("Dismissing history requested")
 
             for (i in my_topics) {
-              conf$topics[[i]]$plan <- finish_plans(plans = conf$topics[[i]]$plan)
+              conf$topics[[i]]$plan <- finish_plans(
+                plans = conf$topics[[i]]$plan
+              )
             }
             conf$dismiss_past_done <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
           }
@@ -346,9 +359,10 @@ search_loop_worker <- function(
       #getting the min request on current non ended plans
       for (i in my_topics) {
         for (j in seq_along(conf$topics[[i]]$plan)) {
-          p = conf$topics[[i]]$plan[[j]]
-          if (is.null(p$end_on) && p$requests < min_requests)
+          p <- conf$topics[[i]]$plan[[j]]
+          if (is.null(p$end_on) && p$requests < min_requests) {
             min_requests <- p$requests
+          }
         }
       }
 
@@ -364,7 +378,11 @@ search_loop_worker <- function(
 
       #msg(paste("iterating in topics", length(conf$topics), min_requests))
       #performing search only for plans with a minimum number of requests (round robin)
-      message(sprintf("--------------- SEARCH LOOP (%s topics on %s)----------------------------------------------------", length(my_topics), network))
+      message(sprintf(
+        "--------------- SEARCH LOOP (%s topics on %s)----------------------------------------------------",
+        length(my_topics),
+        network
+      ))
       for (i in my_topics) {
         for (j in seq_along(conf$topics[[i]]$plan)) {
           if (max_requests == 0 || requests_done <= max_requests) {
@@ -463,7 +481,10 @@ search_loop_worker <- function(
       #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds
       if (difftime(Sys.time(), last_save, units = "secs") > 10) {
         last_save <- Sys.time()
-        setup_config(data_dir = conf$data_dir, save_topics_first = list(network))
+        setup_config(
+          data_dir = conf$data_dir,
+          save_topics_first = list(network)
+        )
         #msg("config saved and refreshed")
       }
 
@@ -585,17 +606,16 @@ search_topic <- function(
   topic,
   sandboxed = FALSE
 ) {
-
   info <- sm_plan_next_search_info(plan)
   msg(paste(
     "searching for topic",
     topic,
     info
   ))
-  
+
   token <- sm_api_get_token(plan$network)
   # doing the post search and storing the response object to obtain details on resp
-  
+
   results <- sm_api_search(
     query = query,
     token = token,
@@ -651,7 +671,7 @@ search_topic <- function(
             ))
             stop()
           }
-          done = TRUE
+          done <- TRUE
         },
         error = function(e) {
           msg(paste("Error found while sending posts", e))

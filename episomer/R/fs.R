@@ -42,11 +42,13 @@ get_scala_api_endpoint <- function() {
   if (epi_host != "") {
     return(prefer_loopback_ipv4(gsub("/$", "", epi_host)))
   }
-  prefer_loopback_ipv4(if (fs_url_resolves_here()) {
-    paste(conf$fs_url, ":", conf$fs_port, sep = "")
-  } else {
-    paste("http://localhost", ":", conf$fs_port, sep = "")
-  })
+  prefer_loopback_ipv4(
+    if (fs_url_resolves_here()) {
+      paste(conf$fs_url, ":", conf$fs_port, sep = "")
+    } else {
+      paste("http://localhost", ":", conf$fs_port, sep = "")
+    }
+  )
 }
 
 # Where the fs API answers *for this process only*, once this process has started a database of its
@@ -101,7 +103,9 @@ fs_endpoint_override <- function() {
 # "http://localhost" and "http://localhost/" are all accepted from a caller.
 fs_bind_host_url <- function(bind_host) {
   host <- sub("/+$", "", trimws(bind_host))
-  if (!grepl("^https?://", host)) host <- paste("http://", host, sep = "")
+  if (!grepl("^https?://", host)) {
+    host <- paste("http://", host, sep = "")
+  }
   host
 }
 
@@ -164,7 +168,9 @@ fs_url_resolves_here <- function() {
     return(conf$fs_url_resolves)
   }
   host <- urltools::url_parse(conf$fs_url)$domain
-  if (is.na(host) || host == "") host <- conf$fs_url
+  if (is.na(host) || host == "") {
+    host <- conf$fs_url
+  }
   resolves <- !is.null(curl::nslookup(host, error = FALSE))
   conf$fs_url_resolved_for <- conf$fs_url
   conf$fs_url_resolves <- resolves
@@ -259,14 +265,14 @@ get_scala_version_url <- function() {
 
 get_scala_recalc_hash_url <- function() {
   paste(get_scala_api_endpoint(), "recalculate-hash", sep = "/")
-} 
+}
 
 get_scala_file_url <- function(...) {
-    paste(get_scala_api_endpoint(), "file", ... , sep = "/")
+  paste(get_scala_api_endpoint(), "file", ..., sep = "/")
 }
 
 get_scala_secrets_url <- function() {
-    paste(get_scala_api_endpoint(), "secret", sep = "/")
+  paste(get_scala_api_endpoint(), "secret", sep = "/")
 }
 
 get_scala_stopwords_url <- function(code) {
@@ -274,65 +280,107 @@ get_scala_stopwords_url <- function(code) {
 }
 
 epifile.exists <- function(path) {
-    # sapply() over an empty vector gives an empty list, and a list is not a valid subscript, so
-    # callers filtering a vector by this answer (get_lang_traing_need()) need logical(0) here
-    if(length(path) == 0)
-        return(logical(0))
-    sapply(path, function(p) {
-      if(!is_remote(p)) 
-        file.exists(p)
-      else
-        jsonlite::read_json(sprintf("%s?action=exists", p))
-    })
+  # sapply() over an empty vector gives an empty list, and a list is not a valid subscript, so
+  # callers filtering a vector by this answer (get_lang_traing_need()) need logical(0) here
+  if (length(path) == 0) {
+    return(logical(0))
+  }
+  sapply(path, function(p) {
+    if (!is_remote(p)) {
+      file.exists(p)
+    } else {
+      jsonlite::read_json(sprintf("%s?action=exists", p))
+    }
+  })
 }
 
 epidir.create <- function(path, recursive = FALSE, showWarnings = FALSE) {
-    if(!is_remote(path)) 
-        dir.create(path, recursive = recursive, showWarnings = showWarnings)
-    else
-         httr2::request(sprintf("%s?action=createDir&createDirs=%s&ignoreIfExists=true", path, tolower(recursive))) %>% 
-            httr2::req_method("POST") %>%
-            httr2::req_perform() 
+  if (!is_remote(path)) {
+    dir.create(path, recursive = recursive, showWarnings = showWarnings)
+  } else {
+    httr2::request(sprintf(
+      "%s?action=createDir&createDirs=%s&ignoreIfExists=true",
+      path,
+      tolower(recursive)
+    )) %>%
+      httr2::req_method("POST") %>%
+      httr2::req_perform()
+  }
 }
 epimd5sum <- function(path, recursive = FALSE) {
-    sapply(path, function(p) {
-      if(!is_remote(p)) 
-        unname(md5sum(p))
-      else
-        jsonlite::read_json(sprintf("%s?action=md5sum", p))
-    })
+  sapply(path, function(p) {
+    if (!is_remote(p)) {
+      unname(md5sum(p))
+    } else {
+      jsonlite::read_json(sprintf("%s?action=md5sum", p))
+    }
+  })
 }
 
-epiread_excel <- function(path, sheet = NULL, range = NULL, col_names = TRUE,
-    col_types = NULL, na = "", trim_ws = TRUE, skip = 0, n_max = Inf,
-    guess_max = min(1000, n_max), .name_repair = "unique") {
-    if(!is_remote(path)) 
-        readxl::read_excel(path = path, sheet = sheet, range = range, col_names = col_names,
-        col_types = col_types, na = na, trim_ws = trim_ws, skip = skip,
-        n_max = n_max, guess_max = guess_max, .name_repair = .name_repair)
-    else {
-        tf <- tempfile(pattern="episomer")
-        download.file(path, tf, mode="wb")
-        ret <- readxl::read_excel(path = tf, sheet = sheet, range = range, col_names = col_names,
-        col_types = col_types, na = na, trim_ws = trim_ws, skip = skip,
-        n_max = n_max, guess_max = guess_max, .name_repair = .name_repair)
-        file.remove(tf)
-        ret
-    }
+epiread_excel <- function(
+  path,
+  sheet = NULL,
+  range = NULL,
+  col_names = TRUE,
+  col_types = NULL,
+  na = "",
+  trim_ws = TRUE,
+  skip = 0,
+  n_max = Inf,
+  guess_max = min(1000, n_max),
+  .name_repair = "unique"
+) {
+  if (!is_remote(path)) {
+    readxl::read_excel(
+      path = path,
+      sheet = sheet,
+      range = range,
+      col_names = col_names,
+      col_types = col_types,
+      na = na,
+      trim_ws = trim_ws,
+      skip = skip,
+      n_max = n_max,
+      guess_max = guess_max,
+      .name_repair = .name_repair
+    )
+  } else {
+    tf <- tempfile(pattern = "episomer")
+    download.file(path, tf, mode = "wb")
+    ret <- readxl::read_excel(
+      path = tf,
+      sheet = sheet,
+      range = range,
+      col_names = col_names,
+      col_types = col_types,
+      na = na,
+      trim_ws = trim_ws,
+      skip = skip,
+      n_max = n_max,
+      guess_max = guess_max,
+      .name_repair = .name_repair
+    )
+    file.remove(tf)
+    ret
+  }
 }
 
 epifile.upload <- function(localfile, dest, append = FALSE) {
-    httr2::request(sprintf("%s?append=%s",dest, tolower(append))) %>% httr2::req_body_multipart(data = curl::form_file(localfile)) %>% httr2::req_perform()
+  httr2::request(sprintf("%s?append=%s", dest, tolower(append))) %>%
+    httr2::req_body_multipart(data = curl::form_file(localfile)) %>%
+    httr2::req_perform()
 }
 
 epifile.touch <- function(path) {
-  if(!is_remote(path)) {
-    if(!file.exists(path)) {
+  if (!is_remote(path)) {
+    if (!file.exists(path)) {
       write("", file = path, append = FALSE)
     }
     Sys.setFileTime(path, Sys.time())
   } else {
-    httr2::request(sprintf("%s?action=touch",path)) %>% httr2::req_method("POST") %>% httr2::req_perform()
+    httr2::request(sprintf("%s?action=touch", path)) %>%
+      httr2::req_method("POST") %>%
+      httr2::req_perform()
   }
 }
 # Moves a file, within the local disk or within the fs machine.
@@ -342,63 +390,92 @@ epifile.touch <- function(path) {
 # meaning of "this runner is free" - see inst/schema/multi_services_plan.md section 3.4.
 # A remote to remote move is one POST, so nothing travels through this process.
 epifile.move <- function(from, to) {
-    if(!is_remote(from) && !is_remote(to))
-        file.rename(from, to)
-    else if (is_remote(from) && is_remote(to))
-        httr2::request(sprintf("%s?action=move", from)) %>%
-            httr2::req_method("POST") %>%
-            # the API resolves the destination against its own epiHome and refuses anything
-            # absolute or containing "..", hence the relative form rather than the full URL
-            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
-            httr2::req_perform()
-    else
-        # a move with one foot on each machine would be a download or an upload followed by a
-        # delete, and the fs API cannot delete: no caller needs it, so it is refused loudly
-        stop("epifile.move only supports moving within the same file system (both local or both remote)")
+  if (!is_remote(from) && !is_remote(to)) {
+    file.rename(from, to)
+  } else if (is_remote(from) && is_remote(to)) {
+    httr2::request(sprintf("%s?action=move", from)) %>%
+      httr2::req_method("POST") %>%
+      # the API resolves the destination against its own epiHome and refuses anything
+      # absolute or containing "..", hence the relative form rather than the full URL
+      httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+      httr2::req_perform()
+  } else {
+    # a move with one foot on each machine would be a download or an upload followed by a
+    # delete, and the fs API cannot delete: no caller needs it, so it is refused loudly
+    stop(
+      "epifile.move only supports moving within the same file system (both local or both remote)"
+    )
+  }
 }
 
 epifile.copy <- function(from, to, overwrite = TRUE) {
-    if(!is_remote(from) && !is_remote(to))
-        file.copy(from, to, overwrite = overwrite)
-    else if (is_remote(from) && is_remote(to))
-        # same destination format as epifile.move above: the API expects a path relative to its
-        # own epiHome, and used to be given the full URL of `to`, which it resolved to nonsense.
-        # This branch has no call site today (the Shiny download handlers copy to a local
-        # destination, alert.R and geo-tagging.R upload a local temp file), so the fix went
-        # untested against a real server until a caller shows up.
-        httr2::request(sprintf("%s?action=copy", from)) %>%
-            httr2::req_method("POST") %>%
-            httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
-            httr2::req_perform()
-    else if (!is_remote(to)) {
-        if(!file.exists(dirname(to)))
-            dir.create(dirname(to), recursive = TRUE)
-        # a remote file can be mid-write (e.g. fs_loop appending to fs.log) when this reads it, so
-        # the reported Content-Length and the actual bytes streamed can disagree; retry a few times
-        # rather than failing the whole caller (e.g. create_snapshot) on one flaky file
-        max_attempts <- 3
-        for (attempt in seq_len(max_attempts)) {
-            result <- tryCatch(download.file(from, to, mode = "wb", quiet = TRUE), error = function(e) e)
-            if (!inherits(result, "error")) break
-            if (attempt == max_attempts) stop(result)
-            Sys.sleep(1)
-        }
+  if (!is_remote(from) && !is_remote(to)) {
+    file.copy(from, to, overwrite = overwrite)
+  } else if (is_remote(from) && is_remote(to)) {
+    # same destination format as epifile.move above: the API expects a path relative to its
+    # own epiHome, and used to be given the full URL of `to`, which it resolved to nonsense.
+    # This branch has no call site today (the Shiny download handlers copy to a local
+    # destination, alert.R and geo-tagging.R upload a local temp file), so the fix went
+    # untested against a real server until a caller shows up.
+    httr2::request(sprintf("%s?action=copy", from)) %>%
+      httr2::req_method("POST") %>%
+      httr2::req_body_json(data = to_remote_dest(to), auto_unbox = TRUE) %>%
+      httr2::req_perform()
+  } else if (!is_remote(to)) {
+    if (!file.exists(dirname(to))) {
+      dir.create(dirname(to), recursive = TRUE)
     }
-    else #!is_remote(from)
-        epifile.upload(from, to)
+    # a remote file can be mid-write (e.g. fs_loop appending to fs.log) when this reads it, so
+    # the reported Content-Length and the actual bytes streamed can disagree; retry a few times
+    # rather than failing the whole caller (e.g. create_snapshot) on one flaky file
+    max_attempts <- 3
+    for (attempt in seq_len(max_attempts)) {
+      result <- tryCatch(
+        download.file(from, to, mode = "wb", quiet = TRUE),
+        error = function(e) e
+      )
+      if (!inherits(result, "error")) {
+        break
+      }
+      if (attempt == max_attempts) {
+        stop(result)
+      }
+      Sys.sleep(1)
+    }
+  } else {
+    #!is_remote(from)
+    epifile.upload(from, to)
+  }
 }
 
-epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = FALSE) {
-    if(!is_remote(path))
-        list.files(path, pattern = pattern, full.names = full.names, recursive = recursive)
-    else {
-        files <- unlist(jsonlite::read_json(sprintf("%s?action=list&fullname=%s&recursive=%s", path, tolower(full.names), tolower(recursive))))
-        if(full.names)
-          files <- to_fs_remote_url(files)
-        if(!is.null(pattern))
-             files <- files[grepl(pattern, files)]
-        files
+epilist.files <- function(
+  path,
+  pattern = NULL,
+  full.names = FALSE,
+  recursive = FALSE
+) {
+  if (!is_remote(path)) {
+    list.files(
+      path,
+      pattern = pattern,
+      full.names = full.names,
+      recursive = recursive
+    )
+  } else {
+    files <- unlist(jsonlite::read_json(sprintf(
+      "%s?action=list&fullname=%s&recursive=%s",
+      path,
+      tolower(full.names),
+      tolower(recursive)
+    )))
+    if (full.names) {
+      files <- to_fs_remote_url(files)
     }
+    if (!is.null(pattern)) {
+      files <- files[grepl(pattern, files)]
+    }
+    files
+  }
 }
 # Last modification time of one or several paths, as a POSIXct vector (NA for a missing path).
 # The runner leases rely on this function to decide whether a runner is still alive: the mtime is
@@ -418,40 +495,52 @@ epilist.files <- function(path, pattern = NULL, full.names = FALSE, recursive = 
 # Said out loud in the log, so that a genuinely unreachable database is still diagnosable: it is
 # health_check() and is_fs_running() that are supposed to notice that, not a service dying.
 epifile.mtime <- function(path) {
-    do.call(c, lapply(path, function(p) {
-      if(!is_remote(p))
+  do.call(
+    c,
+    lapply(path, function(p) {
+      if (!is_remote(p)) {
         file.mtime(p)
-      else {
-        tryCatch({
-          # `p`, not `path`: inside the lapply the existence test must be about the path being
-          # visited, otherwise a vector of paths gets the answer of its first element only.
-          if(!epifile.exists(p))
+      } else {
+        tryCatch(
+          {
+            # `p`, not `path`: inside the lapply the existence test must be about the path being
+            # visited, otherwise a vector of paths gets the answer of its first element only.
+            if (!epifile.exists(p)) {
               # a typed NA, so that c()-ing the results keeps a POSIXct vector. A bare NA is
               # logical and would silently turn the whole vector into numbers.
               as.POSIXct(NA)
-          else
-              lubridate::as_datetime(jsonlite::read_json(sprintf("%s?action=mtime", p)))
-        },
-        error = function(e) {
-          message(sprintf(
-            "Could not get the modification time of %s: %s. Reporting it as unknown.",
-            p,
-            conditionMessage(e)
-          ))
-          as.POSIXct(NA)
-        })
+            } else {
+              lubridate::as_datetime(jsonlite::read_json(sprintf(
+                "%s?action=mtime",
+                p
+              )))
+            }
+          },
+          error = function(e) {
+            message(sprintf(
+              "Could not get the modification time of %s: %s. Reporting it as unknown.",
+              p,
+              conditionMessage(e)
+            ))
+            as.POSIXct(NA)
+          }
+        )
       }
-    }))
+    })
+  )
 }
 
 epilist.dirs <- function(path, full.names = TRUE) {
-    if(!is_remote(path))
-        list.dirs(path, recursive = FALSE, full.names = full.names)
-    else
-        {
-          dirs <- unlist(jsonlite::read_json(sprintf("%s?action=listdir&fullname=%s", path, tolower(full.names))))
-          if(full.names) to_fs_remote_url(dirs) else dirs
-        }
+  if (!is_remote(path)) {
+    list.dirs(path, recursive = FALSE, full.names = full.names)
+  } else {
+    dirs <- unlist(jsonlite::read_json(sprintf(
+      "%s?action=listdir&fullname=%s",
+      path,
+      tolower(full.names)
+    )))
+    if (full.names) to_fs_remote_url(dirs) else dirs
+  }
 }
 
 # Wrapper for writeLines() accepting a destination on a remote fs.
@@ -466,7 +555,7 @@ epilist.dirs <- function(path, full.names = TRUE) {
 # by a single upload when the fs is remote, exactly as write_json_atomic() below.
 epiwriteLines <- function(text, path, encoding = "UTF-8") {
   file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)
-  if(!is_remote(path)) {
+  if (!is_remote(path)) {
     dir_name <- substring(path, 1, nchar(path) - nchar(file_name) - 1)
     swap_file <- tempfile(
       pattern = paste("~", file_name, sep = ""),
@@ -480,9 +569,9 @@ epiwriteLines <- function(text, path, encoding = "UTF-8") {
   con <- file(swap_file, encoding = encoding)
   writeLines(text, con)
   close(con)
-  if(!is_remote(path))
+  if (!is_remote(path)) {
     file.rename(swap_file, path)
-  else {
+  } else {
     epifile.upload(swap_file, path)
     file.remove(swap_file)
   }
@@ -492,7 +581,7 @@ epiwriteLines <- function(text, path, encoding = "UTF-8") {
 # Wrapper for jsonlite write_json ensuring atomic file write it replaces always the existing file. It ignores appends modifiers
 write_json_atomic <- function(x, path, ...) {
   file_name <- tail(strsplit(path, "/|\\\\")[[1]], 1)
-  if(!is_remote(path)) {
+  if (!is_remote(path)) {
     dir_name <- substring(path, 1, nchar(path) - nchar(file_name) - 1)
     swap_file <- tempfile(
       pattern = paste("~", file_name, sep = ""),
@@ -504,11 +593,11 @@ write_json_atomic <- function(x, path, ...) {
     )
   }
   jsonlite::write_json(x = x, path = swap_file, ...)
-  if(!is_remote(path)) 
+  if (!is_remote(path)) {
     file.rename(swap_file, path)
-  else {
+  } else {
     epifile.upload(swap_file, path)
-    file.remove(swap_file) 
+    file.remove(swap_file)
   }
 }
 
@@ -517,7 +606,7 @@ fs_remote <- function() {
 }
 
 copy_secret_scripts <- function() {
-  for(script_name in c("get_secret.R", "set_secret.R")) {
+  for (script_name in c("get_secret.R", "set_secret.R")) {
     script_base <- system.file(
       "extdata",
       script_name,
@@ -543,7 +632,7 @@ copy_secret_scripts <- function() {
 #' @param bind_port Numeric, the port the database has to bind instead of \code{conf$fs_port},
 #'   default: NULL
 #' @return nothing
-#' @details Launches the episomer embedded database which is accessed via a REST API located on localhost at port 8080. You can test that the database is running by accesssing the local URL and adding "/ping". 
+#' @details Launches the episomer embedded database which is accessed via a REST API located on localhost at port 8080. You can test that the database is running by accesssing the local URL and adding "/ping".
 #' the REST API provide episomer a way to send and retrieve data related with posts and time series and to trigger geolocation or aggregation
 #' The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
 #' \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.
@@ -566,8 +655,11 @@ copy_secret_scripts <- function() {
 #' @importFrom rlang current_env
 #' @export
 fs_loop <- function(data_dir = NA, bind_host = NULL, bind_port = NULL) {
-  if (is.na(data_dir)) setup_config_if_not_already() else
+  if (is.na(data_dir)) {
+    setup_config_if_not_already()
+  } else {
     setup_config(data_dir = data_dir, fs_remote = NULL)
+  }
   data_dir <- conf$data_dir
   # Told by the caller where to bind, so the service is not on the configured address and nothing
   # in this process may look for it there either - the fs monitor below and the health check it
@@ -606,7 +698,9 @@ fs_loop <- function(data_dir = NA, bind_host = NULL, bind_port = NULL) {
   # about the address it binds arrives as a stack trace. Skipped when the caller named the
   # interface itself: conf$fs_url is then not the address being bound, so its resolvability is not
   # the question.
-  if (is.null(bind_host)) warn_if_fs_url_not_bindable()
+  if (is.null(bind_host)) {
+    warn_if_fs_url_not_bindable()
+  }
 
   # Infinite loop calling the fs runner
   while (TRUE) {
@@ -627,7 +721,9 @@ fs_loop <- function(data_dir = NA, bind_host = NULL, bind_port = NULL) {
               # API.run(), which binds them instead of conf.fsBindHost / conf.fsPort
               # (scala/src/main/scala/Episomer.scala and API.scala). The bind address of a
               # temporary database has no business being written in the shared properties.json.
-              if (!is.null(bind_host)) c("bindHost", fs_bind_host_only(bind_host)),
+              if (!is.null(bind_host)) {
+                c("bindHost", fs_bind_host_only(bind_host))
+              },
               if (!is.null(bind_port)) c("bindPort", as.character(bind_port))
             ),
             collapse = " "
@@ -647,7 +743,12 @@ fs_loop <- function(data_dir = NA, bind_host = NULL, bind_port = NULL) {
     # spark_job() only gives the control back when the Scala service has stopped, which makes this
     # the one moment this process can look at anything else - hence the monitor check here rather
     # than on a timer that would never fire.
-    monitor <- restart_fs_monitor_if_dead(monitor, data_dir, bind_host, bind_port)
+    monitor <- restart_fs_monitor_if_dead(
+      monitor,
+      data_dir,
+      bind_host,
+      bind_port
+    )
   }
 }
 
@@ -698,7 +799,10 @@ fs_monitor_loop <- function(data_dir, bind_host = NULL, bind_port = NULL) {
     setup_config(data_dir = data_dir, fs_remote = NULL),
     error = function(e) {
       fs_monitor_log(
-        paste("stopping, the configuration could not be set up:", conditionMessage(e)),
+        paste(
+          "stopping, the configuration could not be set up:",
+          conditionMessage(e)
+        ),
         data_dir = data_dir
       )
       stop(e)
@@ -714,8 +818,8 @@ fs_monitor_loop <- function(data_dir, bind_host = NULL, bind_port = NULL) {
       if (is.null(bind_port)) conf$fs_port else bind_port
     )
   }
-  x = 60
-  step = 2
+  x <- 60
+  step <- 2
   while (TRUE) {
     # Nothing in here may end the monitor. Every one of these three calls has a failure mode that
     # is none of the monitor's business and that a later iteration may well see disappear - an
@@ -728,9 +832,9 @@ fs_monitor_loop <- function(data_dir, bind_host = NULL, bind_port = NULL) {
     fs_monitor_try(renew_fs_runner_lease(), "renewing the fs lease")
     if (x == 0) {
       fs_monitor_try(health_check(), "running the health check")
-      x = 60
+      x <- 60
     }
-    x = x - step
+    x <- x - step
     Sys.sleep(step)
   }
   0
@@ -762,7 +866,8 @@ fs_monitor_last_log <- new.env(parent = emptyenv())
 fs_monitor_log_once <- function(m, span = 60, data_dir = conf$data_dir) {
   last <- fs_monitor_last_log[[m]]
   if (
-    !is.null(last) && as.numeric(difftime(Sys.time(), last, units = "secs")) < span
+    !is.null(last) &&
+      as.numeric(difftime(Sys.time(), last, units = "secs")) < span
   ) {
     return(invisible(FALSE))
   }
@@ -802,7 +907,12 @@ fs_monitor_log <- function(m, data_dir = conf$data_dir) {
 # Collecting its value is the only way to get that error out of the worker: it is raised here,
 # caught, and turned into a message that reaches `docker logs` - fs_mon.log has it too, but an
 # operator looking at a service that stopped collecting should not have to know that.
-restart_fs_monitor_if_dead <- function(monitor, data_dir, bind_host = NULL, bind_port = NULL) {
+restart_fs_monitor_if_dead <- function(
+  monitor,
+  data_dir,
+  bind_host = NULL,
+  bind_port = NULL
+) {
   if (!future::resolved(monitor)) {
     return(monitor)
   }
@@ -834,8 +944,8 @@ restart_fs_monitor_if_dead <- function(monitor, data_dir, bind_host = NULL, bind
 #' @param max integer, maximum number of posts to be included on the search, default:100
 #' @param by_relevance logical, whether to sort the results by relevance of the matching query or by indexing order, default:FALSE
 #' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @return a data frame containing the posts matching the selected filters, the data frame contains the following columns: user_name, created_date, is_geo_located, is_quote, text, 
-#' text_loc, user_id, hash, quote_lang, totalCount, created_at, topic_post_id, topic, lang, user_name, quoted_text, id, quopted_text_loc, tags 
+#' @return a data frame containing the posts matching the selected filters, the data frame contains the following columns: user_name, created_date, is_geo_located, is_quote, text,
+#' text_loc, user_id, hash, quote_lang, totalCount, created_at, topic_post_id, topic, lang, user_name, quoted_text, id, quopted_text_loc, tags
 #' @details
 #' episomer translate the query provided by all parameters into a single query that will be executed on post indexes which are weekly indexes.
 #' The q parameter should respect the syntax of the Lucene classic parser \url{https://lucene.apache.org/core/8_5_0/queryparser/org/apache/lucene/queryparser/classic/QueryParser.html}
@@ -917,7 +1027,7 @@ search_posts <- function(
     regions <- get_country_items()
     # If countries are names they have to be changes to region indexes
     if (is.character(countries)) {
-      countries = (1:length(regions))[sapply(
+      countries <- (1:length(regions))[sapply(
         1:length(regions),
         function(i) regions[[i]]$name %in% countries
       )]
@@ -996,8 +1106,11 @@ set_aggregated_posts <- function(
           sortBy = sort_by,
           filterBy = filter_by,
           sourceExpressions = sources_exp,
-          params = if (length(params) == 0) list(fake_param_epi = "") else
+          params = if (length(params) == 0) {
+            list(fake_param_epi = "")
+          } else {
             params
+          }
         )
       ),
       simplify_vector = T,
@@ -1034,7 +1147,9 @@ stream_post <- function(uri, body, handler = NULL) {
 
   pipeconnection <- function(x, handler = handler) {
     cuts <- which(x == 0x0a)
-    if (length(cuts) == 0) cum$tail <- c(cum$tail, x) else {
+    if (length(cuts) == 0) {
+      cum$tail <- c(cum$tail, x)
+    } else {
       if (tail(cuts, n = 1) != length(x)) {
         bytes <- c(cum$tail, x[1:tail(cuts, n = 1)])
         cum$tail <- x[(tail(cuts, n = 1) + 1):length(x)]
@@ -1049,16 +1164,17 @@ stream_post <- function(uri, body, handler = NULL) {
           con,
           verbose = FALSE
         )
-      } else
+      } else {
         jsonlite::stream_in(
           con,
           function(df) handler(df, con_tmp),
           verbose = FALSE
         )
+      }
     }
   }
   # Doing the post request
-  parts = gregexpr("//[^/]+/", uri)
+  parts <- gregexpr("//[^/]+/", uri)
   split <- parts[[1]][[1]] + attr(parts[[1]], "match.length")
   #h <- httr::handle(substr(uri, 1, split-1))
   #path <- substr(uri, split, nchar(uri))
@@ -1091,20 +1207,22 @@ stream_post <- function(uri, body, handler = NULL) {
 
   #Applying last line if necessary
   if (length(cum$tail) > 0) {
-    if (cum$tail[[length(cum$tail)]] != 0x0a)
+    if (cum$tail[[length(cum$tail)]] != 0x0a) {
       cum$tail[[length(cum$tail) + 1]] <- as.raw(0x0a)
+    }
     con <- rawConnection(cum$tail, "rb")
     if (is.null(handler)) {
       cum$dfs[[length(cum$dfs) + 1]] <- jsonlite::stream_in(
         con,
         verbose = FALSE
       )
-    } else
+    } else {
       cum$dfs[[length(cum$dfs) + 1]] <- jsonlite::stream_in(
         con,
         function(df) handler(df, con_tmp),
         verbose = F
       )
+    }
     close(con)
   }
   #Transforming single lines responses in data frames
@@ -1130,7 +1248,7 @@ last_fs_updates <- function(
 ) {
   times <- lapply(collections, function(collection) {
     time <- epifile.mtime(epipath("fs", collection))
-    if(!is.null(time)){
+    if (!is.null(time)) {
       time
     } else {
       NA
@@ -1158,9 +1276,18 @@ commit_posts <- function() {
 # Version of the jar executed by the fs service, or NA when fs is unreachable or too old to
 # expose /version. Compared in the Shiny config page with the version of the installed package.
 get_fs_jar_version <- function() {
-  tryCatch({
-    res <- httr::GET(url = get_scala_version_url(), httr::timeout(2.0))
-    if (res$status_code != 200) return(NA_character_)
-    jsonlite::fromJSON(httr::content(res, as = "text", encoding = "UTF-8"))$version
-  }, error = function(e) NA_character_)
+  tryCatch(
+    {
+      res <- httr::GET(url = get_scala_version_url(), httr::timeout(2.0))
+      if (res$status_code != 200) {
+        return(NA_character_)
+      }
+      jsonlite::fromJSON(httr::content(
+        res,
+        as = "text",
+        encoding = "UTF-8"
+      ))$version
+    },
+    error = function(e) NA_character_
+  )
 }

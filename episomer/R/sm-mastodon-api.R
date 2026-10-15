@@ -73,30 +73,33 @@ mastodon_instance_of <- function(network) {
 #'       - each term in 'ors subqueries' is a list of synonyms for a particular literal
 #' 'neg' is a list of terms that should be removed from any result of the query
 sm_api_translate_query_mastodon <- function(parsed) {
-# @function_def_end (do not delete)
+  # @function_def_end (do not delete)
   # Mastodon does not support parenthesis nor an explicit OR operator, so like Bluesky we
   # expand the OR subqueries into several native queries. Within a subquery, terms are joined
   # by a space (implicit AND) and negated terms are appended with a leading '-'.
-  ret = list()
+  ret <- list()
   for (i in seq_along(parsed$ors)) {
     terms <- parsed$ors[[i]]
     # a subquery with no term at all (what an all-negative query parses to) has nothing to search
     # for: it produces no native query rather than an empty one.
-    if (length(terms) == 0) next
+    if (length(terms) == 0) {
+      next
+    }
     # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
     # factors: one column per term, the synonyms of a term being the values of its column.
     # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
     # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
     # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
-    comb = expand.grid(terms, stringsAsFactors = FALSE)
+    comb <- expand.grid(terms, stringsAsFactors = FALSE)
     if (nrow(comb) > 0) {
       r <- paste(lapply(
         seq_len(nrow(comb)),
         function(i) do.call(paste, as.list(comb[i, ]))
       ))
-      if (length(parsed$neg) > 0)
+      if (length(parsed$neg) > 0) {
         r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
-      ret = c(ret, r)
+      }
+      ret <- c(ret, r)
     }
   }
   ret
@@ -224,7 +227,7 @@ sm_api_search_mastodon <- function(
         offset = plan$current_offset
       )
   }
-  
+
   #cat(round(system.time(
   resp <- req %>%
     httr2::req_headers(Authorization = paste("Bearer", token)) %>%
@@ -296,7 +299,7 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
   #message(length(results$posts))
   #message({gg<-results$pagination;gg["new_ids"]<- length(gg["new_ids"]);jsonlite::toJSON(gg, auto_unbox=T)})
   #message({gg<-plan;gg["seen_ids"]<- length(gg["seen_ids"]);sprintf("-- START > %s", jsonlite::toJSON(gg, auto_unbox=T))})
-  
+
   # @function_def_end (do not delete)
   # track the oldest collected date (used for progress computation, like Bluesky)
   if (!is.null(results$pagination$min_created_at)) {
@@ -405,7 +408,7 @@ sm_api_update_plan_after_request_mastodon <- function(plan, results) {
 #' When FALSE is returned the underlying plan will be ended
 #' @param results list, results of the request in the standardised episomer format
 sm_api_got_rows_mastodon <- function(results) {
-# @function_def_end (do not delete)
+  # @function_def_end (do not delete)
   (exists("posts", results) & length(results$posts) > 0)
 }
 
@@ -802,7 +805,9 @@ mastodon_parse_response <- function(response, plan) {
     raw_created <- lapply(statuses, function(s) {
       mastodon_parse_date(s$created_at)
     })
-    posts_after_mindate <- sum(sapply(raw_created, function(d) d >= plan$plan_min_date))
+    posts_after_mindate <- sum(sapply(raw_created, function(d) {
+      d >= plan$plan_min_date
+    }))
   }
   # expose it so sm_api_update_plan_after_request_mastodon can advance the consecutive-empty streak
   res$pagination$posts_after_mindate <- posts_after_mindate

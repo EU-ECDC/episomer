@@ -1,6 +1,8 @@
 # check if Java is installed
 check_java_present <- function() {
-  if (is_java_present()) TRUE else {
+  if (is_java_present()) {
+    TRUE
+  } else {
     warning(paste(
       "episomer could not detect Java. Please install it and make sure the Java binary is on the path or that JAVA_HOME is set",
       "episomer requires 64-bit Java between ",
@@ -19,9 +21,11 @@ is_java_present <- function() {
     length(grep(programs, Sys.which(programs))) == length(programs)
   } else {
     #checking if the Java binary can be found from JAVA_HOME
-    if (.Platform$OS.type == "windows")
-      file.exists(file.path(Sys.getenv("JAVA_HOME"), "bin", "java.exe")) else
+    if (.Platform$OS.type == "windows") {
+      file.exists(file.path(Sys.getenv("JAVA_HOME"), "bin", "java.exe"))
+    } else {
       file.exists(file.path(Sys.getenv("JAVA_HOME"), "bin", "java"))
+    }
   }
 }
 
@@ -45,7 +49,9 @@ get_java_version_vector <- function() {
 
 # check if Java is 64 bits
 check_java_64 <- function() {
-  if (any(grepl("64-Bit", get_java_version_vector()))) TRUE else {
+  if (any(grepl("64-Bit", get_java_version_vector()))) {
+    TRUE
+  } else {
     warning(paste(
       "Your current Java version does not appear to be 64-bit. episomer requires 64-bit Java between ",
       java_min_version(),
@@ -60,14 +66,19 @@ check_java_64 <- function() {
 get_java_version <- function() {
   jver <- get_java_version_vector()
   index <- grep("version", jver)
-  if (length(index) == 0) NULL else {
+  if (length(index) == 0) {
+    NULL
+  } else {
     j_version_parts <- strsplit(
       gsub("[^0-9]", ".", jver[[index[[1]]]]),
       "\\.+"
     )[[1]]
     j_version_parts <- j_version_parts[grepl("[0-9]", j_version_parts)]
-    if (length(j_version_parts) > 1 && as.integer(j_version_parts[[1]]) == 1)
-      as.integer(j_version_parts[[2]]) else as.integer(j_version_parts[[1]])
+    if (length(j_version_parts) > 1 && as.integer(j_version_parts[[1]]) == 1) {
+      as.integer(j_version_parts[[2]])
+    } else {
+      as.integer(j_version_parts[[1]])
+    }
   }
 }
 
@@ -105,7 +116,6 @@ check_java_version <- function() {
       java_max_version()
     ))
     FALSE
-    
   }
 }
 
@@ -140,7 +150,9 @@ check_winmsvcr100 <- function() {
       winslash = "/",
       mustWork = FALSE
     )
-    if (file.exists(msvcr100Path)) TRUE else {
+    if (file.exists(msvcr100Path)) {
+      TRUE
+    } else {
       warning(paste(
         "Running Spark on Windows requires the",
         "Microsoft Visual C++ 2010 SP1 Redistributable Package.",
@@ -157,7 +169,9 @@ check_winmsvcr100 <- function() {
 # check winutils is installed
 check_winutils <- function() {
   if (.Platform$OS.type == "windows") {
-    if (epifile.exists(get_winutils_path())) TRUE else {
+    if (epifile.exists(get_winutils_path())) {
+      TRUE
+    } else {
       warning(
         "To run SPARK on Windows, you need winutils which is a HADOOP binary. You can download it by running the update dependencies task"
       )
@@ -200,13 +214,20 @@ check_geonames <- function() {
     FALSE
   } else {
     dir <- get_geonames_index_path()
-    ret <- (if (!epifile.exists(dir)) FALSE else {
+    ret <- (if (!epifile.exists(dir)) {
+      FALSE
+    } else {
       dirs <- epilist.dirs(dir)
       ind_dir <- dirs[grepl(".*/lucIndex[^/]*", dirs)]
-      if (length(ind_dir) == 0) FALSE else
+      if (length(ind_dir) == 0) {
+        FALSE
+      } else {
         length(epilist.files(ind_dir, "_.*\\.cfs")) > 0
+      }
     })
-    if (ret) TRUE else {
+    if (ret) {
+      TRUE
+    } else {
       warning("GeoNames has not been indexed. Please execute the geonames task")
       FALSE
     }
@@ -216,7 +237,9 @@ check_geonames <- function() {
 
 # check that languages are downloaded and indexed
 check_languages <- function() {
-  lang_files <- sapply(conf$languages, function(l) to_remote_if_needed(l$vectors))
+  lang_files <- sapply(conf$languages, function(l) {
+    to_remote_if_needed(l$vectors)
+  })
   if (
     length(lang_files) == 0 ||
       !all(sapply(lang_files, function(f) epifile.exists(f)))
@@ -227,15 +250,21 @@ check_languages <- function() {
     FALSE
   } else {
     dir <- get_lang_index_path()
-    ret <- (if (!epifile.exists(dir)) FALSE else {
+    ret <- (if (!epifile.exists(dir)) {
+      FALSE
+    } else {
       dirs <- epilist.dirs(dir)
       ind_dir <- dirs[grepl(".*/lucIndex[^/]*", dirs)]
-      if (length(ind_dir) == 0) FALSE else {
-         files <- epilist.files(ind_dir, ".*\\.cfs")
-         length(files) > 0
+      if (length(ind_dir) == 0) {
+        FALSE
+      } else {
+        files <- epilist.files(ind_dir, ".*\\.cfs")
+        length(files) > 0
       }
     })
-    if (ret) TRUE else {
+    if (ret) {
+      TRUE
+    } else {
       warning(
         "The language vector index has not been built. Please activate at least one language and launch the languages task"
       )
@@ -371,7 +400,9 @@ check_pandoc <- function() {
       "To export the PDF report from the dashboard, Pandoc must be installed."
     )
     FALSE
-  } else TRUE
+  } else {
+    TRUE
+  }
 }
 
 # check if Pandoc is installed
@@ -383,12 +414,16 @@ check_tex <- function() {
       "install.packages('tinytex'); tinytex::install_tinytex()"
     ))
     FALSE
-  } else TRUE
+  } else {
+    TRUE
+  }
 }
 
 # check search is running
 check_search_running <- function() {
-  if (is_search_running()) TRUE else {
+  if (is_search_running()) {
+    TRUE
+  } else {
     warning(paste(
       "Data collection & processing pipeline is not running on any machine sharing this database. ",
       "Please run episomer::setup() to start the search loop."
@@ -399,7 +434,9 @@ check_search_running <- function() {
 
 # check detect is running
 check_detect_running <- function() {
-  if (is_detect_running()) TRUE else {
+  if (is_detect_running()) {
+    TRUE
+  } else {
     warning(paste(
       "Requirements & alerts pipeline is not running on any machine sharing this database. ",
       "Please run episomer::setup() to start the detect loop."
@@ -410,7 +447,9 @@ check_detect_running <- function() {
 
 # check fs is running
 check_fs_running <- function() {
-  if (is_fs_running()) TRUE else {
+  if (is_fs_running()) {
+    TRUE
+  } else {
     warning(paste(
       "Embedded database is not running",
       "Please run episomer::setup() to start the database."
@@ -453,8 +492,9 @@ check_sm_auth <- function() {
   all_authenticated
 }
 check_last_sm_auth <- function() {
-  if (exists("value", last_check_sm_auth) && last_check_sm_auth$value)
-    TRUE else {
+  if (exists("value", last_check_sm_auth) && last_check_sm_auth$value) {
+    TRUE
+  } else {
     warning(
       "Cannot create a social media token, please choose an authentication method using episomer::setup()"
     )
@@ -495,7 +535,9 @@ check_move_from_temp <- function() {
       FALSE
     }
   )
-  if (ok) TRUE else {
+  if (ok) {
+    TRUE
+  } else {
     warning(paste(
       "Cannot move files from temporary folder to data_dir, possible cross link device.",
       "Please set TMPDIR, TMP or TEMP environment variable to the same drive as the data folder",
@@ -517,7 +559,7 @@ check_tar_gz <- function() {
       writeLines(c("hello temp"), fileConn)
       close(fileConn)
 
-      result = tryCatch(
+      result <- tryCatch(
         {
           processx::run(
             "tar",
@@ -552,7 +594,9 @@ check_tar_gz <- function() {
       FALSE
     }
   )
-  if (ok) TRUE else {
+  if (ok) {
+    TRUE
+  } else {
     warning(paste(
       "Cannot build tar.gz. Please ensure that Tar and Gzip are available in the system path and make sure you can execute 'tar -czf test.tar.gz somefile' on a terminal.",
       "The latest versions of Windows 10 may include these tools; otherwise, you would need to install them to create snapshots."
@@ -577,22 +621,22 @@ check_tar_gz <- function() {
 #' @rdname can_run
 #' @export
 can_run <- function() {
-    return(tryCatch(
-      check_64() &&
-        check_java_64() &&
-        check_java_deps() &&
-        check_java_present() &&
-        check_sm_auth() &&
-        check_winmsvcr100() &&
-        check_winutils() &&
-        check_languages() &&
-        check_geonames() &&
-        check_move_from_temp(),
-      warning = function(m) {
-        message(m)
-        FALSE
-      }
-    ))
+  return(tryCatch(
+    check_64() &&
+      check_java_64() &&
+      check_java_deps() &&
+      check_java_present() &&
+      check_sm_auth() &&
+      check_winmsvcr100() &&
+      check_winutils() &&
+      check_languages() &&
+      check_geonames() &&
+      check_move_from_temp(),
+    warning = function(m) {
+      message(m)
+      FALSE
+    }
+  ))
 }
 
 #' @title Episomer setup can run
@@ -611,45 +655,56 @@ can_run <- function() {
 #' @rdname can_run
 #' @export
 setup_can_run <- function() {
-    return(tryCatch(
-        check_64() && check_java_64() && check_java_present()  && check_java_version() && check_jar_version()
-        ,warning = function(m) {message(m);FALSE}
-    ))
+  return(tryCatch(
+    check_64() &&
+      check_java_64() &&
+      check_java_present() &&
+      check_java_version() &&
+      check_jar_version(),
+    warning = function(m) {
+      message(m)
+      FALSE
+    }
+  ))
 }
 
 # stops spark_job()/spark_df() from silently building a broken classpath ("-cp ;jars/*", missing
 # the app jar segment entirely) when inst/java ships no jar matching the versioned pattern -- the
 # failure mode that surfaced as "Could not find or load main class org.ecdc.episomer.Episomer"
 check_app_jar_present <- function() {
-    jar_path <- get_app_jar_path()
-    if (identical(jar_path, "") || !epifile.exists(jar_path)) {
-        stop(
-            "episomer could not find its embedded java bundle jar in inst/java. ",
-            "The R package installation is incomplete or corrupted, please reinstall episomer."
-        )
-    }
-    invisible(TRUE)
+  jar_path <- get_app_jar_path()
+  if (identical(jar_path, "") || !epifile.exists(jar_path)) {
+    stop(
+      "episomer could not find its embedded java bundle jar in inst/java. ",
+      "The R package installation is incomplete or corrupted, please reinstall episomer."
+    )
+  }
+  invisible(TRUE)
 }
 
 # check that the embedded jar's own version (encoded in its filename) matches the R package
 # version -- catches a stale jar left behind by a partial rebuild (e.g. sbt package skipped)
 check_jar_version <- function() {
-    jar_path <- get_app_jar_path()
-    if (identical(jar_path, "") || !epifile.exists(jar_path)) {
-        warning("episomer could not find the embedded java bundle jar in inst/java")
-        return(FALSE)
-    }
-    jar_version <- sub("^ecdc-episomer-bundle_2\\.13-(.*)\\.jar$", "\\1", basename(jar_path))
-    pkg_version <- as.character(utils::packageVersion(get_package_name()))
-    if (jar_version != pkg_version) {
-        warning(sprintf(
-            "episomer java bundle version (%s) does not match the package version (%s), please rebuild the jar",
-            jar_version,
-            pkg_version
-        ))
-        return(FALSE)
-    }
-    TRUE
+  jar_path <- get_app_jar_path()
+  if (identical(jar_path, "") || !epifile.exists(jar_path)) {
+    warning("episomer could not find the embedded java bundle jar in inst/java")
+    return(FALSE)
+  }
+  jar_version <- sub(
+    "^ecdc-episomer-bundle_2\\.13-(.*)\\.jar$",
+    "\\1",
+    basename(jar_path)
+  )
+  pkg_version <- as.character(utils::packageVersion(get_package_name()))
+  if (jar_version != pkg_version) {
+    warning(sprintf(
+      "episomer java bundle version (%s) does not match the package version (%s), please rebuild the jar",
+      jar_version,
+      pkg_version
+    ))
+    return(FALSE)
+  }
+  TRUE
 }
 
 #' @title Run automatic sanity checks
@@ -694,7 +749,7 @@ check_all <- function() {
   )
   results <- sapply(
     checks,
-    function(check)
+    function(check) {
       tryCatch(
         if (check()) "ok" else "ko",
         warning = function(m) {
@@ -704,6 +759,7 @@ check_all <- function() {
           as.character(e)
         }
       )
+    }
   )
   data.frame(
     check = names(checks),
@@ -849,13 +905,14 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
         is.na(conf$smtp_password) ||
           is.null(conf$smtp_password) ||
           conf$smtp_password == ""
-      )
+      ) {
         emayili::server(
           host = conf$smtp_host,
           port = conf$smtp_port,
           insecure = conf$smtp_insecure,
           reuse = FALSE
-        ) else
+        )
+      } else {
         emayili::server(
           host = conf$smtp_host,
           port = conf$smtp_port,
@@ -863,20 +920,28 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
           insecure = conf$smtp_insecure,
           password = conf$smtp_password,
           reuse = FALSE
-        ))
-      message(sprintf("Health check failed, sending email from %s to %s\n%s", conf$smtp_from, conf$admin_email, paste(alerts, collapse="\n")))
+        )
+      })
+      message(sprintf(
+        "Health check failed, sending email from %s to %s\n%s",
+        conf$smtp_from,
+        conf$admin_email,
+        paste(alerts, collapse = "\n")
+      ))
       tryCatch(
         smtp(msg),
-        warning = function(e)
-          message(paste(
-            "Warning: Cannot send email. The following error occured",
-            e
-          )),
-        error = function(e)
+        warning = function(e) {
           message(paste(
             "Warning: Cannot send email. The following error occured",
             e
           ))
+        },
+        error = function(e) {
+          message(paste(
+            "Warning: Cannot send email. The following error occured",
+            e
+          ))
+        }
       )
 
       checks$last_check <- Sys.time()
@@ -941,8 +1006,9 @@ create_snapshot <- function(
   compress = TRUE,
   progress = function(v, m) message(paste(round(v * 100, 2), m))
 ) {
-  if(!file.exists(destination_dir))
+  if (!file.exists(destination_dir)) {
     dir.create(destination_dir)
+  }
   destination <- normalizePath(
     file.path(
       destination_dir,
@@ -956,14 +1022,15 @@ create_snapshot <- function(
     mustWork = FALSE
   )
   update_session_info()
-  items = list()
-  if ("settings" %in% types)
+  items <- list()
+  if ("settings" %in% types) {
     items <- c(
       items,
       episomer_files("", recurse = FALSE),
       episomer_files("collections")
     )
-  if ("dependencies" %in% types)
+  }
+  if ("dependencies" %in% types) {
     items <- c(
       items,
       list(
@@ -974,7 +1041,8 @@ create_snapshot <- function(
         file.path("jars", list.files(get_jars_dest_path()))
       ))
     )
-  if ("machine-learning" %in% types)
+  }
+  if ("machine-learning" %in% types) {
     items <- c(
       items,
       list(
@@ -993,7 +1061,8 @@ create_snapshot <- function(
       episomer_files("languages"),
       episomer_files("alert-ml")
     )
-  if ("aggregations" %in% types)
+  }
+  if ("aggregations" %in% types) {
     items <- c(
       items,
       episomer_files("alerts", aggregated_period[[1]], aggregated_period[[2]]),
@@ -1005,7 +1074,8 @@ create_snapshot <- function(
       episomer_files("series", aggregated_period[[1]], aggregated_period[[2]]),
       episomer_files("stats", aggregated_period[[1]], aggregated_period[[2]])
     )
-  if ("posts" %in% types)
+  }
+  if ("posts" %in% types) {
     items <- c(
       items,
       list(
@@ -1016,14 +1086,15 @@ create_snapshot <- function(
       ),
       episomer_files("fs/posts", posts_period[[1]], posts_period[[2]])
     )
+  }
   if ("logs" %in% types) {
     jobs_dir <- epipath("jobs")
     items <- c(
       items,
       list(
         "detect.log" = file.path(jobs_dir, "detect.log"),
-        "fs.log" =  file.path(jobs_dir, "fs.log"),
-        "search.log" =  file.path(jobs_dir, "search.log")
+        "fs.log" = file.path(jobs_dir, "fs.log"),
+        "search.log" = file.path(jobs_dir, "search.log")
       )
     )
   }
@@ -1032,26 +1103,28 @@ create_snapshot <- function(
   progress(0, paste("Building archive for", nb, "files"))
   last_message <- as.integer(Sys.time())
   dump <- file.path(destination_dir, "dump")
-  if(file.exists(dump))
+  if (file.exists(dump)) {
     unlink(dump, recursive = TRUE)
+  }
   dir.create(dump)
-  if(file.exists(destination))
+  if (file.exists(destination)) {
     unlink(destination)
-  if(nb > 0) {
+  }
+  if (nb > 0) {
     relpaths <- names(items)
     paths <- unname(items)
-    for(i in 1:nb) {
+    for (i in 1:nb) {
       progress(
         round(0.7 * i / nb, 2),
         paste("Downloading", i, "of", nb, "files")
       )
       last_message <<- as.integer(Sys.time())
-      if(epifile.exists(paths[[i]])) {
+      if (epifile.exists(paths[[i]])) {
         epifile.copy(paths[[i]], file.path(dump, relpaths[[i]]))
       }
     }
     progress(0.8, "Compacting and archiving")
-    comp <- if(compress) "z" else ""
+    comp <- if (compress) "z" else ""
     processx::run(
       "tar",
       c(
@@ -1063,19 +1136,25 @@ create_snapshot <- function(
       wd = dump
     )
   }
-  if(file.exists(dump))
+  if (file.exists(dump)) {
     unlink(dump, recursive = TRUE)
+  }
   progress(1, "Archive done")
 }
 
 episomer_files <- function(rel_path, dmin = NULL, dmax = NULL, recurse = TRUE) {
-  if (!is.null(dmin) && is.na(dmin)) dmin <- NULL
-  if (!is.null(dmax) && is.na(dmax)) dmax <- NULL
-  
-  ret = list()
+  if (!is.null(dmin) && is.na(dmin)) {
+    dmin <- NULL
+  }
+  if (!is.null(dmax) && is.na(dmax)) {
+    dmax <- NULL
+  }
+
+  ret <- list()
   path <- epipath(rel_path)
-  if(!epifile.exists(path))
+  if (!epifile.exists(path)) {
     return(ret)
+  }
   files <- trimws(epilist.files(path, full.names = FALSE))
   dirs <- trimws(epilist.dirs(path, full.names = FALSE))
   file_names <- setdiff(
@@ -1083,7 +1162,7 @@ episomer_files <- function(rel_path, dmin = NULL, dmax = NULL, recurse = TRUE) {
     dirs
   )
   # Adding files
-  if(length(file_names)>0) {
+  if (length(file_names) > 0) {
     files <- as.list(setNames(
       epipath(rel_path, file_names),
       file.path(rel_path, file_names)
@@ -1112,8 +1191,8 @@ episomer_files <- function(rel_path, dmin = NULL, dmax = NULL, recurse = TRUE) {
       gregexpr("[0-9][0-9][0-9][0-9]\\.[0-9][0-9]", names(files))
     )
     weeks <- ifelse(is.na(dates), weeks, NA)
-    wmin = if (is.null(dmin)) NULL else strftime(dmin, "%G.%V")
-    wmax = if (is.null(dmax)) NULL else strftime(dmax, "%G.%V")
+    wmin <- if (is.null(dmin)) NULL else strftime(dmin, "%G.%V")
+    wmax <- if (is.null(dmax)) NULL else strftime(dmax, "%G.%V")
     fw <- ifelse(
       sapply(weeks, function(v) is.null(wmin)),
       TRUE,
@@ -1127,9 +1206,12 @@ episomer_files <- function(rel_path, dmin = NULL, dmax = NULL, recurse = TRUE) {
     ret <- c(ret, files[fd | fw])
   }
   # Adding subfolders
-  if(recurse) {
+  if (recurse) {
     for (d in dirs) {
-      ret <- c(ret, episomer_files(file.path(rel_path, d), dmin = dmin, dmax = dmax))
+      ret <- c(
+        ret,
+        episomer_files(file.path(rel_path, d), dmin = dmin, dmax = dmax)
+      )
     }
   }
   ret

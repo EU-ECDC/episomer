@@ -41,7 +41,7 @@ get_key_ring <- function(backend = NULL) {
 
 # Set a secret from the chosen secret management backend
 set_secret <- function(secret, value) {
-  if(!fs_remote()) {
+  if (!fs_remote()) {
     get_key_ring()$set_with_value(
       service = Sys.getenv("kr_service"),
       username = secret,
@@ -49,8 +49,9 @@ set_secret <- function(secret, value) {
     )
   } else {
     ret <- secrets_api_set(secret, value)
-    if(ret$status != "ok")
-       stop(secrets_api_reason("Error on setting secret", ret))
+    if (ret$status != "ok") {
+      stop(secrets_api_reason("Error on setting secret", ret))
+    }
   }
 }
 
@@ -114,11 +115,13 @@ secrets_api_set <- function(secret, value) {
 
 # Checks whether a secret is set on the secret management backend
 is_secret_set <- function(secret) {
-  if(!fs_remote()) {
+  if (!fs_remote()) {
     secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
     env_secrets <- get_env_secrets()
-    return(nrow(secrets[secrets$username == secret, ]) > 0 || exists(secret, where = env_secrets))
-
+    return(
+      nrow(secrets[secrets$username == secret, ]) > 0 ||
+        exists(secret, where = env_secrets)
+    )
   } else {
     secrets_api_get(secret)$status == "ok"
   }
@@ -158,22 +161,23 @@ get_episomer_kr_password <- function() {
 }
 # Get a secret from the chosen secret management backend
 get_secret <- function(secret) {
-  if(!fs_remote()) {
+  if (!fs_remote()) {
     secrets <- get_key_ring()$list(service = Sys.getenv("kr_service"))
     env_secrets <- get_env_secrets()
-    if (nrow(secrets[secrets$username == secret, ]) > 0)
-        get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
-    else if( exists(secret, where = env_secrets)) { 
-        env_secrets[[secret]]
+    if (nrow(secrets[secrets$username == secret, ]) > 0) {
+      get_key_ring()$get(service = Sys.getenv("kr_service"), username = secret)
+    } else if (exists(secret, where = env_secrets)) {
+      env_secrets[[secret]]
     } else {
-        stop("Could not found the requested secret")
+      stop("Could not found the requested secret")
     }
   } else {
     res <- secrets_api_get(secret)
-    if(res$status == "ok")
-       res$value
-    else
-       stop(secrets_api_reason("Could not retrieve the secret", res))
+    if (res$status == "ok") {
+      res$value
+    } else {
+      stop(secrets_api_reason("Could not retrieve the secret", res))
+    }
   }
 }
 
@@ -181,10 +185,10 @@ get_secret <- function(secret) {
 get_empty_config <- function(data_dir) {
   ret <- list()
   ret$keyring <- "file"
-    #if (.Platform$OS.type == "windows") "wincred" else if (
-    #  Sys.info()[['sysname']] == "Darwin"
-    #)
-    #  "macos" else "file"
+  #if (.Platform$OS.type == "windows") "wincred" else if (
+  #  Sys.info()[['sysname']] == "Darwin"
+  #)
+  #  "macos" else "file"
   ret$data_dir <- data_dir
   ret$collect_span <- 60
   ret$schedule_span <- 90
@@ -228,7 +232,13 @@ get_empty_config <- function(data_dir) {
     all_cores <- floor(
       parallel::detectCores(all.tests = FALSE, logical = TRUE) * 0.3
     )
-    if (is.na(all_cores)) 1 else if (all_cores < 1) 1 else all_cores
+    if (is.na(all_cores)) {
+      1
+    } else if (all_cores < 1) {
+      1
+    } else {
+      all_cores
+    }
   }
   ret$spark_memory <- "4g"
   ret$onthefly_api <- .Platform$OS.type != "windows"
@@ -327,7 +337,7 @@ get_empty_config <- function(data_dir) {
   ret$mastodon_instances <- list()
   ret$dismiss_past_request <- "1971-01-01 00:00:00"
   ret$dismiss_past_done <- "2000-01-01 00:00:00"
-  ret$collect_history_days <-30
+  ret$collect_history_days <- 30
   # Mastodon backfill stop criterion: number of CONSECUTIVE search requests returning no post
   # inside the target window (created_at >= plan_min_date) before a plan is considered finished.
   # A single below-window request is not trusted because Mastodon's created_at is noisy (a
@@ -444,7 +454,11 @@ setup_config <- function(
   ignore_topics = FALSE,
   save_properties_first = FALSE,
   save_topics_first = list(),
-  fs_remote =  if(Sys.getenv("EPI_HOST") != "") Sys.getenv("EPI_HOST") else "http://localhost:8080"
+  fs_remote = if (Sys.getenv("EPI_HOST") != "") {
+    Sys.getenv("EPI_HOST")
+  } else {
+    "http://localhost:8080"
+  }
 ) {
   #setting the data_dir which is a read only property
   # The tilde is expanded here and not left to the callers: data_dir ends up inside the command
@@ -493,8 +507,7 @@ setup_config <- function(
   # paths contains two files storing configuration data:
   # props which contains properties set on the Shiny App is stored on data_dir/properties.json
   # and data_dir/topics.json which stores search progress and is updated by the search loop
-  props_path = get_properties_path()
-  
+  props_path <- get_properties_path()
 
   # save_first may be used by a function which is responsible for a part of the configuration to save changes on its perimeter before refreshing
   if (save_properties_first || length(save_topics_first) > 0) {
@@ -519,7 +532,7 @@ setup_config <- function(
     # (a brand new data directory) - that is precisely the case the paragraph above describes.
     # Only the properties.json read itself is conditional, to avoid erroring on a file that is
     # not there yet, locally or remotely (epifile.exists() is remote-aware, see R/fs.R).
-    temp = merge_configs(list(
+    temp <- merge_configs(list(
       temp,
       coerce_env_props(get_env_props(), temp),
       if (epifile.exists(props_path)) {
@@ -611,25 +624,29 @@ setup_config <- function(
   if (!ignore_topics) {
     #topics_path is the path to the excel file containing the topics provided by the user or episomer default ones
     user_topics_path <- get_user_topics_path()
-    plans_path = get_plans_paths()
+    plans_path <- get_plans_paths()
     # updating plans and topics if requested
     plans_exists <- FALSE
     topics_plans <- lapply(plans_path, function(p) {
       if (epifile.exists(p)) {
         plans_exists <- TRUE
-        tops <- jsonlite::read_json(p, simplifyVector = FALSE, auto_unbox = TRUE)
-	for(i in seq(1, length(tops$topics), along.with=tops$topics)) {
-	  tops$topics[[i]]$topic = tolower(tops$topics[[i]]$topic)
-	}
-	tops
-      }
-      else
+        tops <- jsonlite::read_json(
+          p,
+          simplifyVector = FALSE,
+          auto_unbox = TRUE
+        )
+        for (i in seq(1, length(tops$topics), along.with = tops$topics)) {
+          tops$topics[[i]]$topic <- tolower(tops$topics[[i]]$topic)
+        }
+        tops
+      } else {
         list()
+      }
     })
     # merging topics from different SM
     merged_topics <- merge_config_lists(topics_plans, "topics")
     # merging initial + properties.json data with plans
-    temp = merge_configs(list(temp, merged_topics))
+    temp <- merge_configs(list(temp, merged_topics))
 
     #Getting topics from excel topics files if it has changed since last load this is identified by checking the md5 signature
     #If user has not overrriden
@@ -679,7 +696,7 @@ setup_config <- function(
               queries$Query[[i_query]]
             )) {
               #Looking for the next matching entry in json file
-	      while (
+              while (
                 i_tmp <= length(temp$topics) &&
                   ((temp$topics[[i_tmp]]$topic != topic &&
                     temp$topics[[i_tmp]]$network == sm) ||
@@ -696,14 +713,19 @@ setup_config <- function(
                 adjusted_topics[[i_adjusted]]$alpha <- if (
                   !is.null(queries$Alpha[[i_query]]) &&
                     !is.na(queries$Alpha[[i_query]])
-                )
-                  queries$Alpha[[i_query]] else conf$alert_alpha
+                ) {
+                  queries$Alpha[[i_query]]
+                } else {
+                  conf$alert_alpha
+                }
                 adjusted_topics[[i_adjusted]]$alpha_outlier <- (if (
                   !is.null(queries$`Outliers Alpha`[[i_query]]) &&
                     !is.na(queries$`Outliers Alpha`[[i_query]])
-                )
-                  queries$`Outliers Alpha`[[i_query]] else
-                  conf$alert_alpha_outlier)
+                ) {
+                  queries$`Outliers Alpha`[[i_query]]
+                } else {
+                  conf$alert_alpha_outlier
+                })
               } else {
                 #creating a new query
                 adjusted_topics[[i_adjusted]] <- list()
@@ -714,14 +736,19 @@ setup_config <- function(
                 adjusted_topics[[i_adjusted]]$alpha <- if (
                   !is.null(queries$Alpha[[i_query]]) &&
                     !is.na(queries$Alpha[[i_query]])
-                )
-                  queries$Alpha[[i_query]] else conf$alert_alpha
+                ) {
+                  queries$Alpha[[i_query]]
+                } else {
+                  conf$alert_alpha
+                }
                 adjusted_topics[[i_adjusted]]$alpha_outlier <- (if (
                   !is.null(queries$`Outliers Alpha`[[i_query]]) &&
                     !is.na(queries$`Outliers Alpha`[[i_query]])
-                )
-                  queries$`Outliers Alpha`[[i_query]] else
-                  conf$alert_alpha_outlier)
+                ) {
+                  queries$`Outliers Alpha`[[i_query]]
+                } else {
+                  conf$alert_alpha_outlier
+                })
               }
               i_tmp <- i_tmp + 1
               i_adjusted <- i_adjusted + 1
@@ -765,8 +792,9 @@ copy_plans_from <- function(temp) {
       } else {
         conf$topics[[i]]$plan <- (lapply(
           1:length(temp$topics[[i]]$plan),
-          function(j)
+          function(j) {
             do.call(parse_plan_attributes, args = temp$topics[[i]]$plan[[j]])
+          }
         ))
       }
     }
@@ -879,8 +907,9 @@ save_config <- function(
     temp$smtp_port <- conf$smtp_port
     temp$smtp_from <- conf$smtp_from
     temp$smtp_login <- conf$smtp_login
-    if (!is.null(conf$smtp_password) && conf$smtp_password != "")
+    if (!is.null(conf$smtp_password) && conf$smtp_password != "") {
       set_secret("smtp_password", conf$smtp_password)
+    }
     temp$smtp_insecure <- conf$smtp_insecure
     temp$force_date_format <- conf$force_date_format
     temp$maven_repo <- conf$maven_repo
@@ -919,9 +948,9 @@ save_config <- function(
   }
   if (length(sm_topics) > 0) {
     # saving topics to the topics.json file
-    paths = get_plans_paths()
+    paths <- get_plans_paths()
     for (sm in sm_topics) {
-      topics_in_sm = conf$topics[topics_of_network(sm)]
+      topics_in_sm <- conf$topics[topics_of_network(sm)]
       temp <- list()
       temp$topics <- format_topics(topics_in_sm)
       # writing plan files for each social media
@@ -945,9 +974,11 @@ format_topics <- function(topics) {
 
 # Merging two or more configuration files as a list, the latest takes precedence over earlier ones
 merge_configs <- function(configs) {
-  if (length(configs) == 0)
-    stop("No configurations provided for merging") else if (length(configs) == 1)
-    configs[[1]] else {
+  if (length(configs) == 0) {
+    stop("No configurations provided for merging")
+  } else if (length(configs) == 1) {
+    configs[[1]]
+  } else {
     first <- configs[[1]]
     rest <- merge_configs(configs[-1])
     keys <- unique(c(names(first), names(rest)))
@@ -978,13 +1009,13 @@ merge_config_lists <- function(configs, property) {
 
 # parse topic query and translate it to particular social media quert language
 translate_query <- function(sm, q) {
-  r = list(neg=list(), ors=list())
-  q = trimws(q)
-  q = gsub("^(or|and)\\s+", "", q, ignore.case = TRUE)
-  q = gsub("\\s+(or|and)\\s*$", "", q, ignore.case = TRUE)
-  q = gsub("\\s+or\\s+", "|", q, ignore.case = TRUE)
-  q = gsub("\\s+and\\s+", "&", q, ignore.case = TRUE)
-  q = gsub("^-| -|&-|\\|-", "+~", q)
+  r <- list(neg = list(), ors = list())
+  q <- trimws(q)
+  q <- gsub("^(or|and)\\s+", "", q, ignore.case = TRUE)
+  q <- gsub("\\s+(or|and)\\s*$", "", q, ignore.case = TRUE)
+  q <- gsub("\\s+or\\s+", "|", q, ignore.case = TRUE)
+  q <- gsub("\\s+and\\s+", "&", q, ignore.case = TRUE)
+  q <- gsub("^-| -|&-|\\|-", "+~", q)
   if (q == "") {
     r$ors[[1]] <- list()
   } else {
@@ -993,23 +1024,23 @@ translate_query <- function(sm, q) {
     if (length(ors) == 0) {
       r$ors[[1]] <- list()
     } else {
-      for(i in seq_along(ors)) {
+      for (i in seq_along(ors)) {
         r$ors[[i]] <- list()
         ands <- trimws(strsplit(ors[[i]], "&")[[1]])
         ands <- ands[ands != ""]
-        for(j in seq_along(ands)) {
-           parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
-           parts <- parts[parts != ""]
-           for(k in seq_along(parts)) {
-              part <- trimws(parts[[k]])
-              if(startsWith(part, "~") && nchar(part)>1) {
-                 neg <- trimws(substr(part, 2, 1000))
-                 r$neg <- c(r$neg,  neg)
-	      } else if(nchar(part)>0) {
-                 pos <- as.list(trimws(strsplit(part, "/")[[1]]))
-                 r$ors[[i]] <- c(r$ors[[i]], list(pos))
-              }
-           }
+        for (j in seq_along(ands)) {
+          parts <- trimws(strsplit(ands[[j]], "\\+")[[1]])
+          parts <- parts[parts != ""]
+          for (k in seq_along(parts)) {
+            part <- trimws(parts[[k]])
+            if (startsWith(part, "~") && nchar(part) > 1) {
+              neg <- trimws(substr(part, 2, 1000))
+              r$neg <- c(r$neg, neg)
+            } else if (nchar(part) > 0) {
+              pos <- as.list(trimws(strsplit(part, "/")[[1]]))
+              r$ors[[i]] <- c(r$ors[[i]], list(pos))
+            }
+          }
         }
       }
     }
@@ -1045,8 +1076,9 @@ get_topics_df <- function() {
     OutliersAlpha = sapply(conf$topics, function(t) t$alpha_outlier),
     stringsAsFactors = FALSE
   )
-  if (length(df) == 0)
+  if (length(df) == 0) {
     stop("The list of topics is empty. Please check your configuration")
+  }
   df
 }
 
@@ -1160,7 +1192,7 @@ add_config_language <- function(code, name) {
     # Language code is already in the task list
     conf$languages[[index]]$code <- code
     conf$languages[[index]]$name <- name
-    conf$languages[[index]]$vectors = paste(
+    conf$languages[[index]]$vectors <- paste(
       conf$data_dir,
       "/languages/",
       code,
@@ -1448,44 +1480,48 @@ sm_remove_instance <- function(family, instance) {
 }
 
 is_sm_authenticated <- function(sm) {
-    tryCatch(
-      if(sm %in% supported_social_media()) {
-        return(isTRUE(sm_api_has_credentials(sm)))
-      },
-      warning = function(m) {},
-      error = function(e) {}
-    )
-    return(FALSE)
+  tryCatch(
+    if (sm %in% supported_social_media()) {
+      return(isTRUE(sm_api_has_credentials(sm)))
+    },
+    warning = function(m) {},
+    error = function(e) {}
+  )
+  return(FALSE)
 }
 
 is_sm_activated <- function(sm) {
-    prop = sprintf("sm_activated_%s", sm)
-    exists(prop, where=conf) && conf[[prop]]
+  prop <- sprintf("sm_activated_%s", sm)
+  exists(prop, where = conf) && conf[[prop]]
 }
 is_sm_with_alerts <- function(sm) {
-    prop = sprintf("sm_alerts_%s", sm)
-    exists(prop, where=conf) && conf[[prop]]
+  prop <- sprintf("sm_alerts_%s", sm)
+  exists(prop, where = conf) && conf[[prop]]
 }
 sm_activate <- function(sm) {
-    prop = sprintf("sm_activated_%s", sm)
-    if(exists(prop, where=conf))
-        conf[[prop]] = TRUE
+  prop <- sprintf("sm_activated_%s", sm)
+  if (exists(prop, where = conf)) {
+    conf[[prop]] <- TRUE
+  }
 }
 sm_deactivate <- function(sm) {
-    prop = sprintf("sm_activated_%s", sm)
-    if(exists(prop, where=conf))
-        conf[[prop]] = FALSE
+  prop <- sprintf("sm_activated_%s", sm)
+  if (exists(prop, where = conf)) {
+    conf[[prop]] <- FALSE
+  }
 }
 
 sm_set_with_alerts <- function(sm) {
-    prop = sprintf("sm_alerts_%s", sm)
-    if(exists(prop, where=conf))
-        conf[[prop]] = TRUE
+  prop <- sprintf("sm_alerts_%s", sm)
+  if (exists(prop, where = conf)) {
+    conf[[prop]] <- TRUE
+  }
 }
 sm_set_without_alerts <- function(sm) {
-    prop = sprintf("sm_alerts_%s", sm)
-    if(exists(prop, where=conf))
-        conf[[prop]] = FALSE
+  prop <- sprintf("sm_alerts_%s", sm)
+  if (exists(prop, where = conf)) {
+    conf[[prop]] <- FALSE
+  }
 }
 
 get_env_props <- function() {
@@ -1546,7 +1582,9 @@ get_env_props <- function() {
 coerce_env_props <- function(props, defaults) {
   for (prop in names(props)) {
     default <- defaults[[prop]]
-    if (is.null(default) || length(default) != 1 || is.na(default)) next
+    if (is.null(default) || length(default) != 1 || is.na(default)) {
+      next
+    }
     raw <- props[[prop]]
     if (is.numeric(default)) {
       value <- suppressWarnings(as.numeric(raw))
@@ -1574,24 +1612,23 @@ coerce_env_props <- function(props, defaults) {
 }
 
 
-
 get_env_secrets <- function() {
   envs <- as.list(Sys.getenv())
   envs <- envs[grepl("^EPISOMER_SECRET_.*", names(envs))]
   envs <- setNames(envs, gsub("^EPISOMER_SECRET_", "", names(envs)))
-  ret <- list() 
+  ret <- list()
   # fetching values if provided on files
-  for(p in names(envs)) {
-     if(!grepl(".*_FILE$", p)) {
-         ## Standard secret
-         ret[[tolower(p)]] <- envs[[p]] 
-     } else if(envs[[p]]!="" && file.exists(envs[[p]])) {
-         ## Secret file
-         con <- file(envs[[p]], "r", encoding = "UTF-8")
-         val <- readLines(con, n=1, warn=FALSE)
-         close(con)
-         ret[[tolower(gsub("_FILE$", "", p))]] <- val 
-     }
+  for (p in names(envs)) {
+    if (!grepl(".*_FILE$", p)) {
+      ## Standard secret
+      ret[[tolower(p)]] <- envs[[p]]
+    } else if (envs[[p]] != "" && file.exists(envs[[p]])) {
+      ## Secret file
+      con <- file(envs[[p]], "r", encoding = "UTF-8")
+      val <- readLines(con, n = 1, warn = FALSE)
+      close(con)
+      ret[[tolower(gsub("_FILE$", "", p))]] <- val
+    }
   }
   ret
 }
