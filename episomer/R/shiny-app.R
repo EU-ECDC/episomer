@@ -2742,7 +2742,7 @@ episomer_app <- function(
           uploaded <- df$datapath[[1]]
           epifile.copy(
             uploaded,
-            paste(conf$data_dir, "users.xlsx", sep = "/"),
+            epipath("users.xlsx"),
             overwrite = TRUE
           )
         }
@@ -2754,36 +2754,6 @@ episomer_app <- function(
         # Adding dependency with lang refresh
         cd$langs_refresh_flag()
         DT::datatable(cd$langs)
-      })
-
-      # downloading current languages
-      output$conf_lang_download <- shiny::downloadHandler(
-        filename = function() "languages.xlsx",
-        content = function(file) {
-          epifile.copy(get_available_languages_path(), file)
-        }
-      )
-
-      # downloading original languages file
-      output$conf_orig_lang_download <- shiny::downloadHandler(
-        filename = function() "languages.xlsx",
-        content = function(file) {
-          epifile.copy(get_default_available_languages_path(), file)
-        }
-      )
-
-      # uploading new language file
-      shiny::observe({
-        df <- input$conf_lang_upload
-        if (!is.null(df) && nrow(df) > 0) {
-          uploaded <- df$datapath[[1]]
-          epifile.copy(
-            uploaded,
-            paste(conf$data_dir, "languages.xlsx", sep = "/"),
-            overwrite = TRUE
-          )
-          refresh_config_data(e = cd, limit = list("langs"))
-        }
       })
 
       ######### TASKS LOGIC ##################
@@ -2922,7 +2892,7 @@ episomer_app <- function(
           uploaded <- df$datapath[[1]]
           epifile.copy(
             uploaded,
-            paste(conf$data_dir, "subscribers.xlsx", sep = "/"),
+            epipath("subscribers.xlsx"),
             overwrite = TRUE
           )
           cd$subscribers_refresh_flag(Sys.time())
@@ -2979,7 +2949,7 @@ episomer_app <- function(
           uploaded <- df$datapath[[1]]
           epifile.copy(
             uploaded,
-            paste(conf$data_dir, "countries.xlsx", sep = "/"),
+            epipath("countries.xlsx"),
             overwrite = TRUE
           )
           # get_country_items() memoises the parsed file for the whole session, so a new upload is
