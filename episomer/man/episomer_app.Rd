@@ -55,7 +55,7 @@ see the interactive dashboard visualisations, export them to Markdown or PDF, an
 
 All its functionality is described on the episomer vignette.
 
-The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations, 
+The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations,
 allow export them to Markdown or PDF.
 
 All its functionality is described on the episomer vignette.
