@@ -615,7 +615,7 @@ episomer_app <- function(
                   shiny::sliderInput(
                     "conf_alpha",
                     label = NULL,
-                    min = 0,
+                    min = 0.005,
                     max = 0.3,
                     value = conf$alert_alpha,
                     step = 0.005
@@ -657,7 +657,8 @@ episomer_app <- function(
                   shiny::numericInput(
                     "conf_history",
                     label = NULL,
-                    value = conf$alert_history
+                    value = conf$alert_history,
+                    min = 1
                   )
                 )
               ),
