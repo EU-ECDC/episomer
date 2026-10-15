@@ -575,6 +575,10 @@ episomer_app <- function(
                 shiny::column(7, shiny::htmlOutput("fs_running"))
               ),
               shiny::fluidRow(
+                shiny::column(5, "Database package version"),
+                shiny::column(7, shiny::htmlOutput("fs_jar_version"))
+              ),
+              shiny::fluidRow(
                 shiny::column(5, "Data collection & processing"),
                 shiny::column(7, shiny::htmlOutput("search_running"))
               ),
@@ -2466,6 +2470,26 @@ episomer_app <- function(
           "</span>",
           sep = ""
         )
+      })
+
+      # rendering the jar version of the fs service, flagging a mismatch with this app's package
+      output$fs_jar_version <- shiny::renderText({
+        cd$process_refresh_flag()
+        app_version <- as.character(utils::packageVersion(get_package_name()))
+        fs_version <- if (cd$fs_running) get_fs_jar_version() else NA_character_
+        if (is.na(fs_version)) {
+          "<span style='color:#888'>Unknown (database stopped or too old to report its version)</span>"
+        } else if (identical(fs_version, app_version)) {
+          paste0("<span style='color:#348017'>", fs_version, "</span>")
+        } else {
+          paste0(
+            "<span style='color:#F75D59'>Mismatch: database runs ",
+            fs_version,
+            ", app is ",
+            app_version,
+            "</span>"
+          )
+        }
       })
 
       # rendering the Requirements & alerts running status
