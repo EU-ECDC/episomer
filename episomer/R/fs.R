@@ -408,9 +408,52 @@ epifile.move <- function(from, to) {
   }
 }
 
-epifile.copy <- function(from, to, overwrite = TRUE, allow_partial = FALSE) {
+# Writes the last `n` lines of the local file `from` to `to`, reading backwards by blocks so
+# the cost does not depend on the size of the file.
+tail_file <- function(from, to, n) {
+  size <- file.size(from)
+  con <- file(from, "rb")
+  on.exit(close(con))
+  block <- 64 * 1024
+  pos <- size
+  found <- 0
+  start <- 0
+  while (pos > 0 && found < n) {
+    len <- min(block, pos)
+    pos <- pos - len
+    seek(con, pos)
+    bytes <- readBin(con, "raw", len)
+    nl <- which(bytes == as.raw(10))
+    # a trailing newline ends the last line, it does not start another one
+    nl <- nl[pos + nl < size]
+    if (found + length(nl) >= n) {
+      start <- pos + nl[length(nl) - (n - found) + 1]
+      found <- n
+    } else {
+      found <- found + length(nl)
+    }
+  }
+  seek(con, start)
+  writeBin(readBin(con, "raw", size - start), to)
+  invisible(to)
+}
+
+# `tail_lines` > 0 copies only the last lines of a text file (logs); the remote case asks the
+# fs API for them (action=tail), a server too old to know it sends the whole file.
+epifile.copy <- function(
+  from,
+  to,
+  overwrite = TRUE,
+  allow_partial = FALSE,
+  tail_lines = 0
+) {
   if (!is_remote(from) && !is_remote(to)) {
-    file.copy(from, to, overwrite = overwrite)
+    if (tail_lines > 0 && file.exists(from) && !file.info(from)$isdir) {
+      tail_file(from, to, tail_lines)
+      TRUE
+    } else {
+      file.copy(from, to, overwrite = overwrite)
+    }
   } else if (is_remote(from) && is_remote(to)) {
     # same destination format as epifile.move above: the API expects a path relative to its
     # own epiHome, and used to be given the full URL of `to`, which it resolved to nonsense.
@@ -431,7 +474,16 @@ epifile.copy <- function(from, to, overwrite = TRUE, allow_partial = FALSE) {
     max_attempts <- 3
     for (attempt in seq_len(max_attempts)) {
       result <- tryCatch(
-        download.file(from, to, mode = "wb", quiet = TRUE),
+        download.file(
+          if (tail_lines > 0) {
+            sprintf("%s?action=tail&lines=%d", from, as.integer(tail_lines))
+          } else {
+            from
+          },
+          to,
+          mode = "wb",
+          quiet = TRUE
+        ),
         error = function(e) e
       )
       if (!inherits(result, "error")) {

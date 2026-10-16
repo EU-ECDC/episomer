@@ -1123,7 +1123,12 @@ create_snapshot <- function(
         epifile.copy(
           paths[[i]],
           file.path(dump, relpaths[[i]]),
-          allow_partial = grepl("\\.log$", relpaths[[i]])
+          allow_partial = grepl("\\.log$", relpaths[[i]]),
+          tail_lines = if (grepl("\\.log$", relpaths[[i]])) {
+            conf$snapshot_log_lines
+          } else {
+            0
+          }
         )
       }
     }
