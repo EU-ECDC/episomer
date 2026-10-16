@@ -950,10 +950,14 @@ get_alerts <- function(
         )
       )
     })
+    # A file in alerts/ whose name does not start with a date (a backup, an editor or OS leftover)
+    # gets an NA date, the test below answers NA for it, and indexing a list with NA yields NULL:
+    # file(NULL) then failed with "invalid 'description' argument". Such files are skipped.
     files_in_period <- lapply(
-      file_dates[sapply(
+      file_dates[vapply(
         file_dates,
-        function(fd) fd$date >= as.Date(from) && fd$date <= as.Date(until)
+        function(fd) !is.na(fd$date) && fd$date >= as.Date(from) && fd$date <= as.Date(until),
+        logical(1)
       )],
       function(fd) fd$path
     )

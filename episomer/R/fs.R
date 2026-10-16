@@ -534,6 +534,9 @@ epilist.files <- function(
       tolower(full.names),
       tolower(recursive)
     )))
+    # an fs API older than the fix in API.scala, running on Windows, joins the part below the
+    # listed directory with "\" ("http://host/file/alerts\2026\2026.10.07-alerts.json")
+    files <- gsub("\\", "/", files, fixed = TRUE)
     if (full.names) {
       files <- to_fs_remote_url(files)
     }

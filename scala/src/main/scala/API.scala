@@ -567,11 +567,14 @@ object API {
                     val full = fullname.getOrElse(false)
                     val jsonValues = recursiveFileList(localPath, recursive = recursive)
                         .map{p =>
+                            // the part below localPath comes from the local file system, so on Windows
+                            // it is joined with "\": a URL or a path given to R must use "/" (get_alerts()
+                            // reads the date from the last "/" segment and failed on every file)
                             if(full) {
-                                p.toString().replace(localPath.toString, base)
+                                p.toString().replace(localPath.toString, base).replace(File.separatorChar, '/')
                             } else if(recursive) {
                                 //recursive but not full
-                                p.toString().replace(localPath.toString, path.toString).replaceAll("^/+", "")
+                                p.toString().replace(localPath.toString, path.toString).replace(File.separatorChar, '/').replaceAll("^/+", "")
                             } else {
                                 //not recursive
                                 (new java.io.File(p.toString)).getName
