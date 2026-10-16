@@ -286,7 +286,7 @@ register_series <- function() {
     pks = list(
       "created_date",
       "topic",
-      "post_geo_country_code",
+      "geo_country_code",
       "token",
       "network"
     ),
@@ -377,9 +377,9 @@ register_series <- function() {
     ),
     aggr = list(
       quotes = "sum",
-      posts = "sum",
-      know_posts = "sum",
-      know_original = "sum"
+      original = "sum",
+      known_quotes = "sum",
+      known_original = "sum"
     ),
     sources_exp = c(
       list("topic", "created_at", "is_quote", "user_name", "network"),
@@ -408,10 +408,10 @@ register_series <- function() {
       "created_date",
       "topic",
       "geo_country_code",
-      "entity",
+      "tag",
       "network"
     ),
-    aggr = list(frequency = "sum", original = "sum", reposts = "sum"),
+    aggr = list(frequency = "sum", original = "sum", quotes = "sum"),
     sources_exp = c(
       list(
         "network",
@@ -448,7 +448,7 @@ register_series <- function() {
       "created_date",
       "topic",
       "geo_country_code",
-      "entity",
+      "url",
       "network"
     ),
     aggr = list(frequency = "sum", original = "sum", quotes = "sum"),
@@ -488,7 +488,7 @@ register_series <- function() {
       "created_date",
       "topic",
       "geo_country_code",
-      "entity",
+      "category",
       "network"
     ),
     aggr = list(frequency = "sum", original = "sum", quotes = "sum"),
