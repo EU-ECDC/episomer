@@ -1134,15 +1134,14 @@ create_snapshot <- function(
     }
     progress(0.8, "Compacting and archiving")
     comp <- if (compress) "z" else ""
-    processx::run(
-      "tar",
-      c(
-        "--force-local",
-        sprintf("-cv%sf", comp),
-        destination,
-        "."
-      ),
-      wd = dump
+    tar_args <- c(sprintf("-cv%sf", comp), destination, ".")
+    # GNU tar needs --force-local to accept a "C:/..." destination, but the bsdtar shipped with
+    # Windows rejects that option (see the same fallback in the tar availability check)
+    tryCatch(
+      processx::run("tar", c("--force-local", tar_args), wd = dump),
+      error = function(e) {
+        processx::run("tar", tar_args, wd = dump)
+      }
     )
   }
   if (file.exists(dump)) {
