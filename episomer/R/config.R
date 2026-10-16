@@ -286,6 +286,8 @@ get_empty_config <- function(data_dir) {
   ret$fs_setup_port <- 9080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
+  # Largest size (MB) a log file under jobs/ may have when a service starts; see rotate_log().
+  ret$log_max_size_mb <- 50
   # Runner leases (see R/runners-lease.R and inst/schema/multi_services_plan.md section 6.5).
   # All in seconds. They tune the exclusion mechanism that stops two machines sharing the same
   # data directory from acting as the same runner, so they belong to the *cluster*, not to one
@@ -597,6 +599,7 @@ setup_config <- function(
     conf$fs_setup_port <- temp$fs_setup_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
+    conf$log_max_size_mb <- temp$log_max_size_mb
     # Runner lease tuning. runner_lease_ttl() and runner_claim_guard() (R/runners-lease.R) read
     # these from conf and fall back to their own hardcoded defaults when they are absent, so an
     # older properties.json - or a conf built without going through setup_config() - keeps working.
@@ -920,6 +923,7 @@ save_config <- function(
     temp$fs_setup_port <- conf$fs_setup_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
+    temp$log_max_size_mb <- conf$log_max_size_mb
     temp$runner_heartbeat_span <- conf$runner_heartbeat_span
     temp$runner_ttl_search <- conf$runner_ttl_search
     temp$runner_ttl_detect <- conf$runner_ttl_detect
