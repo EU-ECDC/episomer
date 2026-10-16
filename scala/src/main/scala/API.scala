@@ -596,6 +596,9 @@ object API {
                     // last `lines` lines of a text file (e.g. a log that is being appended to).
                     // Reads backwards from the end, so the cost does not depend on the file size.
                     if(Files.isRegularFile(localPath) && lines > 0) {
+                      // a log opened without sharing by another process (Windows, system error 32)
+                      // cannot be read by anyone: answer with the cause instead of a bare 500
+                      scala.util.Try {
                       val raf = new java.io.RandomAccessFile(localPath.toFile, "r")
                       try {
                         val block = 64 * 1024
@@ -623,9 +626,15 @@ object API {
                         val out = new Array[Byte]((end - start).toInt)
                         raf.seek(start)
                         raf.readFully(out)
-                        complete(HttpEntity(MediaTypes.`application/octet-stream`, out))
+                        out
                       } finally {
                         raf.close()
+                      }
+                      } match {
+                        case scala.util.Success(out) => complete(HttpEntity(MediaTypes.`application/octet-stream`, out))
+                        case scala.util.Failure(e) =>
+                          println(s"tail of '$localPath' failed: $e")
+                          complete(StatusCodes.Locked, EpisomerActor.Failure(s"'$localPath' cannot be read: $e"))
                       }
                     } else {
                       complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not a file or lines is not positive")) 

@@ -449,8 +449,24 @@ epifile.copy <- function(
 ) {
   if (!is_remote(from) && !is_remote(to)) {
     if (tail_lines > 0 && file.exists(from) && !file.info(from)$isdir) {
-      tail_file(from, to, tail_lines)
-      TRUE
+      tryCatch(
+        {
+          tail_file(from, to, tail_lines)
+          TRUE
+        },
+        error = function(e) {
+          # on Windows a log opened without sharing by the process writing it (cmd redirection of
+          # the scheduled task) cannot be read: skip it rather than failing the whole caller
+          if (!allow_partial) {
+            stop(e)
+          }
+          warning(
+            sprintf("Skipping %s: %s", from, conditionMessage(e)),
+            call. = FALSE
+          )
+          FALSE
+        }
+      )
     } else {
       file.copy(from, to, overwrite = overwrite)
     }
@@ -500,6 +516,15 @@ epifile.copy <- function(
               file.size(to),
               conditionMessage(result)
             ),
+            call. = FALSE
+          )
+          break
+        }
+        if (allow_partial) {
+          # nothing could be read at all: typically a log locked by the process writing it
+          # (Windows system error 32); a snapshot without that log beats no snapshot
+          warning(
+            sprintf("Skipping %s: %s", from, conditionMessage(result)),
             call. = FALSE
           )
           break
