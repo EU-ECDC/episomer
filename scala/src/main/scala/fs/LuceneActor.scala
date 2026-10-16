@@ -890,6 +890,16 @@ object LuceneActor {
   }
 
 
+  // A primary key or aggregation column that the aggregated rows do not contain is silently
+  // mishandled by PostIndex.indexSparkRow: a missing key column counts as "null" in the document key,
+  // so rows differing only by it overwrite each other, and a missing aggregation column is never summed.
+  def warnUndeclaredColumns(name:String, columns:Seq[String], pks:Seq[String], aggr:Map[String, String]) {
+    val missingPks = pks.filterNot(columns.contains)
+    val missingAggr = aggr.keys.toSeq.filterNot(columns.contains)
+    if(missingPks.nonEmpty || missingAggr.nonEmpty)
+      l.msg(s"WARNING: series $name declares columns that are not produced by its aggregation (columns: ${columns.mkString(", ")}). Primary keys missing: [${missingPks.mkString(", ")}]. Aggregated columns missing: [${missingAggr.mkString(", ")}]")
+  }
+
   def aggregatePosts(collection:Collection)(implicit spark:SparkSession, conf:Settings) {
     import spark.implicits._
     val startTime = System.nanoTime
@@ -974,6 +984,10 @@ object LuceneActor {
               df 
             case df =>
               df.orderBy(sortBy.map(ob => expr(ob)):_*)
+          }
+          .map{df =>
+            warnUndeclaredColumns(collName, df.columns.toSeq, pks, collection.aggr)
+            df
           }
           .map{df =>
             df.mapPartitions{iter => 
