@@ -1134,15 +1134,31 @@ create_snapshot <- function(
     }
     progress(0.8, "Compacting and archiving")
     comp <- if (compress) "z" else ""
-    processx::run(
-      "tar",
-      c(
-        "--force-local",
-        sprintf("-cv%sf", comp),
-        destination,
-        "."
-      ),
-      wd = dump
+    tar_args <- c(sprintf("-cv%sf", comp), destination, ".")
+    # GNU tar needs --force-local to accept a "C:/..." destination, but the bsdtar shipped with
+    # Windows rejects that option (see the same fallback in the tar availability check).
+    # processx's own error only says "System command 'tar' failed": keep tar's stderr in it
+    run_tar <- function(args) {
+      res <- processx::run("tar", args, wd = dump, error_on_status = FALSE)
+      if (res$status != 0) {
+        stop(
+          sprintf(
+            "tar %s failed (status %s): %s",
+            paste(args, collapse = " "),
+            res$status,
+            trimws(res$stderr)
+          ),
+          call. = FALSE
+        )
+      }
+      res
+    }
+    tryCatch(
+      run_tar(c("--force-local", tar_args)),
+      error = function(e) {
+        warning(conditionMessage(e), call. = FALSE)
+        run_tar(tar_args)
+      }
     )
   }
   if (file.exists(dump)) {

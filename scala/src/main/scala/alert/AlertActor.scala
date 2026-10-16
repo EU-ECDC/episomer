@@ -182,7 +182,8 @@ object AlertActor {
     else
       root.list(recursive = false)
         .map(_.path)
-        .filter(p => p.split("/").last.startsWith(AlertActor.modelSetPrefix))
+        // a local node path comes from toAbsolutePath(), so on Windows it is joined with "\"
+        .filter(p => p.split("[/\\\\]").last.startsWith(AlertActor.modelSetPrefix))
         .sorted
   }
   def completeModelSets()(implicit conf:Settings) = {

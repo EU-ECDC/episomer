@@ -449,8 +449,24 @@ epifile.copy <- function(
 ) {
   if (!is_remote(from) && !is_remote(to)) {
     if (tail_lines > 0 && file.exists(from) && !file.info(from)$isdir) {
-      tail_file(from, to, tail_lines)
-      TRUE
+      tryCatch(
+        {
+          tail_file(from, to, tail_lines)
+          TRUE
+        },
+        error = function(e) {
+          # on Windows a log opened without sharing by the process writing it (cmd redirection of
+          # the scheduled task) cannot be read: skip it rather than failing the whole caller
+          if (!allow_partial) {
+            stop(e)
+          }
+          warning(
+            sprintf("Skipping %s: %s", from, conditionMessage(e)),
+            call. = FALSE
+          )
+          FALSE
+        }
+      )
     } else {
       file.copy(from, to, overwrite = overwrite)
     }
@@ -504,6 +520,15 @@ epifile.copy <- function(
           )
           break
         }
+        if (allow_partial) {
+          # nothing could be read at all: typically a log locked by the process writing it
+          # (Windows system error 32); a snapshot without that log beats no snapshot
+          warning(
+            sprintf("Skipping %s: %s", from, conditionMessage(result)),
+            call. = FALSE
+          )
+          break
+        }
         stop(result)
       }
       Sys.sleep(1)
@@ -534,6 +559,9 @@ epilist.files <- function(
       tolower(full.names),
       tolower(recursive)
     )))
+    # an fs API older than the fix in API.scala, running on Windows, joins the part below the
+    # listed directory with "\" ("http://host/file/alerts\2026\2026.10.07-alerts.json")
+    files <- gsub("\\", "/", files, fixed = TRUE)
     if (full.names) {
       files <- to_fs_remote_url(files)
     }
