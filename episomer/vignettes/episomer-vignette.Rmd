@@ -670,7 +670,7 @@ The subscribers can receive real-time alerts (i.e. as soon as the detection loop
 
   - “Real time Regions”: list of regions for which the subscriber will receive real-time alerts.
 
-  - “Alert Slots”: these are the detection loop slots after which the subscriber will receive the scheduled alert. Available slots can be taken from “Launch slots” in the “General” section of the configuration page. If no value is included, the subscriber will receive real-time alerts for all topics and regions, even if there are real-time topics or regions specified in the Excel spreadsheet.
+  - “Alert Slots”: these are the detection loop slots after which the subscriber will receive the scheduled alert. Available slots can be taken from “Launch slots” in the “General” section of the configuration page. Slots are interpreted in the timezone of the machine running the detection loop (not necessarily UTC). If no value is included, the subscriber will receive real-time alerts for all topics and regions, even if there are real-time topics or regions specified in the Excel spreadsheet.
 
   - “One post alerts” (yes/no): Whether you want to receive alerts containing just one post.
   
