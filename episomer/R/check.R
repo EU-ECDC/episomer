@@ -1120,7 +1120,11 @@ create_snapshot <- function(
       )
       last_message <<- as.integer(Sys.time())
       if (epifile.exists(paths[[i]])) {
-        epifile.copy(paths[[i]], file.path(dump, relpaths[[i]]))
+        epifile.copy(
+          paths[[i]],
+          file.path(dump, relpaths[[i]]),
+          allow_partial = grepl("\\.log$", relpaths[[i]])
+        )
       }
     }
     progress(0.8, "Compacting and archiving")

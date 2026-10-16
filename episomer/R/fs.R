@@ -408,7 +408,7 @@ epifile.move <- function(from, to) {
   }
 }
 
-epifile.copy <- function(from, to, overwrite = TRUE) {
+epifile.copy <- function(from, to, overwrite = TRUE, allow_partial = FALSE) {
   if (!is_remote(from) && !is_remote(to)) {
     file.copy(from, to, overwrite = overwrite)
   } else if (is_remote(from) && is_remote(to)) {
@@ -438,6 +438,20 @@ epifile.copy <- function(from, to, overwrite = TRUE) {
         break
       }
       if (attempt == max_attempts) {
+        # an append-only file (logs) that keeps growing never gets a clean read: a truncated
+        # copy is still useful there, whereas for data files it would be silent corruption
+        if (allow_partial && file.exists(to) && file.size(to) > 0) {
+          warning(
+            sprintf(
+              "Partial copy of %s (%s bytes kept): %s",
+              from,
+              file.size(to),
+              conditionMessage(result)
+            ),
+            call. = FALSE
+          )
+          break
+        }
         stop(result)
       }
       Sys.sleep(1)
