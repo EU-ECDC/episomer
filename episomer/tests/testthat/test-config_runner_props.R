@@ -203,16 +203,14 @@ test_that("an EPISOMER_OPTION_ runner property reaches the lease code as a numbe
   expect_equal(conf$runner_ttl_detect, runner_props$runner_ttl_detect)
 })
 
-test_that("properties.json takes precedence over the environment", {
-  # Documented behaviour of the merge in setup_config(): defaults < environment < properties.json.
-  # It is the reason why these five are described as cluster configuration rather than per-machine
-  # tuning - a stored value is the same for every instance, an environment variable is not - and
-  # the reason why an EPISOMER_OPTION_* only takes effect as long as save_config() has not yet
-  # written the property to the file.
+test_that("the environment takes precedence over properties.json", {
+  # Documented behaviour of the merge in setup_config(): defaults < properties.json < environment.
+  # A declarative deployment must be able to change a setting by editing its manifest, even on a
+  # data directory that already holds a properties.json written by an earlier start.
   data_dir <- withr::local_tempdir()
   local_conf(data_dir = data_dir, fs_remote = NULL)
   jsonlite::write_json(
-    list(runner_ttl_search = 120),
+    list(runner_ttl_search = 120, runner_ttl_detect = 130),
     get_properties_path(),
     auto_unbox = TRUE
   )
@@ -225,5 +223,7 @@ test_that("properties.json takes precedence over the environment", {
     fs_remote = NULL
   )
 
-  expect_equal(conf$runner_ttl_search, 120)
+  expect_identical(conf$runner_ttl_search, 600)
+  # a property with no variable keeps its stored value
+  expect_equal(conf$runner_ttl_detect, 130)
 })

@@ -296,8 +296,8 @@ get_empty_config <- function(data_dir) {
   # machine: they are stored in properties.json, which every instance reads, and they are
   # deliberately absent from the Shiny configuration page. A TTL mistyped in the UI would silently
   # break exclusivity for every machine at once, and these are deployment knobs, not analysis
-  # settings. Change them in properties.json, or through EPISOMER_OPTION_RUNNER_* on a first
-  # deployment (see coerce_env_props() and the precedence note in setup_config()).
+  # settings. Change them in properties.json, or through EPISOMER_OPTION_RUNNER_* (which wins over
+  # properties.json, see coerce_env_props() and the precedence note in setup_config()).
   #
   # Seconds between two lease renewals. It is also the granularity of sleep_with_heartbeat():
   # a loop sleeping for 40 minutes still proves it is alive every runner_heartbeat_span seconds.
@@ -526,19 +526,19 @@ setup_config <- function(
   temp <- get_empty_config(data_dir)
   if (!ignore_properties) {
     # Merging default values with those stored in the properties.json file. Precedence goes to
-    # the last source of the list, so: defaults < EPISOMER_OPTION_* environment < properties.json.
-    # An environment variable therefore only sets a property that properties.json does not
-    # already carry - which, since save_config() writes them all, in practice means the first
-    # start of a fresh data directory.
+    # the last source of the list, so: defaults < properties.json < EPISOMER_OPTION_* environment.
+    # An environment variable that is set therefore always wins over a stored value, which is what
+    # a declarative deployment (compose, Kubernetes) expects: editing the manifest and restarting
+    # must be enough, even on a data directory that already holds a properties.json. Properties
+    # with no matching variable keep the value stored in properties.json.
     # coerce_env_props() gives the environment values the type of the matching default, so that
     # a number stays a number whichever of the three sources it came from.
     # The env-var merge must run unconditionally, even when properties.json does not exist yet
-    # (a brand new data directory) - that is precisely the case the paragraph above describes.
-    # Only the properties.json read itself is conditional, to avoid erroring on a file that is
-    # not there yet, locally or remotely (epifile.exists() is remote-aware, see R/fs.R).
+    # (a brand new data directory). Only the properties.json read itself is conditional, to avoid
+    # erroring on a file that is not there yet, locally or remotely (epifile.exists() is
+    # remote-aware, see R/fs.R).
     temp <- merge_configs(list(
       temp,
-      coerce_env_props(get_env_props(), temp),
       if (epifile.exists(props_path)) {
         jsonlite::read_json(
           props_path,
@@ -547,7 +547,8 @@ setup_config <- function(
         )
       } else {
         list()
-      }
+      },
+      coerce_env_props(get_env_props(), temp)
     ))
     #Setting config  variables filled only from json file
     # Symmetrically to save_config, the properties are copied one by one: an instance_id or an
