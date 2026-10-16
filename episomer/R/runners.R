@@ -694,6 +694,9 @@ register_runner_task <- function(
     # (`docker logs`, `kubectl logs`) and the only one anything collects. A file is still the
     # default everywhere else - see logs_to_stdout(), R/config.R.
     log <- if (logs_to_stdout()) "" else file.path(script_folder, script_log)
+    if (log != "") {
+      rotate_log(log)
+    }
     message(sprintf(
       "Rscript '%s' %s > %s",
       script,
@@ -720,6 +723,23 @@ register_runner_task <- function(
       wait = FALSE
     )
   }
+}
+
+# Keeps a service log from growing for ever: a file over conf$log_max_size_mb is moved to
+# <log>.1 (replacing the previous generation) so the service starts on a fresh one. Done only
+# when a service starts, since a running process keeps its file open and would go on writing to
+# the renamed one. A value <= 0 disables the rotation.
+rotate_log <- function(path, max_mb = conf$log_max_size_mb) {
+  if (
+    is.null(max_mb) ||
+      is.na(max_mb) ||
+      max_mb <= 0 ||
+      !file.exists(path) ||
+      file.size(path) <= max_mb * 1024^2
+  ) {
+    return(invisible(FALSE))
+  }
+  invisible(file.rename(path, paste0(path, ".1")))
 }
 
 #Stopping a running episomer task

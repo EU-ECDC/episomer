@@ -286,14 +286,18 @@ get_empty_config <- function(data_dir) {
   ret$fs_setup_port <- 9080
   ret$fs_batch_timeout <- 60 * 60
   ret$fs_query_timeout <- 60
+  # Largest size (MB) a log file under jobs/ may have when a service starts; see rotate_log().
+  ret$log_max_size_mb <- 50
+  # Number of lines kept from each log in a snapshot (create_snapshot()); 0 = whole file.
+  ret$snapshot_log_lines <- 100000
   # Runner leases (see R/runners-lease.R and inst/schema/multi_services_plan.md section 6.5).
   # All in seconds. They tune the exclusion mechanism that stops two machines sharing the same
   # data directory from acting as the same runner, so they belong to the *cluster*, not to one
   # machine: they are stored in properties.json, which every instance reads, and they are
   # deliberately absent from the Shiny configuration page. A TTL mistyped in the UI would silently
   # break exclusivity for every machine at once, and these are deployment knobs, not analysis
-  # settings. Change them in properties.json, or through EPISOMER_OPTION_RUNNER_* on a first
-  # deployment (see coerce_env_props() and the precedence note in setup_config()).
+  # settings. Change them in properties.json, or through EPISOMER_OPTION_RUNNER_* (which wins over
+  # properties.json, see coerce_env_props() and the precedence note in setup_config()).
   #
   # Seconds between two lease renewals. It is also the granularity of sleep_with_heartbeat():
   # a loop sleeping for 40 minutes still proves it is alive every runner_heartbeat_span seconds.
@@ -522,19 +526,19 @@ setup_config <- function(
   temp <- get_empty_config(data_dir)
   if (!ignore_properties) {
     # Merging default values with those stored in the properties.json file. Precedence goes to
-    # the last source of the list, so: defaults < EPISOMER_OPTION_* environment < properties.json.
-    # An environment variable therefore only sets a property that properties.json does not
-    # already carry - which, since save_config() writes them all, in practice means the first
-    # start of a fresh data directory.
+    # the last source of the list, so: defaults < properties.json < EPISOMER_OPTION_* environment.
+    # An environment variable that is set therefore always wins over a stored value, which is what
+    # a declarative deployment (compose, Kubernetes) expects: editing the manifest and restarting
+    # must be enough, even on a data directory that already holds a properties.json. Properties
+    # with no matching variable keep the value stored in properties.json.
     # coerce_env_props() gives the environment values the type of the matching default, so that
     # a number stays a number whichever of the three sources it came from.
     # The env-var merge must run unconditionally, even when properties.json does not exist yet
-    # (a brand new data directory) - that is precisely the case the paragraph above describes.
-    # Only the properties.json read itself is conditional, to avoid erroring on a file that is
-    # not there yet, locally or remotely (epifile.exists() is remote-aware, see R/fs.R).
+    # (a brand new data directory). Only the properties.json read itself is conditional, to avoid
+    # erroring on a file that is not there yet, locally or remotely (epifile.exists() is
+    # remote-aware, see R/fs.R).
     temp <- merge_configs(list(
       temp,
-      coerce_env_props(get_env_props(), temp),
       if (epifile.exists(props_path)) {
         jsonlite::read_json(
           props_path,
@@ -543,7 +547,8 @@ setup_config <- function(
         )
       } else {
         list()
-      }
+      },
+      coerce_env_props(get_env_props(), temp)
     ))
     #Setting config  variables filled only from json file
     # Symmetrically to save_config, the properties are copied one by one: an instance_id or an
@@ -597,6 +602,8 @@ setup_config <- function(
     conf$fs_setup_port <- temp$fs_setup_port
     conf$fs_batch_timeout <- temp$fs_batch_timeout
     conf$fs_query_timeout <- temp$fs_query_timeout
+    conf$log_max_size_mb <- temp$log_max_size_mb
+    conf$snapshot_log_lines <- temp$snapshot_log_lines
     # Runner lease tuning. runner_lease_ttl() and runner_claim_guard() (R/runners-lease.R) read
     # these from conf and fall back to their own hardcoded defaults when they are absent, so an
     # older properties.json - or a conf built without going through setup_config() - keeps working.
@@ -920,6 +927,8 @@ save_config <- function(
     temp$fs_setup_port <- conf$fs_setup_port
     temp$fs_batch_timeout <- conf$fs_batch_timeout
     temp$fs_query_timeout <- conf$fs_query_timeout
+    temp$log_max_size_mb <- conf$log_max_size_mb
+    temp$snapshot_log_lines <- conf$snapshot_log_lines
     temp$runner_heartbeat_span <- conf$runner_heartbeat_span
     temp$runner_ttl_search <- conf$runner_ttl_search
     temp$runner_ttl_detect <- conf$runner_ttl_detect

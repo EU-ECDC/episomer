@@ -563,7 +563,7 @@ object API {
                 val localPath = Paths.get(conf.epiHome, path.toString)
                 val url = uri.toString
                 val base = url.substring(0,url.lastIndexOf("?") match {case v if v <0 => url.length case v => v})
-                parameters("action".as[String]?"get", "fullname".as[Boolean].?, "recursive".as[Boolean]?false) { (action, fullname, recursive) => 
+                parameters("action".as[String]?"get", "fullname".as[Boolean].?, "recursive".as[Boolean]?false, "lines".as[Int]?0) { (action, fullname, recursive, lines) => 
                   if(action == "exists") {
                     complete(Files.exists(localPath).toString())
                   } else if(action == "md5sum") {
@@ -612,6 +612,44 @@ object API {
                         .toList.asScala.toVector
                         .map(JsString(_))
                     complete(JsArray(jsonValues).toString())
+                  } else if(action == "tail") {
+                    // last `lines` lines of a text file (e.g. a log that is being appended to).
+                    // Reads backwards from the end, so the cost does not depend on the file size.
+                    if(Files.isRegularFile(localPath) && lines > 0) {
+                      val raf = new java.io.RandomAccessFile(localPath.toFile, "r")
+                      try {
+                        val block = 64 * 1024
+                        val end = raf.length()
+                        var pos = end
+                        var found = 0
+                        var start = 0L
+                        var done = false
+                        // a trailing newline ends the last line, it does not start another one
+                        val buf = new Array[Byte](block)
+                        while(!done && pos > 0) {
+                          val len = Math.min(block.toLong, pos).toInt
+                          pos -= len
+                          raf.seek(pos)
+                          raf.readFully(buf, 0, len)
+                          var i = len - 1
+                          while(!done && i >= 0) {
+                            if(buf(i) == '\n'.toByte && pos + i < end - 1) {
+                              found += 1
+                              if(found == lines) { start = pos + i + 1; done = true }
+                            }
+                            i -= 1
+                          }
+                        }
+                        val out = new Array[Byte]((end - start).toInt)
+                        raf.seek(start)
+                        raf.readFully(out)
+                        complete(HttpEntity(MediaTypes.`application/octet-stream`, out))
+                      } finally {
+                        raf.close()
+                      }
+                    } else {
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not a file or lines is not positive")) 
+                    }
                   } else { //get
                     if(Files.isRegularFile(localPath)) {
                       complete(HttpEntity.fromFile(MediaTypes.`application/octet-stream`, new File(localPath.toString)))

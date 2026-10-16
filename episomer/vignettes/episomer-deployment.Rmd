@@ -86,11 +86,12 @@ prefixing its name with `EPISOMER_OPTION_` and writing it in upper case. For ins
 
 Two things are worth knowing:
 
--   **the precedence is defaults < `EPISOMER_OPTION_*` < `properties.json`.**
-    An environment variable therefore only sets a property that `properties.json` does not already
-    carry — which, since `{episomer}` saves every property when it saves its configuration, in
-    practice means the very first start on a fresh data directory. On an existing data directory,
-    edit `properties.json`.
+-   **the precedence is defaults < `properties.json` < `EPISOMER_OPTION_*`.**
+    An environment variable that is set always wins over the value stored in `properties.json`,
+    including on an existing data directory: change the manifest (compose, Kubernetes) and restart.
+    Properties without a matching variable keep their stored value. Note that a setting fixed
+    by the environment cannot be changed durably from the Shiny app or `setup()`: the variable
+    wins again at the next start.
 -   **values are typed and checked at startup.** A property whose default is
     a number must be given a number, one whose default is a boolean must be given a boolean
     (`TRUE`/`FALSE`, or `1`/`0`). An unusable value stops the container immediately, with a message
@@ -106,6 +107,8 @@ replaces option 6 of the wizard:
 | `EPISOMER_OPTION_SM_ACTIVATED_MASTODON` | whether posts are collected from Mastodon |
 | `EPISOMER_OPTION_SM_ALERTS_MASTODON` | whether Mastodon posts contribute to alert detection |
 | `EPISOMER_OPTION_MASTODON_INSTANCES` | the Mastodon instances to collect from, separated by semicolons, e.g. `mastodon.social;mstdn.party` |
+| `EPISOMER_OPTION_LOG_MAX_SIZE_MB` | size in MB above which a service log under `jobs/` is moved to `<name>.log.1` when the service starts (default 50, `0` disables) |
+| `EPISOMER_OPTION_SNAPSHOT_LOG_LINES` | number of last lines of each log included in a snapshot (default 100000, `0` = whole file) |
 
 ### Languages: `EPISOMER_LANGUAGES`
 
@@ -356,7 +359,7 @@ Five properties tune the mechanism. They are stored in `properties.json`, which 
 so they belong to the whole cluster. They are **deliberately absent from the Shiny configuration
 page**: a TTL mistyped there would break exclusivity for every machine at once, and these are
 deployment knobs rather than analysis settings. Set them in `properties.json`, or through the
-environment on a first deployment (`EPISOMER_OPTION_RUNNER_TTL_SEARCH=600` and so on; the precedence rule described in the section on `EPISOMER_OPTION_*` settings applies, so the environment only has the last word on a fresh data directory).
+environment (`EPISOMER_OPTION_RUNNER_TTL_SEARCH=600` and so on; the environment wins over `properties.json`, see the section on `EPISOMER_OPTION_*` settings).
 
 | Property | Default | What it is |
 |---|---|---|
