@@ -106,6 +106,8 @@ replaces option 6 of the wizard:
 | `EPISOMER_OPTION_SM_ACTIVATED_MASTODON` | whether posts are collected from Mastodon |
 | `EPISOMER_OPTION_SM_ALERTS_MASTODON` | whether Mastodon posts contribute to alert detection |
 | `EPISOMER_OPTION_MASTODON_INSTANCES` | the Mastodon instances to collect from, separated by semicolons, e.g. `mastodon.social;mstdn.party` |
+| `EPISOMER_OPTION_LOG_MAX_SIZE_MB` | size in MB above which a service log under `jobs/` is moved to `<name>.log.1` when the service starts (default 50, `0` disables) |
+| `EPISOMER_OPTION_SNAPSHOT_LOG_LINES` | number of last lines of each log included in a snapshot (default 100000, `0` = whole file) |
 
 ### Languages: `EPISOMER_LANGUAGES`
 

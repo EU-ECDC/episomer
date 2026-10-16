@@ -103,7 +103,13 @@ refresh_config_data <- function(
 
 refresh_config_data_impl <- function(e, limit) {
   # Refreshing configuration
-  setup_config(data_dir = conf$data_dir, ignore_properties = TRUE)
+  # fs_remote must be passed along: setup_config() defaults it to EPI_HOST or http://localhost:8080,
+  # which would silently replace the address given to episomer_app(fs_remote = ...) on the first refresh.
+  setup_config(
+    data_dir = conf$data_dir,
+    ignore_properties = TRUE,
+    fs_remote = conf$fs_remote
+  )
 
   #Creating the flag for properties refresh
   if (!exists("properties_refresh_flag", where = e)) {

@@ -69,12 +69,13 @@ search_loop <- function(
   }
   sms <- active_social_media()
   cores <- as.numeric(length(sms))
+  max_log_mb <- conf$log_max_size_mb
   cl <- parallel::makePSOCKcluster(cores, outfile = "")
   on.exit(parallel::stopCluster(cl), add = TRUE)
   data_dir <- conf$data_dir
   parallel::clusterExport(
     cl,
-    list("log_to_file", "data_dir", "sandboxed"),
+    list("log_to_file", "data_dir", "sandboxed", "max_log_mb"),
     envir = rlang::current_env()
   )
 
@@ -87,10 +88,13 @@ search_loop <- function(
     # redirecting output to the sm file
     if (log_to_file) {
       jobs_dir <- file.path(data_dir, "jobs")
-      outcon <- file(
-        file.path(jobs_dir, sprintf("search.%s.log", sm)),
-        open = "a"
-      )
+      worker_log <- file.path(jobs_dir, sprintf("search.%s.log", sm))
+      if (max_log_mb > 0 && file.exists(worker_log)) {
+        if (file.size(worker_log) > max_log_mb * 1024^2) {
+          file.rename(worker_log, paste0(worker_log, ".1"))
+        }
+      }
+      outcon <- file(worker_log, open = "a")
       sink(outcon)
       sink(outcon, type = "message")
       # Undoing the redirection is not cosmetic: a worker leaving without it hands its PSOCK
