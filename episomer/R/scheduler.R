@@ -302,7 +302,7 @@ detect_loop <- function(data_dir = NA) {
             # write from here would fight with it over the same file.
             stop_if_lease_lost()
             save_tasks(tasks)
-            health_check(one_per_day = FALSE)
+            health_check(one_per_day = FALSE, caller = "detect_loop (task aborted)")
           } else {
             # if task is not aborted proceeding with execution
             message(paste(Sys.time(), ": Executing task", tasks[[i_next]]$task))
@@ -362,7 +362,7 @@ detect_loop <- function(data_dir = NA) {
         last_sleeping_message <- Sys.time()
       }
       # episomer sanity check and sending email in case of issues
-      health_check()
+      health_check(caller = "detect_loop")
       # updating config to capture changes coming from search loop or shiny app
       setup_config(data_dir = conf$data_dir)
       # sleep for 5 seconds, renewing the lease if the heartbeat span has passed. Five seconds is

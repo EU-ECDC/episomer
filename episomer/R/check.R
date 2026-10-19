@@ -771,10 +771,35 @@ check_all <- function() {
 # Environment for storing last admin email
 checks <- new.env()
 
+# Lines identifying the process that ran the health check, appended to the alert email. Without them
+# nothing tells which of the services (fs monitor, search, detect) sent it, nor what it was looking at.
+health_check_origin <- function(caller = NULL) {
+  c(
+    "Sent by" = if (is.null(caller)) "unknown" else caller,
+    "Instance" = conf$instance_host,
+    "Host name" = Sys.info()[["nodename"]],
+    "episomer version" = as.character(utils::packageVersion(get_package_name())),
+    "fs endpoint" = tryCatch(get_scala_api_endpoint(), error = function(e) NA),
+    "fs remote" = fs_remote(),
+    "Data directory" = conf$data_dir
+  )
+}
+
+health_check_origin_html <- function(caller = NULL) {
+  o <- health_check_origin(caller)
+  paste0(
+    "<p><small>",
+    paste0(names(o), ": ", vapply(o, as.character, character(1)), collapse = "<br/>"),
+    "</small></p>"
+  )
+}
+
 #' @title Send email to administrator if a failure of episomer is detected
 #' @description It validates if episomer is not collecting posts, aggregating posts or not calculating alerts
 #' @param send_mail Boolean. Whether an email should be sent to the defined administrator, default: TRUE
 #' @param one_per_day Boolean. Whether a limit of one email per day will be applied, default: TRUE
+#' @param caller Character. Name of the service or function running the check, shown in the email so the
+#' administrator can tell which process sent it, default: NULL (the email then says "unknown")
 #' @return A list of health check errors found
 #' @details This function sends an email to the defined administrator if episomer is not collecting posts, aggregating posts or not calculating alerts
 #' @examples
@@ -788,7 +813,11 @@ checks <- new.env()
 #' }
 #' @rdname health_check
 #' @export
-health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
+health_check <- function(
+  send_mail = TRUE,
+  one_per_day = TRUE,
+  caller = NULL
+) {
   #health check is only done if one_per_day limit is disabled or if no email was already sent since yesterday and it is after 8AM.
   start_of_day <- strptime(strftime(Sys.time(), "%Y-%m-%d"), "%Y-%m-%d")
   alerts <- list()
@@ -898,7 +927,8 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
           paste(
             "<p>The following errors were found during episomer health check, please check your episomer installation</p><p><ul><li>",
             paste(alerts, collapse = "</li><li>"),
-            "</li></ul></p>"
+            "</li></ul></p>",
+            health_check_origin_html(caller)
           )
         ))
       smtp <- (if (
@@ -923,7 +953,8 @@ health_check <- function(send_mail = TRUE, one_per_day = TRUE) {
         )
       })
       message(sprintf(
-        "Health check failed, sending email from %s to %s\n%s",
+        "Health check failed (%s), sending email from %s to %s\n%s",
+        if (is.null(caller)) "unknown caller" else caller,
         conf$smtp_from,
         conf$admin_email,
         paste(alerts, collapse = "\n")
