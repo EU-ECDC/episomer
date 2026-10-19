@@ -4,12 +4,15 @@
 \alias{health_check}
 \title{Send email to administrator if a failure of episomer is detected}
 \usage{
-health_check(send_mail = TRUE, one_per_day = TRUE)
+health_check(send_mail = TRUE, one_per_day = TRUE, caller = NULL)
 }
 \arguments{
 \item{send_mail}{Boolean. Whether an email should be sent to the defined administrator, default: TRUE}
 
 \item{one_per_day}{Boolean. Whether a limit of one email per day will be applied, default: TRUE}
+
+\item{caller}{Character. Name of the service or function running the check, shown in the email so the
+administrator can tell which process sent it, default: NULL (the email then says "unknown")}
 }
 \value{
 A list of health check errors found
