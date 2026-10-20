@@ -479,7 +479,7 @@ search_loop_worker <- function(
           # episomer sanity check and sendig email in case of issued
           #msg("health checked")
           last_check <- Sys.time()
-          health_check()
+          health_check(caller = "search_loop")
         }
       }
       #Updating config to take in consideration possible changes on topics or other settings (plans are saved before reloading config) at most once every 10 seconds

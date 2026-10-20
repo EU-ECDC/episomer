@@ -925,7 +925,10 @@ fs_monitor_loop <- function(data_dir, bind_host = NULL, bind_port = NULL) {
     # not come back to renew anything (see renew_fs_runner_lease(), R/runners-lease.R).
     fs_monitor_try(renew_fs_runner_lease(), "renewing the fs lease")
     if (x == 0) {
-      fs_monitor_try(health_check(), "running the health check")
+      fs_monitor_try(
+        health_check(caller = "fs_monitor"),
+        "running the health check"
+      )
       x <- 60
     }
     x <- x - step
