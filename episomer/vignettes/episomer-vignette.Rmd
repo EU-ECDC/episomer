@@ -89,8 +89,6 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 
 **Shiny app configuration page:**
 
-TO BE UPDATED
-
 <center>Fig 5: Shiny app configuration page</center>
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
@@ -401,8 +399,6 @@ A query consists of keywords and operators that are used to match post attribute
 -  To avoid issues in social media providers a best practice is to limit your query to 10 keywords and operators and limit complexity of the query. If a query surpasses this limit, it is recommended to split the topic in several queries. 
 
 `{episomer}` comes with a default list of topics as used by the ECDC Epidemic Intelligence team. You can view details of the list of topics in the Shiny app configuration page (see screenshot below). In addition, the colour coding in the downloadable file allows users to see if the query for a topic is too long (red colour) and the topic should be split in several queries.
-
-Image to be updated since we now have a "network" column in thetable.
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics.png")
@@ -1020,8 +1016,6 @@ In the configuration page, you can change some settings of the tool and check th
 
 Note that the configuration page is no longer managing `{episomer}` services, dependencies, GeoNames, languages tasks and social media credentials. These aspects are now managed by the setup wizard, `episomer::setup()`: the buttons that activated and stopped the services, the buttons that ran the dependencies, GeoNames and languages tasks, and the social media credentials. What remains in the configuration page is the settings, the topics and the lists of the “important users” and email alert subscribers, plus a read-only view of what the services are doing.
 
-TO BE UPDATED: image outdated
-
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/config.png")
@@ -1030,8 +1024,6 @@ knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main
 **Status**
 
 The status section enables you to quickly assess the latest time point and/or status of the processes for post collection (Post Search), and geolocation, aggregation and signal detection (Detection pipeline).
-
-TO BE UPDATED: image outdated
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '50%'}
@@ -1045,8 +1037,6 @@ Below them, a table lists the task allocations. An allocation is a mechanism tha
 **Alerts pipeline**
 
 The “Run alerts now” button can be used to force the start of the alerts task in case there is any error or issue, or instead of waiting for the next scheduled run. The tasks that download and prepare the dependencies, GeoNames and the language models are no longer triggered from here: instead, use the setup wizard, options 3 to 5 (*Download dependencies*, *Update geonames*, *Update languages*). GeoNames and languages relate to the geolocation and language models used by `{episomer}`.
-
-TO BE UPDATED: image outdated
 
 
 ```{r echo=FALSE, fig.cap="", out.width = '70%'}
@@ -1131,8 +1121,6 @@ A query consists of keywords and operators that are used to match on post attrib
 
 In the topics section on the configuration page, you can view the topic, the associated query, the query length and how many active search plans are associated with the query. If more than one search plan is active, this means that `{episomer}` did not manage to collect all possible posts in the last session. Additionally, you can see the progress and the number of requests from the last search plan.
 
-TO BE UPDATED: image outdated
-
 
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/topics.png")
@@ -1148,9 +1136,6 @@ Languages settings are changed from the setup wizard (`episomer::setup()`, optio
 ```{r echo=FALSE, fig.cap="", out.width = '100%'}
 knitr::include_graphics("https://raw.githubusercontent.com/EU-ECDC/episomer/main/img/languages.png")
 ```
-
-TO BE UPDATED: image outdated
-
 
 
 ### The troubleshoot page
