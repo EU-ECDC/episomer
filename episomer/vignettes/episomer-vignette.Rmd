@@ -167,7 +167,7 @@ The CPU and RAM usage can be configured in the Shiny app configuration page (see
 
 You can find below a summary of the steps required to install `{episomer}`. Further detailed information is available in the corresponding sections.
 
-1. Ensure all pre-requisites are installed (in particular R, and a Java version between 21 and 25)
+1. Ensure all pre-requisites are installed (in particular R, and a Java 21 version)
 2. Install episomer (CRAN version or different version using tar.gz file)
 3. Select the folder (or create a new folder) for `{episomer}`: this is the *data directory*, where all settings, posts, models and logs are stored
 4. Run the setup wizard from an R console, giving the full path of your data directory, and choose option 1, *Run missing steps*:
@@ -192,7 +192,7 @@ Before using `{episomer}`, the following items need to be installed:
 
 -   R version 3.6.3 or higher
 
--   Java 21-25 64-bit, e.g. [*https://learn.microsoft.com/en-us/java/openjdk/download*](https://learn.microsoft.com/en-us/java/openjdk/download) refers to the Microsoft releases of java for multiple platforms including Windows and Mac.
+-   Java 21 64-bit, e.g. [*https://learn.microsoft.com/en-us/java/openjdk/download*](https://learn.microsoft.com/en-us/java/openjdk/download) refers to the Microsoft releases of java for multiple platforms including Windows and Mac.
 
 -   If you are running it on Windows, you will also need Microsoft Visual C++ which in most cases is likely to be pre-installed:
 
@@ -259,7 +259,7 @@ Additionally, if you want to use a Java version different than your system's def
 system("java -version")
 ```
 
-This command should return the version of the java version available to R. In case this command returns something different than a version between 21 and 25, you have to provide the location of the right version of java by setting the JAVA\_HOME environment variable. Please follow your specific operating system (OS) instructions for doing so. You should be able to detect the current value of JAVA\_HOME by running this instruction: 
+This command should return the version of the java version available to R. In case this command returns something different than version 21, you have to provide the location of the right version of java by setting the JAVA\_HOME environment variable. Please follow your specific operating system (OS) instructions for doing so. You should be able to detect the current value of JAVA\_HOME by running this instruction: 
 
 ```{r, eval=FALSE, echo=TRUE}
 Sys.getenv("JAVA_HOME")
