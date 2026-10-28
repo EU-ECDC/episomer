@@ -38,7 +38,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ## Installing SBT without the repository history
-RUN git clone --depth 1 --branch 1.12.x https://github.com/sbt/sbt.git /git/sbt && \
+RUN git clone --depth 1 --branch 1.13.x https://github.com/sbt/sbt.git /git/sbt && \
     chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 WORKDIR /git/sbt
 
