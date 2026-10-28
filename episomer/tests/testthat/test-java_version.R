@@ -149,20 +149,18 @@ test_that("no output at all gives NULL", {
 
 # ---- the version window ------------------------------------------------------
 
-test_that("the supported Java window is 21 to 25", {
+test_that("the supported Java window is 21 only", {
   # pinned on purpose: bumping a threshold should make this fail, so that the branches of
   # check_java_version() below get re-read against the new window (see B-11)
   expect_identical(java_min_version(), 21)
-  expect_identical(java_max_version(), 25)
-  expect_identical(java_tested_version(), 25)
+  expect_identical(java_max_version(), 21)
+  expect_identical(java_tested_version(), 21)
 })
 
 test_that("a version inside the window passes without a warning", {
   # the only path through check_java_version() that returns TRUE, and the only one that lets
-  # setup_can_run() proceed -- its tryCatch turns any warning into FALSE
   expect_true(check_installed_version(21L))
-  expect_true(check_installed_version(23L))
-  expect_true(check_installed_version(25L))
+  expect_true(check_installed_version(21L))
   # bounds are inclusive on both ends
   expect_silent(expect_true(check_installed_version(java_min_version())))
   expect_silent(expect_true(check_installed_version(java_max_version())))
@@ -170,12 +168,12 @@ test_that("a version inside the window passes without a warning", {
 
 test_that("a version above the window is refused, naming the window", {
   expect_warning(
-    expect_false(check_installed_version(26L)),
-    "Java version is 26"
+    expect_false(check_installed_version(22L)),
+    "Java version is 22"
   )
   expect_match(
     warning_of(check_installed_version(30L)),
-    "needs Java versions between\\s+21\\s+and\\s+25"
+    "needs Java 21\\."
   )
 })
 
@@ -214,8 +212,8 @@ test_that("the intermediate branch covers ]max, tested]", {
 })
 
 test_that("the intermediate window is empty as the thresholds are shipped", {
-  # java_tested_version() == java_max_version() == 25 today, so ]max, tested] is empty and the
-  # branch cannot be reached from above -- 26 gets the plain refusal. Everything it does catch
+  # java_tested_version() == java_max_version() == 21 today, so ]max, tested] is empty and the
+  # branch cannot be reached from above -- 22 gets the plain refusal. Everything it does catch
   # today comes from BELOW the minimum, which is B-11.
   expect_identical(java_max_version(), java_tested_version())
   expect_false(grepl(

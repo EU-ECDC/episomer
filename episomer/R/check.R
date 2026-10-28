@@ -5,10 +5,8 @@ check_java_present <- function() {
   } else {
     warning(paste(
       "episomer could not detect Java. Please install it and make sure the Java binary is on the path or that JAVA_HOME is set",
-      "episomer requires 64-bit Java between ",
-      java_min_version(),
-      " and ",
-      java_max_version()
+      "episomer requires 64-bit Java",
+      java_window_label()
     ))
   }
 }
@@ -53,10 +51,8 @@ check_java_64 <- function() {
     TRUE
   } else {
     warning(paste(
-      "Your current Java version does not appear to be 64-bit. episomer requires 64-bit Java between ",
-      java_min_version(),
-      " and ",
-      java_max_version()
+      "Your current Java version does not appear to be 64-bit. episomer requires 64-bit Java",
+      java_window_label()
     ))
     FALSE
   }
@@ -83,8 +79,16 @@ get_java_version <- function() {
 }
 
 java_min_version <- function() 21
-java_max_version <- function() 25
-java_tested_version <- function() 25
+java_max_version <- function() 21
+java_tested_version <- function() 21
+# "21" when the window is a single version, "between 21 and 25" otherwise
+java_window_label <- function() {
+  if (java_min_version() == java_max_version()) {
+    as.character(java_min_version())
+  } else {
+    paste("versions between", java_min_version(), "and", java_max_version())
+  }
+}
 # check Java version
 check_java_version <- function() {
   java_version <- get_java_version()
@@ -99,10 +103,8 @@ check_java_version <- function() {
     warning(paste(
       "Your current Java version is",
       java_version,
-      ". episomer needs Java versions between ",
-      java_min_version(),
-      " and ",
-      java_max_version(),
+      ". episomer needs Java",
+      java_window_label(),
       ". Some users have reported that your version also works, but it is recommended to use a previously compatible Java version"
     ))
     FALSE
@@ -110,10 +112,8 @@ check_java_version <- function() {
     warning(paste(
       "Your current Java version is",
       java_version,
-      ". episomer needs Java versions between ",
-      java_min_version(),
-      " and ",
-      java_max_version()
+      ". episomer needs Java",
+      paste0(java_window_label(), ".")
     ))
     FALSE
   }
