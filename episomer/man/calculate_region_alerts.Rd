@@ -110,7 +110,7 @@ for algorithm details see package vignette.
    #Running the alerts for World in topic covid-19
    df <-calculate_regions_alerts(
                                 sms="bluesky",
-                                topic="covid-19",                                 
+                                topic="covid-19",
                                 date_min=as.Date("2025-09-20"),
                                 date_max=as.Date("2025-09-30")
 )

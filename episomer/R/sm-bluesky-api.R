@@ -1,12 +1,25 @@
 # @function_def_start (do not delete)
 
+#' Whether this social media is made of independent instances
+#' @details Bluesky is served by a single API endpoint, so it is collected as one network.
+#' @return FALSE
+#' @export
+sm_is_federated_bluesky <- function() {
+  # @function_def_end (do not delete)
+  FALSE
+}
+
+# @function_def_start (do not delete)
+
 #' Get social media token
-#' @details this function implements the authethication on the respective social media and stores it securely. 
+#' @details this function implements the authethication on the respective social media and stores it securely.
 #' It is called by the search loop before starting message collection
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
 #' @return Token
 #' @export
-sm_api_get_token_bluesky <- function() {
-# @function_def_end (do not delete)
+sm_api_get_token_bluesky <- function(network = NULL) {
+  # @function_def_end (do not delete)
   if (is_secret_set("bluesky_session")) {
     session <- jsonlite::fromJSON(get_secret("bluesky_session"))
     access_jwt <- bluesky_check_token_validity(session$access_jwt)
@@ -19,28 +32,58 @@ sm_api_get_token_bluesky <- function() {
   return(bluesky_create_session()$access_jwt)
 }
 
+# @function_def_start (do not delete)
+
+#' Whether the credentials needed to authenticate on Bluesky are configured
+#' @details purely local: checks that a stored session or a handle+password pair is present,
+#' without calling the Bluesky API. See sm_api_get_token_bluesky for the live token validity check
+#' performed right before a search.
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
+#' @return logical
+#' @export
+sm_api_has_credentials_bluesky <- function(network = NULL) {
+  # @function_def_end (do not delete)
+  is_secret_set("bluesky_session") ||
+    (is_secret_set("bluesky_user") && is_secret_set("bluesky_password"))
+}
+
 
 # @function_def_start (do not delete)
 
 #' Translate a parsed query to the social media query format
-#' @details This function receive as a parameter a parsed query from the a topic in the list of topics. 
+#' @details This function receive as a parameter a parsed query from the a topic in the list of topics.
 #' It can return one or many queries that matches the expected results using the underlying social media API
-#' @param parsed list. Named list containing two attributes 'ors' and 'neg'. 
-#' 'ors' is a list containing subqueries that should be contatenated with an OR logic 
+#' @param parsed list. Named list containing two attributes 'ors' and 'neg'.
+#' 'ors' is a list containing subqueries that should be contatenated with an OR logic
 #'   - each subquery in 'ors' is a list containing terms that should be concatecated with an AND logic
 #'       - each term in 'ors subqueries' is a list of synonyms for a particular literal
-#' 'neg' is a list of terms that should be removed from any result of the query 
+#' 'neg' is a list of terms that should be removed from any result of the query
 sm_api_translate_query_bluesky <- function(parsed) {
-# @function_def_end (do not delete)
-  ret = list()
-  for(i in 1:length(parsed$ors)) {
-     comb = do.call(expand.grid, parsed$ors[[i]])
-     if (nrow(comb) > 0) {
-       r <- paste(lapply(1:nrow(comb), function(i) do.call(paste, as.list(comb[i, ]))))
-       if(length(parsed$neg)>0) 
-          r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
-       ret = c(ret, r)
-     }
+  # @function_def_end (do not delete)
+  ret <- list()
+  for (i in seq_along(parsed$ors)) {
+    terms <- parsed$ors[[i]]
+    # a subquery with no term at all (what an all-negative query parses to) has nothing to search
+    # for: it produces no native query rather than an empty one.
+    if (length(terms) == 0) {
+      next
+    }
+    # expand.grid is given the LIST of terms as its single argument, which it takes as its list of
+    # factors: one column per term, the synonyms of a term being the values of its column.
+    # Passing the terms as separate arguments (do.call) is what it must NOT be, because expand.grid
+    # unwraps a single list argument -- so a one-term subquery would have its synonyms turned into
+    # one column each, i.e. AND'ed together instead of expanded. See test-native_queries.R.
+    comb <- expand.grid(terms, stringsAsFactors = FALSE)
+    if (nrow(comb) > 0) {
+      r <- paste(lapply(seq_len(nrow(comb)), function(i) {
+        do.call(paste, as.list(comb[i, ]))
+      }))
+      if (length(parsed$neg) > 0) {
+        r <- paste(r, do.call(paste, as.list(paste0("-", parsed$neg))))
+      }
+      ret <- c(ret, r)
+    }
   }
   ret
 }
@@ -63,7 +106,7 @@ sm_api_translate_query_bluesky <- function(parsed) {
 #' - Response attributes
 #'   - network: string
 #'   - posts: [...]
-#'   - count: number, 
+#'   - count: number,
 #'   - pagination:\{...\}
 #' - post in posts
 #'     - id: string
@@ -96,8 +139,8 @@ sm_api_search_bluesky <- function(
   max_retries = 10,
   verbose = TRUE
 ) {
-# @function_def_end (do not delete)
-  search_url = "https://bsky.social/xrpc/app.bsky.feed.searchPosts"
+  # @function_def_end (do not delete)
+  search_url <- "https://bsky.social/xrpc/app.bsky.feed.searchPosts"
   sort <- "latest"
   number_of_posts_per_request <- 100
 
@@ -142,7 +185,9 @@ sm_api_search_bluesky <- function(
 
 #' @title Save bluesky credentials (login and password) and store them securely
 #' @description Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
-#' @param shiny_input_list List of shiny input values containing the bluesky specific credentials
+#' @param shiny_input_list List of shiny input values containing the bluesky specific credentials if not provided the input will be requested interactively
+#' @param network char, unused, bluesky is not federated so all its networks would share the same
+#' credentials, default: NULL
 #' @details Update authentication tokens in configuration object
 #' @examples
 #' \dontrun{
@@ -155,16 +200,32 @@ sm_api_search_bluesky <- function(
 #' \code{\link{save_config}}
 #' @return Nothing. Called for side effects (saving credentials)
 #' @export
-sm_api_set_auth_bluesky <- function(shiny_input_list) {
-# @function_def_end (do not delete)
-  if(!"bluesky_user" %in% names(shiny_input_list)) {
-    stop("bluesky_user is not in the shiny_input_list")
+sm_api_set_auth_bluesky <- function(shiny_input_list = NULL, network = NULL) {
+  # @function_def_end (do not delete)
+  if (!is.null(shiny_input_list)) {
+    if (!"bluesky_user" %in% names(shiny_input_list)) {
+      stop("bluesky_user is not in the shiny_input_list")
+    }
+    if (!"bluesky_password" %in% names(shiny_input_list)) {
+      stop("bluesky_password is not in the shiny_input_list")
+    }
+    bluesky_user <- shiny_input_list$bluesky_user
+    bluesky_password <- shiny_input_list$bluesky_password
+  } else {
+    bluesky_user <- ""
+    bluesky_password <- NULL
+    bluesky_password2 <- NULL
+    while (is.null(bluesky_password) || bluesky_password != bluesky_password2) {
+      if (!is.null(bluesky_password)) {
+        message("Password did not match, please try again")
+      }
+      bluesky_user <- readline("Bluesky user:")
+      bluesky_password <- askpass::askpass("Bluesky password:")
+      bluesky_password2 <- askpass::askpass("Please repeat password:")
+    }
   }
-  if(!"bluesky_password" %in% names(shiny_input_list)) {
-    stop("bluesky_password is not in the shiny_input_list")
-  }
-  set_secret("bluesky_user", shiny_input_list$bluesky_user)
-  set_secret("bluesky_password", shiny_input_list$bluesky_password)
+  set_secret("bluesky_user", bluesky_user)
+  set_secret("bluesky_password", bluesky_password)
 }
 
 # @function_def_start (do not delete)
@@ -175,11 +236,13 @@ sm_api_set_auth_bluesky <- function(shiny_input_list) {
 #' @param plan list, the plan to update
 #' @param results list, the obtained results of the plan
 sm_api_update_plan_after_request_bluesky <- function(plan, results) {
-# @function_def_end (do not delete)
+  # @function_def_end (do not delete)
   if (!is.null(results$pagination$min_created_at)) {
-    min_obtained = lubridate::as_datetime(results$pagination$min_created_at)
-    if(is.null(plan$current_min_date) || min_obtained < plan$current_min_date) {
-       plan$current_min_date <- min_obtained
+    min_obtained <- lubridate::as_datetime(results$pagination$min_created_at)
+    if (
+      is.null(plan$current_min_date) || min_obtained < plan$current_min_date
+    ) {
+      plan$current_min_date <- min_obtained
     }
   }
   return(plan)
@@ -192,12 +255,12 @@ sm_api_update_plan_after_request_bluesky <- function(plan, results) {
 #' When FALSE is returned the underlying plan will be ended
 #' @param results list, results of the request in the standardised episomer format
 sm_api_got_rows_bluesky <- function(results) {
-# @function_def_end (do not delete)
+  # @function_def_end (do not delete)
   (exists("posts", results) & length(results$posts) > 0)
 }
 
 
-## The rest of the functions in this script are used by sm_api_***_bluesky functiona and are internal 
+## The rest of the functions in this script are used by sm_api_***_bluesky functiona and are internal
 ## They can be used for inspiration for other social media
 
 #' function to check if there has been a rate limit error returned by the bluesky API
@@ -218,19 +281,33 @@ bluesky_rate_limited_check <- function(resp) {
 bluesky_rerun_after_rate_limit <- function(resp) {
   if (httr2::resp_status(resp) == 429) {
     message("Rate limit exceeded. Waiting for reset.")
-    time <- as.numeric(httr2::resp_header(resp, "RateLimit-Reset"))
-    reset_after <- time - unclass(Sys.time())
+    reset <- httr2::resp_header(resp, "RateLimit-Reset")
+    if (is.null(reset)) {
+      return(heartbeat_before_retry(60))
+    }
+    reset_after <- as.numeric(reset) - unclass(Sys.time())
+    reset_after <- max(reset_after, 1)
+    if (reset_after > 3600) {
+      stop(sprintf(
+        "Bluesky rate limit reset is %s seconds away, aborting instead of waiting.",
+        reset_after
+      ))
+    }
     message(sprintf("Rate limit reset in %s seconds.", reset_after))
-    return(reset_after)
+    # The wait itself is done by heartbeat_before_retry(): httr2 would sleep inside req_perform(),
+    # and a rate-limit reset can be longer than the search lease TTL (R/runners-lease.R).
+    return(heartbeat_before_retry(reset_after))
   } else {
-    return(NA)
+    # httr2 backs off on its own here (capped at 60 seconds per try, well below every TTL); we only
+    # take the opportunity to prove the runner is still alive before it sleeps.
+    return(heartbeat_before_retry(NA))
   }
 }
 
 #' formats a date in the expected bluesky format
 #' @param datetime, the datetime to format
 bluesky_format_date <- function(datetime) {
-  timezone = "UTC"
+  timezone <- "UTC"
   # Full ISO 8601 format with time
   format(datetime, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")
 }
@@ -243,14 +320,14 @@ bluesky_parse_date <- function(date_input) {
 
 #' parses the response of bluesky API into the standardised episomer format. For more details see the vignette.
 #' @param response list, the standardised response
-#' @param current_min_date datetime, the current min date obtained on the plan to detect if there are messages after this limit and discard them 
+#' @param current_min_date datetime, the current min date obtained on the plan to detect if there are messages after this limit and discard them
 bluesky_parse_response <- function(response, current_min_date) {
   first <- function(x) unlist(x[min(1, length(x))])
-  res = list(
+  res <- list(
     network = "bluesky",
     pagination = list(min_created_at = NULL)
   )
-  res[["posts"]] = lapply(response$posts, function(post) {
+  res[["posts"]] <- lapply(response$posts, function(post) {
     record <- post$record
     quote <- bluesky_parse_quoted(post)
     features <- bluesky_parse_features(post)
@@ -275,15 +352,27 @@ bluesky_parse_response <- function(response, current_min_date) {
       urls = urls,
       categories = features$categories
     )
-    if(bluesky_parse_date(record$createdAt) > Sys.time()) {
-        warning(sprintf("Ignoring post with creation date in future :%s (%s)", record$createdAt, ret$uri))
-        ret <- NULL
+    if (bluesky_parse_date(record$createdAt) > Sys.time()) {
+      warning(sprintf(
+        "Ignoring post with creation date in future :%s (%s)",
+        record$createdAt,
+        ret$uri
+      ))
+      ret <- NULL
     }
 
     # checking if there are posts after the current min date. If it is the case we remove them since it breaks search loop pagination and can enter into a endless loop.
-    if (!is.null(current_min_date) && bluesky_parse_date(record$createdAt) > current_min_date)  {
-        warning(sprintf("Ignoring post with creation (%s) after the upper bound: (%s), uri: (%s)", current_min_date, record$createdAt, ret$uri))
-        ret <- NULL
+    if (
+      !is.null(current_min_date) &&
+        bluesky_parse_date(record$createdAt) > current_min_date
+    ) {
+      warning(sprintf(
+        "Ignoring post with creation (%s) after the upper bound: (%s), uri: (%s)",
+        current_min_date,
+        record$createdAt,
+        ret$uri
+      ))
+      ret <- NULL
     }
     #msg(jsonlite::toJSON(list(text=substr(ret$text, 1, 30), lang = ret$lang, quote=substr(ret$quoted_text, 1, 30), qlang=ret$quoted_lang), auto_unbox = T, null = "null"))
     #if(!is.null(quote$text) && nchar(quote$text) > 0)
@@ -291,20 +380,20 @@ bluesky_parse_response <- function(response, current_min_date) {
     ret
   })
   # removing null posts due to a creation date in future
-  
+
   if (length(res$posts) > 0) {
-      res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p))]
+    res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p))]
   }
   if (length(res$posts) > 0) {
-      res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
+    res$posts <- res$posts[sapply(res$posts, function(p) !is.null(p$lang))]
   }
   if (length(res$posts) > 0) {
     res$pagination$min_created_at <- Reduce(
       function(x, y) if (x < y) x else y,
       lapply(res$posts, `[[`, "created_at")
     )
-  } 
-  res$count = length(res$posts)
+  }
+  res$count <- length(res$posts)
   res
 }
 
@@ -320,20 +409,20 @@ bluesky_parse_quoted <- function(post) {
 
   # extracting embedding data from post
   if ("embed" %in% names(post)) {
-    quoted_texts = list()
-    embeds = list()
-    records = list()
-    images = list()
-    urls = list()
+    quoted_texts <- list()
+    embeds <- list()
+    records <- list()
+    images <- list()
+    urls <- list()
     is_quote <- FALSE
 
     if (
       "record" %in% names(post$embed) && "embeds" %in% names(post$embed$record)
     ) {
-      embeds = post$embed$record$embeds
+      embeds <- post$embed$record$embeds
     }
     if ("external" %in% names(post$embed)) {
-      embeds = c(embeds, list(post$embed))
+      embeds <- c(embeds, list(post$embed))
     }
     found <- FALSE
     # case 1: URLS title and descriptions
@@ -349,11 +438,11 @@ bluesky_parse_quoted <- function(post) {
             0
       ) {
         found <- TRUE
-        texts = sapply(
+        texts <- sapply(
           list("title", "description"),
           function(attr) unlist(embed$external[[attr]])
         )
-        quoted_texts = c(
+        quoted_texts <- c(
           quoted_texts,
           list(list(
             text = paste(texts[!is.null(texts)], collapse = "\n"),
@@ -361,7 +450,7 @@ bluesky_parse_quoted <- function(post) {
           ))
         )
         if ("uri" %in% names(embed$external)) {
-          urls = c(urls, embed$external$uri)
+          urls <- c(urls, embed$external$uri)
         }
       }
     }
@@ -378,7 +467,7 @@ bluesky_parse_quoted <- function(post) {
           "text" %in% names(post$embed$record$value)) ||
           "description" %in% names(post$embed$record))
     ) {
-      records = c(records, list(post$embed$record))
+      records <- c(records, list(post$embed$record))
     }
     if (
       "record" %in%
@@ -389,12 +478,12 @@ bluesky_parse_quoted <- function(post) {
           "text" %in% names(post$embed$record$record$value)) ||
           "description" %in% names(post$embed$record$record))
     ) {
-      records = c(records, list(post$embed$record$record))
+      records <- c(records, list(post$embed$record$record))
     }
     for (record in records) {
       found <- TRUE
       is_quote <- TRUE
-      quoted_texts = c(
+      quoted_texts <- c(
         quoted_texts,
         list(list(
           text = first(c(record$value$text, record$description)),
@@ -407,17 +496,17 @@ bluesky_parse_quoted <- function(post) {
     #         post$embed$media$images[[1]]$alt
     if ("images" %in% names(post$embed)) {
       found <- TRUE
-      images = c(images, post$embed$images)
+      images <- c(images, post$embed$images)
     }
     if (
       "media" %in% names(post$embed) && "images" %in% names(post$embed$media)
     ) {
       found <- TRUE
-      images = c(images, post$embed$media$images)
+      images <- c(images, post$embed$media$images)
     }
     for (image in images) {
       if ("alt" %in% names(image) && nchar(image$alt) > 0) {
-        quoted_texts = c(
+        quoted_texts <- c(
           quoted_texts,
           list(list(
             text = image$alt,
@@ -462,7 +551,7 @@ bluesky_parse_quoted <- function(post) {
       ))
     }
     text <- paste(sapply(quoted_texts, `[[`, "text"), collapse = "\n")
-    lang = paste(
+    lang <- paste(
       substr(mode(sapply(quoted_texts, `[[`, "lang")), 1, 2),
       collapse = "\n"
     )
@@ -479,7 +568,7 @@ bluesky_parse_quoted <- function(post) {
   }
 }
 
-#' extracts features from the post structure returned by the bluesky api 
+#' extracts features from the post structure returned by the bluesky api
 #' @param post list, the post to extract features from in bluesky format
 bluesky_parse_features <- function(post) {
   # extracting features data from post
@@ -489,7 +578,10 @@ bluesky_parse_features <- function(post) {
       if ("features" %in% names(facet)) {
         for (feature in facet$features) {
           ftype <- feature[["$type"]]
-          if (ftype == "app.bsky.richtext.facet#tag" || ftype == "app.bsky.richtext.facet#hashtag") {
+          if (
+            ftype == "app.bsky.richtext.facet#tag" ||
+              ftype == "app.bsky.richtext.facet#hashtag"
+          ) {
             ret$tags <- c(ret$tags, feature[["tag"]])
           } else if (ftype == "app.bsky.richtext.facet#link") {
             ret$urls <- c(ret$urls, feature[["uri"]])
@@ -537,19 +629,17 @@ bluesky_parse_features <- function(post) {
 #'
 bluesky_create_session <- function(handle = NULL, password = NULL) {
   if (is.null(handle) && is_secret_set("bluesky_user")) {
-    handle = get_secret("bluesky_user")
-  } else if (is.null(handle) && Sys.getenv("bluesky_id") != "")
-    handle = Sys.getenv("bluesky_id") else {
+    handle <- get_secret("bluesky_user")
+  } else {
     stop("You have to provide a user_name to collect Bluesky posts")
   }
 
   if (is.null(password) && is_secret_set("bluesky_password")) {
-    password = get_secret("bluesky_password")
-  } else if (is.null(handle) && Sys.getenv("bluesky_pwd") != "")
-    password = Sys.getenv("bluesky_pwd") else {
+    password <- get_secret("bluesky_password")
+  } else {
     stop("You have to provide a password to collect Bluesky posts")
   }
-  login_url = "https://bsky.social/xrpc/com.atproto.server.createSession"
+  login_url <- "https://bsky.social/xrpc/com.atproto.server.createSession"
 
   if (!httr2::is_online()) {
     stop("No internet connection")
@@ -565,6 +655,12 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     ) %>%
     httr2::req_perform()
 
+  httr2::request(
+    "https://bsky.social/xrpc/com.atproto.server.createSession"
+  ) %>%
+    httr2::req_body_json(list(identifier = handle, password = password)) %>%
+    httr2::req_perform()
+
   httr2::resp_check_status(resp)
 
   session <- httr2::resp_body_json(resp)
@@ -575,7 +671,7 @@ bluesky_create_session <- function(handle = NULL, password = NULL) {
     refreshJwt = session$refreshJwt,
     created = strptime(Sys.time(), "%Y-%m-%d %H:%M:%S")
   )
-  json_session = jsonlite::toJSON(session)
+  json_session <- jsonlite::toJSON(session)
   set_secret("bluesky_session", json_session)
   return(jsonlite::fromJSON(json_session))
 }
@@ -591,21 +687,19 @@ bluesky_check_token_validity <- function(
 ) {
   simple_request <- try(
     httr2::request(search_url) %>%
-    httr2::req_url_query(q = "covid19", limit = 1, sort = "latest") %>%
-    httr2::req_headers(Authorization = paste("Bearer", access_jwt)) %>%
-    httr2::req_retry(
-      max_tries = 5,
-      retry_on_failure = TRUE,
-      is_transient = bluesky_rate_limited_check,
-      after = bluesky_rerun_after_rate_limit
-    ) %>%
-    httr2::req_perform()
+      httr2::req_url_query(q = "covid19", limit = 1, sort = "latest") %>%
+      httr2::req_headers(Authorization = paste("Bearer", access_jwt)) %>%
+      httr2::req_retry(
+        max_tries = 5,
+        retry_on_failure = TRUE,
+        is_transient = bluesky_rate_limited_check,
+        after = bluesky_rerun_after_rate_limit
+      ) %>%
+      httr2::req_perform()
   )
   if (httr2::resp_status(last_response()) %in% c(400, 401)) {
-    message("Invalid token. Creating a new session.")
+    message("Invalid token. Creating a new session for Bluesky.")
     access_jwt <- bluesky_create_session()$access_jwt
   }
   return(access_jwt)
 }
-
-

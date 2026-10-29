@@ -10,22 +10,34 @@ episomer_app(
   data_dir = NA,
   profile = c("dashboard", "admin"),
   host = NULL,
-  port = NULL
+  port = NULL,
+  fs_remote = NULL
 )
 
-dashboard_app(data_dir = NA, host = NULL, port = NULL)
+dashboard_app(data_dir = NA, host = NULL, port = NULL, fs_remote = NULL)
 
-admin_app(data_dir = NA, host = NULL, port = NULL)
+admin_app(data_dir = NA, host = NULL, port = NULL, fs_remote = NULL)
 }
 \arguments{
-\item{data_dir}{Path to the 'data directory' containing application settings, models and collected posts.
-If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
+\item{data_dir}{Path to the configuration file to extract the localisation of the central episomer instance. The preferred way to call this function is using the fs_remote parameter.
+If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, falling back to a
+temporary directory. When fs_remote is provided it is not needed at all: every file is then read
+through the fs API and data_dir is only an internal path prefix, so
+\code{episomer_app(fs_remote = "http://host:8080")} runs on a machine with no data directory,
+default: NA}
 
-\item{profile}{The profileis to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")}
+\item{profile}{The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")}
 
 \item{host}{The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)}
 
 \item{port}{The port to run the Shiny app on, default: NULL (will run on a random port)}
+
+\item{fs_remote}{address of the central instance of episomer for accessing. When not
+provided it is resolved for this machine, in this order: the EPI_HOST environment
+variable, then conf$fs_url:conf$fs_port if that host resolves here, then
+http://localhost:conf$fs_port. conf$fs_url is the address the database *binds* to and
+is shared through properties.json, so on a containerised deployment it names a
+Docker-internal host, default: NULL}
 }
 \value{
 The Shiny server object containing the launched application
@@ -35,7 +47,7 @@ The Shiny server object containing the launched application
 The Shiny server object containing the launched application
 }
 \description{
-Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
+Open the episomer Shiny app, to visualise the outputs of episomer and change settings.
 }
 \details{
 The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
@@ -43,7 +55,7 @@ see the interactive dashboard visualisations, export them to Markdown or PDF, an
 
 All its functionality is described on the episomer vignette.
 
-The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations, 
+The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations,
 allow export them to Markdown or PDF.
 
 All its functionality is described on the episomer vignette.

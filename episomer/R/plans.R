@@ -36,14 +36,26 @@ parse_plan_attributes <- function(
 ) {
   common_attributes <- list(
     "network" = network,
-    "expected_end" = if (!is.null(unlist(expected_end)))
-      strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S") else NULL,
-    "scheduled_for" = if (!is.null(unlist(scheduled_for)))
-      strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S") else NULL,
-    "start_on" = if (!is.null(unlist(start_on)))
-      strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S") else NULL,
-    "end_on" = if (!is.null(unlist(end_on)))
-      strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S") else NULL,
+    "expected_end" = if (!is.null(unlist(expected_end))) {
+      strptime(unlist(expected_end), "%Y-%m-%d %H:%M:%S")
+    } else {
+      NULL
+    },
+    "scheduled_for" = if (!is.null(unlist(scheduled_for))) {
+      strptime(unlist(scheduled_for), "%Y-%m-%d %H:%M:%S")
+    } else {
+      NULL
+    },
+    "start_on" = if (!is.null(unlist(start_on))) {
+      strptime(unlist(start_on), "%Y-%m-%d %H:%M:%S")
+    } else {
+      NULL
+    },
+    "end_on" = if (!is.null(unlist(end_on))) {
+      strptime(unlist(end_on), "%Y-%m-%d %H:%M:%S")
+    } else {
+      NULL
+    },
     "requests" = unlist(requests),
     "got_rows" = unlist(got_rows),
     "progress" = unlist(progress)
@@ -66,7 +78,7 @@ update_plan_after_request <- function(plan, results) {
   plan$requests <- plan$requests + 1
   # setting the start date if not set
   if (is.null(plan$start_on)) {
-    plan$start_on = Sys.time()
+    plan$start_on <- Sys.time()
   }
 
   # check if the current request got rows

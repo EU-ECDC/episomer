@@ -49,6 +49,7 @@ prerequisites
 
 # produced vignettes
 vignettes/*.html
+vignettes/*.docx
 vignettes/*.pdf
 
 # OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
@@ -71,3 +72,11 @@ vignettes/*.pdf
 #Roxygen managed files
 NAMESPACE
 /.vs
+episomer/tests/testthat/fixtures/bluesky_page_covid.json
+episomer/tests/testthat/fixtures/bluesky_page_empty.json
+episomer/tests/testthat/fixtures/mastodon_page_covid.json
+episomer/tests/testthat/fixtures/mastodon_page_empty.json
+.vscode/settings.json
+
+CLAUDE.md
+.env

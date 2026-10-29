@@ -2,13 +2,23 @@ lazy val sparkVersion = if(System.getenv("SPARK_VERSION")==null) "4.0.1" else Sy
 lazy val pekkoVersion = "1.2.1"//"2.8.8" //"2.10.9"
 lazy val pekkoHttpVersion = "1.3.0"//"10.5.3"//"10.7.2"
 lazy val luceneVersion = "10.3.1"
+// Keeps the jar's own version in lockstep with the R package it ships in, so the filename
+// produced by `sbt package` always matches what get_app_jar_path() / check_jar_version() expect
+// R-side, without a manual bump in two places.
+lazy val rPackageVersion = IO.read(file("../episomer/DESCRIPTION"))
+  .linesIterator
+  .find(_.startsWith("Version:"))
+  .getOrElse(sys.error("Could not find Version: in ../episomer/DESCRIPTION"))
+  .stripPrefix("Version:")
+  .trim
+
 lazy val root = (project in file("."))
   .settings(
     name := "ecdc-episomer-bundle",
     scalaVersion := "2.13.17",
     retrieveManaged := true,
-    useCoursier := false, 
-    version := "1.0",
+    useCoursier := false,
+    version := rPackageVersion,
     libraryDependencies += "org.apache.spark" %% "spark-core" % sparkVersion,
     libraryDependencies += "org.apache.spark" %% "spark-sql" % sparkVersion, 
     libraryDependencies += "org.apache.spark" %% "spark-mllib" % sparkVersion,

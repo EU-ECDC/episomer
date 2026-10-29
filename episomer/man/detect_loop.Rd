@@ -17,8 +17,7 @@ nothing
 Infinite loop ensuring the daily signal detection and email alerts
 }
 \details{
-The detect loop is composed of three 'one shot tasks' \code{\link{download_dependencies}}, \code{\link{update_geonames}}, \code{\link{update_languages}} ensuring the system has
-all necessary components and data to run the three recurrent tasks \code{\link{generate_alerts}}
+The detect loop run the recurrent tasks \code{\link{generate_alerts}}
 
 The loop report progress on the 'tasks.json' file which is read or created by this function.
 
@@ -36,13 +35,7 @@ If any of these tasks fails it will be retried three times before going to abort
 }
 }
 \seealso{
-\code{\link{download_dependencies}}
-
- \code{\link{update_geonames}}
-
- \code{\link{update_languages}}
-
- \code{\link{detect_loop}}
+\code{\link{detect_loop}}
 
  \code{\link{generate_alerts}}
 

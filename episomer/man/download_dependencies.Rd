@@ -4,10 +4,12 @@
 \alias{download_dependencies}
 \title{Updates Java dependencies}
 \usage{
-download_dependencies(tasks = get_tasks())
+download_dependencies(jars = TRUE, winutils = TRUE)
 }
 \arguments{
-\item{tasks}{Task object for reporting progress and error messages, default: get_tasks()}
+\item{jars, }{whether to download maven jars default: TRUE}
+
+\item{winutils, }{whether to download winutils binary default: TRUE}
 }
 \value{
 The list of tasks updated with produced messages

@@ -15,6 +15,6 @@ sm_api_translate_query(network, parsed)
 Translate a parsed query to the social media query format
 }
 \details{
-This function receive as a parameter a parsed query from the a topic in the list of topics. 
+This function receive as a parameter a parsed query from the a topic in the list of topics.
 It can return one or many queries that matches the expected results using the underlying social media API
 }

@@ -8,7 +8,7 @@
 search_loop(
   data_dir = NA,
   sandboxed = FALSE,
-  log_to_file = TRUE,
+  log_to_file = !logs_to_stdout(),
   max_requests = 0
 )
 
@@ -19,7 +19,11 @@ search_loop_worker(network, data_dir = NA, sandboxed = FALSE, max_requests = 0)
 
 \item{sandboxed}{Whether to run in sandboxed mode.}
 
-\item{log_to_file}{logical indicating if the search loop should log to a file. Default: TRUE}
+\item{log_to_file}{logical indicating if the search loop should log to a file, one per collected
+network (jobs/search.<network>.log). When FALSE every worker writes to the standard output of
+this process instead, which is what a container deployment needs - nothing collects a file
+inside a pod. Default: FALSE when the environment variable 'EPISOMER_LOGS_TO_STDOUT' is set to
+TRUE, TRUE otherwise}
 
 \item{max_requests}{The maximum number of requests to perform.}
 
@@ -28,7 +32,11 @@ search_loop_worker(network, data_dir = NA, sandboxed = FALSE, max_requests = 0)
 \value{
 Nothing
 
-Nothing
+Invisibly, why the worker stopped: \code{"lease-lost"} when another instance took this
+network over, \code{"ended"} when \code{max_requests} was reached. Read by \code{search_loop()}
+to tell an orderly handover from an unexpected end. A failed request does not stop the worker,
+it is logged and tried again; only \code{search_max_request_failures()} consecutive failures do,
+and that one raises rather than returning.
 }
 \description{
 Infinite loop ensuring the permanent collection of social media messages
@@ -42,7 +50,9 @@ in minutes, which is defined on the Shiny app and defaults to 60 minutes.
 
 To see more details about the collection algorithm please see episomer vignette.
 
-In order to work, this task needs Bluesky credentials, which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}}
+In order to work, this task needs Bluesky and/or Mastodon credentials,
+ which can be set on the Shiny app or using \code{\link{sm_api_set_auth_bluesky}} or
+\code{\link{sm_api_set_auth_mastodon}}
 
 The search loop worker is a function that runs the search loop for a given social media network.
 It is used to run the search loop in a separate process.
@@ -57,4 +67,5 @@ It is used to run the search loop in a separate process.
 }
 \seealso{
 \code{\link{sm_api_set_auth_bluesky}}
+\code{\link{sm_api_set_auth_mastodon}}
 }

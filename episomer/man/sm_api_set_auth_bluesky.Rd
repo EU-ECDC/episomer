@@ -4,10 +4,13 @@
 \alias{sm_api_set_auth_bluesky}
 \title{Save bluesky credentials (login and password) and store them securely}
 \usage{
-sm_api_set_auth_bluesky(shiny_input_list)
+sm_api_set_auth_bluesky(shiny_input_list = NULL, network = NULL)
 }
 \arguments{
-\item{shiny_input_list}{List of shiny input values containing the bluesky specific credentials}
+\item{shiny_input_list}{List of shiny input values containing the bluesky specific credentials if not provided the input will be requested interactively}
+
+\item{network}{char, unused, bluesky is not federated so all its networks would share the same
+credentials, default: NULL}
 }
 \value{
 Nothing. Called for side effects (saving credentials)

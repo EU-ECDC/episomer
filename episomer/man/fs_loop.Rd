@@ -4,11 +4,19 @@
 \alias{fs_loop}
 \title{Runs the episomer embedded database loop}
 \usage{
-fs_loop(data_dir = NA)
+fs_loop(data_dir = NA, bind_host = NULL, bind_port = NULL)
 }
 \arguments{
 \item{data_dir}{Path to the 'data directory' containing application settings, models and collected posts.
 If not provided, the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA}
+
+\item{bind_host}{Character, the interface the database has to bind instead of \code{conf$fs_url},
+with or without a scheme ("localhost" and "http://localhost" are both accepted). Meant for a
+database that must not be found on its configured address, see
+\code{\link{register_fs_runner_task}}, default: NULL}
+
+\item{bind_port}{Numeric, the port the database has to bind instead of \code{conf$fs_port},
+default: NULL}
 }
 \value{
 nothing
@@ -17,7 +25,7 @@ nothing
 Infinite loop ensuring that the episomer embedded database is running (Lucene + akka-http)
 }
 \details{
-Launches the episomer embedded database which is accessed via a REST API located on localhost at port 8080. You can test that the database is running by accesssing the local URL and adding "/ping". 
+Launches the episomer embedded database which is accessed via a REST API located on localhost at port 8080. You can test that the database is running by accesssing the local URL and adding "/ping".
 the REST API provide episomer a way to send and retrieve data related with posts and time series and to trigger geolocation or aggregation
 The database is implemented using Apache Lucene indexes allowing episomer to access its data as a search engine but also as a tabular database.
 \code{\link{health_check}} called each 60 seconds on a background process to send alerts to the administrator if some episomer components fail.

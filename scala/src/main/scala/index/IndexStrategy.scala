@@ -102,8 +102,9 @@ trait IndexStrategy {
                      , minScore:Double=0.0 ,boostAcronyms:Boolean=false, caseInsensitive:Boolean = true
                      , minTokenLikehood:Double = 0.4
     ): Array[SearchMatch] = {
-    if(terms.length > 1000)
-        l.msg(f"-----------------\n$from, \n$to\n${terms.mkString("..a")}")
+    // Debug log for texts over 1000 terms (only the first 1000 are used, see below); too verbose to keep on.
+    //if(terms.length > 1000)
+    //    l.msg(f"Evaluating ${terms.length} terms (from $from to $to), only the first 1000 are used. Starts with: ${terms.take(10).mkString(" ")}")
     val qb = new BooleanQuery.Builder() //  combines multiple TermQuery instances into a BooleanQuery with multiple BooleanClauses, where each clause contains a sub-query and operator
     val b = new BooleanQuery.Builder()
     for(i <- Iterator.range(from, Math.min(to, 1000))) { 
