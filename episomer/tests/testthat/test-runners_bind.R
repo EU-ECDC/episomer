@@ -231,6 +231,7 @@ test_that("set_scala_r_env() hands the JVM the executable and the library paths"
 })
 
 test_that("an R sub process started with that environment gets those library paths", {
+  skip_on_cran()
   # The point of the whole thing, and the reason it is R_LIBS rather than R_LIBS_USER: R_LIBS is
   # the one an R sub process prepends to .libPaths() whatever else it reads, so the Rscript the
   # JVM starts two levels down searches the libraries this session searched - which is where

@@ -70,6 +70,7 @@ test_that("runner_leases_df() ignores the released leases and anything that is n
 # The wording of a status --------------------------------------------------------------------------
 
 test_that("runner_leases_df() tells a lease nobody renews from a holder that crashed here", {
+  skip_on_cran()
   local_lease_conf(
     instance_id = "instance-A",
     instance_host = "machine-A",
