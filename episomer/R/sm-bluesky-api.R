@@ -126,7 +126,6 @@ sm_api_translate_query_bluesky <- function(parsed) {
 #' - pagination: attributes used for paginating requests
 #'
 #' This is the implementation of the bluesky search. You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/app-bsky-feed-search-posts}
-#' Additionnaly more information about the "post" object is available here: \url{https://atproto.blue/en/latest/atproto/atproto_client.models.app.bsky.feed.defs.html#atproto_client.models.app.bsky.feed.defs.PostView}
 #' @return List with posts int the standard post format defined in episomer
 #' @export
 #' @importFrom httr2 request req_url_query req_headers req_perform resp_body_json is_online resp_status last_response req_retry
