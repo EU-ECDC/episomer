@@ -126,6 +126,7 @@ test_that("is_search_running() is FALSE when neither the parent nor the workers 
 # Local cross-check on the PID (plan sections 3.6 and 6.2) -----------------------------------------
 
 test_that("a holder that crashed on this machine reads as stopped at once", {
+  skip_on_cran()
   local_lease_conf(
     instance_id = "instance-A",
     instance_host = "machine-A",
@@ -146,6 +147,7 @@ test_that("a holder that crashed on this machine reads as stopped at once", {
 })
 
 test_that("the crashed holder's lease can be reclaimed without waiting for the TTL", {
+  skip_on_cran()
   local_lease_conf(
     instance_id = "instance-A",
     instance_host = "machine-A",
@@ -213,6 +215,7 @@ test_that("the cross-check ignores a lease held by another host", {
 # is_r_pid_running(), the check both cross-checks rest on ------------------------------------------
 
 test_that("is_r_pid_running() is FALSE for a PID no process has, and for a missing one", {
+  skip_on_cran()
   # The other half of the contract - "TRUE for a live R process" - is deliberately not asserted
   # here: is_r_pid_running() recognises a process by *name* (R, Rscript, Rterm, rsession), so it
   # answers FALSE for the R session of an IDE running under a name of its own, ark for Positron or

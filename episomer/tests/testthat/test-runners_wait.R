@@ -70,15 +70,16 @@ test_that("runner_wait_timeout() falls back on Inf for a value it cannot use", {
 test_that("wait_for_runner_lease() claims a free runner at once, without waiting or logging", {
   local_lease_conf(runner_claim_guard = 0, runner_wait_interval = 30)
 
-  started <- Sys.time()
+  attempts <- local_count_claims()
   expect_silent(expect_true(wait_for_runner_lease("detect")))
 
   # nothing held it, so not one sleep of the 30-second interval was paid
-  expect_lt(as.numeric(difftime(Sys.time(), started, units = "secs")), 5)
+  expect_lte(attempts(), 1L)
   expect_true(i_hold_runner_lease("detect"))
 })
 
 test_that("wait_for_runner_lease() keeps trying until the runner is free", {
+  skip_on_cran()
   local_lease_conf(runner_claim_guard = 0, runner_wait_interval = 0.01)
   claim <- failing_claims(3)
   local_mocked_bindings(claim_runner_lease = claim, .package = "episomer")
@@ -89,6 +90,7 @@ test_that("wait_for_runner_lease() keeps trying until the runner is free", {
 })
 
 test_that("wait_for_runner_lease() gives up when the timeout runs out", {
+  skip_on_cran()
   local_lease_conf(runner_claim_guard = 0, runner_wait_interval = 0.01)
   local_mocked_bindings(
     claim_runner_lease = function(name, guard = runner_claim_guard()) FALSE,
@@ -109,14 +111,15 @@ test_that("a timeout of zero is one attempt and no wait at all", {
   )
   with_instance("instance-B", host = "machine-B", code = write_runner_lease("fs_mon"))
 
-  started <- Sys.time()
+  attempts <- local_count_claims()
   expect_false(wait_for_runner_lease("fs_mon", timeout = 0))
 
-  expect_lt(as.numeric(difftime(Sys.time(), started, units = "secs")), 5)
+  expect_lte(attempts(), 1L)
   expect_identical(read_runner_lease("fs_mon")$instance_id, "instance-B")
 })
 
 test_that("wait_for_runner_lease() takes over as soon as the foreign lease expires", {
+  skip_on_cran()
   # The real thing, clock included: a `docker compose down` && `up` inside the TTL, in miniature.
   # One second rather than the 300 of the search service, but every step is the production one -
   # a foreign lease, no release, an expiry read from the file mtime.
@@ -139,6 +142,7 @@ test_that("wait_for_runner_lease() takes over as soon as the foreign lease expir
 })
 
 test_that("waiting never steals a lease that is still alive", {
+  skip_on_cran()
   # The one thing the wait must not weaken: it only ever ends on a successful claim, so a holder
   # that keeps renewing is left strictly alone however long we sit there.
   local_lease_conf(
@@ -163,6 +167,7 @@ test_that("waiting never steals a lease that is still alive", {
 })
 
 test_that("wait_for_runner_lease() still takes over a runner its own machine left behind", {
+  skip_on_cran()
   # The fast reclaim of section 3.6 happens inside claim_runner_lease(), so waiting must not delay
   # it: a holder that died on this very machine is dead now, and there is nothing to wait for.
   local_lease_conf(
@@ -176,11 +181,12 @@ test_that("wait_for_runner_lease() still takes over a runner its own machine lef
   set_lease_pid("detect", dead_pid)
   write_local_pid_file("detect", dead_pid)
 
-  started <- Sys.time()
+  # Counted rather than timed: see local_count_claims().
+  attempts <- local_count_claims()
   expect_true(wait_for_runner_lease("detect"))
 
   # not one 60-second interval was paid, and not one of the 30 minutes of the detect TTL
-  expect_lt(as.numeric(difftime(Sys.time(), started, units = "secs")), 5)
+  expect_identical(attempts(), 1L)
   expect_true(i_hold_runner_lease("detect"))
 })
 
@@ -213,6 +219,7 @@ test_that("the waiting message names the holder, where it runs and when we try a
 })
 
 test_that("a bounded wait says when it gives up", {
+  skip_on_cran()
   local_lease_conf(
     instance_host = "machine-A",
     runner_ttl_search = 300,
@@ -241,6 +248,7 @@ test_that("the waiting message copes with a lease that vanished between two atte
 })
 
 test_that("a long wait does not write one line per attempt", {
+  skip_on_cran()
   # runner_wait_log_span is a minute against an interval of seconds: an operator watching a
   # 30-minute detect TTL must not have to scroll through a thousand identical lines.
   local_lease_conf(
@@ -271,6 +279,7 @@ test_that("a long wait does not write one line per attempt", {
 # register_runner(wait = ) ------------------------------------------------------------------------
 
 test_that("register_runner() waits for the lease when it is asked to", {
+  skip_on_cran()
   local_lease_conf(runner_claim_guard = 0, runner_wait_interval = 0.01)
   local_mocked_bindings(
     claim_runner_lease = failing_claims(2),
@@ -298,10 +307,10 @@ test_that("register_runner() refuses at once by default", {
     code = write_runner_lease("search.bluesky")
   )
 
-  started <- Sys.time()
+  attempts <- local_count_claims()
   expect_error(register_runner("search.bluesky"), "will not start it")
 
-  expect_lt(as.numeric(difftime(Sys.time(), started, units = "secs")), 5)
+  expect_lte(attempts(), 1L)
 })
 
 test_that("register_runner(wait = TRUE) still refuses a runner this machine already runs", {
@@ -315,13 +324,14 @@ test_that("register_runner(wait = TRUE) still refuses a runner this machine alre
     .package = "episomer"
   )
 
-  started <- Sys.time()
+  attempts <- local_count_claims()
   expect_error(register_runner("detect", wait = TRUE), "is already running")
 
-  expect_lt(as.numeric(difftime(Sys.time(), started, units = "secs")), 5)
+  expect_lte(attempts(), 1L)
 })
 
 test_that("register_runner() gives up with the historical message when the wait times out", {
+  skip_on_cran()
   local_lease_conf(
     instance_host = "machine-A",
     runner_ttl_search = 300,
