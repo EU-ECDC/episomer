@@ -12,7 +12,8 @@
 session.rds
 ^TESTING_ROADMAP\.md$
 ^dev$
-episomer/inst/schema
-episomer/inst/qmd
 ^app\.R$
 ^R/_disable_autoload\.R$
+inst/schema
+inst/qmd
+^img$
