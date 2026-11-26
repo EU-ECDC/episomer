@@ -32,7 +32,7 @@ The plan should be used to extract the precise time-span to request messages
 - Response attributes
   - network: string
   - posts: [...]
-  - count: number, 
+  - count: number,
   - pagination:\{...\}
 - post in posts
     - id: string
@@ -52,5 +52,4 @@ The plan should be used to extract the precise time-span to request messages
 - pagination: attributes used for paginating requests
 
 This is the implementation of the bluesky search. You can find more information about the bluesky API here: \url{https://docs.bsky.app/docs/api/app-bsky-feed-search-posts}
-Additionnaly more information about the "post" object is available here: \url{https://atproto.blue/en/latest/atproto/atproto_client.models.app.bsky.feed.defs.html#atproto_client.models.app.bsky.feed.defs.PostView}
 }

@@ -8,11 +8,11 @@ then
   pass=`pass epitools/ecdc_kr_pwd`
 fi
 
-export ecdc_wtitter_tool_kr_password=$pass
+export EPISOMER_KR_PASSWORD=$pass
 export TMPDIR=$EPI_HOME/tmp
 expect -c '
 spawn R
 expect ">"
-send "reload <- function() {devtools::load_all(\"'$SCRIPT_PATH'/../episomer\");setup_config(\"'$EPI_HOME'\")}\r" 
+send "reload <- function() {devtools::load_all(\"'$SCRIPT_PATH'/../episomer\");setup_config(\"'$EPI_HOME'\", fs_remote = NULL)}\r" 
 send "reload()\r" 
 interact'

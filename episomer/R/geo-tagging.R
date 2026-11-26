@@ -23,7 +23,7 @@ get_location_columns <- function(table) {
 # Get raw countries data frame from Excel file
 get_raw_countries <- function() {
   # obtained from https://gist.github.com/AdrianBinDC/621321d6083b176b3a3215c0b75f8146#file-country-bounding-boxes-md but it had been manually updated
-  df <- readxl::read_excel(get_countries_path())
+  df <- epiread_excel(get_countries_path())
   names(df) <- make.names(names(df), unique = TRUE)
   df$minLat <- as.numeric(df$minLat)
   df$maxLat <- as.numeric(df$maxLat)
@@ -37,8 +37,15 @@ get_raw_countries <- function() {
 get_country_items <- function(order = "level") {
   `%>%` <- magrittr::`%>%`
   #If countries are already on cache we return them otherwise we calculate them
-  if (exists(paste("country_items", order, sep = ""), where = cached)) {
-    return(cached[["country_items", order, sep = ""]])
+  # One key, computed once: the lookup used sep = "" while the write at the end of this function
+  # uses sep = "_", so the two never named the same entry and the cache never hit once. Every
+  # caller - refresh_dashboard_data() on every dashboard filter change, get_regions_df(),
+  # get_country_code_map() - paid a countries.xlsx read (an HTTP download when the fs is remote)
+  # plus the quadratic region/country loops below. The `return()` was broken too: `[[` on an
+  # environment takes a single name, so the extra arguments would have errored had it ever run.
+  cache_key <- paste("country_items", order, sep = "_")
+  if (exists(cache_key, where = cached)) {
+    return(cached[[cache_key]])
   } else {
     # Getting country data from package embedded excel, ignoring Antarctica
     countries <- get_raw_countries() %>% dplyr::filter(.data$region != "")
@@ -97,7 +104,7 @@ get_country_items <- function(order = "level") {
     for (r in 1:nrow(regions)) {
       row <- row + 1
       region <- regions$region[[r]]
-      items[[row]] = list(
+      items[[row]] <- list(
         name = region,
         codes = list(),
         level = 1,
@@ -114,14 +121,18 @@ get_country_items <- function(order = "level") {
             length(items[[row]]$codes) + 1
           ]] <- countries$alpha.2[[c]]
           # calculating region bounding box
-          if (countries$minLat[[c]] < items[[row]]$minLat)
+          if (countries$minLat[[c]] < items[[row]]$minLat) {
             items[[row]]$minLat <- countries$minLat[[c]]
-          if (countries$maxLat[[c]] > items[[row]]$maxLat)
+          }
+          if (countries$maxLat[[c]] > items[[row]]$maxLat) {
             items[[row]]$maxLat <- countries$maxLat[[c]]
-          if (countries$minLong[[c]] < items[[row]]$minLong)
+          }
+          if (countries$minLong[[c]] < items[[row]]$minLong) {
             items[[row]]$minLong <- countries$minLong[[c]]
-          if (countries$maxLong[[c]] > items[[row]]$maxLong)
+          }
+          if (countries$maxLong[[c]] > items[[row]]$maxLong) {
             items[[row]]$maxLong <- countries$maxLong[[c]]
+          }
         }
       }
       # Adding elements for subregions
@@ -129,7 +140,7 @@ get_country_items <- function(order = "level") {
         if (subregions$region[[s]] == region) {
           row <- row + 1
           subregion <- subregions$sub.region[[s]]
-          items[[row]] = list(
+          items[[row]] <- list(
             name = subregion,
             codes = list(),
             level = 2,
@@ -149,14 +160,18 @@ get_country_items <- function(order = "level") {
                 length(items[[row]]$codes) + 1
               ]] <- countries$alpha.2[[c]]
               # calculating region bounding box
-              if (countries$minLat[[c]] < items[[row]]$minLat)
+              if (countries$minLat[[c]] < items[[row]]$minLat) {
                 items[[row]]$minLat <- countries$minLat[[c]]
-              if (countries$maxLat[[c]] > items[[row]]$maxLat)
+              }
+              if (countries$maxLat[[c]] > items[[row]]$maxLat) {
                 items[[row]]$maxLat <- countries$maxLat[[c]]
-              if (countries$minLong[[c]] < items[[row]]$minLong)
+              }
+              if (countries$minLong[[c]] < items[[row]]$minLong) {
                 items[[row]]$minLong <- countries$minLong[[c]]
-              if (countries$maxLong[[c]] > items[[row]]$maxLong)
+              }
+              if (countries$maxLong[[c]] > items[[row]]$maxLong) {
                 items[[row]]$maxLong <- countries$maxLong[[c]]
+              }
             }
           }
           # adding country items
@@ -193,7 +208,9 @@ get_country_items <- function(order = "level") {
         level = 0.5
       )
     })
-    eu_codes <- (if (length(eu_codes) == 0) eu_codes else
+    eu_codes <- (if (length(eu_codes) == 0) {
+      eu_codes
+    } else {
       c(
         eu_codes,
         list(list(
@@ -201,7 +218,8 @@ get_country_items <- function(order = "level") {
           codes = countries$alpha.2[!is.na(countries$EU.EEA)],
           level = 0.5
         ))
-      ))
+      )
+    })
 
     # Getting WHO classification
     who_zones <- countries$WHO.Region[!is.na(countries$WHO.Region)] %>% unique
@@ -217,7 +235,7 @@ get_country_items <- function(order = "level") {
     specials <- c(eu_codes, who_codes)
     for (s in 1:length(specials)) {
       row <- row + 1
-      items[[row]] = list(
+      items[[row]] <- list(
         name = specials[[s]]$name,
         codes = list(),
         level = specials[[s]]$level,
@@ -233,27 +251,43 @@ get_country_items <- function(order = "level") {
             length(items[[row]]$codes) + 1
           ]] <- countries$alpha.2[[c]]
           # calculating region bounding box
-          if (countries$minLat[[c]] < items[[row]]$minLat)
+          if (countries$minLat[[c]] < items[[row]]$minLat) {
             items[[row]]$minLat <- countries$minLat[[c]]
-          if (countries$maxLat[[c]] > items[[row]]$maxLat)
+          }
+          if (countries$maxLat[[c]] > items[[row]]$maxLat) {
             items[[row]]$maxLat <- countries$maxLat[[c]]
-          if (countries$minLong[[c]] < items[[row]]$minLong)
+          }
+          if (countries$minLong[[c]] < items[[row]]$minLong) {
             items[[row]]$minLong <- countries$minLong[[c]]
-          if (countries$maxLong[[c]] > items[[row]]$maxLong)
+          }
+          if (countries$maxLong[[c]] > items[[row]]$maxLong) {
             items[[row]]$maxLong <- countries$maxLong[[c]]
+          }
         }
       }
     }
     # Items are natively ordered as a hierarchy, but default of this function is ordered by level and name
-    if (order == "level")
+    if (order == "level") {
       items <- items[order(sapply(items, function(i) {
         paste(i$level, i$name)
       }))]
+    }
 
     # Setting the cache
-    cached[[paste("country_items", order, sep = "_")]] <- items
+    cached[[cache_key]] <- items
     return(items)
   }
+}
+
+# Forgets the memoised country items, so that the next get_country_items() reparses the file.
+# Called when countries.xlsx is replaced from the configuration page.
+drop_country_items_cache <- function() {
+  keys <- ls(cached, all.names = TRUE)
+  keys <- keys[startsWith(keys, "country_items_")]
+  if (length(keys) > 0) {
+    rm(list = keys, envir = cached)
+  }
+  invisible(NULL)
 }
 
 # Get country codes
@@ -308,7 +342,9 @@ get_country_index_map <- function() {
 
 #' @title Updates the local copy of the GeoNames database
 #' @description Downloading and indexing a fresh version of the GeoNames database from the provided URL
-#' @param tasks Tasks object for reporting progress and error messages, default: get_tasks()
+#' @param download Logical, whether to download geonames database default: TRUE
+#' @param assemble Logical, whether to calculate the geographical hierarchy to index: TRUE
+#' @param index Logical, whether to write geographical location in full text index default: TRUE
 #' @return The list of tasks updated with produced messages
 #' @details Run a one shot task to download and index a local copy of the  \href{http://www.geonames.org/}{GeoNames database}.
 #' The GeoNames geographical database covers all countries and contains over eleven million place names that are available; Creative Commons Attribution 4.0 License.
@@ -341,112 +377,70 @@ get_country_index_map <- function() {
 #'
 #' @export
 #' @importFrom utils download.file unzip
-update_geonames <- function(tasks = get_tasks()) {
+update_geonames <- function(download = TRUE, assemble = TRUE, index = TRUE) {
   stop_if_no_config()
   old <- options()
   on.exit(options(old))
   options(timeout = 900)
-  tasks <- tryCatch(
-    {
-      tasks <- update_geonames_task(
-        tasks,
-        "running",
-        "downloading",
-        start = TRUE
-      )
-      # Create geo folder if it does not exist
-      if (!file.exists(file.path(conf$data_dir, "geo"))) {
-        dir.create(file.path(conf$data_dir, "geo"))
-      }
-      # Downloading GeoNames
-      temp <- tempfile()
-      temp_dir <- tempdir()
-      download.file(tasks$geonames$url, temp, mode = "wb")
-
-      # Decompressing file
-      tasks <- update_geonames_task(tasks, "running", "decompressing")
-      unzip(zipfile = temp, files = "allCountries.txt", exdir = temp_dir)
-      file.remove(temp)
-      file.rename(
-        from = file.path(temp_dir, "allCountries.txt"),
-        to = get_geonames_txt_path()
-      )
-
-      # Assembling GeoNames datasets
-      # using Spark job with entry point updateGeonames part 'ASSEMBLE'
-      tasks <- update_geonames_task(tasks, "running", "assembling")
-      spark_job(
-        paste(
-          "updateGeonames",
-          conf_geonames_as_arg(),
-          "assemble",
-          paste("\"TRUE\"", sep = ""),
-          "index",
-          paste("\"FALSE\"", sep = ""),
-          "parallelism",
-          conf$spark_cores
-        )
-      )
-
-      # Indexing GeoNames datasets
-      tasks <- update_geonames_task(tasks, "running", "indexing")
-      # using spark job with entry point updateGeonames part 'INDEX'
-      spark_job(
-        paste(
-          "updateGeonames",
-          conf_geonames_as_arg(),
-          "assemble",
-          paste("\"FALSE\"", sep = ""),
-          "index",
-          paste("\"TRUE\"", sep = ""),
-          "parallelism",
-          conf$spark_cores
-        )
-      )
-
-      # Setting status to success
-      tasks <- update_geonames_task(tasks, "success", "", end = TRUE)
-      tasks
-    },
-    warning = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_geonames_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$geonames$message,
-          " geonames",
-          error_condition
-        )
-      )
-      tasks
-    },
-    error = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_geonames_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$geonames$message,
-          " geonames",
-          error_condition
-        )
-      )
-      tasks
+  if (download) {
+    message("Downloading geonames")
+    if (!file.exists(file.path(conf$data_dir, "geo"))) {
+      dir.create(file.path(conf$data_dir, "geo"))
     }
-  )
-  return(tasks)
+    # Downloading GeoNames
+    temp <- tempfile()
+    temp_dir <- tempdir()
+    download.file(conf$geonames_url, temp, mode = "wb")
+
+    message("Decompressing geonames")
+    # Decompressing file
+    unzip(zipfile = temp, files = "allCountries.txt", exdir = temp_dir)
+    file.remove(temp)
+    file.rename(
+      from = file.path(temp_dir, "allCountries.txt"),
+      to = get_geonames_txt_path()
+    )
+  }
+  if (assemble) {
+    # Assembling GeoNames datasets
+    # using Spark job with entry point updateGeonames part 'ASSEMBLE'
+    message("Assembling geonames")
+    spark_job(
+      paste(
+        "updateGeonames",
+        conf_geonames_as_arg(),
+        "assemble",
+        paste("\"TRUE\"", sep = ""),
+        "index",
+        paste("\"FALSE\"", sep = ""),
+        "parallelism",
+        conf$spark_cores
+      )
+    )
+  }
+  if (index) {
+    # Indexing GeoNames datasets
+    message("Indexing geonames")
+    spark_job(
+      paste(
+        "updateGeonames",
+        conf_geonames_as_arg(),
+        "assemble",
+        paste("\"FALSE\"", sep = ""),
+        "index",
+        paste("\"TRUE\"", sep = ""),
+        "parallelism",
+        conf$spark_cores
+      )
+    )
+  }
 }
 
 
-#' @title Updates local copies of languages
-#' @description Downloading and indexing a fresh version of language models tagged for update on the Shiny app configuration tab
-#' @param tasks Tasks object for reporting progress and error messages, default: get_tasks()
-#' @param reuse_downloads logical indicating if the downloads should be reused if they already exist, default: FALSE
-#' @return The list of tasks updated with produced messages
-#' @details Run a one shot task to download and index a local fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models}.
+#' @title Updates language index and retrain models
+#' @description Indexing downloaded languages models and proceed to retrain based on manual or automatic annotations
+#' @return Nothing
+#' @details Index locally downloaded fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models} and train entity detection models.
 #' A fasttext model is a collection of vectors for a language automatically produced scrolling a big corpus of text that can be used to capture the semantic of a word.
 #'
 #' The URL to download the vectors from are set on the configuration tab of the Shiny app.
@@ -455,10 +449,7 @@ update_geonames <- function(tasks = get_tasks()) {
 #'
 #' The indexing is developed in SPARK and Lucene.
 #'
-#' A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the tasks \code{\link{download_dependencies}}
-#' and \code{\link{update_geonames}} has been run successfully.
-#'
-#' Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
+#' Normally this function is not called directly by the user but from the \code{\link{setup}} function.
 #' @examples
 #' \dontrun{
 #'    library(episomer)
@@ -480,131 +471,77 @@ update_geonames <- function(tasks = get_tasks()) {
 #'  \code{\link{get_tasks}}
 #'
 #' @export
-#' @importFrom utils download.file
-update_languages <- function(tasks = get_tasks(), reuse_downloads = FALSE) {
+update_languages <- function() {
   stop_if_no_config()
   old <- options()
   on.exit(options(old))
   options(timeout = 900)
-  tryCatch2 <- function(exp, handler) {tryCatch(exp, error=handler, warning=handler)}
-  tasks <- tryCatch(
+
+  message("Getting annotations")
+  update_geotraining_df()
+
+  message("Indexing and retraining languages")
+  retrain_languages()
+
+  message("updating annotations")
+  update_geotraining_df()
+
+  # touching the geotraining_evaluation_path after the update of the geotraining dataset to allow proper change detection of training set in setup
+  mark_geotraining_evaluated()
+}
+
+download_big_file <- function(url, dest) {
+  old <- options()
+  on.exit(options(old))
+  options(timeout = 900)
+  temp <- sprintf("%s.tmp", dest)
+  # downloading the file
+  tryCatch2 <- function(exp, handler) {
+    tryCatch(exp, error = handler, warning = handler)
+  }
+  tryCatch2(download.file(url, temp, mode = "wb"), handler = function(e) {
+    stop(e)
+  })
+  tryCatch2(
     {
-      tasks <- update_languages_task(
-        tasks,
-        "running",
-        "downloading",
-        start = TRUE
-      )
-
-      # Create languages folder if it does not exist
-      if (!file.exists(file.path(conf$data_dir, "languages"))) {
-        dir.create(file.path(conf$data_dir, "languages"))
-      }
-
-      # Executing actions per language
-      i <- 1
-      while (i <= length(tasks$languages$statuses)) {
-        # downloading when necessary
-        if (tasks$languages$statuses[[i]] %in% c("to add", "to update")) {
-          tasks <- update_languages_task(
-            tasks,
-            "running",
-            paste("downloading", tasks$languages$name[[i]]),
-            lang_code = tasks$languages$codes[[i]],
-            lang_start = TRUE
-          )
-          if(!reuse_downloads || !file.exists(tasks$languages$vectors[[i]])) { 
-            temp <- sprintf("%s.tmp", tasks$languages$vectors[[i]])
-            # downloading the file
-	    download.file(tasks$languages$url[[i]], temp, mode = "wb")
-	    tryCatch2({
-                    file.rename(from = file.path(temp), to = tasks$languages$vectors[[i]])
-	        },
-	        handler = function(e) {
-		    message(sprintf("Failed while trying to rename %s to %s with error : %s", file.path(temp), tasks$languages$vectors[[i]], e))
-		    message("going try to copy the file")
-                            if(file.copy(from = file.path(temp), to = tasks$languages$vectors[[i]], overwrite=T)) { 
-			        message("Copy of file succeeded, going to delete origin file")
-			        file.remove(temp)
-			    } else {
-		                stop("copy failed silently")
-			    }
-		}
-	    )
-            tasks <- update_languages_task(
-              tasks,
-              "running",
-              paste("downloaded", tasks$languages$name[[i]]),
-              lang_code = tasks$languages$codes[[i]],
-              lang_done = TRUE
-            )
-	  }
-        } else if (tasks$languages$statuses[[i]] %in% c("to remove")) {
-          # requesting to delete language data
-          # deleting language files
-          code <- tasks$languages$codes[[i]]
-          if (file.exists(get_lang_vectors_path(code)))
-            file.remove(get_lang_vectors_path(code))
-          if (dir.exists(get_lang_model_path(code)))
-            unlink(get_lang_model_path(code))
-          if (file.exists(get_lang_stamp_path(code)))
-            file.remove(get_lang_stamp_path(code))
-          tasks <- update_languages_task(
-            tasks,
-            "running",
-            paste("deleted", tasks$languages$name[[i]]),
-            lang_code = code,
-            lang_removed = TRUE
-          )
-          i <- i - 1
-        }
-        i <- i + 1
-      }
-      # Indexing languages after changes
-      # using the Spark job with entry point updateLanguages
-      tasks <- update_languages_task(
-        tasks,
-        "running",
-        "updating training set & indexing"
-      )
-      update_geotraining_df()
-      retrain_languages()
-      update_geotraining_df()
-
-      # Setting status to success
-      tasks <- update_languages_task(tasks, "success", "", end = TRUE)
-      tasks
+      file.rename(from = file.path(temp), to = file.path(dest))
     },
-    warning = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_languages_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$languages$message,
-          " languages",
-          error_condition
-        )
-      )
-      tasks
-    },
-    error = function(error_condition) {
-      # Setting status to failed
-      tasks <- update_languages_task(
-        tasks,
-        "failed",
-        paste(
-          "failed while",
-          tasks$languages$message,
-          " languages",
-          error_condition
-        )
-      )
-      tasks
+    handler = function(e) {
+      message(sprintf(
+        "Failed while trying to rename %s to %s with error : %s",
+        file.path(temp),
+        file.path(dest),
+        e
+      ))
+      message("going try to copy the file")
+      if (
+        file.copy(from = file.path(temp), to = file.path(dest), overwrite = T)
+      ) {
+        message("Copy of file succeeded, going to delete origin file")
+        file.remove(temp)
+      } else {
+        stop("copy failed silently")
+      }
     }
   )
-  return(tasks)
+}
+
+#' @importFrom utils download.file
+remove_language_files <- function(code) {
+  base <- get_lang_vectors_path(code)
+  to_remove <- list(
+    base,
+    sprintf("%s.txt", base),
+    sprintf("%s.model.I.post-texts", base),
+    sprintf("%s.model.I.txt", base),
+    sprintf("%s.model.I", base),
+    sprintf("%s.model.I.post-texts.txt", base)
+  )
+  for (f in to_remove) {
+    if (file.exists(f)) {
+      unlink(f, recursive = TRUE)
+    }
+  }
 }
 
 
@@ -663,19 +600,21 @@ geolocate_text <- function(
   stop_if_no_fs()
 
   `%>%` <- magrittr::`%>%`
-  if (is.null(lang_col)) df[[lang_col]] <- NA
-  to_geolocate = df %>%
+  if (is.null(lang_col)) {
+    df[[lang_col]] <- NA
+  }
+  to_geolocate <- df %>%
     dplyr::transmute(
       id = as.character(dplyr::row_number()),
       text = .data[[text_col]],
       lang = .data[[lang_col]]
     ) %>%
     jsonlite::toJSON()
-  geo_uri = paste(get_scala_geolocate_text_url(), "?jsonnl=true", sep = "")
+  geo_uri <- paste(get_scala_geolocate_text_url(), "?jsonnl=true", sep = "")
   if (!is.null(min_score)) {
     geo_uri <- paste(geo_uri, "&minScore=", min_score, sep = "")
   }
-  ret = stream_post(uri = geo_uri, body = to_geolocate) %>%
+  ret <- stream_post(uri = geo_uri, body = to_geolocate) %>%
     dplyr::arrange(as.integer(.data$id))
   for (col in c(
     "geo_code",
@@ -683,8 +622,9 @@ geolocate_text <- function(
     "geo_country",
     "geo_name",
     "tags"
-  ))
+  )) {
     if (!exists(col, where = ret)) ret[[col]] <- NA
+  }
   dplyr::select(ret, -which(names(ret) %in% c("text", "id", "lang")))
 }
 
@@ -706,7 +646,7 @@ get_geotraining_df <- function() {
     "text",
     "text"
   )
-  current <- readxl::read_excel(get_geotraining_path(), col_types = data_types)
+  current <- epiread_excel(get_geotraining_path(), col_types = data_types)
   current$Text <- stringr::str_trim(current$Text)
   current <- current %>%
     dplyr::distinct(
@@ -721,8 +661,7 @@ get_geotraining_df <- function() {
 # returns the current geotraining annotation augmented with posts_to_add posts to annotate
 updated_geotraining_df <- function(
   posts_to_add = 100,
-  progress = function(a, b) {
-  }
+  progress = function(a, b) {}
 ) {
   `%>%` <- magrittr::`%>%`
   progress(0.1, "getting current training file")
@@ -731,19 +670,25 @@ updated_geotraining_df <- function(
     dplyr::filter(
       .data$Type == "Location" & .data$`Location yes/no` %in% c("yes", "OK")
     )
-  add_locations <- if (nrow(locations) == 0) "&locationSamples=true" else
+  add_locations <- if (nrow(locations) == 0) {
+    "&locationSamples=true"
+  } else {
     "&locationSamples=false"
+  }
   non_locations <- current %>%
     dplyr::filter(
       .data$Type == "Location" & .data$`Location yes/no` %in% c("KO", "no")
     )
   non_location_langs <- unique(non_locations$Lang)
-  excl_langs <- if (length(non_location_langs) > 0)
+  excl_langs <- if (length(non_location_langs) > 0) {
     paste(
       "&excludedLangs=",
       paste(non_location_langs, collapse = "&excludedLangs="),
       sep = ""
-    ) else ""
+    )
+  } else {
+    ""
+  }
 
   progress(0.3, "obtaining locations from downloaded models and geonames")
   geo_training_uri <- paste(
@@ -762,15 +707,15 @@ updated_geotraining_df <- function(
         `Text` = .data$word,
         `Location in text` = as.character(NA),
         `Location yes/no` = ifelse(.data$isLocation, "yes", "no"),
-        `Associate country code` =  as.character(NA),
-        `Associate with` =  as.character(NA),
+        `Associate country code` = as.character(NA),
+        `Associate with` = as.character(NA),
         `Source` = "Episomer model",
-        `Post Id` =  as.character(NA),
+        `Post Id` = as.character(NA),
         `Lang` = .data$lang,
-        `Post part` =  as.character(NA),
-        `Episomer match` =  as.character(NA),
-        `Episomer country match` =  as.character(NA),
-        `Episomer country code match` =  as.character(NA)
+        `Post part` = as.character(NA),
+        `Episomer match` = as.character(NA),
+        `Episomer country match` = as.character(NA),
+        `Episomer country code match` = as.character(NA)
       )
     geo_training$Text <- stringr::str_trim(geo_training$Text)
     geo_training <- geo_training %>%
@@ -803,15 +748,15 @@ updated_geotraining_df <- function(
         `Text` = .data$text,
         `Location in text` = as.character(NA),
         `Location yes/no` = "?",
-        `Associate country code` =  as.character(NA),
-        `Associate with` =  as.character(NA),
+        `Associate country code` = as.character(NA),
+        `Associate with` = as.character(NA),
         `Source` = "Post",
         `Post Id` = .data$id,
         `Lang` = .data$lang,
         `Post part` = "text",
-        `Episomer match` =  as.character(NA),
-        `Episomer country match` =  as.character(NA),
-        `Episomer country code match` =  as.character(NA)
+        `Episomer match` = as.character(NA),
+        `Episomer country match` = as.character(NA),
+        `Episomer country code match` = as.character(NA)
       ) %>%
       dplyr::filter(!.data$`Text` %in% current$`Text`) %>%
       dplyr::distinct(.data$`Text`, .data$Lang, .keep_all = T)
@@ -845,7 +790,7 @@ updated_geotraining_df <- function(
   progress(0.7, "geolocating all items")
   tryCatch(
     {
-      geoloc = geolocate_text(
+      geoloc <- geolocate_text(
         df = text_togeo,
         text_col = "Text",
         lang_col = "Lang"
@@ -875,8 +820,7 @@ updated_geotraining_df <- function(
 # returns the current geotraining annotation augmented with posts_to_add posts to annotate and write the results to the geotraining spreadsheet
 update_geotraining_df <- function(
   posts_to_add = 100,
-  progress = function(a, b) {
-  }
+  progress = function(a, b) {}
 ) {
   `%>%` <- magrittr::`%>%`
   training_df <- updated_geotraining_df(
@@ -886,7 +830,9 @@ update_geotraining_df <- function(
   update_topic_keywords()
   update_forced_geo()
   update_forced_geo_codes()
-  if (is.function(progress)) progress(0.9, "writing result file")
+  if (is.function(progress)) {
+    progress(0.9, "writing result file")
+  }
   wbk <- openxlsx::createWorkbook()
   openxlsx::addWorksheet(wbk, "geolocation")
   # writing data to the worksheet
@@ -1001,19 +947,38 @@ update_geotraining_df <- function(
     gridExpand = TRUE
   )
   openxlsx::freezePane(wbk, "geolocation", firstActiveRow = 2)
-  openxlsx::saveWorkbook(wbk, file = get_user_geotraining_path(), overwrite = T)
+  tfile <- tempfile("episomerxlsx")
+  openxlsx::saveWorkbook(wbk, file = tfile, overwrite = TRUE)
+  epifile.copy(tfile, get_user_geotraining_path())
+  unlink(tfile)
 }
 
 # retrain the language classifiers for entity recognition with the current set of annotations
 retrain_languages <- function() {
   `%>%` <- magrittr::`%>%`
-  old <- options()
-  on.exit(options(old))
-  options(timeout = 1800)
   body <- get_geotraining_df() %>% jsonlite::toJSON()
+  # This POST holds the connection open for as long as the JVM takes to index and retrain every
+  # language, and the JVM sends nothing at all in the meantime. Two libcurl bounds have to be set
+  # for that to be allowed, and neither of them is options(timeout = ):
+  #
+  #  * options(timeout = ) is a base R setting, read by download.file() and url() and by nothing
+  #    else. httr goes through libcurl, which never looks at it. It used to be set to 1800 here,
+  #    which did nothing whatsoever - verified by measurement: with options(timeout = 8) an httr
+  #    request to a server that accepts and stays silent runs for well over two minutes;
+  #  * libcurl's own default is a low-speed abort - less than 1 byte a second for 600 seconds - so
+  #    a retraining that takes more than ten minutes died on
+  #        Operation too slow. Less than 1 bytes/sec transferred the last 600 seconds
+  #    with the training already running in the JVM, and, in a container, an Rscript that exited
+  #    non-zero and a service that restarted on top of its own log. low_speed_limit = 0 turns that
+  #    check off, which is what makes a silent connection legitimate.
+  #
+  # conf$fs_batch_timeout is then the single bound, and it is the right one: it is what the Scala
+  # side gives itself for a batch of exactly this kind (Settings.fsBatchTimeout), so the client
+  # waiting less than the server allows could only ever be wrong.
   post_result <- httr::POST(
     url = get_scala_geotraining_url(),
     httr::content_type_json(),
+    httr::config(timeout = conf$fs_batch_timeout, low_speed_limit = 0),
     body = body,
     encode = "raw",
     encoding = "UTF-8"
@@ -1025,9 +990,48 @@ retrain_languages <- function() {
       sep = "\n"
     ))
   } else {
-    fileConn <- file(get_geotraining_evaluation_path(), encoding = "UTF-8")
-    writeLines(httr::content(post_result, "text", encoding = "UTF-8"), fileConn)
-    close(fileConn)
+    # epiwriteLines(), not file() + writeLines(): the evaluation path is an fs path, and on the
+    # default configuration the fs is reached over HTTP, where file() cannot be opened for writing
+    epiwriteLines(
+      httr::content(post_result, "text", encoding = "UTF-8"),
+      get_geotraining_evaluation_path()
+    )
+    log_geotagging_models()
+  }
+}
+
+# Print, for each language, the date of the entity detection model currently on disk. Called right
+# after a retraining, it says which model files that retraining actually produced; the database logs
+# then say which of them a geolocation picked up ("Loading geolocation model ..." in the JVM log,
+# scala/src/main/scala/geo/GeoTraining.scala).
+#
+# The date printed here is what the geolocation of collected posts compares itself against: it
+# builds its pipeline once and holds the models it loaded then, so it rebuilds that pipeline as soon
+# as these files are newer (LuceneActor.geolocatePosts). The database log then says which of the two
+# happened, on its next batch of posts, without anything having to be restarted.
+log_geotagging_models <- function() {
+  for (lang in conf$languages) {
+    model_path <- paste(get_lang_model_path(lang$code), "I", sep = ".")
+    if (!file.exists(model_path)) {
+      message(sprintf(
+        "No entity detection model for %s in %s",
+        lang$code,
+        model_path
+      ))
+      next
+    }
+    # The model is a Spark ML directory: its own timestamp is not always the one of the files that
+    # were rewritten inside it, so the most recent file it contains is what dates the training.
+    trained_on <- suppressWarnings(max(file.mtime(c(
+      model_path,
+      list.files(model_path, recursive = TRUE, full.names = TRUE)
+    ))))
+    message(sprintf(
+      "Entity detection model for %s trained on %s (%s)",
+      lang$code,
+      strftime(trained_on, "%Y-%m-%d %H:%M:%S"),
+      model_path
+    ))
   }
 }
 
@@ -1050,12 +1054,16 @@ update_topic_keywords <- function() {
   )
   topicKeywords <- setNames(keywords, sapply(conf$topics, function(t) t$topic))
   ret <- list()
-  for (i in 1:length(conf$topics))
-    if (exists(conf$topics[[i]]$topic, where = ret))
+  for (i in 1:length(conf$topics)) {
+    if (exists(conf$topics[[i]]$topic, where = ret)) {
       ret[[conf$topics[[i]]$topic]] <- unique(c(
         ret[[conf$topics[[i]]$topic]],
         topicKeywords[[i]]
-      )) else ret[[conf$topics[[i]]$topic]] <- unique(topicKeywords[[i]])
+      ))
+    } else {
+      ret[[conf$topics[[i]]$topic]] <- unique(topicKeywords[[i]])
+    }
+  }
   write_json_atomic(
     ret,
     get_topic_keywords_path(),
@@ -1085,7 +1093,9 @@ update_forced_geo <- function() {
         x <- gsub("^ *| *$", "", t)
         x[x != ""]
       })
-      for (j in 1:length(toReplace)) ret[[toReplace[[j]]]] <- df$to[[i]]
+      for (j in 1:length(toReplace)) {
+        ret[[toReplace[[j]]]] <- df$to[[i]]
+      }
     }
     write_json_atomic(
       ret,
@@ -1095,7 +1105,9 @@ update_forced_geo <- function() {
       auto_unbox = TRUE
     )
   } else {
-    if (file.exists(get_forced_geo_path())) file.remove(get_forced_geo_path())
+    if (epifile.exists(get_forced_geo_path())) {
+      epifile.remove(get_forced_geo_path())
+    }
   }
 }
 
@@ -1119,7 +1131,9 @@ update_forced_geo_codes <- function() {
         x <- gsub("^ *| *$", "", t)
         x[x != ""]
       })
-      for (j in 1:length(toReplace)) ret[[toReplace[[j]]]] <- df$to[[i]]
+      for (j in 1:length(toReplace)) {
+        ret[[toReplace[[j]]]] <- df$to[[i]]
+      }
     }
     write_json_atomic(
       ret,
@@ -1129,7 +1143,63 @@ update_forced_geo_codes <- function() {
       auto_unbox = TRUE
     )
   } else {
-    if (file.exists(get_forced_geo_codes_path()))
-      file.remove(get_forced_geo_codes_path())
+    if (epifile.exists(get_forced_geo_codes_path())) {
+      epifile.remove(get_forced_geo_codes_path())
+    }
   }
+}
+
+# Mark the model evaluation as being the one of the training set currently on disk.
+#
+# get_lang_traing_need() below answers "yes" when the training set is more recent than the
+# evaluation, and every path that retrains writes the training set again *after* the retraining:
+# update_geotraining_df() refreshes the Episomer match columns of the spreadsheet with the models
+# that were just trained, so it necessarily runs last. The evaluation is then a few seconds older
+# than the spreadsheet it evaluated, which reads as "the training set changed since the last
+# training" and makes setup() offer a retraining at every start, for ever, with nothing having
+# changed. Touching the evaluation last is what closes that.
+#
+# It is deliberately not called by update_geotraining_df() itself: the geotraining tab also updates
+# the spreadsheet without retraining (the "update geotraining dataset" button), and there the
+# spreadsheet legitimately becomes newer than the evaluation and setup() is right to ask.
+mark_geotraining_evaluated <- function() {
+  if (epifile.exists(get_geotraining_evaluation_path())) {
+    epifile.touch(get_geotraining_evaluation_path())
+  }
+}
+
+# check whether languages need retrain
+get_lang_traing_need <- function() {
+  conf_langs <- unlist(lapply(conf$languages, `[[`, "code"))
+  # epifile.exists()/epifile.mtime() throughout: every path asked about here comes from epipath(),
+  # so it is a URL whenever the fs is remote, and base file.exists() answers FALSE about a URL -
+  # which reads as "the evaluation was never produced" and asks for a retraining that just ran
+  existing_vectors <- conf_langs[epifile.exists(unlist(lapply(
+    conf$languages,
+    `[[`,
+    "vectors"
+  )))]
+  # If there are some vectors not downloaded then retraining is needed
+  if (length(existing_vectors) < length(conf_langs)) {
+    return(TRUE)
+  }
+  # If the training set is not yet produced then training is needed
+  if (!epifile.exists(get_geotraining_path())) {
+    return(TRUE)
+  }
+  # If the evaluation of models has not been performed then training is needed
+  if (!epifile.exists(get_geotraining_evaluation_path())) {
+    return(TRUE)
+  }
+  # If date of update of vectors or training set is later than the evaluation of models then training is needed
+  last_vectors_update <- max(epifile.mtime(sapply(
+    existing_vectors,
+    function(code) get_lang_vectors_path(code)
+  )))
+  last_evaluation <- epifile.mtime(get_geotraining_evaluation_path())
+  last_training_update <- epifile.mtime(get_geotraining_path())
+  if (max(last_vectors_update, last_training_update) > max(last_evaluation)) {
+    return(TRUE)
+  }
+  return(FALSE)
 }

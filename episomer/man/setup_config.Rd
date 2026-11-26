@@ -5,21 +5,25 @@
 \title{Load episomer application settings}
 \usage{
 setup_config(
-  data_dir = if (exists("data_dir", where = conf)) conf$data_dir else if
-    (Sys.getenv("EPI_HOME") != "") Sys.getenv("EPI_HOME") else file.path(tempdir(),
-    "episomer"),
+  data_dir = default_data_dir(),
   ignore_keyring = FALSE,
   ignore_properties = FALSE,
   ignore_topics = FALSE,
   save_properties_first = FALSE,
-  save_topics_first = list()
+  save_topics_first = list(),
+  fs_remote = if (Sys.getenv("EPI_HOST") != "") {
+     Sys.getenv("EPI_HOST")
+ } else {
+ 
+       "http://localhost:8080"
+ }
 )
 }
 \arguments{
 \item{data_dir}{Path to the directory containing the application settings (it must exist).
 If not provided it takes the value of the latest call to setup_config in the current session, or the value of the EPI_HOME environment variable or episomer subdirectory in the working directory,
-default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv("EPI_HOME") !=
-   "") Sys.getenv("EPI_HOME") else file.path(tempdir(), "episomer")}
+default: default_data_dir(), i.e. conf$data_dir, then the EPI_HOME environment variable, then
+   file.path(tempdir(), "episomer")}
 
 \item{ignore_keyring}{Whether to skip loading settings from the keyring (social media and SMTP credentials), default: FALSE}
 
@@ -29,7 +33,9 @@ default: if (exists("data_dir", where = conf)) conf$data_dir else if (Sys.getenv
 
 \item{save_properties_first}{Whether to save current settings before loading new ones from disk, default: FALSE}
 
-\item{save_topics_first}{List of topics to save before loading new ones from disk, default: list()}
+\item{save_topics_first}{List of social media to save its topics to disk before loading new ones from disk, default: list()}
+
+\item{fs_remote}{address of the central instance of episomer for accessing}
 }
 \value{
 Nothing
@@ -47,6 +53,14 @@ This call will fill (or refresh) a package scoped environment 'conf' that will s
   \item{General properties of the Shiny app (stored in properties.json)}
   \item{Download plans from the social media collection process (stored in topics.json merged with data from the topics.xlsx file}
   \item{Credentials for social media APIs and SMTP stored in the defined keyring}
+  \item{The identity of the running instance: 'instance_id', a random identifier generated once
+    per R process, and 'instance_host', the name of the machine. Both describe the current
+    process rather than the shared configuration, so they are never written to properties.json.
+    'instance_host' is taken from the environment variable 'EPISOMER_INSTANCE' when it is set,
+    and falls back to the system host name otherwise. Setting 'EPISOMER_INSTANCE' is recommended
+    when running episomer in containers, whose host names are random, and when several machines
+    share the same data directory: it is the name the dashboard displays to tell which machine a
+    service is running on.}
 }
 
 When calling this function and the keyring is locked, a password will be prompted to unlock the keyring.
@@ -56,6 +70,7 @@ Changes made to conf can be stored permanently (except for 'data_dir') using:
 \itemize{
   \item{\code{\link{save_config}}, or}
    \item{\code{\link{sm_api_set_auth_bluesky}}}
+   \item{\code{\link{sm_api_set_auth_mastodon}}}
 }
 }
 \examples{
@@ -69,6 +84,7 @@ Changes made to conf can be stored permanently (except for 'data_dir') using:
 \seealso{
 \code{\link{save_config}}
 \code{\link{sm_api_set_auth_bluesky}}
+\code{\link{sm_api_set_auth_mastodon}}
 \code{\link{episomer_app}}
 \code{\link{search_loop}}
 \code{\link{detect_loop}}

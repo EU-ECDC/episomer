@@ -4,10 +4,14 @@
 \alias{update_geonames}
 \title{Updates the local copy of the GeoNames database}
 \usage{
-update_geonames(tasks = get_tasks())
+update_geonames(download = TRUE, assemble = TRUE, index = TRUE)
 }
 \arguments{
-\item{tasks}{Tasks object for reporting progress and error messages, default: get_tasks()}
+\item{download}{Logical, whether to download geonames database default: TRUE}
+
+\item{assemble}{Logical, whether to calculate the geographical hierarchy to index: TRUE}
+
+\item{index}{Logical, whether to write geographical location in full text index default: TRUE}
 }
 \value{
 The list of tasks updated with produced messages

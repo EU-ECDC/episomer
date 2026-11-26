@@ -122,7 +122,7 @@ ears_t_reweighted <- function(
   step <- (if (same_weekday_baseline) 7 else 1)
 
   t(sapply(1:length(ts), function(t) {
-    if (t < no_historic * step + 1)
+    if (t < no_historic * step + 1) {
       c(
         time_monitored = t,
         y0 = ts[[t]],
@@ -131,7 +131,8 @@ ears_t_reweighted <- function(
         y0bar = NA,
         U0_dw = NA,
         alarm0_dw = NA
-      ) else {
+      )
+    } else {
       ## Extract current value and historic values
       ## Taking in consideration the step size which will be seven for same day of week comparison
       y_historic <- sapply(no_historic:1, function(i) ts[[t - i * step]])
@@ -231,24 +232,35 @@ get_reporting_date_counts <- function(
   last_day
 ) {
   `%>%` <- magrittr::`%>%`
-  empty = !("created_date" %in% names(df)) || !("created_hour" %in% names(df))
-  if(empty  && nrow(df)) {
-    message(sprintf("Found incoherent non empty dataset for alerts in %s, %s, %s... ignoring data. This is the content:", topic, start, end))
-    print(df) 
+  empty <- !("created_date" %in% names(df)) || !("created_hour" %in% names(df))
+  if (empty && nrow(df)) {
+    message(sprintf(
+      "Found incoherent non empty dataset for alerts in %s, %s, %s... ignoring data. This is the content:",
+      topic,
+      start,
+      end
+    ))
+    print(df)
   }
   if (!empty && nrow(df) > 0) {
     # Calculating end day hour which is going to be the last fully collected hour when
     # requesting the last collected dates or 23 hours if it is a fully collected day
-    last_full_hour <- (if (!is.na(end) && end < last_day) 23 else
+    last_full_hour <- (if (!is.na(end) && end < last_day) {
+      23
+    } else {
       as.integer(strftime(
         max(
           as.POSIXlt(df$created_date) + (as.integer(df$created_hour) - 1) * 3600
         ),
-        "%H"
-      )))
+        "%H",
+        # created_date + created_hour is built in UTC: format it in UTC too, otherwise the hour
+        # shifts with the timezone of the machine and an incomplete last hour is counted as full
+        tz = "UTC"
+      ))
+    })
     #Handling going to previous day if last full hour is negative
     if (last_full_hour < 0) {
-      last_full_hour = 23
+      last_full_hour <- 23
       last_day <- last_day - 1
     }
     # Setting the reporting date based on the cut-off hour
@@ -259,11 +271,17 @@ get_reporting_date_counts <- function(
     )
 
     # filtering by start date
-    df <- (if (is.na(start)) df else
-      dplyr::filter(df, .data$reporting_date >= start))
+    df <- (if (is.na(start)) {
+      df
+    } else {
+      dplyr::filter(df, .data$reporting_date >= start)
+    })
     # filtering by end date
-    df <- (if (is.na(end)) df else
-      dplyr::filter(df, .data$reporting_date <= end))
+    df <- (if (is.na(end)) {
+      df
+    } else {
+      dplyr::filter(df, .data$reporting_date <= end)
+    })
     # group by reporting date
 
     df %>%
@@ -286,7 +304,7 @@ get_reporting_date_counts <- function(
 #' @title calculate alerts for for a particular region
 #' @description calculate alerts for a region and topic using provided parameters to the episomer signal detection function
 #' @param sms A given social media for which aggregations have been calculated
-#' @param topic Limit the alert detection to the given topic 
+#' @param topic Limit the alert detection to the given topic
 #' @param country_codes List with the codes of countries to be aggregated for this alerts
 #' @param country_code_cols the name of the column containing the country codes
 #' @param start the start date for the period in consideration
@@ -351,18 +369,21 @@ calculate_region_alerts <- function(
       network = sms
     )
   )
-  
-  if(nrow(df) > 0) {
-    # Adding original if missing
-    if(!"original" %in% names(df))
-       df["original"] <- sapply(1:nrow(df), function(x) 0)
-    if(!"geo_country_code" %in% names(df))
-       df["geo_country_code"] <- NA
-    if(!"known_quotes" %in% names(df))
-       df["known_quotes"] <- sapply(1:nrow(df), function(x) 0)
-    if(!"known_original" %in% names(df))
-       df["known_original"] <- sapply(1:nrow(df), function(x) 0)
 
+  if (nrow(df) > 0) {
+    # Adding original if missing
+    if (!"original" %in% names(df)) {
+      df["original"] <- sapply(1:nrow(df), function(x) 0)
+    }
+    if (!"geo_country_code" %in% names(df)) {
+      df["geo_country_code"] <- NA
+    }
+    if (!"known_quotes" %in% names(df)) {
+      df["known_quotes"] <- sapply(1:nrow(df), function(x) 0)
+    }
+    if (!"known_original" %in% names(df)) {
+      df["known_original"] <- sapply(1:nrow(df), function(x) 0)
+    }
 
     # filtering by topic
     df <- df %>% dplyr::filter(.data$topic == f_topic)
@@ -378,7 +399,7 @@ calculate_region_alerts <- function(
     } else {
       df %>%
         dplyr::rename(
-          known_users = .data$known_original
+          known_users = "known_original"
         ) %>%
         mutate(posts = .data$original)
     }
@@ -390,28 +411,40 @@ calculate_region_alerts <- function(
             (.data$geo_country_code %in% country_codes))
         )
       total_count <- sum(
-        (get_reporting_date_counts(total_df, topic, read_from_date, end, end) %>%
+        (get_reporting_date_counts(
+          total_df,
+          topic,
+          read_from_date,
+          end,
+          end
+        ) %>%
           dplyr::filter(.data$reporting_date >= start))$count
       )
-      logenv$total_count <- if (exists("total_count", logenv))
-        logenv$total_count + total_count else total_count
+      logenv$total_count <- if (exists("total_count", logenv)) {
+        logenv$total_count + total_count
+      } else {
+        total_count
+      }
     }
     # filtering by country codes
-    df <- (if (length(country_codes) == 0) df else if (
-      length(country_code_cols) == 1
-    )
+    df <- (if (length(country_codes) == 0) {
+      df
+    } else if (length(country_code_cols) == 1) {
       dplyr::filter(
         df,
         .data$topic == f_topic &
           (!!as.symbol(country_code_cols[[1]])) %in% country_codes
-      ) else if (length(country_code_cols) == 2)
+      )
+    } else if (length(country_code_cols) == 2) {
       dplyr::filter(
         df,
         .data$topic == f_topic &
           (!!as.symbol(country_code_cols[[1]])) %in% country_codes |
           (!!as.symbol(country_code_cols[[2]])) %in% country_codes
-      ) else
-      stop("get geo count does not support more than two country code columns"))
+      )
+    } else {
+      stop("get geo count does not support more than two country code columns")
+    })
   }
   # Getting univariate time series aggregating by day
   counts <- get_reporting_date_counts(df, topic, read_from_date, end, end)
@@ -439,8 +472,11 @@ calculate_region_alerts <- function(
     counts$alert <- alerts$alarm0_dw
     counts$limit <- alerts$U0_dw
     counts$baseline <- alerts$y0bar
-    counts <- if (is.na(start)) counts else
+    counts <- if (is.na(start)) {
+      counts
+    } else {
       counts %>% dplyr::filter(.data$reporting_date >= start)
+    }
     counts
   } else {
     counts$alert <- logical()
@@ -464,7 +500,7 @@ calculate_region_alerts <- function(
 #'    #Running the alerts for World in topic covid-19
 #'    df <-calculate_regions_alerts(
 #'                                 sms="bluesky",
-#'                                 topic="covid-19",                                 
+#'                                 topic="covid-19",
 #'                                 date_min=as.Date("2025-09-20"),
 #'                                 date_max=as.Date("2025-09-30")
 #' )
@@ -495,7 +531,9 @@ calculate_regions_alerts <- function(
   # Getting region details
   all_regions <- get_country_items()
   # Setting world as region if no region is selected
-  if (length(regions) == 0) regions = c(1)
+  if (length(regions) == 0) {
+    regions <- c(1)
+  }
 
   # Calculating alerts for each provided region
   series <- lapply(1:length(regions), function(i) {
@@ -506,11 +544,13 @@ calculate_regions_alerts <- function(
           all_regions,
           function(r) r$level == all_regions[[regions[[i]]]]$level
         ))])
-      } else 1
+      } else {
+        1
+      }
     alerts <-
       calculate_region_alerts(
         sms = sms,
-	topic = topic,
+        topic = topic,
         country_codes = all_regions[[regions[[i]]]]$codes,
         country_code_cols = "geo_country_code",
         start = as.Date(date_min),
@@ -524,11 +564,13 @@ calculate_regions_alerts <- function(
         same_weekday_baseline = same_weekday_baseline,
         logenv = logenv
       )
-    alerts <- dplyr::rename(alerts, date = .data$reporting_date)
-    alerts <- dplyr::rename(alerts, number_of_posts = .data$count)
+    alerts <- dplyr::rename(alerts, date = "reporting_date")
+    alerts <- dplyr::rename(alerts, number_of_posts = "count")
     alerts$date <- as.Date(alerts$date, origin = '1970-01-01')
-    if (nrow(alerts) > 0) alerts$country <- all_regions[[regions[[i]]]]$name
-    alerts$known_ratio = alerts$known_users / alerts$number_of_posts
+    if (nrow(alerts) > 0) {
+      alerts$country <- all_regions[[regions[[i]]]]$name
+    }
+    alerts$known_ratio <- alerts$known_users / alerts$number_of_posts
     alerts
   })
 
@@ -550,24 +592,24 @@ calculate_regions_alerts <- function(
       ) %>%
       dplyr::ungroup() %>%
       dplyr::select(
-        .data$d,
-        .data$c,
-        .data$ku,
-        .data$a,
-        .data$l,
-        .data$country,
-        .data$kr,
-        .data$l,
-        .data$b
+        "d",
+        "c",
+        "ku",
+        "a",
+        "l",
+        "country",
+        "kr",
+        "l",
+        "b"
       ) %>%
       dplyr::rename(
-        date = .data$d,
-        number_of_posts = .data$c,
-        alert = .data$a,
-        known_users = .data$ku,
-        known_ratio = .data$kr,
-        limit = .data$l,
-        baseline = .data$b
+        date = "d",
+        number_of_posts = "c",
+        alert = "a",
+        known_users = "ku",
+        known_ratio = "kr",
+        limit = "l",
+        baseline = "b"
       )
   }
   return(df)
@@ -576,8 +618,11 @@ calculate_regions_alerts <- function(
 
 # get alert count start depending on the baseline type: any day or same weekday
 get_alert_count_from <- function(date, baseline_size, same_weekday_baseline) {
-  if (!same_weekday_baseline) date - (baseline_size + 2) else
+  if (!same_weekday_baseline) {
+    date - (baseline_size + 2)
+  } else {
     date - (7 * baseline_size + 2)
+  }
 }
 
 # getting parameters for current alert generation
@@ -598,19 +643,24 @@ do_next_alerts <- function(tasks = get_tasks()) {
         wait_for,
         " seconds"
       ))
-      Sys.sleep(wait_for)
+      # Short waits (10, 20, 30 seconds) inside a detect task, so far below the 30-minute detect
+      # TTL. Going through the heartbeat anyway keeps a single way of waiting in the loops, and
+      # gives this one stop_if_lease_lost() for free: no point in waiting for an aggregation we
+      # are not allowed to turn into alerts anymore.
+      sleep_with_heartbeat(wait_for)
       wait_for <- wait_for + 10
     }
-    if (wait_for > 30)
+    if (wait_for > 30) {
       stop(
         "Cannot determine the last aggregated period for alert detection. Please check that series have been aggregated"
       )
+    }
   }
 
   # Determining whether we should produce alerts for current hour (if aggregation has produced new records since last alert generation
   do_alerts <- FALSE
   alert_file <- get_alert_file(alert_to)
-  if (!file.exists(alert_file)) {
+  if (!epifile.exists(alert_file)) {
     do_alerts <- TRUE
   } else {
     f <- file(alert_file, "rb")
@@ -623,8 +673,9 @@ do_next_alerts <- function(tasks = get_tasks()) {
             dplyr::filter(.data$date == alert_to & .data$hour == alert_to_hour)
         ) ==
           0
-    )
+    ) {
       do_alerts <- TRUE
+    }
   }
   if (do_alerts) {
     # Getting region details
@@ -634,24 +685,24 @@ do_next_alerts <- function(tasks = get_tasks()) {
     on.exit(parallel::stopCluster(cl))
     data_dir <- conf$data_dir
     topics <- unique(lapply(conf$topics, function(t) t$topic))
-    alphas = get_topics_alphas()
-    alpha_outliers = get_topics_alpha_outliers()
-    k_decays = get_topics_k_decays()
+    alphas <- get_topics_alphas()
+    alpha_outliers <- get_topics_alpha_outliers()
+    k_decays <- get_topics_k_decays()
     parallel::clusterExport(
       cl,
       list(
         "data_dir",
         "topics",
-	"alphas",
-	"alpha_outliers",
-	"k_decays",
+        "alphas",
+        "alpha_outliers",
+        "k_decays",
         "regions",
         "alert_to",
         "get_country_items",
         "update_alerts_task",
         "cores",
         "tasks",
-	"conf"
+        "conf"
       ),
       envir = rlang::current_env()
     )
@@ -659,15 +710,25 @@ do_next_alerts <- function(tasks = get_tasks()) {
     # Get active social media platforms for alerts
     sms <- alerts_social_media()
     # active_sms <- "bluesky"
-    if(length(sms)==0)
-      stop("Cannot calculate alerts if no social media has been tagged to be included for alerts")
+    if (length(sms) == 0) {
+      stop(
+        "Cannot calculate alerts if no social media has been tagged to be included for alerts"
+      )
+    }
     # calculating alerts per social media platform and topic
-    
+
     # Parallel processing for topics within each social media platform
     alerts <- parallel::parLapply(cl, 1:length(topics), function(i) {
       topic <- topics[[i]]
       episomer::setup_config(data_dir)
-      m <- paste("Getting alerts for", paste(sms, collapse = ", "), topic, i, alert_to, (Sys.time()))
+      m <- paste(
+        "Getting alerts for",
+        paste(sms, collapse = ", "),
+        topic,
+        i,
+        alert_to,
+        (Sys.time())
+      )
       message(m)
       if (i %% cores == 0) {
         tasks <- update_alerts_task(tasks, "running", m)
@@ -684,9 +745,9 @@ do_next_alerts <- function(tasks = get_tasks()) {
         # date_max = "2025-09-22",
         with_quotes = conf$alert_with_quotes,
         alpha = as.numeric(alphas[[topic]]),
-	alpha_outlier = as.numeric(alpha_outliers[[topic]]),
-	k_decay = as.numeric(k_decays[[topic]]),
-	no_historic = as.numeric(conf$alert_history),
+        alpha_outlier = as.numeric(alpha_outliers[[topic]]),
+        k_decay = as.numeric(k_decays[[topic]]),
+        no_historic = as.numeric(conf$alert_history),
         bonferroni_correction = conf$alert_with_bonferroni_correction,
         same_weekday_baseline = conf$alert_same_weekday_baseline
       ) %>%
@@ -713,10 +774,14 @@ do_next_alerts <- function(tasks = get_tasks()) {
       )) {
         m <- paste("Adding", serie$name)
         message(m)
-        alert_to_minus = as.Date(alert_to)-1
+        alert_to_minus <- as.Date(alert_to) - 1
         data <- get_aggregates(
           serie$name,
-          filter = list(topic = ts, period = c(alert_to_minus, alert_to), network = sms  )
+          filter = list(
+            topic = ts,
+            period = c(alert_to_minus, alert_to),
+            network = sms
+          )
         )
         data$frequency <- data$original
         data$item <- data[[serie$col]]
@@ -730,9 +795,12 @@ do_next_alerts <- function(tasks = get_tasks()) {
                 data %>%
                   dplyr::filter(
                     .data$topic == t &
-                      .data$created_date %in% c(d-1, d) &
-                      (if (length(codes) == 0) TRUE else
-                        .data$geo_country_code %in% codes)
+                      .data$created_date %in% c(d - 1, d) &
+                      (if (length(codes) == 0) {
+                        TRUE
+                      } else {
+                        .data$geo_country_code %in% codes
+                      })
                   ) %>%
                   dplyr::filter(!is.na(.data$frequency)) %>%
                   dplyr::group_by(.data$item) %>%
@@ -742,7 +810,9 @@ do_next_alerts <- function(tasks = get_tasks()) {
                   head(10) #%>%
                 #dplyr::mutate(item = reorder(.data$item, .data$frequency))
               )
-              if (nrow(tps) == 0) "" else
+              if (nrow(tps) == 0) {
+                ""
+              } else {
                 paste(paste(
                   tps$item,
                   " (",
@@ -751,6 +821,7 @@ do_next_alerts <- function(tasks = get_tasks()) {
                   collapse = ", ",
                   sep = ""
                 ))
+              }
             }
           },
           alerts$topic,
@@ -791,9 +862,12 @@ do_next_alerts <- function(tasks = get_tasks()) {
         alerts$topposts <- NULL
         alerts$id <- NULL
       }
-      f <- file(alert_file, open = "ab")
+      tfile <- tempfile("episomer-alert")
+      f <- file(tfile, open = "wb")
       jsonlite::stream_out(alerts, f, auto_unbox = TRUE)
       close(f)
+      epifile.upload(tfile, alert_file, append = TRUE)
+      unlink(tfile)
     }
   } else {
     message("no alerts to recalculate")
@@ -848,17 +922,19 @@ get_alerts <- function(
   topposts = 0,
   limit = 0,
   duplicates = "all",
-  progress = function(a, b) {
-  }
+  progress = function(a, b) {}
 ) {
   `%>%` <- magrittr::`%>%`
   # preparing files and renaming variables with names as column on data frame to avoid conflicts
   regions <- get_country_items()
   t <- topic
-  cnames <- (if (class(countries) %in% c("numeric", "integer"))
-    lapply(countries, function(i) regions[[i]]$name) else countries)
-  alert_files <- list.files(
-    file.path(conf$data_dir, "alerts"),
+  cnames <- (if (class(countries) %in% c("numeric", "integer")) {
+    lapply(countries, function(i) regions[[i]]$name)
+  } else {
+    countries
+  })
+  alert_files <- epilist.files(
+    epipath("alerts"),
     recursive = TRUE,
     full.names = TRUE
   )
@@ -874,10 +950,14 @@ get_alerts <- function(
         )
       )
     })
+    # A file in alerts/ whose name does not start with a date (a backup, an editor or OS leftover)
+    # gets an NA date, the test below answers NA for it, and indexing a list with NA yields NULL:
+    # file(NULL) then failed with "invalid 'description' argument". Such files are skipped.
     files_in_period <- lapply(
-      file_dates[sapply(
+      file_dates[vapply(
         file_dates,
-        function(fd) fd$date >= as.Date(from) && fd$date <= as.Date(until)
+        function(fd) !is.na(fd$date) && fd$date >= as.Date(from) && fd$date <= as.Date(until),
+        logical(1)
       )],
       function(fd) fd$path
     )
@@ -886,26 +966,33 @@ get_alerts <- function(
       df <- jsonlite::stream_in(f, verbose = FALSE)
       close(f)
       # Adding default value for same_weekday_baseline if does not exists
-      if (!("same_weekday_baseline" %in% colnames(df)))
+      if (!("same_weekday_baseline" %in% colnames(df))) {
         df$same_weekday_baseline <- sapply(df$topic, function(t) FALSE)
+      }
       # Adding default value for alpha_outlier if does not exists
-      if (!("alpha_outlier" %in% colnames(df)))
+      if (!("alpha_outlier" %in% colnames(df))) {
         df$alpha_outlier <- as.numeric(sapply(df$topic, function(t) NA))
+      }
       # Adding default value for k_decay if does not exists
-      if (!("k_decay" %in% colnames(df)))
+      if (!("k_decay" %in% colnames(df))) {
         df$k_decay <- as.numeric(sapply(df$topic, function(t) NA))
+      }
       # Adding default hashtags
-      if (!("tags" %in% colnames(df)))
+      if (!("tags" %in% colnames(df))) {
         df$tags <- sapply(df$topic, function(t) NA)
+      }
       # Adding default urls
-      if (!("urls" %in% colnames(df)))
+      if (!("urls" %in% colnames(df))) {
         df$urls <- sapply(df$topic, function(t) NA)
+      }
       # Adding default entities
-      if (!("entities" %in% colnames(df)))
+      if (!("entities" %in% colnames(df))) {
         df$entities <- sapply(df$topic, function(t) NA)
+      }
       # Adding default contexts
-      if (!("contexts" %in% colnames(df)))
+      if (!("contexts" %in% colnames(df))) {
         df$contexts <- sapply(df$topic, function(t) NA)
+      }
 
       df <- df %>%
         dplyr::filter(
@@ -975,17 +1062,23 @@ get_alerts <- function(
           paste(
             "<li><b>Top Urls</b>: ",
             sapply(strsplit(df$urls, ", "), function(s) {
-              if (!is.null(s) && !all(is.na(s)) && length(s) > 0 && all(nchar(s) > 0)) {
+              if (
+                !is.null(s) &&
+                  !all(is.na(s)) &&
+                  length(s) > 0 &&
+                  all(nchar(s) > 0)
+              ) {
                 urls <- sapply(strsplit(s, " \\("), function(f) f[[1]])
                 counts <- sapply(
                   strsplit(s, " \\("),
-                  function(f)
+                  function(f) {
                     paste(" (", if (length(f) > 1) f[[2]] else "-", sep = "")
+                  }
                 )
                 paste(
                   sapply(
                     1:length(urls),
-                    function(i)
+                    function(i) {
                       paste(
                         "<a target = \"_blank\" href = \"",
                         urls[[i]],
@@ -995,10 +1088,13 @@ get_alerts <- function(
                         "</a>",
                         sep = ""
                       )
+                    }
                   ),
                   collapse = ", "
                 )
-              } else ""
+              } else {
+                ""
+              }
             }),
             "</li>\n"
           ),
@@ -1007,8 +1103,9 @@ get_alerts <- function(
         "</UL>",
         sep = ""
       )
-      if (nrow(df) > 0 && !"episomer_category" %in% colnames(df))
+      if (nrow(df) > 0 && !"episomer_category" %in% colnames(df)) {
         df$episomer_category <- NA
+      }
 
       # overriding classification if provided by users$
       alert_training <- get_alert_training_df()
@@ -1026,7 +1123,7 @@ get_alerts <- function(
 
       if (nrow(df) > 0) {
         df$episomer_category <- sapply(1:nrow(df), function(i) {
-          key = tolower(paste(
+          key <- tolower(paste(
             df[["date"]][[i]],
             df[["topic"]][[i]],
             df[["country"]][[i]],
@@ -1037,7 +1134,9 @@ get_alerts <- function(
       }
       progress(1, "Alerts obtained")
       tibble::as_tibble(df)
-    } else NULL
+    } else {
+      NULL
+    }
   }
 }
 
@@ -1047,8 +1146,7 @@ add_topposts <- function(
   df,
   topposts,
   ignore_place = FALSE,
-  progress = function(a, b) {
-  }
+  progress = function(a, b) {}
 ) {
   codes <- get_country_codes_by_name()
   topwords <- sapply(
@@ -1056,21 +1154,28 @@ add_topposts <- function(
     function(v) v[nchar(v) > 0]
   )
 
-  df$topposts <- if (nrow(df) == 0) character() else {
+  df$topposts <- if (nrow(df) == 0) {
+    character()
+  } else {
     sapply(1:nrow(df), function(i) {
-      created_from = (if (df$hour[[i]] == 23) {
+      created_from <- (if (df$hour[[i]] == 23) {
         df$date[[i]]
       } else if (df$hour[[i]] < 9) {
         paste0(as.character(as.Date(df$date[[i]]) - 1), "T0", df$hour[[i]] + 1)
-      } else
-        paste0(as.character(as.Date(df$date[[i]]) - 1), "T", df$hour[[i]] + 1))
-      created_to = (if (df$hour[[i]] == 23) {
+      } else {
+        paste0(as.character(as.Date(df$date[[i]]) - 1), "T", df$hour[[i]] + 1)
+      })
+      created_to <- (if (df$hour[[i]] == 23) {
         paste0(df$date[[i]], "TZ")
       } else if (df$hour[[i]] < 10) {
         paste0(df$date[[i]], "T0", df$hour[[i]], "Z")
-      } else paste0(df$date[[i]], "T", df$hour[[i]], "Z"))
+      } else {
+        paste0(df$date[[i]], "T", df$hour[[i]], "Z")
+      })
       match_codes <- codes[[df$country[[i]]]]
-      if (is.null(match_codes)) "" else {
+      if (is.null(match_codes)) {
+        ""
+      } else {
         progress(i / nrow(df), "Getting alerts posts")
         posts <- lapply(conf$languages, function(lang) {
           res <- search_posts(
@@ -1081,18 +1186,24 @@ add_topposts <- function(
               created_to,
               "] AND ",
               paste0("lang:", lang$code, " AND "),
-              (if (length(match_codes) == 0 || ignore_place) "" else
+              (if (length(match_codes) == 0 || ignore_place) {
+                ""
+              } else {
                 paste0(
                   "text_loc.geo_country_code:",
                   paste0(match_codes, collapse = ";"),
                   " AND "
-                )),
-              (if (length(topwords[[i]]) == 0) "" else
+                )
+              }),
+              (if (length(topwords[[i]]) == 0) {
+                ""
+              } else {
                 paste0(
                   "(",
                   paste0(paste0("\"", topwords[[i]], "\""), collapse = " OR "),
                   ") AND "
-                )),
+                )
+              }),
               "is_quote:false"
             ),
             topic = df$topic[[i]],
@@ -1117,30 +1228,42 @@ add_topposts <- function(
 
 # get the default or user defined subscribed user list
 get_subscribers <- function() {
-  df <- readxl::read_excel(get_subscribers_path())
+  df <- epiread_excel(get_subscribers_path())
   df$Topics <- as.character(df$Topics)
   df$User <- as.character(df$User)
   df$Email <- as.character(df$Email)
   df$Regions <- as.character(df$Regions)
   df$`Excluded Topics` <- as.character(df$`Excluded Topics`)
   df$`Real time Topics` <- as.character(df$`Real time Topics`)
-  df$`Alert category` <- if (!"Alert category" %in% colnames(df)) NA else
+  df$`Alert category` <- if (!"Alert category" %in% colnames(df)) {
+    NA
+  } else {
     as.character(df$`Alert category`)
+  }
   df$`Alert Slots` <- as.character(df$`Alert Slots`)
-  df$`One post alerts` <- if (!"One post alerts" %in% colnames(df)) TRUE else
+  df$`One post alerts` <- if (!"One post alerts" %in% colnames(df)) {
+    TRUE
+  } else {
     ifelse(
       as.character(df$`One post alerts`) %in% c("0", "no", "No", "FALSE"),
       FALSE,
       TRUE
     )
+  }
   df$`Topics ignoring 1 post alerts` <- if (
     !"Topics ignoring 1 post alerts" %in% colnames(df)
-  )
-    NA else as.character(df$`Topics ignoring 1 post alerts`)
+  ) {
+    NA
+  } else {
+    as.character(df$`Topics ignoring 1 post alerts`)
+  }
   df$`Regions ignoring 1 post alerts` <- if (
     !"Regions ignoring 1 post alerts" %in% colnames(df)
-  )
-    NA else as.character(df$`Regions ignoring 1 post alerts`)
+  ) {
+    NA
+  } else {
+    as.character(df$`Regions ignoring 1 post alerts`)
+  }
   df
 }
 
@@ -1149,7 +1272,9 @@ send_alert_emails <- function(tasks = get_tasks()) {
   `%>%` <- magrittr::`%>%`
   task <- tasks$alerts
   # Creating sending email statistics if any
-  if (!exists("sent", tasks$alerts)) tasks$alerts$sent <- list()
+  if (!exists("sent", tasks$alerts)) {
+    tasks$alerts$sent <- list()
+  }
   # Getting subscriber users
   subscribers <- get_subscribers()
   # iterating for each subscriber
@@ -1157,25 +1282,48 @@ send_alert_emails <- function(tasks = get_tasks()) {
     for (i in 1:nrow(subscribers)) {
       # getting values subscriber settings
       user <- subscribers$User[[i]]
-      topics <- if (is.na(subscribers$Topics[[i]])) NA else
+      topics <- if (is.na(subscribers$Topics[[i]])) {
+        NA
+      } else {
         strsplit(subscribers$Topics[[i]], ";")[[1]]
-      dest <- if (is.na(subscribers$Email[[i]])) NA else
+      }
+      dest <- if (is.na(subscribers$Email[[i]])) {
+        NA
+      } else {
         strsplit(subscribers$Email[[i]], ";")[[1]]
-      regions <- if (is.na(subscribers$Regions[[i]])) NA else
+      }
+      regions <- if (is.na(subscribers$Regions[[i]])) {
+        NA
+      } else {
         strsplit(subscribers$Regions[[i]], ";")[[1]]
-      excluded <- if (is.na(subscribers$`Excluded Topics`[[i]])) NA else
+      }
+      excluded <- if (is.na(subscribers$`Excluded Topics`[[i]])) {
+        NA
+      } else {
         strsplit(subscribers$`Excluded Topics`[[i]], ";")[[1]]
-      realtime_topics <- if (is.na(subscribers$`Real time Topics`[[i]])) NA else
+      }
+      realtime_topics <- if (is.na(subscribers$`Real time Topics`[[i]])) {
+        NA
+      } else {
         strsplit(subscribers$`Real time Topics`[[i]], ";")[[1]]
-      realtime_regions <- if (is.na(subscribers$`Real time Regions`[[i]]))
-        NA else strsplit(subscribers$`Real time Regions`[[i]], ";")[[1]]
+      }
+      realtime_regions <- if (is.na(subscribers$`Real time Regions`[[i]])) {
+        NA
+      } else {
+        strsplit(subscribers$`Real time Regions`[[i]], ";")[[1]]
+      }
       alert_categories <- if (
         !"Alert category" %in% colnames(subscribers) ||
           is.na(subscribers$`Alert category`[[i]])
-      )
-        NA else strsplit(subscribers$`Alert category`[[i]], ";")[[1]]
+      ) {
+        NA
+      } else {
+        strsplit(subscribers$`Alert category`[[i]], ";")[[1]]
+      }
       slots <- as.integer(
-        if (is.na(subscribers$`Alert Slots`[[i]])) NA else {
+        if (is.na(subscribers$`Alert Slots`[[i]])) {
+          NA
+        } else {
           times <- strsplit(subscribers$`Alert Slots`[[i]], ";")[[1]]
           times <- sapply(
             times,
@@ -1189,18 +1337,23 @@ send_alert_emails <- function(tasks = get_tasks()) {
       one_post_alerts <- subscribers$`One post alerts`[[i]]
       ignore_one_post_topics <- if (
         is.na(subscribers$`Topics ignoring 1 post alerts`[[i]])
-      )
-        NA else
+      ) {
+        NA
+      } else {
         strsplit(subscribers$`Topics ignoring 1 post alerts`[[i]], ";")[[1]]
+      }
       ignore_one_post_regions <- if (
         is.na(subscribers$`Regions ignoring 1 post alerts`[[i]])
-      )
-        NA else
+      ) {
+        NA
+      } else {
         strsplit(subscribers$`Regions ignoring 1 post alerts`[[i]], ";")[[1]]
+      }
 
       # Adding users' statistics if these do not exist already
-      if (!exists(user, where = tasks$alerts$sent))
+      if (!exists(user, where = tasks$alerts$sent)) {
         tasks$alerts$sent[[user]] <- list()
+      }
       # Getting last day alerts date period
       agg_period <- get_aggregated_period()
       alert_date <- agg_period$last
@@ -1208,14 +1361,20 @@ send_alert_emails <- function(tasks = get_tasks()) {
 
       # Getting last day alerts for subscribed user and regions
       user_alerts <- get_alerts(
-        topic = if (all(is.na(topics))) NULL else if (
-          !all(is.na(realtime_topics))
-        )
-          unique(c(topics, realtime_topics)) else topics,
-        countries = if (all(is.na(regions))) NULL else if (
-          !all(is.na(realtime_regions))
-        )
-          unique(c(regions, realtime_regions)) else regions,
+        topic = if (all(is.na(topics))) {
+          NULL
+        } else if (!all(is.na(realtime_topics))) {
+          unique(c(topics, realtime_topics))
+        } else {
+          topics
+        },
+        countries = if (all(is.na(regions))) {
+          NULL
+        } else if (!all(is.na(realtime_regions))) {
+          unique(c(regions, realtime_regions))
+        } else {
+          regions
+        },
         from = alert_date,
         until = alert_date
       )
@@ -1228,20 +1387,22 @@ send_alert_emails <- function(tasks = get_tasks()) {
 
       if (!is.null(user_alerts)) {
         # Excluding alerts for topics ignored for this user
-        user_alerts <- (if (!all(is.na(excluded)))
-          user_alerts %>% dplyr::filter(!(.data$topic %in% excluded)) else
-          user_alerts)
+        user_alerts <- (if (!all(is.na(excluded))) {
+          user_alerts %>% dplyr::filter(!(.data$topic %in% excluded))
+        } else {
+          user_alerts
+        })
 
         # Getting last metrics per alert by region and topic
         last_metrics <- list()
         if (nrow(user_alerts) > 0) {
-          user_alerts$key = paste(
+          user_alerts$key <- paste(
             user_alerts$topic,
             user_alerts$country,
             sep = "-"
           )
           for (i in 1:nrow(user_alerts)) {
-            key = user_alerts$key[[i]]
+            key <- user_alerts$key[[i]]
             # Getting the maximum values to report for that alert
             if (
               !exists(
@@ -1273,18 +1434,20 @@ send_alert_emails <- function(tasks = get_tasks()) {
                 paste(key, "last_one_post_rank", sep = "-"),
                 last_metrics
               )
-            )
+            ) {
               last_metrics[[paste(key, "last_one_post_rank", sep = "-")]] <- -1
+            }
             if (
               user_alerts$number_of_posts[[i]] == 1 &&
                 last_metrics[[paste(key, "last_one_post_rank", sep = "-")]] <
                   user_alerts$rank[[i]]
-            )
+            ) {
               last_metrics[[paste(
                 key,
                 "last_one_post_rank",
                 sep = "-"
               )]] <- user_alerts$rank[[i]]
+            }
           }
           # Excluding alerts that are not the first in the day for the specific topic and region
           # This is done because only the first alert on the day is reported
@@ -1347,11 +1510,13 @@ send_alert_emails <- function(tasks = get_tasks()) {
           current_minutes / 60
 
         # Getting the current slot
-        current_slot <- (if (all(is.na(slots)))
-          as.integer(current_hour) else if (
-          length(slots[slots <= current_hour]) == 0
-        )
-          tail(slots, 1) else max(slots[slots <= current_hour]))
+        current_slot <- (if (all(is.na(slots))) {
+          as.integer(current_hour)
+        } else if (length(slots[slots <= current_hour]) == 0) {
+          tail(slots, 1)
+        } else {
+          max(slots[slots <= current_hour])
+        })
 
         # Evaluating if slot alerts should be sent
         send_slot_alerts <- (all(is.na(slots)) ||
@@ -1378,11 +1543,14 @@ send_alert_emails <- function(tasks = get_tasks()) {
             exists("hour_instant", where = tasks$alerts$sent[[user]]) &&
             as.Date(tasks$alerts$sent[[user]]$date, format = "%Y-%m-%d") ==
               alert_date
-        )
+        ) {
           instant_alerts %>%
             dplyr::filter(
               .data$hour > tasks$alerts$sent[[user]]$hour_instant
-            ) else instant_alerts)
+            )
+        } else {
+          instant_alerts
+        })
 
         # getting slot alerts
         slot_alerts <- user_alerts %>%
@@ -1401,10 +1569,12 @@ send_alert_emails <- function(tasks = get_tasks()) {
             exists("hour_slot", where = tasks$alerts$sent[[user]]) &&
             as.Date(tasks$alerts$sent[[user]]$date, format = "%Y-%m-%d") ==
               alert_date
-        )
+        ) {
           slot_alerts %>%
-            dplyr::filter(.data$hour > tasks$alerts$sent[[user]]$hour_slot) else
-          slot_alerts)
+            dplyr::filter(.data$hour > tasks$alerts$sent[[user]]$hour_slot)
+        } else {
+          slot_alerts
+        })
         # Joining back instant and slot alert for email send
 
         user_alerts <- dplyr::union_all(slot_alerts, instant_alerts) %>%
@@ -1490,13 +1660,14 @@ send_alert_emails <- function(tasks = get_tasks()) {
             is.na(conf$smtp_password) ||
               is.null(conf$smtp_password) ||
               conf$smtp_password == ""
-          )
+          ) {
             emayili::server(
               host = conf$smtp_host,
               port = conf$smtp_port,
               insecure = conf$smtp_insecure,
               reuse = FALSE
-            ) else
+            )
+          } else {
             emayili::server(
               host = conf$smtp_host,
               port = conf$smtp_port,
@@ -1504,7 +1675,8 @@ send_alert_emails <- function(tasks = get_tasks()) {
               insecure = conf$smtp_insecure,
               password = conf$smtp_password,
               reuse = FALSE
-            ))
+            )
+          })
           tryCatch(
             {
               smtp(msg)
@@ -1535,8 +1707,9 @@ send_alert_emails <- function(tasks = get_tasks()) {
           }
 
           # Updating instant hour if instant alerts are sent
-          if (nrow(instant_alerts) > 0)
+          if (nrow(instant_alerts) > 0) {
             tasks$alerts$sent[[user]]$hour_instant <- alert_hour
+          }
         }
       }
     }
@@ -1557,7 +1730,9 @@ get_alert_tables <- function(
     dplyr::summarize(posts = sum(.data$number_of_posts)) %>%
     dplyr::ungroup() %>%
     dplyr::arrange(dplyr::desc(.data$posts)))$topic
-  if (!group_topics) topics = NA
+  if (!group_topics) {
+    topics <- NA
+  }
 
   alert_tables <- (if (nrow(alerts) > 0) {
     tables <- sapply(topics, function(t) {
@@ -1569,23 +1744,23 @@ get_alert_tables <- function(
           dplyr::filter(is.na(t) | .data$topic == t) %>%
           dplyr::arrange(dplyr::desc(.data$number_of_posts)) %>%
           dplyr::select(
-            `Date` = .data$`date`,
-            `Hour` = .data$`hour`,
-            `Topic` = .data$`topic`,
-            `Region` = .data$`country`,
-            `Tops` = .data$`tops`,
-            `Category` = .data$`episomer_category`,
-            `Posts` = .data$`number_of_posts`,
-            `% from important user` = .data$`known_ratio`,
-            `Threshold` = .data$`limit`,
-            `Baseline` = .data$`no_historic`,
-            `Alert confidence` = .data$`alpha`,
-            `Outliers confidence` = .data$`alpha_outlier`,
-            `Downweight strength` = .data$`k_decay`,
-            `Bonf. corr.` = .data$`bonferroni_correction`,
-            `Same weekday baseline` = .data$`same_weekday_baseline`,
-            `Day_rank` = .data$`rank`,
-            `With reposts` = .data$`with_quotes`
+            `Date` = "date",
+            `Hour` = "hour",
+            `Topic` = "topic",
+            `Region` = "country",
+            `Tops` = "tops",
+            `Category` = "episomer_category",
+            `Posts` = "number_of_posts",
+            `% from important user` = "known_ratio",
+            `Threshold` = "limit",
+            `Baseline` = "no_historic",
+            `Alert confidence` = "alpha",
+            `Outliers confidence` = "alpha_outlier",
+            `Downweight strength` = "k_decay",
+            `Bonf. corr.` = "bonferroni_correction",
+            `Same weekday baseline` = "same_weekday_baseline",
+            `Day_rank` = "rank",
+            `With reposts` = "with_quotes"
           ) %>%
           xtable::xtable() %>%
           print(
@@ -1614,7 +1789,9 @@ get_alert_tables <- function(
     tables <- gsub("<td ", "<td style=\"border: 1px solid black;\" ", tables)
     tables <- gsub("<td> ", "<td style=\"border: 1px solid black;\">", tables)
     tables
-  } else c(""))
+  } else {
+    c("")
+  })
   alert_tables
 }
 
@@ -1631,7 +1808,7 @@ get_alert_training_df <- function() {
     "text",
     "text"
   )
-  current <- readxl::read_excel(
+  current <- epiread_excel(
     get_alert_training_path(),
     col_types = data_types,
     sheet = "Alerts"
@@ -1657,8 +1834,7 @@ get_alert_training_df <- function() {
 
 get_alert_balanced_df <- function(
   alert_training_df = get_alert_training_df(),
-  progress = function(value, message) {
-  }
+  progress = function(value, message) {}
 ) {
   allcat_df <- alert_training_df %>%
     dplyr::filter(!is.na(.data$given_category)) %>%
@@ -1666,7 +1842,7 @@ get_alert_balanced_df <- function(
     dplyr::count()
   # we choose 25 percent of rows to be used as test set. These rows will not be augmented
   split <- jsonlite::rbind_pages(lapply(1:nrow(allcat_df), function(i) {
-    x = 1:allcat_df$n[[i]]
+    x <- 1:allcat_df$n[[i]]
     alert_training_df %>%
       dplyr::filter(.data$given_category == allcat_df$given_category[[i]]) %>%
       dplyr::mutate(
@@ -1725,7 +1901,9 @@ get_alert_balanced_df <- function(
         if (alerts_to_augment$given_category[[ialert]] == cat) {
           topposts <- alerts_to_augment$topposts[[ialert]]
           # getting the index of posts to extract from 5 to five per language, it will start on 10 since these have already been used by original alerts
-          if (!exists("ipost", where = topposts)) topposts$ipost <- 7
+          if (!exists("ipost", where = topposts)) {
+            topposts$ipost <- 7
+          }
           # getting posts to add
           langs <- names(topposts)
           langs <- langs[langs != "ipost"]
@@ -1733,10 +1911,13 @@ get_alert_balanced_df <- function(
           i1 <- i0 + 5
           # getting new posts
           new_posts <- lapply(langs, function(l) {
-            if (length(topposts[[l]]) >= i1) topposts[[l]][i0:i1] else if (
-              length(topposts[[l]]) > i0
-            )
-              topposts[[l]][i0:length(topposts[[l]])] else list()
+            if (length(topposts[[l]]) >= i1) {
+              topposts[[l]][i0:i1]
+            } else if (length(topposts[[l]]) > i0) {
+              topposts[[l]][i0:length(topposts[[l]])]
+            } else {
+              list()
+            }
           })
           topposts$ipost <- i1
           alerts_to_augment$topposts[[ialert]] <- topposts
@@ -1764,7 +1945,9 @@ get_alert_balanced_df <- function(
         }
         if (ialert == nrow(alerts_to_augment)) {
           ialert <- 1
-          if (!found_posts) posts_exhausted <- TRUE
+          if (!found_posts) {
+            posts_exhausted <- TRUE
+          }
           found_posts <- FALSE
         } else {
           ialert <- ialert + 1
@@ -1807,14 +1990,16 @@ get_alert_balanced_df <- function(
         test = as.logical(sapply(alerts_for_augment, function(r) r$test))
       )
     ))
-  } else augmented_alerts = training_df
+  } else {
+    augmented_alerts <- training_df
+  }
   balanced_training <- jsonlite::rbind_pages(lapply(
     1:nrow(cat_df),
     function(i) {
       augmented_in_cat <- augmented_alerts %>%
         dplyr::filter(.data$given_category == cat_df$given_category[[i]])
       frac <- smallest_cat / nrow(augmented_in_cat)
-      x = 1:nrow(augmented_in_cat)
+      x <- 1:nrow(augmented_in_cat)
       augmented_in_cat %>%
         dplyr::mutate(
           deleted = sample(x, length(x), replace = FALSE) > length(x) * frac
@@ -1836,8 +2021,8 @@ get_alert_balanced_df <- function(
 get_alert_training_runs_df <- function() {
   `%>%` <- magrittr::`%>%`
   # Reading runs without type to detect if the balance and force columns are present since added on an intermediate version
-  current <- readxl::read_excel(get_alert_training_path(), sheet = "Runs")
-  if ("Force to use" %in% colnames(current))
+  current <- epiread_excel(get_alert_training_path(), sheet = "Runs")
+  if ("Force to use" %in% colnames(current)) {
     data_types <- c(
       "numeric",
       "text",
@@ -1854,7 +2039,8 @@ get_alert_training_runs_df <- function() {
       "logical",
       "text",
       "text"
-    ) else
+    )
+  } else {
     data_types <- c(
       "numeric",
       "text",
@@ -1870,8 +2056,9 @@ get_alert_training_runs_df <- function() {
       "text",
       "text"
     )
+  }
 
-  current <- readxl::read_excel(
+  current <- epiread_excel(
     get_alert_training_path(),
     col_types = data_types,
     sheet = "Runs"
@@ -1911,11 +2098,12 @@ get_alert_training_runs_df <- function() {
 classify_alerts <- function(
   alerts,
   retrain = FALSE,
-  progress = function(value, message) {
-  }
+  progress = function(value, message) {}
 ) {
   `%>%` <- magrittr::`%>%`
-  if (is.null(alerts) || nrow(alerts) == 0) alerts else if (
+  if (is.null(alerts) || nrow(alerts) == 0) {
+    alerts
+  } else if (
     retrain &&
       min(
         (alerts %>%
@@ -1952,24 +2140,44 @@ classify_alerts <- function(
       alerts$test <- FALSE
     }
     alerts <- alerts %>% dplyr::mutate(`id` = as.character(1:nrow(alerts)))
-    body = paste(
+    body <- paste(
       "{",
       paste(
         "\"alerts\":",
         jsonlite::toJSON(alerts, pretty = T, auto_unbox = FALSE)
       ),
-      if (retrain)
+      if (retrain) {
         paste(
           ",\"runs\":",
           jsonlite::toJSON(runs, pretty = T, auto_unbox = TRUE)
-        ) else "",
+        )
+      } else {
+        ""
+      },
       "}",
       sep = "\n"
     )
     progress(value = 0.7, message = "Training models")
+    message(sprintf(
+      "Posting %d alerts to %s (%s)",
+      nrow(alerts),
+      get_scala_alert_training_url(),
+      if (retrain) {
+        "retraining the declared runs"
+      } else {
+        "classifying with the stored model"
+      }
+    ))
+    # Same two libcurl bounds as retrain_languages(): this POST holds the connection open for as
+    # long as the JVM takes to train every declared run and sends nothing in the meantime, and
+    # libcurl aborts a connection transferring less than one byte a second for 600 seconds
+    # ("Operation too slow"), with the training still running on the other side. low_speed_limit = 0
+    # turns that check off and conf$fs_batch_timeout becomes the single bound - the same one the
+    # Scala side gives itself for this endpoint (withRequestTimeout(conf.fsBatchTimeout)).
     post_result <- httr::POST(
       url = get_scala_alert_training_url(),
       httr::content_type_json(),
+      httr::config(timeout = conf$fs_batch_timeout, low_speed_limit = 0),
       body = body,
       encode = "raw",
       encoding = "UTF-8"
@@ -1992,36 +2200,66 @@ classify_alerts <- function(
       ))
       alerts$episomer_category <- (alerts %>%
         dplyr::left_join(res$alerts, by = "id"))[[
-        if ("episomer_category" %in% colnames(alerts))
-          "episomer_category.y" else "episomer_category"
+        if ("episomer_category" %in% colnames(alerts)) {
+          "episomer_category.y"
+        } else {
+          "episomer_category"
+        }
       ]]
 
       if (retrain) {
-        nruns = tibble::as_tibble(res$runs)
+        nruns <- tibble::as_tibble(res$runs)
         nruns$custom_parameters <- jsonlite::fromJSON(
           jsonlite::toJSON(nruns$custom_parameters),
           simplifyVector = F
         )
         list(alerts = alerts, runs = nruns)
-      } else alerts
+      } else {
+        alerts
+      }
     }
   }
 }
 
 # Retrain the alert classifiers with current alerts
 retrain_alert_classifier <- function(
-  progress = function(value, message) {
-  }
+  progress = function(value, message) {}
 ) {
   `%>%` <- magrittr::`%>%`
   progress(value = 0.1, message = "Getting alerts to retrain")
-  alerts = get_alert_training_df()
+  alerts <- get_alert_training_df()
+  annotated <- sum(!is.na(alerts$given_category))
+  message(sprintf(
+    "Retraining the alert classifier on %d alerts (%d annotated) in %d categories: %s",
+    nrow(alerts),
+    annotated,
+    length(unique(alerts$given_category[!is.na(alerts$given_category)])),
+    paste(
+      sort(unique(alerts$given_category[!is.na(alerts$given_category)])),
+      collapse = ", "
+    )
+  ))
   ret <- classify_alerts(alerts, retrain = TRUE, progress = progress)
   if (exists("alerts", where = ret)) {
     progress(value = 0.9, message = "Writing results")
+    # The models the JVM just wrote under $EPI_HOME/alert-ml are the ones every later
+    # classification loads, including the ones the search loop asks for in generate_alerts(), so
+    # the ranking reported here is what new alerts will be classified with from now on
+    best <- ret$runs[order(ret$runs$ranking), ][1, ]
+    message(sprintf(
+      "Alert classifier retrained: best run %s (f1score %s, accuracy %s, last run %s). New alerts will be classified with it from now on",
+      best$models,
+      round(best$f1score, 3),
+      round(best$accuracy, 3),
+      best$last_run
+    ))
     write_alert_training_db(
       alerts = ret$alerts %>% dplyr::filter(!.data$augmented),
       runs = ret$runs
+    )
+  } else {
+    message(
+      "No retraining was performed - see the warning above (every category needs at least 10 annotated alerts, and at least one run must be active)"
     )
   }
 }
@@ -2046,8 +2284,9 @@ write_alert_training_db <- function(
       `Posts` = .data$number_of_posts,
       `Top Posts` = lapply(
         .data$topposts,
-        function(l)
+        function(l) {
           gsub("\", \"", "\",\n        \"", jsonlite::toJSON(l, pretty = TRUE))
+        }
       ),
       `Given Category` = .data$given_category,
       `Episomer Category` = .data$episomer_category
@@ -2150,5 +2389,8 @@ write_alert_training_db <- function(
   )
   openxlsx::freezePane(wb, "Alerts", firstActiveRow = 2)
   openxlsx::freezePane(wb, "Runs", firstActiveRow = 2)
-  openxlsx::saveWorkbook(wb, get_user_alert_training_path(), overwrite = TRUE)
+  tfile <- tempfile("episomerxlsx")
+  openxlsx::saveWorkbook(wb, tfile, overwrite = TRUE)
+  epifile.copy(tfile, get_user_alert_training_path())
+  unlink(tfile)
 }

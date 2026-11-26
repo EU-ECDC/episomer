@@ -7,9 +7,9 @@ import org.apache.pekko.actor.{ActorSystem, Actor, Props}
 import org.apache.pekko.stream.ActorMaterializer
 import org.apache.pekko.pattern.{ask, pipe}
 import org.apache.pekko.http.scaladsl.Http
-import org.apache.pekko.http.scaladsl.model.{HttpEntity, ContentType, ContentTypes, HttpResponse}
+import org.apache.pekko.http.scaladsl.model.{HttpEntity, ContentType, ContentTypes, HttpResponse, StatusCodes, StatusCode, MediaTypes}
 import org.apache.pekko.http.scaladsl.server.Directives._
-import org.apache.pekko.http.scaladsl.model.{StatusCodes, StatusCode}
+import org.apache.pekko.http.scaladsl.server.directives.FileInfo
 import org.apache.pekko.http.scaladsl.marshalling.ToResponseMarshallable
 import org.apache.pekko.util.{Timeout}
 import spray.json.{JsValue}
@@ -17,6 +17,8 @@ import scala.concurrent.duration._
 import scala.concurrent.Future
 import scala.util.{Try, Success, Failure}
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{Map => MMap}
 import org.apache.pekko.actor.ActorRef
 import org.apache.pekko.Done
 import org.apache.pekko.actor.ActorRef
@@ -25,10 +27,19 @@ import org.apache.pekko.stream.CompletionStrategy
 import org.apache.pekko.stream.scaladsl._
 import org.apache.pekko.http.scaladsl.model.HttpEntity.{Chunked, Strict}
 import org.apache.pekko.util.ByteString
+import org.apache.pekko.stream.scaladsl.FileIO
 import java.time.Instant
-import java.nio.file.{Paths, Files}
+import java.nio.file.{Paths, Files, Path, FileAlreadyExistsException, FileSystemException}
+import java.nio.file.attribute.FileTime
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.io.{File, FileInputStream, InputStreamReader, BufferedReader, OutputStreamWriter, BufferedWriter}
+import java.util.zip.GZIPInputStream
+import java.nio.file.{StandardCopyOption, StandardOpenOption}
 import java.nio.charset.StandardCharsets
-import spray.json.JsonParser
+import java.security.{DigestInputStream, MessageDigest}
+
+import spray.json.{JsonParser, JsString, JsArray, JsObject, JsNumber}
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
@@ -38,10 +49,75 @@ object EpisomerActor {
 }
 object API {
 
+  private def touchExistingFile(path:Path):Unit = {
+    try {
+      Files.setLastModifiedTime(path, FileTime.from(Instant.now()))
+    } catch {
+      case _:FileSystemException =>
+        val channel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE)
+        try {
+          val firstByte = ByteBuffer.allocate(1)
+          if(channel.read(firstByte, 0) == 1) {
+            firstByte.flip()
+            channel.write(firstByte, 0)
+          } else {
+            channel.write(ByteBuffer.wrap(Array[Byte](0)), 0)
+            channel.truncate(0)
+          }
+        } finally {
+          channel.close()
+        }
+    }
+  }
+
   var actorSystemPointer:Option[ActorSystem] = None
   var oLuceneRunner:Option[ActorRef] = None
   var oConf:Option[Settings] = None
-  def run(epiHome:String) {
+  val secrets = MMap[String, String]()
+  // The R executable the secret scripts of jobs/ are run with.
+  //
+  // "Rscript" off the PATH is not necessarily the R this episomer is installed into. On Windows
+  // R's bin directory is not on the PATH of a session started by the installer at all, and where
+  // some Rscript *is* on the PATH it can belong to another installation: the R user library is per
+  // version (win-library/4.4 against win-library/4.6), so the sub process starts, finds nothing in
+  // its library and dies on "there is no package called 'episomer'". The /secret endpoint then
+  // answers 406, i.e. it reports a keyring failure for something that never reached the keyring.
+  //
+  // The R side knows which R it is running and puts it here before starting this JVM
+  // (rscript_exe_for_scala() and set_scala_r_env(), R/runners.R and R/spark-bridge.R). It puts its
+  // .libPaths() in R_LIBS as well, which needs no forwarding of ours: ProcessBuilder starts a sub
+  // process with a copy of this JVM's environment. The fallback keeps a JVM started by hand, with
+  // neither variable set, working as before.
+  def rscriptExecutable =
+    sys.env.get("EPISOMER_RSCRIPT").filter(_.trim.nonEmpty).getOrElse("Rscript")
+
+  // The sub process running one of the secret scripts of jobs/. Reading and writing set it up the
+  // same way, only the script and the extra `value` parameter differ.
+  def secretProcess(conf:Settings, script:String, secret:String, passphrase:String) = {
+    val pb = new ProcessBuilder(
+      rscriptExecutable,
+      Paths.get(conf.epiHome, "jobs", script).toString,
+      secret,
+      conf.epiHome
+    )
+    sys.env.get("R_EPIHOME") match {
+      case Some(path) =>
+        pb.directory(new File(path))
+      case _ =>
+    }
+    pb.environment().put("EPISOMER_KR_PASSWORD", passphrase)
+    pb
+  }
+  // oBindHost / oBindPort override what properties.json says, for this run only.
+  //
+  // They arrive as the optional 'bindHost' / 'bindPort' arguments of the fsService command
+  // (Episomer.main), put there by register_fs_runner_task(bind_host =, bind_port =) on the R side.
+  // The case they exist for: the R setup wizard needs a database of its own while it retrains the
+  // language models, and that database must not be found on the configured address by the services
+  // that wait for the real one to become healthy before they start. Writing the temporary address
+  // in properties.json - which is what used to happen - meant a shared configuration file left
+  // wrong whenever the wizard was killed before it could put it back.
+  def run(epiHome:String, oBindHost:Option[String] = None, oBindPort:Option[Int] = None) {
     import fs.EpiSerialisation._
     Logger.getLogger("pekko").setLevel(Level.DEBUG)
     Logger.getLogger("pekko.http").setLevel(Level.DEBUG)
@@ -59,10 +135,18 @@ object API {
     val pid = ProcessID.writePID(conf.pidPath("fs.java"))
 
     removeLockFiles()
+    // posts the previous run indexed without committing are indexed again before anything else
+    luceneRunner ! LuceneActor.RestoreJournalRequest()
     val route =
       extractUri { uri =>
         path("ping") {
           complete("pong")
+        } ~
+        path("version") { // version of the jar running this service, as set by build.sbt (= R package version)
+          get {
+            val version = Option(getClass.getPackage).flatMap(p => Option(p.getImplementationVersion)).getOrElse("unknown")
+            complete(HttpEntity(ContentTypes.`application/json`, JsObject(Map(("version", JsString(version)))).toString()))
+          }
         } ~
         path("posts") { // checks if path/url starts with model
           get {
@@ -374,13 +458,380 @@ object API {
               }
             }  
           }
+        } ~ pathPrefix("secret") {
+          get {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+                parameters("secret".as[String], "passphrase".as[String]) { (secret, passphrase) =>
+                  secrets.get(secret) match {
+                      case Some(s) =>
+                          complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(s)), ("code",JsNumber(0)))).toString())
+                      case None =>
+		          val pb = secretProcess(conf, "get_secret.R", secret, passphrase)
+                          val p = pb.start();
+                          val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
+                          val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
+                          val out = stdout.readLine
+                          val berr = new StringBuilder()
+                          var line = stderr.readLine
+                          while (line != null) {
+                            berr.append(s"$line\n")
+                            line = stderr.readLine
+                          }
+                          val err = berr.toString
+                          val exitCode = p.waitFor()
+                          if(out !=null && exitCode == 0) { 
+                            secrets(secret) = out
+                            complete(JsObject(Map(("status",JsString("ok")), ("value",JsString(out)), ("code",JsNumber(exitCode)))).toString())
+                          }
+                          else if(exitCode == 0) { 
+                            complete(JsObject(Map(("status",JsString("ko")), ("message",JsString(err)), ("code",JsNumber(exitCode)))).toString())
+                          } else {
+                            complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not get the secret exit($exitCode):$err")) 
+                          }
+                  }
+                }
+            }
+          } ~ post {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+                parameters("secret".as[String], "passphrase".as[String], "value".as[String]) { (secret, passphrase, value) =>
+                  val pb = secretProcess(conf, "set_secret.R", secret, passphrase)
+                  val p = pb.start();
+                  val stdout = new BufferedReader(new InputStreamReader(p.getInputStream()))
+                  val stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()))
+                  val stdin = new BufferedWriter(new OutputStreamWriter(p.getOutputStream()))
+                  stdin.write(value)
+                  stdin.newLine()
+                  stdin.close()
+                  val out = stdout.readLine
+                  val berr = new StringBuilder()
+                  var line = stderr.readLine
+                  while (line != null) {
+                    berr.append(s"$line\n")
+                    line = stderr.readLine
+                  }
+                  val err = berr.toString
+                  val exitCode = p.waitFor()
+                  if(exitCode == 0) {
+                    secrets(secret)=value
+                    complete(JsObject(Map(("status",JsString("ok")), ("code",JsNumber(exitCode)))).toString())
+                  } else {
+                    complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"Could not set the secret exit($exitCode):$err")) 
+                  }
+                }
+            }
+          }
+        } ~ pathPrefix("stopWords") {
+          get {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+                parameters("code".as[String], "n".as[Int]?500) { (code, n) =>
+                   val ret = ArrayBuffer[String]()
+                   (conf.languages match {
+                     case Some(ll) => ll.filter(l => l.code == code).headOption
+                     case None => None
+                   }).flatMap { lang => 
+                        if(Files.exists(Paths.get(lang.vectorsPath)))
+                            Some(lang.vectorsPath)
+                        else None
+                   }.map{ vectorPath => 
+                         val fileStream = new FileInputStream(vectorPath)
+                         try {
+                           val gzipStream = new GZIPInputStream(fileStream)
+                           val decoder = new InputStreamReader(gzipStream)
+                           val buffered = new BufferedReader(decoder)
+                           var i = 0
+                           var line = buffered.readLine()
+                           line = buffered.readLine() //ignoring first line as is the title
+                           while(i < n && line != null) {
+                               ret.append(line.split(" ")(0))
+                               i = i + 1
+                               line = buffered.readLine()
+                           } 
+                         } finally {
+                           fileStream.close()
+                         }
+                         None
+                    }
+                  val jsonValues = ret.toVector.map(JsString(_))
+                  complete(JsArray(jsonValues).toString())
+                } 
+            } 
+          }
+        } ~ pathPrefix("file") {
+          get {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+              extractUnmatchedPath { path  =>
+                val localPath = Paths.get(conf.epiHome, path.toString)
+                val url = uri.toString
+                val base = url.substring(0,url.lastIndexOf("?") match {case v if v <0 => url.length case v => v})
+                parameters("action".as[String]?"get", "fullname".as[Boolean].?, "recursive".as[Boolean]?false, "lines".as[Int]?0) { (action, fullname, recursive, lines) => 
+                  if(action == "exists") {
+                    complete(Files.exists(localPath).toString())
+                  } else if(action == "md5sum") {
+                    if(Files.isRegularFile(localPath)) {
+                      val dig = MessageDigest.getInstance("MD5")
+                      val is = Files.newInputStream(localPath)
+                      val dis = new DigestInputStream(is, dig)
+                      while(dis.read()>=0){}
+                      val res = dig.digest()
+                      val b = new StringBuilder()
+                      b.append("\"")
+                      res.foreach(v => b.append(String.format("%02x", v)))
+                      b.append("\"")
+                      complete(b.toString)
+                    } else {
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not something you can get the md5sum from")) 
+                    }
+                  } else if(action == "mtime") {
+                    complete(recursiveLastModifiedTime(localPath) match {
+                        case Some(v) => s"\"$v\""
+                        case None => "null"
+                    })
+                  } else if(action == "list") {
+                    val full = fullname.getOrElse(false)
+                    val jsonValues = recursiveFileList(localPath, recursive = recursive)
+                        .map{p =>
+                            // the part below localPath comes from the local file system, so on Windows
+                            // it is joined with "\": a URL or a path given to R must use "/" (get_alerts()
+                            // reads the date from the last "/" segment and failed on every file)
+                            if(full) {
+                                p.toString().replace(localPath.toString, base).replace(File.separatorChar, '/')
+                            } else if(recursive) {
+                                //recursive but not full
+                                p.toString().replace(localPath.toString, path.toString).replace(File.separatorChar, '/').replaceAll("^/+", "")
+                            } else {
+                                //not recursive
+                                (new java.io.File(p.toString)).getName
+                            }
+                        } 
+                        .toVector
+                        .map(JsString(_))
+                    complete(JsArray(jsonValues).toString())
+                  } else if(action == "listdir") {
+                    val full = fullname.getOrElse(true)
+                    val jsonValues = Files.list(localPath)
+                        .filter(p => (new java.io.File(p.toString)).isDirectory)
+                        .map(p => (new java.io.File(p.toString)).getName)
+                        .map(p => if(full) f"$base/$p" else p)
+                        .toList.asScala.toVector
+                        .map(JsString(_))
+                    complete(JsArray(jsonValues).toString())
+                  } else if(action == "tail") {
+                    // last `lines` lines of a text file (e.g. a log that is being appended to).
+                    // Reads backwards from the end, so the cost does not depend on the file size.
+                    if(Files.isRegularFile(localPath) && lines > 0) {
+                      // a log opened without sharing by another process (Windows, system error 32)
+                      // cannot be read by anyone: answer with the cause instead of a bare 500
+                      scala.util.Try {
+                      val raf = new java.io.RandomAccessFile(localPath.toFile, "r")
+                      try {
+                        val block = 64 * 1024
+                        val end = raf.length()
+                        var pos = end
+                        var found = 0
+                        var start = 0L
+                        var done = false
+                        // a trailing newline ends the last line, it does not start another one
+                        val buf = new Array[Byte](block)
+                        while(!done && pos > 0) {
+                          val len = Math.min(block.toLong, pos).toInt
+                          pos -= len
+                          raf.seek(pos)
+                          raf.readFully(buf, 0, len)
+                          var i = len - 1
+                          while(!done && i >= 0) {
+                            if(buf(i) == '\n'.toByte && pos + i < end - 1) {
+                              found += 1
+                              if(found == lines) { start = pos + i + 1; done = true }
+                            }
+                            i -= 1
+                          }
+                        }
+                        val out = new Array[Byte]((end - start).toInt)
+                        raf.seek(start)
+                        raf.readFully(out)
+                        out
+                      } finally {
+                        raf.close()
+                      }
+                      } match {
+                        case scala.util.Success(out) => complete(HttpEntity(MediaTypes.`application/octet-stream`, out))
+                        case scala.util.Failure(e) =>
+                          println(s"tail of '$localPath' failed: $e")
+                          complete(StatusCodes.Locked, EpisomerActor.Failure(s"'$localPath' cannot be read: $e"))
+                      }
+                    } else {
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not a file or lines is not positive")) 
+                    }
+                  } else { //get
+                    if(Files.isRegularFile(localPath)) {
+                      complete(HttpEntity.fromFile(MediaTypes.`application/octet-stream`, new File(localPath.toString)))
+                    } else {
+                      complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' is not something you can download")) 
+                    }
+                  }
+                }
+              }
+            }
+          } ~ 
+          post {
+            withRequestTimeout(conf.fsQueryTimeout.seconds) {
+              parameters("action".as[String]?"upload", "createDirs".as[Boolean]?false, "ignoreIfExists".as[Boolean]?false, "append".as[Boolean]?false) { (action, createDirs, ignoreIfExists, append) => 
+                extractUnmatchedPath { path  =>
+                    val localPath = Paths.get(conf.epiHome, path.toString)
+                    if(action == "createDir") {
+                      if(Files.isDirectory(localPath) && ignoreIfExists) {
+                        complete(s"Ok")
+                      } else {
+                        if(!Files.exists(localPath.getParent) && createDirs)
+                          Files.createDirectories(localPath.getParent)
+                        Files.createDirectory(localPath)
+                        complete(s"Directory created")
+                      }
+                    } else if(action == "touch") {
+                       try {
+                          Files.createFile(localPath);
+                       } catch  { case e:FileAlreadyExistsException =>
+                          touchExistingFile(localPath)
+                       }
+                       complete("ok") 
+                    } else if(action == "copy") {
+                      entity(as[JsValue]) { 
+                        case JsString(dest)  =>
+                            if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
+                                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                            else { 
+                                val localDest = Paths.get(conf.epiHome, dest.toString)
+                                Files.copy(localPath, localDest, StandardCopyOption.REPLACE_EXISTING )
+                                complete("ok") 
+                            }
+                        case dest => 
+                            complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                      }
+                    } else if(action == "move") {
+                      entity(as[JsValue]) { 
+                        case JsString(dest)  =>
+                            if(dest.contains("..") || (new java.io.File(dest)).isAbsolute())
+                                complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                            else { 
+                                val localDest = Paths.get(conf.epiHome, dest.toString)
+                                Files.move(localPath, localDest, StandardCopyOption.REPLACE_EXISTING )
+                                complete("ok") 
+                            }
+                        case dest => 
+                            complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$dest' is not something you can copy to")) 
+                      }
+                    } else { //upload
+                      val tempPath = Paths.get(conf.epiHome, f"${path.toString}.part")
+                      if(!Files.exists(localPath.getParent) && createDirs)
+                        Files.createDirectories(localPath.getParent)
+                      if(Files.isDirectory(localPath.getParent()) && (!Files.exists(localPath) || Files.isRegularFile(localPath))) {
+                        fileUpload("data") { case(metadata, byteSource) => 
+                          if(Files.exists(tempPath))
+                              Files.delete(tempPath)
+                          val sink = if(!append) FileIO.toPath(tempPath) else  FileIO.toPath(localPath,  Set(StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.CREATE)) 
+                          val writeResult = byteSource.runWith(sink)
+                          onSuccess(writeResult) { result =>
+                              result.status match {
+                                case Success(_) => {
+                                    if(!append)
+                                        Files.move(tempPath, localPath, StandardCopyOption.REPLACE_EXISTING,  StandardCopyOption.ATOMIC_MOVE )
+                                    complete(s"Successfully written ${result.count} bytes")
+                                }
+                                case Failure(e) => 
+                                    complete(StatusCodes.InternalServerError, EpisomerActor.Failure(s"Error while uploading the file '$e'\n ${e.getStackTrace.mkString("\n")}"))
+                            }
+                          } 
+                        }
+                      } else {
+                        complete(StatusCodes.NotAcceptable, EpisomerActor.Failure(s"'$localPath' cannot is not a file that can be created")) 
+                      }
+                    }
+                }
+              }
+            }
+          }
         } ~ {
           complete(StatusCodes.NotAcceptable,  EpisomerActor.Failure(s"Cannot find a route for uri $uri")) 
         }
       }
     
 
-    Http().newServerAt("localhost", conf.fsPort).bind(route)
+    // The arguments win over the configuration file: a caller naming an interface for this one run
+    // has said something more specific than a properties.json every instance of the data directory
+    // shares. Absent them, fs_url is bound verbatim (conf.fsBindHost is that value with its scheme
+    // removed) - if it is not an address this machine holds, the bind fails and says so, which is
+    // the diagnosis the operator needs rather than a service listening somewhere unasked for.
+    //
+    // The scheme is stripped off the argument as well, so that it may be written either way round -
+    // fs_url carries one ("http://localhost") and newServerAt() takes an interface, not a URL.
+    val bindHost = oBindHost
+      .map(h => h.replaceAll("^https?://", "").replaceAll("/+$", ""))
+      .filter(_.nonEmpty)
+      .getOrElse(conf.fsBindHost)
+    val bindPort = oBindPort.getOrElse(conf.fsPort)
+    println(s"Binding the episomer API on $bindHost:$bindPort")
+    Http().newServerAt(bindHost, bindPort).bind(route)
+  }
+  // Same two hazards as recursiveLastModifiedTime() below, in the same three lines: a live index
+  // directory can vanish mid-walk, and Files.list() holds an open directory handle until it is
+  // closed.
+  def recursiveFileList(path:Path, recursive:Boolean = true):Seq[Path] = {
+    if(!Files.exists(path))
+        Seq()
+    else if(Files.isDirectory(path)) {
+        var stream:java.util.stream.Stream[Path] = null
+        try {
+            stream = Files.list(path)
+            if(recursive)
+                stream.map(recursiveFileList(_)).toList().asScala.flatMap(d => d).toSeq
+            else
+                stream.toList().asScala.toSeq
+        } catch {
+            case _:java.nio.file.NoSuchFileException => Seq()
+        } finally {
+            if(stream != null) stream.close()
+        }
+    } else {
+        Seq(path)
+    }
+  }
+  // The latest modification time under `path`, or None when there is nothing to date.
+  //
+  // Nothing here can be atomic: the directories being walked are live Lucene indices, and Lucene
+  // deletes a segment file the moment it has merged it into a bigger one. So a file listed a
+  // moment ago may be gone by the time it is asked for its attributes, and that used to escape as
+  //     java.nio.file.NoSuchFileException: ...\fs\posts\2026.36\_kd_Lucene103_0.tip
+  // which Pekko's default handler turned into a 500. R does not survive that: health_check() asks
+  // for this on fs/posts every five seconds from the sleep of the detect scheduler
+  // (last_fs_updates() -> epifile.mtime()), so one segment merge landing between the listing and
+  // the stat killed the whole detect loop with "Execution halted".
+  //
+  // A file that no longer exists has no modification time, which is exactly what None means, and
+  // dropping it is also the right answer: it cannot be the newest thing under a directory that
+  // outlived it.
+  //
+  // The stream is closed, which it was not. Files.list() holds an open directory handle until it
+  // is, one per directory per request, and on Windows an open handle on a directory also stands in
+  // the way of deleting what is inside it - so leaking them on a path polled every five seconds
+  // worked against the very merges above.
+  def recursiveLastModifiedTime(path:Path):Option[java.nio.file.attribute.FileTime] = {
+    if(!Files.exists(path))
+        None
+    else if(Files.isDirectory(path)) {
+        var stream:java.util.stream.Stream[Path] = null
+        try {
+            stream = Files.list(path)
+            stream.map(recursiveLastModifiedTime(_)).toList().asScala.flatMap(d => d).maxOption
+        } catch {
+            // the directory itself went away while it was being walked
+            case _:java.nio.file.NoSuchFileException => None
+        } finally {
+            if(stream != null) stream.close()
+        }
+    } else {
+        try Some(Files.getLastModifiedTime(path))
+        catch { case _:java.nio.file.NoSuchFileException => None }
+    }
   }
   def logThis(log:String) = {
     import java.nio.file.StandardOpenOption

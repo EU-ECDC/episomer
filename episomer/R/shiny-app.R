@@ -1,10 +1,20 @@
 #' @title Run the episomer Shiny app
-#' @description Open the episomer Shiny app, used to setup the Data collection & processing pipeline, the Requirements & alerts pipeline and to visualise the outputs.
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
+#' @description Open the episomer Shiny app, to visualise the outputs of episomer and change settings.
+#' @param data_dir Path to the configuration file to extract the localisation of the central episomer instance. The preferred way to call this function is using the fs_remote parameter.
+#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, falling back to a
+#' temporary directory. When fs_remote is provided it is not needed at all: every file is then read
+#' through the fs API and data_dir is only an internal path prefix, so
+#' \code{episomer_app(fs_remote = "http://host:8080")} runs on a machine with no data directory,
+#' default: NA
 #' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
 #' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
-#' @param profile The profileis to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
+#' @param profile The profile is to run the Shiny app on, default: "dashboard" (can be "dashboard" or "admin")
+#' @param fs_remote address of the central instance of episomer for accessing. When not
+#' provided it is resolved for this machine, in this order: the EPI_HOST environment
+#' variable, then conf$fs_url:conf$fs_port if that host resolves here, then
+#' http://localhost:conf$fs_port. conf$fs_url is the address the database *binds* to and
+#' is shared through properties.json, so on a containerised deployment it names a
+#' Docker-internal host, default: NULL
 #' @return The Shiny server object containing the launched application
 #' @details The episomer app is the user entry point to the episomer package. This application will help the user to setup the post collection process, manage all settings,
 #' see the interactive dashboard visualisations, export them to Markdown or PDF, and setup the alert emails.
@@ -24,7 +34,8 @@
 #'  \code{\link{detect_loop}}
 #' @rdname episomer_app
 #' @export
-#' @importFrom shiny fluidPage fluidRow column selectInput h4 conditionalPanel dateRangeInput radioButtons checkboxInput sliderInput numericInput downloadButton h3 htmlOutput actionButton span textInput textAreaInput h2 passwordInput h5 fileInput uiOutput navbarPage tabPanel observe updateSliderInput updateDateRangeInput downloadHandler invalidateLater renderText observeEvent renderUI validate need shinyApp
+#' @importFrom shiny fluidPage fluidRow column selectInput h4 conditionalPanel dateRangeInput radioButtons checkboxInput sliderInput numericInput downloadButton h3 htmlOutput actionButton span textInput textAreaInput h2 passwordInput h5 fileInput uiOutput navbarPage tabPanel observe updateSliderInput updateDateRangeInput downloadHandler invalidateLater renderText observeEvent renderUI validate need shinyApp icon tags
+#' @importFrom shinyjs toggle onclick useShinyjs
 #' @importFrom plotly plotlyOutput renderPlotly ggplotly config layout
 #' @importFrom DT dataTableOutput renderDataTable datatable formatPercentage replaceData dataTableProxy
 #' @importFrom rmarkdown render
@@ -34,254 +45,169 @@
 #' @importFrom ggplot2 ggsave
 #' @importFrom dplyr select
 #' @importFrom stats setNames
-#' @importFrom utils write.csv head
-episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host = NULL, port = NULL) {
+#' @importFrom utils write.csv head packageVersion
+episomer_app <- function(
+  data_dir = NA,
+  profile = c("dashboard", "admin"),
+  host = NULL,
+  port = NULL,
+  fs_remote = NULL
+) {
   old <- options()
   on.exit(options(old))
   options(shiny.host = host, shiny.port = port)
   match.arg(profile, c("dashboard", "admin"))
-  # Setting up configuration if not already done
-  if (is.na(data_dir)) setup_config_if_not_already() else {
-    setup_config(data_dir)
+
+  # The app always talks to the fs through the API and never through the disk: it is meant to be
+  # able to run on a machine that has no data directory of its own (EPISOMER_RUN=APP in a
+  # container, a dashboard on a laptop). So fs_remote is never left NULL here.
+  #
+  # It is deliberately no longer sprintf("%s:%s", conf$fs_url, conf$fs_port): conf$fs_url is the
+  # address the Scala API *binds* to and it comes from the shared properties.json, so on any
+  # machine other than the fs one it is a name that does not resolve - a containerised fs writes
+  # "http://fs" there. get_scala_api_endpoint() knows that, and answers EPI_HOST or
+  # localhost:fs_port instead (see the resolution order in R/fs.R).
+  if (is.null(fs_remote)) {
+    # A first, local read of the configuration, only to learn fs_port and let the resolution of
+    # get_scala_api_endpoint() run. fs_remote = NULL is what makes it run: with a value it would
+    # short-circuit on conf$fs_remote and hand back what we are trying to compute. The secrets are
+    # skipped: this pass reads two properties and must not be a reason to ask for the encryption
+    # password, the real load below does that.
+    # setup_config()'s default fs_remote is http://localhost:8080, which would make this pass read
+    # properties.json through the API - the very service whose absence we have to report.
+    setup_config(
+      data_dir = if (is.null(data_dir) || is.na(data_dir)) {
+        default_data_dir()
+      } else {
+        data_dir
+      },
+      fs_remote = NULL,
+      ignore_keyring = TRUE
+    )
+    fs_remote <- get_scala_api_endpoint()
   }
-  if (!file.exists(get_properties_path())) {
-    save_config(data_dir = conf$data_dir, properties = TRUE, sm_topics = list())
-    save_tasks(get_tasks())
+  # Not conf$data_dir: when fs_remote was passed by the caller the block above is skipped, so on a
+  # fresh session nothing has filled conf yet and conf$data_dir is NULL - which setup_config()
+  # turns into a character(0) data_dir, and with it an incoherent prefix for
+  # to_remote_if_needed() and empty language vector paths. default_data_dir() gives the same
+  # answer the setup_config() default would, without needing conf to be populated first.
+  #
+  # With fs_remote set, that directory is never read nor written: epipath() (R/paths.R) answers
+  # API URLs and data_dir is only the prefix stripped off the few paths still built by hand. A
+  # temporary directory is therefore a legitimate value here, and episomer_app(fs_remote = ...)
+  # alone is enough to run the app on a machine that has no data directory of its own.
+  # Pinged by hand rather than with is_fs_running(): the setup_config() below already reads
+  # properties.json through the API, so it fails with an unreadable connection error when the
+  # database is down, and is_fs_running() itself needs a configuration that does not exist yet.
+  fs_up <- fs_answers_ping(fs_remote)
+  if (!fs_up) {
+    stop(
+      sprintf(
+        "The episomer database does not answer on %s - it must be started in order to run the shiny app, please run it using episomer::setup()",
+        fs_remote
+      ),
+      call. = FALSE
+    )
   }
+  setup_config(
+    data_dir = if (is.null(data_dir) || is.na(data_dir)) {
+      default_data_dir()
+    } else {
+      data_dir
+    },
+    fs_remote = fs_remote
+  )
+
   # Loading data for dashboard and configuration
   d <- refresh_dashboard_data()
-  if("admin" %in% profile) {
-      cd <- refresh_config_data()
+  if ("admin" %in% profile) {
+    cd <- refresh_config_data()
   }
 
-  if("dashboard" %in% profile) {
-      # Defining dashboard page UI
-      ################################################
-      ######### DASHBOARD PAGE #######################
-      ################################################
-      dashboard_page <-
-        shiny::fluidPage(
-          shiny::fluidRow(
-            shiny::column(
-              3,
-              ################################################
-              ######### DASHBOARD FILTERS #####################
-              ################################################
-              shiny::actionButton("run_dashboard", "Run"),
-              shiny::selectInput(
-                "sms",
-                label = shiny::h4("Social Media"),
-                multiple = TRUE,
-                choices = d$sms,
-                selected = d$sms
-              ),
-              shiny::selectInput(
-                "topics",
-                label = shiny::h4("Topics"),
-                multiple = FALSE,
-                choices = d$topics
-              ),
-              shiny::selectInput(
-                "countries",
-                label = shiny::h4("Countries & regions"),
-                multiple = TRUE,
-                choices = d$countries
-              ),
-              shiny::selectInput(
-                "fixed_period",
-                label = shiny::h4("Period"),
-                multiple = FALSE,
-                choices = list(
-                  "Last 7 days" = "last 7 days",
-                  "Last 30 days" = "last 30 days",
-                  "Last 60 days" = "last 60 days",
-                  "Last 180 days" = "last 180 days",
-                  "custom"
-                ),
-                selected = d$fixed_period
-              ),
-              shiny::conditionalPanel(
-                condition = "input.fixed_period == 'custom'",
-                shiny::dateRangeInput(
-                  "period",
-                  label = shiny::h4("Dates"),
-                  start = d$date_start,
-                  end = d$date_end,
-                  min = d$date_min,
-                  max = d$date_max,
-                  format = "yyyy-mm-dd",
-                  startview = "month"
-                )
-              ),
-              shiny::radioButtons(
-                "period_type",
-                label = shiny::h4("Time unit"),
-                choices = list(
-                  "Days" = "created_date",
-                  "Weeks" = "created_weeknum"
-                ),
-                selected = "created_date",
-                inline = TRUE
-              ),
-              shiny::h4("Include quotes"),
-              shiny::checkboxInput(
-                "with_quotes",
-                label = NULL,
-                value = conf$alert_with_quotes
-              ),
-              shiny::sliderInput(
-                "alpha_filter",
-                label = shiny::h4("Signal false positive rate"),
-                min = 0,
-                max = 0.3,
-                value = conf$alert_alpha,
-                step = 0.005
-              ),
-              shiny::sliderInput(
-                "alpha_outlier_filter",
-                label = shiny::h4("Outlier false positive rate"),
-                min = 0,
-                max = 0.3,
-                value = conf$alert_alpha_outlier,
-                step = 0.005
-              ),
-              shiny::sliderInput(
-                "k_decay_filter",
-                label = shiny::h4("Outlier downweight strength"),
-                min = 0,
-                max = 10,
-                value = conf$alert_k_decay,
-                step = 0.5
-              ),
-              shiny::h4("Bonferroni correction"),
-              shiny::checkboxInput(
-                "bonferroni_correction",
-                label = NULL,
-                value = conf$alert_with_bonferroni_correction
-              ),
-              shiny::numericInput(
-                "history_filter",
-                label = shiny::h4("Days in baseline"),
-                value = conf$alert_history
-              ),
-              shiny::h4("Same weekday baseline"),
-              shiny::checkboxInput(
-                "same_weekday_baseline",
-                label = NULL,
-                value = conf$alert_same_weekday_baseline
-              ),
-              shiny::fluidRow(
-                shiny::column(4, shiny::downloadButton("export_pdf", "PDF")),
-                shiny::column(4, shiny::downloadButton("export_md", "Md"))
-              )
+  if ("dashboard" %in% profile) {
+    # PDF export needs a LaTeX distribution; checked once at startup (the
+    # troubleshoot page reports the same check, so the warning is silenced)
+    tex_available <- suppressWarnings(check_tex())
+
+    # Download button of a dashboard chart: rendered disabled, since there is
+    # nothing to download before the first successful Run. It uses its own
+    # `dash-disabled` class because Shiny's download binding removes its own
+    # `disabled` class as soon as the handler URL arrives at session start.
+    # With `unavailable`, the button stays disabled for good and shows that
+    # message on hover (the wrapper gets the hover, since the link ignores
+    # pointer events while disabled).
+    dash_download_button <- function(id, label, unavailable = NULL) {
+      button <- shiny::downloadButton(
+        id,
+        label,
+        class = if (is.null(unavailable)) {
+          "dash-download dash-disabled"
+        } else {
+          "dash-download dash-disabled dash-unavailable"
+        },
+        `aria-disabled` = "true",
+        tabindex = "-1"
+      )
+      if (is.null(unavailable)) {
+        return(button)
+      }
+      shiny::tags$span(
+        title = unavailable,
+        style = "display: inline-block;",
+        button
+      )
+    }
+    # Defining dashboard page UI
+    ################################################
+    ######### DASHBOARD PAGE #######################
+    ################################################
+    dashboard_page <-
+      shiny::fluidPage(
+        shiny::fluidRow(
+          shiny::column(
+            3,
+            ################################################
+            ######### DASHBOARD FILTERS #####################
+            ################################################
+            shiny::actionButton("run_dashboard", "Run"),
+            shiny::selectInput(
+              "sms",
+              label = shiny::h4("Social Media"),
+              multiple = TRUE,
+              choices = d$sms,
+              selected = d$sms
             ),
-            shiny::column(
-              9,
-              ################################################
-              ######### DASHBOARD PLOTS #######################
-              ################################################
-              shiny::fluidRow(
-                shiny::column(
-                  12,
-                  shiny::fluidRow(
-                    shiny::column(
-                      2,
-                      shiny::downloadButton("download_line_data", "Data")
-                    ),
-                    shiny::column(2, shiny::downloadButton("export_line", "image"))
-                  ),
-                  plotly::plotlyOutput("line_chart")
-                )
+            shiny::selectInput(
+              "topics",
+              label = shiny::h4("Topics"),
+              multiple = FALSE,
+              choices = d$topics
+            ),
+            shiny::selectInput(
+              "countries",
+              label = shiny::h4("Countries & regions"),
+              multiple = TRUE,
+              choices = d$countries
+            ),
+            shiny::selectInput(
+              "fixed_period",
+              label = shiny::h4("Period"),
+              multiple = FALSE,
+              choices = list(
+                "Last 7 days" = "last 7 days",
+                "Last 30 days" = "last 30 days",
+                "Last 60 days" = "last 60 days",
+                "Last 180 days" = "last 180 days",
+                "custom"
               ),
-              shiny::fluidRow(
-                shiny::column(
-                  6,
-                  shiny::fluidRow(
-                    shiny::column(
-                      3,
-                      shiny::downloadButton("download_map_data", "Data")
-                    ),
-                    shiny::column(3, shiny::downloadButton("export_map", "image"))
-                  ),
-                  plotly::plotlyOutput(
-                    "map_chart"
-                  )
-                ),
-                shiny::column(
-                  6,
-                  shiny::fluidRow(
-                    shiny::column(
-                      3,
-                      shiny::downloadButton("download_top1_data", "Data")
-                    ),
-                    shiny::column(3, shiny::downloadButton("export_top1", "image")),
-                    shiny::column(6,"")
-                  ),
-                  plotly::plotlyOutput("top_chart1")
-                )
-              ),
-              shiny::fluidRow(
-                shiny::column(
-                  6,
-                  shiny::fluidRow(
-                    shiny::column(
-                      3,
-                      shiny::downloadButton("download_top2_data", "Data")
-                    ),
-                    shiny::column(3, shiny::downloadButton("export_top2", "image")),
-                    shiny::column(6, "")
-                  ),
-                  plotly::plotlyOutput("top_chart2")
-                ),
-                shiny::column(
-                  6,
-                  shiny::fluidRow(
-                    shiny::column(
-                      3,
-                      shiny::downloadButton("download_top3_data", "Data")
-                    ),
-                  ),
-                  shiny::fluidRow(
-                    shiny::column(12, shiny::htmlOutput("top_table_title"))
-                  ),
-                  shiny::fluidRow(
-                    shiny::column(12, DT::dataTableOutput("top_table"))
-                  ),
-                  shiny::fluidRow(
-                    shiny::column(12, shiny::htmlOutput("top_table_disc"))
-                  )
-                )
-              )
-            )
-          )
-        )
-  }
-
-  if("admin" %in% profile) {
-      # Defining alerts page UI
-      ################################################
-      ######### ALERTS PAGE ##########################
-      ################################################
-      alerts_page <-
-        shiny::fluidPage(
-          shiny::h3("Find alerts"),
-          ################################################
-          ######### ALERTS FILTERS #######################
-          ################################################
-          shiny::fluidRow(
-            shiny::column(3, shiny::h4("Detection date")),
-            shiny::column(2, shiny::h4("Topics")),
-            shiny::column(2, shiny::h4("Countries & regions")),
-            shiny::column(2, shiny::h4("Display")),
-            shiny::column(1, shiny::h4("Limit")),
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              3,
+              selected = d$fixed_period
+            ),
+            shiny::conditionalPanel(
+              condition = "input.fixed_period == 'custom'",
               shiny::dateRangeInput(
-                "alerts_period",
-                label = "",
-                start = d$date_end,
+                "period",
+                label = shiny::h4("Dates"),
+                start = d$date_start,
                 end = d$date_end,
                 min = d$date_min,
                 max = d$date_max,
@@ -289,182 +215,434 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 startview = "month"
               )
             ),
-            shiny::column(
-              2,
-              shiny::selectInput(
-                "alerts_topics",
-                label = NULL,
-                multiple = TRUE,
-                choices = d$topics[d$topics != ""]
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::selectInput(
-                "alerts_countries",
-                label = NULL,
-                multiple = TRUE,
-                choices = d$countries
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::radioButtons(
-                "alerts_display",
-                label = NULL,
-                choices = list("Posts" = "posts", "Parameters" = "parameters"),
-                selected = "parameters",
-                inline = TRUE
+            shiny::radioButtons(
+              "period_type",
+              label = shiny::h4("Time unit"),
+              choices = list(
+                "Days" = "created_date",
+                "Weeks" = "created_weeknum"
               ),
+              selected = "created_date",
+              inline = TRUE
             ),
-            shiny::column(
-              1,
-              shiny::selectInput(
-                "alerts_limit",
-                label = NULL,
-                multiple = FALSE,
-                choices = list(
-                  "None" = "0",
-                  "10" = "10",
-                  "50" = "50",
-                  "100" = "100",
-                  "500" = "500"
+            shiny::h4("Include quotes"),
+            shiny::checkboxInput(
+              "with_quotes",
+              label = NULL,
+              value = conf$alert_with_quotes
+            ),
+            shiny::sliderInput(
+              "alpha_filter",
+              label = shiny::h4("Signal false positive rate"),
+              min = 0.005,
+              max = 0.3,
+              value = conf$alert_alpha,
+              step = 0.005
+            ),
+            shiny::sliderInput(
+              "alpha_outlier_filter",
+              label = shiny::h4("Outlier false positive rate"),
+              min = 0,
+              max = 0.3,
+              value = conf$alert_alpha_outlier,
+              step = 0.005
+            ),
+            shiny::sliderInput(
+              "k_decay_filter",
+              label = shiny::h4("Outlier downweight strength"),
+              min = 0,
+              max = 10,
+              value = conf$alert_k_decay,
+              step = 0.5
+            ),
+            shiny::h4("Bonferroni correction"),
+            shiny::checkboxInput(
+              "bonferroni_correction",
+              label = NULL,
+              value = conf$alert_with_bonferroni_correction
+            ),
+            shiny::numericInput(
+              "history_filter",
+              label = shiny::h4("Days in baseline"),
+              value = conf$alert_history,
+              min = 1
+            ),
+            shiny::h4("Same weekday baseline"),
+            shiny::checkboxInput(
+              "same_weekday_baseline",
+              label = NULL,
+              value = conf$alert_same_weekday_baseline
+            ),
+            shiny::fluidRow(
+              shiny::column(
+                4,
+                dash_download_button(
+                  "export_pdf",
+                  "PDF",
+                  unavailable = if (!tex_available) {
+                    paste(
+                      "PDF export unavailable: no LaTeX distribution (pdflatex)",
+                      "was found. See the troubleshoot page to install one."
+                    )
+                  }
                 )
-              )
-            ),
-          ),
-          shiny::fluidRow(
-            ################################################
-            ######### ALERTS FILTERS #######################
-            ################################################
-            shiny::column(
-              2,
-              shiny::actionButton("alerts_search", "Search alerts"),
-            ),
-            shiny::column(
-              2,
-              shiny::actionButton("alerts_close", "Hide search"),
-              shiny::conditionalPanel(
-                condition = "false",
-                shiny::textInput(
-                  "alerts_show_search",
-                  value = "false",
-                  label = NULL
-                )
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::actionButton("alertsdb_add", "Add alerts to annotations")
-            ),
-            shiny::column(6)
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              ################################################
-              ######### ALERTS TABLE #########################
-              ################################################
-              shiny::conditionalPanel(
-                condition = "input.alerts_show_search == 'true'",
-                DT::dataTableOutput("alerts_table"),
-              )
+              ),
+              shiny::column(4, dash_download_button("export_md", "Md"))
             )
           ),
-          shiny::h3("Alerts annotations"),
-          shiny::fluidRow(
-            shiny::column(
-              2,
-              shiny::actionButton("alertsdb_search", "Show annotations")
-            ),
-            shiny::column(
-              2,
-              shiny::actionButton("alertsdb_close", "Hide annotations")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton("alertsdb_download", "Download annotations")
-            ),
-            shiny::column(
-              4,
-              shiny::fileInput(
-                "alertsdb_upload",
-                label = NULL,
-                buttonLabel = "Upload & evaluate annotations", accept = ".xlsx"
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::conditionalPanel(
-                condition = "false",
-                shiny::textInput("alertsdb_show", value = "false", label = NULL)
-              )
-            )
-          ),
-          shiny::fluidRow(
-            shiny::conditionalPanel(
-              condition = "input.alertsdb_show == 'true'",
+          shiny::column(
+            9,
+            ################################################
+            ######### DASHBOARD PLOTS #######################
+            ################################################
+            shiny::fluidRow(
               shiny::column(
                 12,
-                ################################################
-                ######### ALERT ANNOTATIONS EVALUATION #########
-                ################################################
-                shiny::h4(
-                  "Performance evaluation of alert classification algorithm"
+                shiny::fluidRow(
+                  shiny::column(
+                    2,
+                    dash_download_button("download_line_data", "Data")
+                  ),
+                  shiny::column(
+                    2,
+                    dash_download_button("export_line", "image")
+                  )
                 ),
-                DT::dataTableOutput("alertsdb_runs_table"),
-                ################################################
-                ######### ANNOTATED ALERTS #####################
-                ################################################
-                shiny::h4(
-                  "Database used for training the alert classification algorithm"
+                plotly::plotlyOutput("line_chart")
+              )
+            ),
+            shiny::fluidRow(
+              shiny::column(
+                6,
+                shiny::fluidRow(
+                  shiny::column(
+                    3,
+                    dash_download_button("download_map_data", "Data")
+                  ),
+                  shiny::column(3, dash_download_button("export_map", "image"))
                 ),
-                DT::dataTableOutput("alertsdb_table")
+                plotly::plotlyOutput(
+                  "map_chart"
+                )
+              ),
+              shiny::column(
+                6,
+                shiny::fluidRow(
+                  shiny::column(
+                    3,
+                    dash_download_button("download_top1_data", "Data")
+                  ),
+                  shiny::column(
+                    3,
+                    dash_download_button("export_top1", "image")
+                  ),
+                  shiny::column(6, "")
+                ),
+                plotly::plotlyOutput("top_chart1")
+              )
+            ),
+            shiny::fluidRow(
+              shiny::column(
+                6,
+                shiny::fluidRow(
+                  shiny::column(
+                    3,
+                    dash_download_button("download_top2_data", "Data")
+                  ),
+                  shiny::column(
+                    3,
+                    dash_download_button("export_top2", "image")
+                  ),
+                  shiny::column(6, "")
+                ),
+                plotly::plotlyOutput("top_chart2")
+              ),
+              shiny::column(
+                6,
+                shiny::fluidRow(
+                  shiny::column(
+                    3,
+                    dash_download_button("download_top3_data", "Data")
+                  ),
+                ),
+                shiny::fluidRow(
+                  shiny::column(12, shiny::htmlOutput("top_table_title"))
+                ),
+                shiny::fluidRow(
+                  shiny::column(12, DT::dataTableOutput("top_table"))
+                ),
+                shiny::fluidRow(
+                  shiny::column(12, shiny::htmlOutput("top_table_disc"))
+                )
               )
             )
           )
         )
-      # Defining configuration
-      ################################################
-      ######### CONFIGURATION PAGE####################
-      ################################################
-      config_page <-
-        shiny::fluidPage(
-          shiny::fluidRow(
+      )
+  }
+
+  if ("admin" %in% profile) {
+    # Defining alerts page UI
+    ################################################
+    ######### ALERTS PAGE ##########################
+    ################################################
+    alerts_page <-
+      shiny::fluidPage(
+        shiny::h3("Find alerts"),
+        ################################################
+        ######### ALERTS FILTERS #######################
+        ################################################
+        shiny::fluidRow(
+          shiny::column(3, shiny::h4("Detection date")),
+          shiny::column(2, shiny::h4("Topics")),
+          shiny::column(2, shiny::h4("Countries & regions")),
+          shiny::column(2, shiny::h4("Display")),
+          shiny::column(1, shiny::h4("Limit")),
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            3,
+            shiny::dateRangeInput(
+              "alerts_period",
+              label = "",
+              start = d$date_end,
+              end = d$date_end,
+              min = d$date_min,
+              max = d$date_max,
+              format = "yyyy-mm-dd",
+              startview = "month"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              "alerts_topics",
+              label = NULL,
+              multiple = TRUE,
+              choices = d$topics[d$topics != ""]
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::selectInput(
+              "alerts_countries",
+              label = NULL,
+              multiple = TRUE,
+              choices = d$countries
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::radioButtons(
+              "alerts_display",
+              label = NULL,
+              choices = list("Posts" = "posts", "Parameters" = "parameters"),
+              selected = "parameters",
+              inline = TRUE
+            ),
+          ),
+          shiny::column(
+            1,
+            shiny::selectInput(
+              "alerts_limit",
+              label = NULL,
+              multiple = FALSE,
+              choices = list(
+                "None" = "0",
+                "10" = "10",
+                "50" = "50",
+                "100" = "100",
+                "500" = "500"
+              )
+            )
+          ),
+        ),
+        shiny::fluidRow(
+          ################################################
+          ######### ALERTS FILTERS #######################
+          ################################################
+          shiny::column(
+            2,
+            shiny::actionButton("alerts_search", "Search alerts"),
+          ),
+          shiny::column(
+            2,
+            shiny::actionButton("alerts_close", "Hide search"),
+            shiny::conditionalPanel(
+              condition = "false",
+              shiny::textInput(
+                "alerts_show_search",
+                value = "false",
+                label = NULL
+              )
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::actionButton("alertsdb_add", "Add alerts to annotations")
+          ),
+          shiny::column(6)
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            12,
+            ################################################
+            ######### ALERTS TABLE #########################
+            ################################################
+            shiny::conditionalPanel(
+              condition = "input.alerts_show_search == 'true'",
+              DT::dataTableOutput("alerts_table"),
+            )
+          )
+        ),
+        shiny::h3("Alerts annotations"),
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::actionButton("alertsdb_search", "Show annotations")
+          ),
+          shiny::column(
+            2,
+            shiny::actionButton("alertsdb_close", "Hide annotations")
+          ),
+          shiny::column(
+            2,
+            shiny::downloadButton("alertsdb_download", "Download annotations")
+          ),
+          shiny::column(
+            4,
+            shiny::fileInput(
+              "alertsdb_upload",
+              label = NULL,
+              buttonLabel = "Upload & evaluate annotations",
+              accept = ".xlsx"
+            )
+          ),
+          shiny::column(
+            2,
+            shiny::conditionalPanel(
+              condition = "false",
+              shiny::textInput("alertsdb_show", value = "false", label = NULL)
+            )
+          )
+        ),
+        shiny::fluidRow(
+          shiny::conditionalPanel(
+            condition = "input.alertsdb_show == 'true'",
             shiny::column(
-              4,
+              12,
               ################################################
-              ######### STATUS PANEL #########################
+              ######### ALERT ANNOTATIONS EVALUATION #########
               ################################################
-              shiny::h3("Status"),
-              shiny::fluidRow(
-                shiny::column(3, "episomer database"),
-                shiny::column(5, shiny::htmlOutput("fs_running")),
-                shiny::column(2, shiny::actionButton("activate_fs", "activate")),
-                shiny::column(2, shiny::actionButton("stop_fs", "stop"))
+              shiny::h4(
+                "Performance evaluation of alert classification algorithm"
+              ),
+              DT::dataTableOutput("alertsdb_runs_table"),
+              ################################################
+              ######### ANNOTATED ALERTS #####################
+              ################################################
+              shiny::h4(
+                "Database used for training the alert classification algorithm"
+              ),
+              DT::dataTableOutput("alertsdb_table")
+            )
+          )
+        )
+      )
+    # Defining configuration
+    ################################################
+    ######### CONFIGURATION PAGE####################
+    ################################################
+    config_page <-
+      shiny::fluidPage(
+        shiny::tags$style(shiny::HTML(
+          "
+            .config-toggle-title {
+              cursor: pointer;
+              transition: all 0.2s ease;
+              display: flex;
+              align-items: center;
+              background-color: #f0f0f0;
+              padding: 10px 12px;
+              margin: 15px 0 10px 0;
+              border-left: 3px solid #0d6efd;
+              border-radius: 3px;
+              font-weight: 600;
+              font-size: 0.95em;
+            }
+            .config-toggle-title:hover {
+              background-color: #e8e8e8;
+              border-left-color: #0056b3;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .config-toggle-icon {
+              display: inline-block;
+              margin-right: 8px;
+              width: 14px;
+              height: 14px;
+              font-size: 12px;
+              flex-shrink: 0;
+            }
+          "
+        )),
+        shiny::fluidRow(
+          shiny::column(
+            4,
+            ################################################
+            ######### STATUS PANEL #########################
+            ################################################
+            shiny::h3(
+              id = "config_status_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Status"
+            ),
+            shiny::div(
+              id = "config_status_body",
+              shiny::helpText(
+                "To start or stop services, run episomer::setup()."
+              ),
+              shiny::helpText(
+                "The elements below are updated every 60 seconds."
               ),
               shiny::fluidRow(
-                shiny::column(3, "Data collection & processing"),
-                shiny::column(5, shiny::htmlOutput("search_running")),
-                shiny::column(
-                  2,
-                  shiny::actionButton("activate_search", "activate")
-                ),
-                shiny::column(2, shiny::actionButton("stop_search", "stop"))
+                shiny::column(5, "episomer database"),
+                shiny::column(7, shiny::htmlOutput("fs_running"))
               ),
               shiny::fluidRow(
-                shiny::column(3, "Requirements & alerts"),
-                shiny::column(5, shiny::htmlOutput("detect_running")),
-                shiny::column(
-                  2,
-                  shiny::actionButton("activate_detect", "activate")
-                ),
-                shiny::column(2, shiny::actionButton("stop_detect", "stop"))
+                shiny::column(5, "Database package version"),
+                shiny::column(7, shiny::htmlOutput("fs_jar_version"))
+              ),
+              shiny::fluidRow(
+                shiny::column(5, "Data collection & processing"),
+                shiny::column(7, shiny::htmlOutput("search_running"))
+              ),
+              shiny::fluidRow(
+                shiny::column(5, "Alerts"),
+                shiny::column(7, shiny::htmlOutput("detect_running"))
               ),
               ################################################
-              ######### GENERAL PROPERTIES ###################
+              ######### RUNNERS DETAIL #######################
               ################################################
-              shiny::h3("Signal detection"),
+              # The three statuses above answer "is this service running somewhere?"; this table
+              # says *where*, and tells a free runner from one held by a lease nobody renews
+              # anymore (inst/schema/multi_services_plan.md section 8). One row per runner holding
+              # a lease, on this machine or on any other machine sharing this database - a runner
+              # nobody holds simply has no row. The app itself never appears here: it is a reader
+              # of the leases, not a runner (section 6.4).
+              DT::dataTableOutput("runner_leases_table")
+            ),
+            ################################################
+            ######### GENERAL PROPERTIES ###################
+            ################################################
+            shiny::h3(
+              id = "config_signal_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Signal detection"
+            ),
+            shiny::div(
+              id = "config_signal_body",
               shiny::fluidRow(
                 shiny::column(3, "Signal false positive rate"),
                 shiny::column(
@@ -472,7 +650,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::sliderInput(
                     "conf_alpha",
                     label = NULL,
-                    min = 0,
+                    min = 0.005,
                     max = 0.3,
                     value = conf$alert_alpha,
                     step = 0.005
@@ -514,7 +692,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::numericInput(
                     "conf_history",
                     label = NULL,
-                    value = conf$alert_history
+                    value = conf$alert_history,
+                    min = 1
                   )
                 )
               ),
@@ -550,11 +729,32 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     value = conf$alert_with_bonferroni_correction
                   )
                 )
-              ),
-              shiny::h3("General"),
+              )
+            ),
+            shiny::h3(
+              id = "config_general_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "General"
+            ),
+            shiny::div(
+              id = "config_general_body",
               shiny::fluidRow(
-                shiny::column(3, "Data dir"),
-                shiny::column(9, shiny::span(conf$data_dir))
+                # Not fs_remote(): that is TRUE on a local install too (see
+                # has_local_data_dir() in R/paths.R). Only an app running away from the fs has
+                # no data directory of its own, and there conf$data_dir is a placeholder under
+                # tempdir() holding none of the data on screen - the address actually serving
+                # that data is what is worth displaying.
+                shiny::column(
+                  3,
+                  if (has_local_data_dir()) "Data dir" else "Data source"
+                ),
+                shiny::column(
+                  9,
+                  shiny::span(
+                    if (has_local_data_dir()) conf$data_dir else conf$fs_remote
+                  )
+                )
               ),
               shiny::fluidRow(
                 shiny::column(3, "Data collection & processing span (min)"),
@@ -568,7 +768,7 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 )
               ),
               shiny::fluidRow(
-                shiny::column(3, "Requirements & alerts span (min)"),
+                shiny::column(3, "Alerts span (min)"),
                 shiny::column(
                   9,
                   shiny::numericInput(
@@ -581,24 +781,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny::fluidRow(
                 shiny::column(3, "Launch slots"),
                 shiny::column(9, shiny::htmlOutput("conf_schedule_slots"))
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "Password store"),
-                shiny::column(
-                  9,
-                  shiny::selectInput(
-                    "conf_keyring",
-                    label = NULL,
-                    choices = c(
-                      "wincred",
-                      "macos",
-                      "file",
-                      "secret_service",
-                      "environment"
-                    ),
-                    selected = conf$keyring
-                  )
-                )
               ),
               shiny::fluidRow(
                 shiny::column(3, "Spark cores"),
@@ -634,28 +816,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                 )
               ),
               shiny::fluidRow(
-                shiny::column(3, "GeoNames URL"),
-                shiny::column(
-                  9,
-                  shiny::textInput(
-                    "conf_geonames_url",
-                    label = NULL,
-                    value = conf$geonames_url
-                  )
-                )
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "Simplified GeoNames"),
-                shiny::column(
-                  9,
-                  shiny::checkboxInput(
-                    "conf_geonames_simplify",
-                    label = NULL,
-                    value = conf$geonames_simplify
-                  )
-                )
-              ),
-              shiny::fluidRow(
                 shiny::column(3, "Stream database results"),
                 shiny::column(
                   9,
@@ -663,35 +823,6 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     "conf_onthefly_api",
                     label = NULL,
                     value = conf$onthefly_api
-                  )
-                )
-              ),
-              shiny::fluidRow(
-                shiny::column(3, "Maven repository"),
-                shiny::column(
-                  9,
-                  shiny::textInput(
-                    "conf_maven_repo",
-                    label = NULL,
-                    value = conf$maven_repo
-                  )
-                )
-              ),
-              shiny::conditionalPanel(
-                condition = "false",
-                shiny::textInput("os_type", value = .Platform$OS.type, label = NULL)
-              ),
-              shiny::conditionalPanel(
-                condition = "input.os_type == 'windows'",
-                shiny::fluidRow(
-                  shiny::column(3, "Winutils URL"),
-                  shiny::column(
-                    9,
-                    shiny::textInput(
-                      "conf_winutils_url",
-                      label = NULL,
-                      value = conf$winutils_url
-                    )
                   )
                 )
               ),
@@ -705,8 +836,16 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     value = conf$regions_disclaimer
                   )
                 )
-              ),
-              shiny::h2("Email authentication (SMTP)"),
+              )
+            ),
+            shiny::h2(
+              id = "config_smtp_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Email authentication (SMTP)"
+            ),
+            shiny::div(
+              id = "config_smtp_body",
               shiny::fluidRow(
                 shiny::column(3, "Server"),
                 shiny::column(
@@ -783,8 +922,16 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                     value = conf$admin_email
                   )
                 )
-              ),
-              shiny::h2("Task registering"),
+              )
+            ),
+            shiny::h2(
+              id = "config_taskreg_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Task registering"
+            ),
+            shiny::div(
+              id = "config_taskreg_body",
               shiny::fluidRow(
                 shiny::column(3, "Custom date format"),
                 shiny::column(
@@ -796,92 +943,58 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   )
                 )
               )
+            )
+          ),
+          shiny::column(
+            8,
+            ################################################
+            ######### Alerts PANEL ######################
+            ################################################
+            shiny::h3(
+              id = "config_alerts_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Alerts pipeline"
             ),
-            shiny::column(
-              8,
-              ################################################
-              ######### Requirements & alerts PANEL ######################
-              ################################################
-              shiny::h3("Requirements & alerts pipeline"),
-              shiny::h5("Manual tasks"),
+            shiny::div(
+              id = "config_alerts_body",
               shiny::fluidRow(
                 shiny::column(
-                  3,
-                  shiny::actionButton("update_dependencies", "Run dependencies")
-                ),
-                shiny::column(
-                  3,
-                  shiny::actionButton("update_geonames", "Run GeoNames")
-                ),
-                shiny::column(
-                  3,
-                  shiny::actionButton("update_languages", "Run languages")
-                ),
-                shiny::column(
-                  3,
-                  shiny::actionButton("request_alerts", "Run alerts")                  
+                  12,
+                  shiny::actionButton("request_alerts", "Run alerts now")
                 )
               ),
-              DT::dataTableOutput("tasks_df"),
-              ################################################
-              ######### SOCIAL MEDIA PANDEL###################
-              ################################################
-              shiny::h2("Social media"),
-              shiny::fluidRow(
-                shiny::column(4, "Social Media"),
-                shiny::column(8, "Configuration"),
-                style = "font-weight:bold"
+              DT::dataTableOutput("tasks_df")
+            ),
+            ################################################
+            ######### SOCIAL MEDIA PANEL ###################
+            ################################################
+            shiny::h2(
+              id = "config_socialmedia_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Social media"
+            ),
+            shiny::div(
+              id = "config_socialmedia_body",
+              # Purely informational: activation, instances and alert detection are all set up
+              # from the wizard (episomer::setup()), not edited here.
+              shiny::helpText(
+                "To configure social media collection, instances and alert detection, run episomer::setup()."
               ),
-              shiny::fluidRow(
-                shiny::column(
-                  4,
-                  shiny::checkboxInput(
-                    "conf_sm_activated_bluesky",
-                    label = "Bluesky",
-                    value = conf$sm_activated_bluesky
-                  )
-                ),
-                shiny::column(
-                  8,
-                  shiny::conditionalPanel(
-                    condition = "input.conf_sm_activated_bluesky == true",
-                    shiny::checkboxInput(
-                      "conf_sm_alerts_bluesky",
-                      label = "Calculate alerts",
-                      value = conf$sm_alerts_bluesky
-                    ),
-                    shiny::fluidRow(
-                      shiny::column(3, "User"),
-                      shiny::column(
-                        9,
-                        shiny::textInput(
-                          "bluesky_user",
-                          label = NULL,
-                          value = if (is_secret_set("bluesky_user"))
-                            get_secret("bluesky_user") else NULL
-                        )
-                      )
-                    ),
-                    shiny::fluidRow(
-                      shiny::column(3, "Password"),
-                      shiny::column(
-                        9,
-                        shiny::passwordInput(
-                          "bluesky_password",
-                          label = NULL,
-                          value = if (is_secret_set("bluesky_password"))
-                            get_secret("bluesky_password") else NULL
-                        )
-                      )
-                    )
-                  )
-                ),
-                style = "background-color:#f9f9f9;border-top: 1px solid #b2b2b2;border-bottom: 1px solid #d9d9d9;"
-              ),
-              ################################################
-              ######### TOPICS PANEL ######################
-              ################################################
-              shiny::h3("Topics"),
+              DT::dataTableOutput("social_media_table")
+            ),
+            ################################################
+            ######### TOPICS PANEL ######################
+            ################################################
+            shiny::h3(
+              id = "config_topics_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Topics"
+            ),
+            shiny::div(
+              id = "config_topics_body",
               shiny::fluidRow(
                 shiny::column(3, shiny::h5("Available topics")),
                 shiny::column(
@@ -900,7 +1013,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_topics_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
                 ),
                 shiny::column(
@@ -914,44 +1028,39 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               shiny::fluidRow(
                 shiny::column(4, shiny::h5("Limit topic history"))
               ),
-              DT::dataTableOutput("config_topics"),
-              ################################################
-              ######### LANGUAGES PANEL ######################
-              ################################################
-              shiny::h3("Languages"),
-              shiny::fluidRow(
-                shiny::column(4, shiny::h5("Available languages")),
-                shiny::column(
-                  2,
-                  shiny::downloadButton("conf_lang_download", "Download")
-                ),
-                shiny::column(
-                  2,
-                  shiny::downloadButton(
-                    "conf_orig_lang_download",
-                    "Download default"
-                  )
-                ),
-                shiny::column(
-                  4,
-                  shiny::fileInput(
-                    "conf_lang_upload",
-                    label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
-                  )
-                ),
+              shiny::helpText(
+                "The elements below are updated every 60 seconds."
               ),
-              shiny::fluidRow(
-                shiny::column(4, shiny::h5("Active languages")),
-                shiny::column(6, shiny::uiOutput("lang_items_0")),
-                shiny::column(1, shiny::actionButton("conf_lang_add", "+")),
-                shiny::column(1, shiny::actionButton("conf_lang_remove", "-")),
+              DT::dataTableOutput("config_topics")
+            ),
+            ################################################
+            ######### LANGUAGES PANEL ######################
+            ################################################
+            shiny::h3(
+              id = "config_langs_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Languages"
+            ),
+            shiny::div(
+              id = "config_langs_body",
+              shiny::h5("Active languages"),
+              shiny::helpText(
+                "To set up languages, run episomer::setup()."
               ),
-              DT::dataTableOutput("config_langs"),
-              ################################################
-              ######### IMPORTANT USERS ######################
-              ################################################
-              shiny::h3("Important users"),
+              DT::dataTableOutput("config_langs")
+            ),
+            ################################################
+            ######### IMPORTANT USERS ######################
+            ################################################
+            shiny::h3(
+              id = "config_users_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Important users"
+            ),
+            shiny::div(
+              id = "config_users_body",
               shiny::fluidRow(
                 shiny::column(4, shiny::h5("User file")),
                 shiny::column(
@@ -970,19 +1079,32 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_users_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
-                ),
+                )
               ),
-              ################################################
-              ######### SUSCRIBERS PANEL #####################
-              ################################################
-              shiny::h3("Subscribers"),
+              DT::dataTableOutput("config_users")
+            ),
+            ################################################
+            ######### SUSCRIBERS PANEL #####################
+            ################################################
+            shiny::h3(
+              id = "config_subscribers_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Subscribers"
+            ),
+            shiny::div(
+              id = "config_subscribers_body",
               shiny::fluidRow(
                 shiny::column(4, shiny::h5("Subscribers")),
                 shiny::column(
                   2,
-                  shiny::downloadButton("conf_subscribers_download", "Download")
+                  shiny::downloadButton(
+                    "conf_subscribers_download",
+                    "Download"
+                  )
                 ),
                 shiny::column(
                   2,
@@ -996,15 +1118,24 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_subscribers_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
-                ),
+                )
               ),
-              DT::dataTableOutput("config_subscribers"),
-              ################################################
-              ######### COUNTRIES / REGIONS PANEL ############
-              ################################################
-              shiny::h3("Countries & regions"),
+              DT::dataTableOutput("config_subscribers")
+            ),
+            ################################################
+            ######### COUNTRIES / REGIONS PANEL ############
+            ################################################
+            shiny::h3(
+              id = "config_countries_title",
+              class = "config-toggle-title",
+              shiny::icon("plus", class = "config-toggle-icon"),
+              "Countries & regions"
+            ),
+            shiny::div(
+              id = "config_countries_body",
               shiny::fluidRow(
                 shiny::column(4, shiny::h5("Countries & regions")),
                 shiny::column(
@@ -1023,281 +1154,327 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   shiny::fileInput(
                     "conf_countries_upload",
                     label = NULL,
-                    buttonLabel = "Upload", accept = ".xlsx"
+                    buttonLabel = "Upload",
+                    accept = ".xlsx"
                   )
-                ),
+                )
               ),
               DT::dataTableOutput("config_regions")
             )
           )
         )
-      # Defining geo tuning page UI
-      ################################################
-      ######### GEOTRAINING PAGE #####################
-      ################################################
-      geotraining_page <-
-        shiny::fluidPage(
-          shiny::h3("Geo tagging training"),
-          shiny::fluidRow(
-            ################################################
-            ######### GEO TAG FILTERS ######################
-            ################################################
-            shiny::column(
-              4,
-              shiny::numericInput(
-                "geotraining_posts2add",
-                label = shiny::h4("Posts to add"),
-                value = 100
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::actionButton("geotraining_update", "Geolocate annotations")
-            ),
-            shiny::column(
-              2,
-              shiny::downloadButton("geotraining_download", "Download annotations")
-            ),
-            shiny::column(
-              4,
-              shiny::fileInput(
-                "geotraining_upload",
-                label = NULL,
-                buttonLabel = "Upload & evaluate annotations", accept = ".xlsx"
-              )
+      )
+    # Defining geo tuning page UI
+    ################################################
+    ######### GEOTRAINING PAGE #####################
+    ################################################
+    geotraining_page <-
+      shiny::fluidPage(
+        shiny::h3("Geo tagging training"),
+        shiny::fluidRow(
+          ################################################
+          ######### GEO TAG FILTERS ######################
+          ################################################
+          shiny::column(
+            4,
+            shiny::numericInput(
+              "geotraining_posts2add",
+              label = shiny::h4("Posts to add"),
+              value = 100
             )
           ),
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              ################################################
-              ######### GEO TAG EVALUATION####################
-              ################################################
-              shiny::h4(
-                "Performance evaluation of geo tagging algorithm (finding location position in text)"
-              ),
-              DT::dataTableOutput("geotraining_eval_df"),
-              ################################################
-              ######### GEO TAG TABLE #########################
-              ################################################
-              shiny::h4("Database used for training the geo tagging algorithm"),
-              DT::dataTableOutput("geotraining_table")
+          shiny::column(
+            2,
+            shiny::actionButton("geotraining_update", "Geolocate annotations")
+          ),
+          shiny::column(
+            2,
+            shiny::downloadButton(
+              "geotraining_download",
+              "Download annotations"
+            )
+          ),
+          shiny::column(
+            4,
+            shiny::fileInput(
+              "geotraining_upload",
+              label = NULL,
+              buttonLabel = "Upload & evaluate annotations",
+              accept = ".xlsx"
             )
           )
-        )
-      ################################################
-      ######### DATA PROTECTION PAGE #################
-      ################################################
-      dataprotection_page <-
-        shiny::fluidPage(
-          shiny::h3("Data protection"),
-          shiny::fluidRow(
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            12,
             ################################################
-            ######### TWEET SEARCH FILTERS #################
+            ######### GEO TAG EVALUATION####################
             ################################################
-            shiny::column(2, shiny::h4("Topic")),
-            shiny::column(2, shiny::h4("Period")),
-            shiny::column(2, shiny::h4("Countries & regions")),
-            shiny::column(
-              2,
-              shiny::h4("Users"),
-              shiny::radioButtons(
-                "data_mode",
-                label = NULL,
-                choices = list(
-                  "Mentioning" = "mentioning",
-                  "From User" = "users",
-                  "Both" = "all"
-                ),
-                selected = "all",
-                inline = TRUE
-              ),
+            shiny::h4(
+              "Performance evaluation of geo tagging algorithm (finding location position in text)"
             ),
-            shiny::column(1, shiny::h4("Limit")),
-            shiny::column(3, shiny::h4("Action"))
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              2,
-              shiny::selectInput(
-                "data_topics",
-                label = NULL,
-                multiple = TRUE,
-                choices = d$topics[d$topics != ""]
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::dateRangeInput(
-                "data_period",
-                label = "",
-                start = d$date_end,
-                end = d$date_end,
-                min = d$date_min,
-                max = d$date_max,
-                format = "yyyy-mm-dd",
-                startview = "month"
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::selectInput(
-                "data_countries",
-                label = NULL,
-                multiple = TRUE,
-                choices = d$countries
-              )
-            ),
-            shiny::column(
-              2,
-              shiny::textInput("data_users", label = NULL, value = NULL)
-            ),
-            shiny::column(
-              1,
-              shiny::selectInput(
-                "data_limit",
-                label = NULL,
-                multiple = FALSE,
-                choices = list("50" = "50", "100" = "100", "500" = "500"),
-                selected = "50"
-              )
-            ),
-            shiny::column(
-              3,
-              shiny::actionButton("data_search", "Search"),
-              shiny::actionButton("data_search_ano", "Anonym Search"),
-              shiny::actionButton("data_anonymise", "Anonymize"),
-              shiny::actionButton("data_delete", "Delete"),
-            ),
-          ),
-          shiny::fluidRow(
-            shiny::column(12, shiny::htmlOutput("data_message"))
-          ),
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              ################################################
-              ######### TWEET SEARCH RESULTS #################
-              ################################################
-              DT::dataTableOutput("data_search_df")
-            )
+            DT::dataTableOutput("geotraining_eval_df"),
+            ################################################
+            ######### GEO TAG TABLE #########################
+            ################################################
+            shiny::h4("Database used for training the geo tagging algorithm"),
+            DT::dataTableOutput("geotraining_table")
           )
         )
-      ################################################
-      ######### TROUBLESHOOT PAGE ####################
-      ################################################
-      troubleshoot_page <-
-        shiny::fluidPage(
-          shiny::h3("Create snapshot file"),
-          shiny::fluidRow(
-            shiny::column(
-              6,
-              shiny::checkboxGroupInput(
-                "snapshot_types",
-                "Include:",
-                inline = TRUE,
-                choices = c(
-                  "Settings" = "settings",
-                  "Dependencies" = "dependencies",
-                  "Machine Learning" = "machine-learning",
-                  "Aggregation" = "aggregations",
-                  "Posts" = "posts",
-                  "Logs" = "logs"
-                ),
-                selected = c("settings", "logs")
-              )
+      )
+    ################################################
+    ######### DATA PROTECTION PAGE #################
+    ################################################
+    dataprotection_page <-
+      shiny::fluidPage(
+        shiny::h3("Data protection"),
+        shiny::fluidRow(
+          ################################################
+          ######### TWEET SEARCH FILTERS #################
+          ################################################
+          shiny::column(2, shiny::h4("Topic")),
+          shiny::column(2, shiny::h4("Period")),
+          shiny::column(2, shiny::h4("Countries & regions")),
+          shiny::column(
+            2,
+            shiny::h4("Users"),
+            shiny::radioButtons(
+              "data_mode",
+              label = NULL,
+              choices = list(
+                "Mentioning" = "mentioning",
+                "From User" = "users",
+                "Both" = "all"
+              ),
+              selected = "all",
+              inline = TRUE
             ),
-            shiny::column(
-              3,
-              shiny::dateRangeInput(
-                "snapshot_aggr_period",
-                label = shiny::h4("Aggregated data period"),
-                start = d$date_min,
-                end = d$date_end,
-                min = d$date_min,
-                max = d$date_max,
-                format = "yyyy-mm-dd",
-                startview = "month"
-              )
-            ),
-            shiny::column(
-              3,
-              shiny::dateRangeInput(
-                "snapshot_post_period",
-                label = shiny::h4("Post data period"),
-                start = d$date_min,
-                end = d$date_end,
-                min = d$date_min,
-                max = d$date_max,
-                format = "yyyy-mm-dd",
-                startview = "month"
-              )
+          ),
+          shiny::column(1, shiny::h4("Limit")),
+          shiny::column(3, shiny::h4("Action"))
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            2,
+            shiny::selectInput(
+              "data_topics",
+              label = NULL,
+              multiple = TRUE,
+              choices = d$topics[d$topics != ""]
             )
           ),
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              shiny::textInput(
-                "snapshot_folder",
-                value = ensure_snapshot_folder(),
-                label = "Destination folder"
-              ),
-              shiny::checkboxInput(
-                "snapshot_compress",
-                "Compress snapshot",
-                value = FALSE
-              ),
-              shiny::p(
-                "It is recommended to stop the search and detect loop before running a snapshopt to ensure data consistency (embedded database must be running)"
-              ),
-              shiny::actionButton("build_snapshot", "Create snapshot")
+          shiny::column(
+            2,
+            shiny::dateRangeInput(
+              "data_period",
+              label = "",
+              start = d$date_end,
+              end = d$date_end,
+              min = d$date_min,
+              max = d$date_max,
+              format = "yyyy-mm-dd",
+              startview = "month"
             )
           ),
-          shiny::h3("Diagnostics"),
-          shiny::h5("Automated diagnostic tasks"),
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              shiny::actionButton("run_diagnostic", "run diagnostics")
+          shiny::column(
+            2,
+            shiny::selectInput(
+              "data_countries",
+              label = NULL,
+              multiple = TRUE,
+              choices = d$countries
             )
           ),
-          shiny::fluidRow(
-            shiny::column(
-              12,
-              ################################################
-              ######### DIAGNOSTIC TABLE #####################
-              ################################################
-              DT::dataTableOutput("diagnostic_table")
+          shiny::column(
+            2,
+            shiny::textInput("data_users", label = NULL, value = NULL)
+          ),
+          shiny::column(
+            1,
+            shiny::selectInput(
+              "data_limit",
+              label = NULL,
+              multiple = FALSE,
+              choices = list("50" = "50", "100" = "100", "500" = "500"),
+              selected = "50"
             )
+          ),
+          shiny::column(
+            3,
+            shiny::actionButton("data_search", "Search"),
+            shiny::actionButton("data_search_ano", "Anonym Search"),
+            shiny::actionButton("data_anonymise", "Anonymize"),
+            shiny::actionButton("data_delete", "Delete"),
+          ),
+        ),
+        shiny::fluidRow(
+          shiny::column(12, shiny::htmlOutput("data_message"))
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            12,
+            ################################################
+            ######### TWEET SEARCH RESULTS #################
+            ################################################
+            DT::dataTableOutput("data_search_df")
           )
         )
+      )
+    ################################################
+    ######### TROUBLESHOOT PAGE ####################
+    ################################################
+    troubleshoot_page <-
+      shiny::fluidPage(
+        shiny::h3("Create snapshot file"),
+        shiny::fluidRow(
+          shiny::column(
+            6,
+            shiny::checkboxGroupInput(
+              "snapshot_types",
+              "Include:",
+              inline = TRUE,
+              choices = c(
+                "Settings" = "settings",
+                "Dependencies" = "dependencies",
+                "Machine Learning" = "machine-learning",
+                "Aggregation" = "aggregations",
+                "Posts" = "posts",
+                "Logs" = "logs"
+              ),
+              selected = c("settings", "logs")
+            )
+          ),
+          shiny::column(
+            3,
+            shiny::dateRangeInput(
+              "snapshot_aggr_period",
+              label = shiny::h4("Aggregated data period"),
+              start = d$date_min,
+              end = d$date_end,
+              min = d$date_min,
+              max = d$date_max,
+              format = "yyyy-mm-dd",
+              startview = "month"
+            )
+          ),
+          shiny::column(
+            3,
+            shiny::dateRangeInput(
+              "snapshot_post_period",
+              label = shiny::h4("Post data period"),
+              start = d$date_min,
+              end = d$date_end,
+              min = d$date_min,
+              max = d$date_max,
+              format = "yyyy-mm-dd",
+              startview = "month"
+            )
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            12,
+            shiny::textInput(
+              "snapshot_folder",
+              value = ensure_snapshot_folder(),
+              label = "Destination folder"
+            ),
+            shiny::checkboxInput(
+              "snapshot_compress",
+              "Compress snapshot",
+              value = FALSE
+            ),
+            shiny::p(
+              "It is recommended to stop the search and detect loop before running a snapshopt to ensure data consistency (embedded database must be running)"
+            ),
+            shiny::actionButton("build_snapshot", "Create snapshot")
+          )
+        ),
+        shiny::h3("Diagnostics"),
+        shiny::h5("Automated diagnostic tasks"),
+        shiny::fluidRow(
+          shiny::column(
+            12,
+            shiny::actionButton("run_diagnostic", "run diagnostics")
+          )
+        ),
+        shiny::fluidRow(
+          shiny::column(
+            12,
+            ################################################
+            ######### DIAGNOSTIC TABLE #####################
+            ################################################
+            DT::dataTableOutput("diagnostic_table")
+          )
+        )
+      )
   }
+  # Full-screen spinner shown while Shiny is busy (assets in inst/www)
+  busy_spinner <- htmltools::htmlDependency(
+    name = "episomer-busy-spinner",
+    version = as.character(utils::packageVersion("episomer")),
+    src = system.file("www", package = "episomer"),
+    script = "busy-spinner.js",
+    stylesheet = "busy-spinner.css"
+  )
   # Defining navigation UI
   ui_app <- function(profile) {
-    args = list("episomer", id = "navbar_shinyapp")
-    if("dashboard" %in% profile) {
-        args = c(args, list(shiny::tabPanel("Dashboard", value = "dashboard_page", dashboard_page)))
+    args <- list(
+      "episomer",
+      id = "navbar_shinyapp",
+      header = list(
+        busy_spinner,
+        shinyjs::useShinyjs(),
+        shiny::tags$style(shiny::HTML(
+          "a.dash-download.dash-disabled {
+             pointer-events: none; opacity: 0.55; cursor: not-allowed;
+           }"
+        ))
+      )
+    )
+    if ("dashboard" %in% profile) {
+      args <- c(
+        args,
+        list(shiny::tabPanel(
+          "Dashboard",
+          value = "dashboard_page",
+          dashboard_page
+        ))
+      )
     }
-    if("admin" %in% profile) {
-        args = c(
-           args,  
-           list(
-	        shiny::tabPanel("Alerts", value = "alerts_page", alerts_page),
-                shiny::tabPanel("Geotag", value = "geotraining_page", geotraining_page),
-                shiny::tabPanel(
-                  "Data protection",
-                  value = "dataprotection_page",
-                  dataprotection_page
-                ),
-                shiny::tabPanel("Configuration", value = "config_page", config_page),
-                shiny::tabPanel(
-                  "Troubleshoot",
-                  value = "troubleshoot_page",
-                  troubleshoot_page
-                )
-	   )
-        ) 
+    if ("admin" %in% profile) {
+      args <- c(
+        args,
+        list(
+          shiny::tabPanel("Alerts", value = "alerts_page", alerts_page),
+          shiny::tabPanel(
+            "Geotag",
+            value = "geotraining_page",
+            geotraining_page
+          ),
+          shiny::tabPanel(
+            "Data protection",
+            value = "dataprotection_page",
+            dataprotection_page
+          ),
+          shiny::tabPanel("Configuration", value = "config_page", config_page),
+          shiny::tabPanel(
+            "Troubleshoot",
+            value = "troubleshoot_page",
+            troubleshoot_page
+          )
+        )
+      )
     }
+    args <- c(
+      args,
+      list(
+        footer = shiny::tags$div(
+          style = "text-align: right; color: #888; font-size: 1em; padding: 5px 15px;",
+          paste0("{episomer} v", utils::packageVersion("episomer"))
+        )
+      )
+    )
     do.call(shiny::navbarPage, args)
   }
   # Defining server logic
@@ -1308,1090 +1485,1171 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
       options("shiny.port" = NULL)
       options("shiny.host" = NULL)
     })
-    
-    if("dashboard" %in% profile) {
 
-        ################################################
-        ######### FILTERS LOGIC ########################
-        ################################################
+    if ("dashboard" %in% profile) {
+      ################################################
+      ######### DASHBOARD STATE ######################
+      ################################################
 
-        # updating alpha filter based on selected topic value
-        shiny::observe({
-          # reading input$topics will automatically trigger the update on change
-          val <- {
-            if (length(input$topics) == 0 || input$topics == "")
-              conf$alert_alpha else
-              unname(get_topics_alphas()[stringr::str_replace_all(
-                input$topics,
-                "%20",
-                " "
-              )])
+      # Snapshot of the last dashboard run: filled by the Run button, read by
+      # every dashboard output. Session scoped, unlike d/cd which are built
+      # once for the whole app.
+      dash <- shiny::reactiveVal(NULL)
+      # Dedicated progress environment, so a dashboard run cannot close the
+      # progress bar of another operation.
+      prog <- new.env()
+
+      # Reads one element of the snapshot: nothing is rendered before the
+      # first Run, and a validation or computation error is replayed in every
+      # output panel.
+      dash_get <- function(part) {
+        res <- dash()
+        shiny::req(res)
+        shiny::validate(shiny::need(is.null(res$error), res$error))
+        res[[part]]
+      }
+
+      # The chart download buttons are only usable once a Run has succeeded,
+      # and are disabled again if a later Run fails. Unavailable buttons (see
+      # dash_download_button) are left alone: they stay disabled.
+      shiny::observe({
+        res <- dash()
+        disabled <- is.null(res) || !is.null(res$error)
+        shinyjs::runjs(sprintf(
+          "$('a.dash-download:not(.dash-unavailable)')
+            .toggleClass('dash-disabled', %1$s)
+            .attr('aria-disabled', %1$s ? 'true' : null)
+            .attr('tabindex', %1$s ? '-1' : null);",
+          tolower(disabled)
+        ))
+      })
+
+      ################################################
+      ######### FILTERS LOGIC ########################
+      ################################################
+
+      # updating alpha filter based on selected topic value
+      shiny::observe({
+        # reading input$topics will automatically trigger the update on change
+        val <- {
+          if (length(input$topics) == 0 || input$topics == "") {
+            conf$alert_alpha
+          } else {
+            unname(get_topics_alphas()[stringr::str_replace_all(
+              input$topics,
+              "%20",
+              " "
+            )])
           }
-          shiny::updateSliderInput(
-            session,
-            "alpha_filter",
-            value = val,
-            min = 0,
-            max = 0.3,
-            step = 0.005
-          )
-        })
-
-        # upadating outliers alpha filter based on selected topic value
-        shiny::observe({
-          # reading input$topics will automatically trigger the update on change
-          val <- {
-            if (length(input$topics) == 0 || input$topics == "")
-              conf$alert_alpha_outlier else
-              unname(get_topics_alpha_outliers()[stringr::str_replace_all(
-                input$topics,
-                "%20",
-                " "
-              )])
-          }
-          shiny::updateSliderInput(
-            session,
-            "alpha_outlier_filter",
-            value = val,
-            min = 0,
-            max = 0.3,
-            step = 0.005
-          )
-        })
-
-        # update the date ranges based on type of range selected
-        shiny::observe({
-          # reading input$fixed_period will automatically trigger the update on change
-          # refresh dashboard data is necessary to update active dates
-          refresh_dashboard_data(d, input$fixed_period)
-          shiny::updateDateRangeInput(
-            session,
-            "period",
-            start = d$date_start,
-            end = d$date_end,
-            min = d$date_min,
-            max = d$date_max
-          )
-        })
-
-        ################################################
-        ######### DASHBOARD LOGIC ######################
-        ################################################
-        # updating the topics if they change on the configuraton page
-
-	shiny::observe({
-	  d$topics_refresh_flag()
-	  shiny::isolate(refresh_dashboard_data(d))
-	  shiny::updateSelectInput(
-             session,
-             "topics",
-	     choices = d$topics
-	  )
-	})
-
-	# dashboard actions
-	shiny::observeEvent(input$run_dashboard, {
-          # rendering line chart
-          rep = new.env()
-          progress_start("Generating report", rep)
-          output$line_chart <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.15, message = "Generating line chart", rep)
-            shiny::isolate({
-              can_render(input, d)
-              # getting the chart
-              chart <- line_chart_from_filters(
-                input$sms,
-                input$topics,
-                input$countries,
-                input$period_type,
-                input$period,
-                input$with_quotes,
-                input$alpha_filter,
-                input$alpha_outlier_filter,
-                input$k_decay_filter,
-                input$history_filter,
-                input$bonferroni_correction,
-                input$same_weekday_baseline
-              )$chart
-
-              # Setting size based on container size
-              height <- session$clientData$output_line_chart_height
-              width <- session$clientData$output_line_chart_width
-
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              gg <- plotly::ggplotly(
-                chart,
-                height = height,
-                width = width,
-                tooltip = c("label")
-              ) %>%
-                plotly::config(displayModeBar = FALSE)
-
-              # Fixing bad entries on ggplotly chart
-              for (i in 1:length(gg$x$data)) {
-                if (
-                  startsWith(gg$x$data[[i]]$name, "(") &&
-                    endsWith(gg$x$data[[i]]$name, ")")
-                )
-                  gg$x$data[[i]]$name = gsub(
-                    "\\(|\\)|,|[0-9]",
-                    "",
-                    gg$x$data[[i]]$name
-                  ) else gg$x$data[[i]]$name = "                        "
-                gg$x$data[[i]]$legendgroup = gsub(
-                  "\\(|\\)|,|[0-9]",
-                  "",
-                  gg$x$data[[i]]$legendgroup
-                )
-              }
-              gg
-            })
-          })
-
-          # rendering map chart
-          output$map_chart <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.30, message = "Generating map chart", rep)
-
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_map_chart_height
-              width <- session$clientData$output_map_chart_width
-
-              # getting the chart
-              chart <- map_chart_from_filters(
-                input$sms,
-                input$topics,
-                input$countries,
-                input$period,
-                input$with_quotes
-              )$chart
-
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              gg <- chart %>%
-                plotly::ggplotly(
-                  height = height,
-                  width = width,
-                  tooltip = c("label")
-                ) %>%
-                plotly::layout(
-                  title = list(text = paste("<b>", chart$labels$title, "</b>")),
-                  margin = list(l = 5, r = 5, b = 50, t = 80),
-                  annotations = list(
-                    text = chart$labels$caption,
-                    font = list(size = 10),
-                    showarrow = FALSE,
-                    xref = 'paper',
-                    x = 0,
-                    yref = 'paper',
-                    y = -0.15
-                  ) #,
-                  #legend = list(orientation = 'v')
-                ) %>%
-                plotly::config(displayModeBar = FALSE)
-
-              # Fixing bad entries on ggplotly chart
-              for (i in 1:length(gg$x$data)) {
-                if (
-                  substring(gg$x$data[[i]]$name, 1, 2) %in%
-                    c("a.", "b.", "c.", "d.", "e.", "f.", "g.", "h.")
-                )
-                  gg$x$data[[i]]$name <- substring(
-                    gg$x$data[[i]]$name,
-                    4,
-                    nchar(gg$x$data[[i]]$name)
-                  )
-                #gg$x$data[[i]]$legendgroup <- gsub("\\(|\\)|,|[0-9]", "", gg$x$data[[i]]$legendgroup)
-              }
-              gg
-            })
-          })
-
-          output$top_chart1 <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.45, message = "Generating top chart 1", rep)
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_top_chart1_height
-              width <- session$clientData$output_top_chart1_width
-
-              # getting the chart
-              chart <- top_chart_from_filters(
-                input$sms,
-                input$topics,
-                "tags",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                20
-              )$chart
-
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              chart %>%
-                plotly::ggplotly(height = height, width = width) %>%
-                plotly::layout(
-                  title = list(
-                    text = paste(
-                      "<b>",
-                      chart$labels$title,
-                      "<br>",
-                      chart$labels$subtitle
-                    ),
-                    "</b>"
-                  ),
-                  margin = list(l = 30, r = 30, b = 100, t = 80),
-                  annotations = list(
-                    text = chart$labels$caption,
-                    font = list(size = 10),
-                    showarrow = FALSE,
-                    xref = 'paper',
-                    x = 0,
-                    yref = 'paper',
-                    y = -0.4
-                  )
-                ) %>%
-                plotly::config(displayModeBar = FALSE)
-            })
-          })
-
-          output$top_chart2 <- plotly::renderPlotly({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.7, message = "Generating top chart 2", rep)
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_top_chart2_height
-              width <- session$clientData$output_top_chart2_width
-
-              # getting the chart
-              chart <- top_chart_from_filters(
-                input$sms,
-                input$topics,
-                "topwords",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                20
-              )$chart
-
-              # returning empty chart if no data is found on chart
-              chart_not_empty(chart)
-
-              # transforming chart on plotly
-              chart %>%
-                plotly::ggplotly(height = height, width = width) %>%
-                plotly::layout(
-                  title = list(
-                    text = paste(
-                      "<b>",
-                      chart$labels$title,
-                      "<br>",
-                      chart$labels$subtitle
-                    ),
-                    "</b>"
-                  ),
-                  margin = list(l = 30, r = 30, b = 100, t = 80),
-                  annotations = list(
-                    text = chart$labels$caption,
-                    font = list(size = 10),
-                    showarrow = FALSE,
-                    xref = 'paper',
-                    x = 0,
-                    yref = 'paper',
-                    y = -0.4
-                  )
-                ) %>%
-                plotly::config(displayModeBar = FALSE)
-            })
-          })
-
-          output$top_table_title <- shiny::isolate({
-            shiny::renderText({
-              topic <- unname(get_topics_labels()[stringr::str_replace_all(
-                input$topics,
-                "%20",
-                " "
-              )])
-              paste(
-                "<h5 style=\"font-weight:bold;font-family:Helvetica;font-size:16px\">Top URLS of messages mentioning",
-                topic,
-                "from",
-                input$period[[1]],
-                "to",
-                input$period[[2]],
-                "</h5>"
-              )
-            })
-          })
-          output$top_table <- DT::renderDataTable({
-            # Validate if minimal requirements for rendering are met
-            progress_set(value = 0.85, message = "Generating top links", rep)
-
-            shiny::isolate({
-              can_render(input, d)
-              # Setting size based on container size
-              height <- session$clientData$output_top_chart2_height
-              width <- session$clientData$output_top_chart2_width
-
-              # getting the chart to obtain the table
-              chart <- top_chart_from_filters(
-                input$sms,
-                input$topics,
-                "urls",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                200
-              )$chart
-
-              # returning empty if no data is found on chart
-              chart_not_empty(chart)
-
-              data <- chart$data %>%
-                dplyr::mutate(
-                  top = paste(
-                    "<a href=\"",
-                    .data$top,
-                    "\"  target=\"_blank\">",
-                    .data$top,
-                    "</a>"
-                  )
-                ) %>%
-                dplyr::rename(Url = .data$top, Frequency = .data$frequency) %>%
-                DT::datatable(escape = FALSE)
-            })
-          })
-
-          output$top_table_disc <- shiny::isolate({
-            shiny::renderText({
-              progress_close(rep)
-            })
-          })
-        })
-        # Saving line chart as png and downloading it from shiny app
-        output$export_line <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "line_dataset_",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".png",
-              sep = ""
-            )
-          },
-          content = function(file) {
-            chart <-
-              line_chart_from_filters(
-                input$sms,
-                input$topics,
-                input$countries,
-                input$period_type,
-                input$period,
-                input$with_quotes,
-                input$alpha_filter,
-                input$alpha_outlier_filter,
-                input$k_decay_filter,
-                input$history_filter,
-                input$bonferroni_correction,
-                input$same_weekday_baseline
-              )$chart
-            device <- function(..., width, height)
-              grDevices::png(
-                ...,
-                width = width,
-                height = height,
-                res = 300,
-                units = "in"
-              )
-            ggplot2::ggsave(file, plot = chart, device = device)
-          }
+        }
+        shiny::updateSliderInput(
+          session,
+          "alpha_filter",
+          value = val,
+          min = 0.005,
+          max = 0.3,
+          step = 0.005
         )
-        # Saving line chart as CSV and downloading it from shiny app
-        output$download_line_data <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "line_dataset_",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".csv",
-              sep = ""
-            )
-          },
-          content = function(file) {
-            write.csv(
-              line_chart_from_filters(
-                input$sms,
-                input$topics,
-                input$countries,
-                input$period_type,
-                input$period,
-                input$with_quotes,
-                input$alpha_filter,
-                input$alpha_outlier_filter,
-                input$k_decay_filter,
-                input$history_filter,
-                input$bonferroni_correction,
-                input$same_weekday_baseline
-              )$data,
-              file,
-              row.names = FALSE
-            )
-          }
-        )
+      })
 
-        # Saving map chart as CSV and downloading it from shiny app
-        output$download_map_data <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "map_dataset_",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".csv",
-              sep = ""
-            )
-          },
-          content = function(file) {
-            write.csv(
-              map_chart_from_filters(
-                input$sms,
-                input$topics,
-                input$countries,
-                input$period,
-                input$with_quotes
-              )$data,
-              file,
-              row.names = FALSE
-            )
+      # upadating outliers alpha filter based on selected topic value
+      shiny::observe({
+        # reading input$topics will automatically trigger the update on change
+        val <- {
+          if (length(input$topics) == 0 || input$topics == "") {
+            conf$alert_alpha_outlier
+          } else {
+            unname(get_topics_alpha_outliers()[stringr::str_replace_all(
+              input$topics,
+              "%20",
+              " "
+            )])
           }
+        }
+        shiny::updateSliderInput(
+          session,
+          "alpha_outlier_filter",
+          value = val,
+          min = 0,
+          max = 0.3,
+          step = 0.005
         )
+      })
 
-        # Saving map chart as png and downloading it from shiny app
-        output$export_map <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "map_dataset_",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".png",
-              sep = ""
+      # update the date ranges based on type of range selected
+      shiny::observe({
+        # reading input$fixed_period will automatically trigger the update on change
+        # refresh dashboard data is necessary to update active dates
+        refresh_dashboard_data(d, input$fixed_period)
+        shiny::updateDateRangeInput(
+          session,
+          "period",
+          start = d$date_start,
+          end = d$date_end,
+          min = d$date_min,
+          max = d$date_max
+        )
+      })
+
+      ################################################
+      ######### DASHBOARD LOGIC ######################
+      ################################################
+      # updating the topics if they change on the configuraton page
+
+      shiny::observe({
+        d$topics_refresh_flag()
+        shiny::isolate(refresh_dashboard_data(d))
+        shiny::updateSelectInput(
+          session,
+          "topics",
+          choices = d$topics
+        )
+      })
+
+      # dashboard actions
+      # Clicking Run computes every dataset once and stores the result in
+      # dash(). The outputs below only read that snapshot, so they never
+      # depend on the filters directly and only change when Run is clicked.
+      shiny::observeEvent(input$run_dashboard, {
+        progress_start("Generating report", prog)
+        on.exit(progress_close(prog), add = TRUE)
+
+        tryCatch(
+          {
+            # Validate if minimal requirements for rendering are met
+            can_render(input, d)
+
+            progress_set(value = 0.15, message = "Generating line chart", prog)
+            line <- line_chart_from_filters(
+              input$sms,
+              input$topics,
+              input$countries,
+              input$period_type,
+              input$period,
+              input$with_quotes,
+              input$alpha_filter,
+              input$alpha_outlier_filter,
+              input$k_decay_filter,
+              input$history_filter,
+              input$bonferroni_correction,
+              input$same_weekday_baseline
             )
-          },
-          content = function(file) {
-            chart <- map_chart_from_filters(
+
+            progress_set(value = 0.30, message = "Generating map chart", prog)
+            map <- map_chart_from_filters(
               input$sms,
               input$topics,
               input$countries,
               input$period,
               input$with_quotes
-            )$chart
-            device <- function(..., width, height)
-              grDevices::png(
-                ...,
-                width = width,
-                height = height,
-                res = 300,
-                units = "in"
-              )
-            ggplot2::ggsave(file, plot = chart, device = device)
-          }
-        )
+            )
 
-        # Saving top chart 1 as CSV and downloading it from shiny app
-        output$download_top1_data <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "top_dataset_",
+            progress_set(value = 0.45, message = "Generating top chart 1", prog)
+            top1 <- top_chart_from_filters(
+              input$sms,
+              input$topics,
               "tags",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".csv",
-              sep = ""
+              input$countries,
+              input$period,
+              input$with_quotes,
+              20
             )
-          },
-          content = function(file) {
-            write.csv(
-              top_chart_from_filters(
-                input$sms,
-                input$topics,
-                "tags",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                200
-              )$data,
-              file,
-              row.names = FALSE
-            )
-          }
-        )
-        # Saving top chart 2 as CSV and downloading it from shiny app
-        output$download_top2_data <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "top_dataset_",
+
+            progress_set(value = 0.7, message = "Generating top chart 2", prog)
+            top2 <- top_chart_from_filters(
+              input$sms,
+              input$topics,
               "topwords",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".csv",
-              sep = ""
+              input$countries,
+              input$period,
+              input$with_quotes,
+              20
             )
-          },
-          content = function(file) {
-            write.csv(
-              top_chart_from_filters(
-                input$sms,
-                input$topics,
-                "topwords",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                200
-              )$data,
-              file,
-              row.names = FALSE
-            )
-          }
-        )
-        # Saving top table as CSV and downloading it from shiny app
-        output$download_top3_data <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "top_dataset_",
+
+            progress_set(value = 0.85, message = "Generating top links", prog)
+            urls <- top_chart_from_filters(
+              input$sms,
+              input$topics,
               "urls",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".csv",
-              sep = ""
+              input$countries,
+              input$period,
+              input$with_quotes,
+              200
             )
+
+            dash(list(
+              error = NULL,
+              # snapshot of the filters, so that the table title cannot
+              # describe a topic other than the one shown below it
+              topics = input$topics,
+              period = input$period,
+              line = line,
+              map = map,
+              top1 = top1,
+              top2 = top2,
+              urls = urls
+            ))
           },
-          content = function(file) {
-            write.csv(
-              top_chart_from_filters(
-                input$sms,
-                input$topics,
-                "urls",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                200
-              )$data,
-              file,
-              row.names = FALSE
-            )
+          # can_render() raises a shiny.silent.error, which an observer would
+          # swallow silently: store the message so dash_get() can replay it
+          validation = function(e) dash(list(error = conditionMessage(e))),
+          error = function(e) {
+            message(e)
+            dash(list(error = conditionMessage(e)))
           }
         )
+      })
 
-        # Saving top chart 1 as png and downloading it from shiny app
-        output$export_top1 <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "top_",
-              "tags",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".png",
-              sep = ""
+      # rendering line chart
+      output$line_chart <- plotly::renderPlotly({
+        chart <- dash_get("line")$chart
+
+        # Setting size based on container size. Isolated on purpose: charts
+        # keep the size they had when Run was clicked instead of being
+        # recomputed on every window resize.
+        height <- shiny::isolate(session$clientData$output_line_chart_height)
+        width <- shiny::isolate(session$clientData$output_line_chart_width)
+
+        # returning empty chart if no data is found on chart
+        chart_not_empty(chart)
+
+        # transforming chart on plotly
+        gg <- plotly::ggplotly(
+          chart,
+          height = height,
+          width = width,
+          tooltip = c("label")
+        ) %>%
+          plotly::config(displayModeBar = FALSE)
+
+        # Fixing bad entries on ggplotly chart
+        for (i in 1:length(gg$x$data)) {
+          if (
+            startsWith(gg$x$data[[i]]$name, "(") &&
+              endsWith(gg$x$data[[i]]$name, ")")
+          ) {
+            gg$x$data[[i]]$name <- gsub(
+              "\\(|\\)|,|[0-9]",
+              "",
+              gg$x$data[[i]]$name
             )
-          },
-          content = function(file) {
-            chart <-
-              top_chart_from_filters(
+          } else {
+            gg$x$data[[i]]$name <- "                        "
+          }
+          gg$x$data[[i]]$legendgroup <- gsub(
+            "\\(|\\)|,|[0-9]",
+            "",
+            gg$x$data[[i]]$legendgroup
+          )
+        }
+        gg
+      })
+
+      # rendering map chart
+      output$map_chart <- plotly::renderPlotly({
+        chart <- dash_get("map")$chart
+
+        # Setting size based on container size
+        height <- shiny::isolate(session$clientData$output_map_chart_height)
+        width <- shiny::isolate(session$clientData$output_map_chart_width)
+
+        # returning empty chart if no data is found on chart
+        chart_not_empty(chart)
+
+        # transforming chart on plotly
+        gg <- chart %>%
+          plotly::ggplotly(
+            height = height,
+            width = width,
+            tooltip = c("label")
+          ) %>%
+          plotly::layout(
+            title = list(text = paste("<b>", chart$labels$title, "</b>")),
+            margin = list(l = 5, r = 5, b = 50, t = 80),
+            annotations = list(
+              text = chart$labels$caption,
+              font = list(size = 10),
+              showarrow = FALSE,
+              xref = 'paper',
+              x = 0,
+              yref = 'paper',
+              y = -0.15
+            ) #,
+            #legend = list(orientation = 'v')
+          ) %>%
+          plotly::config(displayModeBar = FALSE)
+
+        # Fixing bad entries on ggplotly chart
+        for (i in 1:length(gg$x$data)) {
+          if (
+            substring(gg$x$data[[i]]$name, 1, 2) %in%
+              c("a.", "b.", "c.", "d.", "e.", "f.", "g.", "h.")
+          ) {
+            gg$x$data[[i]]$name <- substring(
+              gg$x$data[[i]]$name,
+              4,
+              nchar(gg$x$data[[i]]$name)
+            )
+          }
+          #gg$x$data[[i]]$legendgroup <- gsub("\\(|\\)|,|[0-9]", "", gg$x$data[[i]]$legendgroup)
+        }
+        gg
+      })
+
+      output$top_chart1 <- plotly::renderPlotly({
+        chart <- dash_get("top1")$chart
+
+        # Setting size based on container size
+        height <- shiny::isolate(session$clientData$output_top_chart1_height)
+        width <- shiny::isolate(session$clientData$output_top_chart1_width)
+
+        # returning empty chart if no data is found on chart
+        chart_not_empty(chart)
+
+        # transforming chart on plotly
+        chart %>%
+          plotly::ggplotly(height = height, width = width) %>%
+          plotly::layout(
+            title = list(
+              text = paste(
+                "<b>",
+                chart$labels$title,
+                "<br>",
+                chart$labels$subtitle
+              ),
+              "</b>"
+            ),
+            margin = list(l = 30, r = 30, b = 100, t = 80),
+            annotations = list(
+              text = text <- if (!is.null(chart$labels$caption)) {
+                chart$labels$caption
+              } else {
+                ""
+              },
+              font = list(size = 10),
+              showarrow = FALSE,
+              xref = 'paper',
+              x = 0,
+              yref = 'paper',
+              y = -0.4
+            )
+          ) %>%
+          plotly::config(displayModeBar = FALSE)
+      })
+
+      output$top_chart2 <- plotly::renderPlotly({
+        chart <- dash_get("top2")$chart
+
+        # Setting size based on container size
+        height <- shiny::isolate(session$clientData$output_top_chart2_height)
+        width <- shiny::isolate(session$clientData$output_top_chart2_width)
+
+        # returning empty chart if no data is found on chart
+        chart_not_empty(chart)
+
+        # transforming chart on plotly
+        chart %>%
+          plotly::ggplotly(height = height, width = width) %>%
+          plotly::layout(
+            title = list(
+              text = paste(
+                "<b>",
+                chart$labels$title,
+                "<br>",
+                chart$labels$subtitle
+              ),
+              "</b>"
+            ),
+            margin = list(l = 30, r = 30, b = 100, t = 80),
+            annotations = list(
+              text = if (!is.null(chart$labels$caption)) {
+                chart$labels$caption
+              } else {
+                ""
+              },
+              font = list(size = 10),
+              showarrow = FALSE,
+              xref = 'paper',
+              x = 0,
+              yref = 'paper',
+              y = -0.4
+            )
+          ) %>%
+          plotly::config(displayModeBar = FALSE)
+      })
+
+      output$top_table_title <- shiny::renderText({
+        # reading the snapshot, not the live filters, so the title always
+        # describes the table currently displayed
+        res <- dash_get("topics")
+        topic <- unname(get_topics_labels()[stringr::str_replace_all(
+          res,
+          "%20",
+          " "
+        )])
+        period <- dash_get("period")
+        paste(
+          "<h5 style=\"font-weight:bold;font-family:Helvetica;font-size:16px\">Top URLS of messages mentioning",
+          topic,
+          "from",
+          period[[1]],
+          "to",
+          period[[2]],
+          "</h5>"
+        )
+      })
+
+      output$top_table <- DT::renderDataTable({
+        chart <- dash_get("urls")$chart
+
+        # returning empty if no data is found on chart
+        chart_not_empty(chart)
+
+        chart$data %>%
+          dplyr::mutate(
+            top = paste(
+              "<a href=\"",
+              .data$top,
+              "\"  target=\"_blank\">",
+              .data$top,
+              "</a>"
+            )
+          ) %>%
+          dplyr::rename(Url = "top", Frequency = "frequency") %>%
+          DT::datatable(escape = FALSE)
+      })
+
+      # kept as an empty placeholder: closing the progress bar is now handled
+      # by the Run observer itself
+      output$top_table_disc <- shiny::renderText("")
+
+      # Saving line chart as png and downloading it from shiny app
+      output$export_line <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "line_dataset_",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".png",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          chart <-
+            line_chart_from_filters(
+              input$sms,
+              input$topics,
+              input$countries,
+              input$period_type,
+              input$period,
+              input$with_quotes,
+              input$alpha_filter,
+              input$alpha_outlier_filter,
+              input$k_decay_filter,
+              input$history_filter,
+              input$bonferroni_correction,
+              input$same_weekday_baseline
+            )$chart
+          device <- function(..., width, height) {
+            grDevices::png(
+              ...,
+              width = width,
+              height = height,
+              res = 300,
+              units = "in"
+            )
+          }
+          ggplot2::ggsave(file, plot = chart, device = device)
+        }
+      )
+      # Saving line chart as CSV and downloading it from shiny app
+      output$download_line_data <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "line_dataset_",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".csv",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          write.csv(
+            line_chart_from_filters(
+              input$sms,
+              input$topics,
+              input$countries,
+              input$period_type,
+              input$period,
+              input$with_quotes,
+              input$alpha_filter,
+              input$alpha_outlier_filter,
+              input$k_decay_filter,
+              input$history_filter,
+              input$bonferroni_correction,
+              input$same_weekday_baseline
+            )$data,
+            file,
+            row.names = FALSE
+          )
+        }
+      )
+
+      # Saving map chart as CSV and downloading it from shiny app
+      output$download_map_data <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "map_dataset_",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".csv",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          write.csv(
+            map_chart_from_filters(
+              input$sms,
+              input$topics,
+              input$countries,
+              input$period,
+              input$with_quotes
+            )$data,
+            file,
+            row.names = FALSE
+          )
+        }
+      )
+
+      # Saving map chart as png and downloading it from shiny app
+      output$export_map <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "map_dataset_",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".png",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          chart <- map_chart_from_filters(
+            input$sms,
+            input$topics,
+            input$countries,
+            input$period,
+            input$with_quotes
+          )$chart
+          device <- function(..., width, height) {
+            grDevices::png(
+              ...,
+              width = width,
+              height = height,
+              res = 300,
+              units = "in"
+            )
+          }
+          ggplot2::ggsave(file, plot = chart, device = device)
+        }
+      )
+
+      # Saving top chart 1 as CSV and downloading it from shiny app
+      output$download_top1_data <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "top_dataset_",
+            "tags",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".csv",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          write.csv(
+            top_chart_from_filters(
+              input$sms,
+              input$topics,
+              "tags",
+              input$countries,
+              input$period,
+              input$with_quotes,
+              200
+            )$data,
+            file,
+            row.names = FALSE
+          )
+        }
+      )
+      # Saving top chart 2 as CSV and downloading it from shiny app
+      output$download_top2_data <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "top_dataset_",
+            "topwords",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".csv",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          write.csv(
+            top_chart_from_filters(
+              input$sms,
+              input$topics,
+              "topwords",
+              input$countries,
+              input$period,
+              input$with_quotes,
+              200
+            )$data,
+            file,
+            row.names = FALSE
+          )
+        }
+      )
+      # Saving top table as CSV and downloading it from shiny app
+      output$download_top3_data <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "top_dataset_",
+            "urls",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".csv",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          write.csv(
+            top_chart_from_filters(
+              input$sms,
+              input$topics,
+              "urls",
+              input$countries,
+              input$period,
+              input$with_quotes,
+              200
+            )$data,
+            file,
+            row.names = FALSE
+          )
+        }
+      )
+
+      # Saving top chart 1 as png and downloading it from shiny app
+      output$export_top1 <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "top_",
+            "tags",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".png",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          chart <-
+            top_chart_from_filters(
+              input$sms,
+              input$topics,
+              "tags",
+              input$countries,
+              input$period,
+              input$with_quotes,
+              50
+            )$chart
+          device <- function(..., width, height) {
+            grDevices::png(
+              ...,
+              width = width,
+              height = height,
+              res = 300,
+              units = "in"
+            )
+          }
+          ggplot2::ggsave(file, plot = chart, device = device)
+        }
+      )
+
+      # Saving top chart 2 as png and downloading it from shiny app
+      output$export_top2 <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "top_",
+            "topwords",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            ".png",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          chart <-
+            top_chart_from_filters(
+              input$sms,
+              input$topics,
+              "topwords",
+              input$countries,
+              input$period,
+              input$with_quotes,
+              50
+            )$chart
+          device <- function(..., width, height) {
+            grDevices::png(
+              ...,
+              width = width,
+              height = height,
+              res = 300,
+              units = "in"
+            )
+          }
+          ggplot2::ggsave(file, plot = chart, device = device)
+        }
+      )
+
+      # Saving dashboard as PDF downloading it from shiny app
+      output$export_pdf <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "episomer_dashboard_",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            "_",
+            "tags",
+            "_",
+            "topwords",
+            ".pdf",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          progress_start("Exporting dashboard")
+          tryCatch(
+            {
+              export_dashboard(
+                "pdf_document",
+                file,
                 input$sms,
                 input$topics,
+                input$countries,
+                input$period_type,
+                input$period,
+                input$with_quotes,
+                input$location_type,
+                input$alpha_filter,
+                input$alpha_outlier_filter,
+                input$k_decay_filter,
+                input$history_filter,
+                input$bonferroni_correction,
+                input$same_weekday_baseline,
                 "tags",
-                input$countries,
-                input$period,
-                input$with_quotes,
-                50
-              )$chart
-            device <- function(..., width, height)
-              grDevices::png(
-                ...,
-                width = width,
-                height = height,
-                res = 300,
-                units = "in"
+                "topwords"
               )
-            ggplot2::ggsave(file, plot = chart, device = device)
-          }
-        )
-
-        # Saving top chart 2 as png and downloading it from shiny app
-        output$export_top2 <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "top_",
-              "topwords",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              ".png",
-              sep = ""
-            )
-          },
-          content = function(file) {
-            chart <-
-              top_chart_from_filters(
+              progress_close()
+            },
+            error = function(e) {
+              app_error(e, env = cd)
+              # re-raising so shiny aborts the download instead of serving an empty file
+              stop(e)
+            }
+          )
+        }
+      )
+      # Saving dashboard as markdown downloading it from shiny app
+      output$export_md <- shiny::downloadHandler(
+        filename = function() {
+          paste(
+            "episomer_dashboard_",
+            "_",
+            paste(input$topics, collapse = "-"),
+            "_",
+            paste(input$countries, collapse = "-"),
+            "_",
+            input$period[[1]],
+            "_",
+            input$period[[2]],
+            "_",
+            "tags",
+            "_",
+            "topwords",
+            ".zip",
+            sep = ""
+          )
+        },
+        content = function(file) {
+          progress_start("Exporting dashboard")
+          tryCatch(
+            {
+              export_dashboard(
+                "md_document",
+                file,
                 input$sms,
                 input$topics,
-                "topwords",
                 input$countries,
+                input$period_type,
                 input$period,
                 input$with_quotes,
-                50
-              )$chart
-            device <- function(..., width, height)
-              grDevices::png(
-                ...,
-                width = width,
-                height = height,
-                res = 300,
-                units = "in"
+                input$location_type,
+                input$alpha_filter,
+                input$alpha_outlier_filter,
+                input$k_decay_filter,
+                input$history_filter,
+                input$bonferroni_correction,
+                input$same_weekday_baseline,
+                "tags",
+                "topwords"
               )
-            ggplot2::ggsave(file, plot = chart, device = device)
-          }
-        )
-
-        # Saving dashboard as PDF downloading it from shiny app
-        output$export_pdf <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "episomer_dashboard_",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              "_",
-              "tags",
-              "_",
-              "topwords",
-              ".pdf",
-              sep = ""
-            )
-          },
-          content = function(file) {
-            export_dashboard(
-              "pdf_document",
-              file,
-              input$sms,
-              input$topics,
-              input$countries,
-              input$period_type,
-              input$period,
-              input$with_quotes,
-              input$location_type,
-              input$alpha_filter,
-              input$alpha_outlier_filter,
-              input$k_decay_filter,
-              input$history_filter,
-              input$bonferroni_correction,
-              input$same_weekday_baseline,
-              "tags",
-              "topwords"
-            )
-          }
-        )
-        # Saving dashboard as markdown downloading it from shiny app
-        output$export_md <- shiny::downloadHandler(
-          filename = function() {
-            paste(
-              "episomer_dashboard_",
-              "_",
-              paste(input$topics, collapse = "-"),
-              "_",
-              paste(input$countries, collapse = "-"),
-              "_",
-              input$period[[1]],
-              "_",
-              input$period[[2]],
-              "_",
-              "tags",
-              "_",
-              "topwords",
-              ".md",
-              sep = ""
-            )
-          },
-          content = function(file) {
-            export_dashboard(
-              "md_document",
-              file,
-              input$sms,
-              input$topics,
-              input$countries,
-              input$period_type,
-              input$period,
-              input$with_quotes,
-              input$location_type,
-              input$alpha_filter,
-              input$alpha_outlier_filter,
-              input$k_decay_filter,
-              input$history_filter,
-              input$bonferroni_correction,
-              input$same_weekday_baseline,
-              "tags",
-              "topwords"
-            )
-          }
-        )
+              progress_close()
+            },
+            error = function(e) {
+              app_error(e, env = cd)
+              # re-raising so shiny aborts the download instead of serving an empty file
+              stop(e)
+            }
+          )
+        }
+      )
     }
 
+    if ("admin" %in% profile) {
+      ################################################
+      ######### CONFIGURATION LOGIC ##################
+      ################################################
 
-    if("admin" %in% profile) {
-        ################################################
-        ######### CONFIGURATION LOGIC ##################
-        ################################################
-        
-        ######### STATUS PANEL LOGIC ##################
-        # Timer for updating task statuses
-        # each ten seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
-        # each ten seconds a process refresh flag will be invalidated to trigger process status recalculation
-        shiny::observe({
-          # Setting the timer
-          shiny::invalidateLater(10000)
+      ################################################
+      ######### TOGGLE LOGIC FOR SECTIONS ###########
+      ################################################
+      config_sections <- c(
+        config_status_title = "config_status_body",
+        config_signal_title = "config_signal_body",
+        config_general_title = "config_general_body",
+        config_smtp_title = "config_smtp_body",
+        config_taskreg_title = "config_taskreg_body",
+        config_alerts_title = "config_alerts_body",
+        config_socialmedia_title = "config_socialmedia_body",
+        config_topics_title = "config_topics_body",
+        config_langs_title = "config_langs_body",
+        config_users_title = "config_users_body",
+        config_subscribers_title = "config_subscribers_body",
+        config_countries_title = "config_countries_body"
+      )
 
-          # updating config data
-          refresh_config_data(cd, list("tasks", "topics", "langs"))
-
-          # invalidating the process refresh flag
-          cd$process_refresh_flag(Sys.time())
+      lapply(names(config_sections), function(title_id) {
+        body_id <- config_sections[[title_id]]
+        shinyjs::onclick(title_id, {
+          shinyjs::toggle(id = body_id, anim = TRUE)
         })
+      })
 
-        # rendering the Data collection & processing running status
-        output$search_running <- shiny::renderText({
-          # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
-          cd$tasks_refresh_flag()
-          # Adding a dependency to process update (each 10 seconds)
-          cd$process_refresh_flag()
+      shiny::observeEvent(
+        TRUE,
+        {
+          lapply(config_sections, function(body_id) {
+            shinyjs::hide(id = body_id)
+          })
+        },
+        once = TRUE
+      )
 
-          color = if (
-            cd$search_running &&
-              !is.na(cd$search_diff) &&
-              length(cd$missing_search_jobs) == 0
-          ) {
-            "#348017"
-          } else if (!cd$search_running || is.na(cd$search_diff)) {
-            "#F75D59"
-          } else {
-            "#EfAF0D"
-          }
+      ######### STATUS PANEL LOGIC ##################
+      # Timer for updating task statuses
+      # each sixty seconds config data will be reloaded to capture changes from data collection & processing and requirements & alerts pipelines
+      # each sixty seconds a process refresh flag will be invalidated to trigger process status recalculation
+      shiny::observe({
+        # Setting the timer
+        shiny::invalidateLater(60000)
 
-          message = ""
-          if (!cd$search_running || is.na(cd$search_diff)) {
-            message = "Stopped"
-          } else {
-            message = "Running"
-          }
-          if (!is.na(cd$search_diff)) {
-            message = paste(
-              message,
-              "( wrote",
-              round(cd$search_diff, 2),
-              units(cd$search_diff),
-              "ago )"
-            )
-          }
-          if (length(cd$missing_search_jobs) > 0) {
-            message = paste(
-              message,
-              "<br/>",
-              paste(cd$missing_search_jobs, collapse = ", "),
-              " missing"
-            )
-          }
+        # updating config data
+        refresh_config_data(cd, list("tasks", "topics", "langs"))
 
-          # updating the label
-          paste(
-            "<span",
-            " style='color:",
-            color,
-            "'>",
+        # invalidating the process refresh flag
+        cd$process_refresh_flag(Sys.time())
+      })
+
+      # rendering the Data collection & processing running status
+      output$search_running <- shiny::renderText({
+        # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
+        cd$tasks_refresh_flag()
+        # Adding a dependency to process update (each 10 seconds)
+        cd$process_refresh_flag()
+
+        color <- if (
+          cd$search_running &&
+            !is.na(cd$search_diff) &&
+            length(cd$missing_search_jobs) == 0
+        ) {
+          "#348017"
+        } else if (!cd$search_running || is.na(cd$search_diff)) {
+          "#F75D59"
+        } else {
+          "#EfAF0D"
+        }
+
+        message <- ""
+        if (!cd$search_running || is.na(cd$search_diff)) {
+          message <- paste0(
+            "Stopped (for ",
+            format_status_duration(cd$search_since),
+            ")"
+          )
+        } else {
+          message <- "Running"
+        }
+        if (!is.na(cd$search_diff)) {
+          message <- paste(
             message,
-            "</span>",
-            sep = ""
+            "( wrote",
+            round(cd$search_diff, 2),
+            units(cd$search_diff),
+            "ago )"
           )
-        })
-
-        # rendering the fs running status
-        output$fs_running <- shiny::renderText({
-          # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
-          cd$tasks_refresh_flag()
-          # Adding a dependency to process update (each 10 seconds)
-          cd$process_refresh_flag()
-
-          # updating the label
-          paste(
-            "<span",
-            " style='color:",
-            if (cd$fs_running) "#348017'" else "#F75D59'",
-            ">",
-            if (cd$fs_running) "Running" else "Stopped",
-            "</span>",
-            sep = ""
+        }
+        if (length(cd$missing_search_jobs) > 0) {
+          message <- paste(
+            message,
+            "<br/>",
+            paste(cd$missing_search_jobs, collapse = ", "),
+            " missing"
           )
-        })
+        }
 
-        # rendering the Requirements & alerts running status
-        output$detect_running <- shiny::renderText({
-          # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
-          cd$tasks_refresh_flag()
-          # Adding a dependency to process update (each 10 seconds)
-          cd$process_refresh_flag()
+        # updating the label
+        paste(
+          "<span",
+          " style='color:",
+          color,
+          "'>",
+          message,
+          "</span>",
+          sep = ""
+        )
+      })
 
-          # updating the label
-          paste(
-            "<span",
-            " style='color:",
-            if (cd$detect_running) "#348017'" else "#F75D59'",
-            ">",
-            if (cd$detect_running) "Running" else "Stopped",
-            "</span>",
-            sep = ""
+      # rendering the fs running status
+      output$fs_running <- shiny::renderText({
+        # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
+        cd$tasks_refresh_flag()
+        # Adding a dependency to process update (each 10 seconds)
+        cd$process_refresh_flag()
+
+        # updating the label
+        paste(
+          "<span",
+          " style='color:",
+          if (cd$fs_running) "#348017'" else "#F75D59'",
+          ">",
+          if (cd$fs_running) {
+            "Running"
+          } else {
+            paste0("Stopped (for ", format_status_duration(cd$fs_since), ")")
+          },
+          "</span>",
+          sep = ""
+        )
+      })
+
+      # rendering the jar version of the fs service, flagging a mismatch with this app's package
+      output$fs_jar_version <- shiny::renderText({
+        cd$process_refresh_flag()
+        app_version <- as.character(utils::packageVersion(get_package_name()))
+        fs_version <- if (cd$fs_running) get_fs_jar_version() else NA_character_
+        if (is.na(fs_version)) {
+          "<span style='color:#888'>Unknown (database stopped or too old to report its version)</span>"
+        } else if (identical(fs_version, app_version)) {
+          paste0("<span style='color:#348017'>", fs_version, "</span>")
+        } else {
+          paste0(
+            "<span style='color:#F75D59'>Mismatch: database runs ",
+            fs_version,
+            ", app is ",
+            app_version,
+            "</span>"
           )
-        })
+        }
+      })
 
-        # rendering the slots each time properties are changed
-        output$conf_schedule_slots <- shiny::renderText({
-          # Adding a dependency to config refresh
-          cd$properties_refresh_flag()
+      # rendering the Requirements & alerts running status
+      output$detect_running <- shiny::renderText({
+        # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
+        cd$tasks_refresh_flag()
+        # Adding a dependency to process update (each 10 seconds)
+        cd$process_refresh_flag()
 
-          #rendering the label
-          paste(
-            head(
-              lapply(
-                get_task_day_slots(get_tasks()$alerts),
-                function(d) strftime(d, format = "%H:%M")
-              ),
-              -1
+        # updating the label
+        paste(
+          "<span",
+          " style='color:",
+          if (cd$detect_running) "#348017'" else "#F75D59'",
+          ">",
+          if (cd$detect_running) {
+            "Running"
+          } else {
+            paste0(
+              "Stopped (for ",
+              format_status_duration(cd$detect_since),
+              ")"
+            )
+          },
+          "</span>",
+          sep = ""
+        )
+      })
+
+      # rendering the detail of the runners holding a lease, wherever they run
+      output$runner_leases_table <- DT::renderDataTable({
+        # Adding a dependency to task refresh (each time a task has changed by the Requirements & alerts pipeline)
+        cd$tasks_refresh_flag()
+        # Adding a dependency to process update (each 10 seconds)
+        cd$process_refresh_flag()
+
+        leases_df <- cd$runner_leases_df
+        # Rows that are internal plumbing rather than a service a non-coder would recognise:
+        # - "search" is the parent lease, a supervisor that renews nothing for the whole life of
+        #   the service (see runner_lease_status_label()) - its per-network workers
+        #   (search.bluesky, ...) are the rows that actually say whether collection is happening.
+        # - "fs_mon" is the watchdog that keeps the episomer database (the "fs" row) alive and
+        #   renews its lease; it is not a second database, and showing it next to "fs" as its own
+        #   "episomer database monitor" row reads as one to somebody who did not write this code.
+        leases_df <- leases_df[
+          !(leases_df$Runner %in% c("search", "fs_mon")),
+          ,
+          drop = FALSE
+        ]
+        # Understandable service names for a reader of the status panel, with the raw runner name
+        # kept in brackets so a row is still traceable to what runner_leases_df() reported.
+        leases_df$Runner <- vapply(
+          leases_df$Runner,
+          runner_display_name,
+          character(1)
+        )
+
+        DT::datatable(
+          leases_df,
+          rownames = FALSE,
+          # A status block, not a data table: no search box, no pagination, no sorting - the rows
+          # come in the reading order of runner_leases_df(). scrollX keeps the five columns
+          # readable inside the narrow status panel.
+          options = list(
+            dom = "t",
+            paging = FALSE,
+            ordering = FALSE,
+            scrollX = TRUE,
+            language = list(
+              emptyTable = paste(
+                "No runner holds a lease: no episomer service is running on any machine",
+                "sharing this database."
+              )
+            )
+          )
+        )
+      })
+
+      # rendering the slots each time properties are changed
+      output$conf_schedule_slots <- shiny::renderText({
+        # Adding a dependency to config refresh
+        cd$properties_refresh_flag()
+
+        #rendering the label
+        paste(
+          head(
+            lapply(
+              get_task_day_slots(get_tasks()$alerts),
+              function(d) strftime(d, format = "%H:%M")
             ),
-            collapse = ", "
-          )
-        })
+            -1
+          ),
+          collapse = ", "
+        )
+      })
 
-        # registering the Data collection & processing runner after button is clicked
-        shiny::observeEvent(input$activate_search, {
-          # registering the scheduled task
-          issues = loop_run_issues("search")
-          if (issues == "") {
-            register_search_runner_task()
-            # refresh task data to check if tasks are to be updated
-            refresh_config_data(cd, list("tasks"))
-          } else {
-            shiny::showModal(shiny::modalDialog(
-              title = "Warning",
-              issues,
-              footer = shiny::tagList(shiny::modalButton("OK"))
-            ))
-          }
-        })
-        shiny::observeEvent(input$stop_search, {
-          stop_search_runner_task()
-          # refresh task data to check if tasks are to be updated
-          refresh_config_data(cd, list("tasks"))
-        })
+      # action to activate the alerts task
+      shiny::observeEvent(input$request_alerts, {
+        # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
+        conf$alerts_requested_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        # forcing a task refresh
+        cd$tasks_refresh_flag(Sys.time())
+        # saving configuration so the Requirements & alerts pipeline will see the changes
+        save_config(
+          data_dir = conf$data_dir,
+          properties = TRUE,
+          sm_topics = list()
+        )
+        # refreshing the tasks data
+        refresh_config_data(cd, list("tasks"))
+      })
 
-        # registering the fs runner after button is clicked
-        shiny::observeEvent(input$activate_fs, {
-          issues = loop_run_issues("fs")
-          if (issues == "") {
-            # registering the scheduled task
-            register_fs_runner_task()
-            # refresh task data to check if tasks are to be updated
-            refresh_config_data(cd, list("tasks"))
-          } else {
-            shiny::showModal(shiny::modalDialog(
-              title = "Warning",
-              issues,
-              footer = shiny::tagList(shiny::modalButton("OK"))
-            ))
-          }
-        })
-
-        shiny::observeEvent(input$stop_fs, {
-          # stop the scheduled task
-          stop_fs_runner_task()
-          # refresh task data to check if tasks are to be updated
-          refresh_config_data(cd, list("tasks"))
-        })
-
-        # registering the Requirements & alerts runner after button is clicked
-        shiny::observeEvent(input$activate_detect, {
-          # Setting values configuration to trigger one shot tasks for the first time
-          if (is.na(conf$dep_updated_on))
-            conf$dep_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          if (is.na(conf$geonames_updated_on))
-            conf$geonames_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          if (is.na(conf$lang_updated_on))
-            conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          # Forcing refresh of tasks
-          cd$tasks_refresh_flag(Sys.time())
-          # saving properties to ensure the Requirements & alerts pipeline can see the changes and start running the tasks
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-
-          # registering the scheduled task
-          register_detect_runner_task()
-
-          # refresh task data to check if tasks are to be updated
-          refresh_config_data(cd, list("tasks"))
-        })
-
-        shiny::observeEvent(input$stop_detect, {
-          stop_detect_runner_task()
-          # refresh task data to check if tasks are to be updated
-          refresh_config_data(cd, list("tasks"))
-        })
-
-        # action to activate de dependency download tasks
-        shiny::observeEvent(input$update_dependencies, {
-          # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-          conf$dep_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          # forcing a task refresh :TODO test if this is still necessary
-          cd$tasks_refresh_flag(Sys.time())
-          # saving configuration so the Requirements & alerts pipeline will see the changes
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          # refreshing the tasks data
-          refresh_config_data(cd, list("tasks"))
-        })
-
-        # action to activate the update geonames task
-        shiny::observeEvent(input$update_geonames, {
-          # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-          conf$geonames_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          # forcing a task refresh
-          cd$tasks_refresh_flag(Sys.time())
-          # saving configuration so the Requirements & alerts pipeline will see the changes
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          # refreshing the tasks data
-          refresh_config_data(cd, list("tasks"))
-        })
-
-        # action to activate the update languages task
-        shiny::observeEvent(input$update_languages, {
-          # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-          conf$lang_updated_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          # forcing a task refresh
-          cd$tasks_refresh_flag(Sys.time())
-          # saving configuration so the Requirements & alerts pipeline will see the changes
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          # refreshing the tasks data
-          refresh_config_data(cd, list("tasks"))
-        })
-
-        # action to activate the alerts task
-        shiny::observeEvent(input$request_alerts, {
-          # Setting values on the configuration so the Requirements & alerts pipeline know it has to launch the task
-          conf$alerts_requested_on <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          # forcing a task refresh
-          cd$tasks_refresh_flag(Sys.time())
-          # saving configuration so the Requirements & alerts pipeline will see the changes
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          # refreshing the tasks data
-          refresh_config_data(cd, list("tasks"))
-        })      
-
-        ######### PROPERTIES LOGIC ##################
-        reactive_elements_to_save_in_conf <- shiny::reactive({
-          list(
+      ######### PROPERTIES LOGIC ##################
+      reactive_elements_to_save_in_conf <- shiny::reactive({
+        list(
           conf_collect_span = input$conf_collect_span,
           conf_schedule_span = input$conf_schedule_span,
-          conf_keyring = input$conf_keyring,
           conf_spark_cores = input$conf_spark_cores,
           conf_spark_memory = input$conf_spark_memory,
           conf_onthefly_api = input$conf_onthefly_api,
           geolocation_threshold = input$geolocation_threshold,
-          conf_geonames_url = input$conf_geonames_url,
-          conf_maven_repo = input$conf_maven_repo,
-          conf_winutils_url = input$conf_winutils_url,
-          conf_geonames_simplify = input$conf_geonames_simplify,
           conf_regions_disclaimer = input$conf_regions_disclaimer,
           conf_alpha = input$conf_alpha,
           conf_alpha_outlier = input$conf_alpha_outlier,
@@ -2407,22 +2665,22 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
           conf_smtp_from = input$smtp_from,
           conf_smtp_login = input$smtp_login,
           conf_smtp_password = input$smtp_password,
-          conf_sm_alerts_bluesky = input$conf_sm_alerts_bluesky,
-          conf_sm_activated_bluesky = input$conf_sm_activated_bluesky,
           conf_force_date_format = input$force_date_format
-	  )
-    })
-    debounced_elements_to_save_in_conf <- shiny::debounce(reactive_elements_to_save_in_conf, 3000)
+        )
+      })
+      debounced_elements_to_save_in_conf <- shiny::debounce(
+        reactive_elements_to_save_in_conf,
+        3000
+      )
 
-        shiny::observeEvent(debounced_elements_to_save_in_conf(), {          
+      shiny::observeEvent(
+        debounced_elements_to_save_in_conf(),
+        {
           update_config_from_input(debounced_elements_to_save_in_conf())
 
-          # Saving Bluesky propertes          
-          sm_api_set_auth(
-            network = "bluesky",
-            shiny_input_list = input
-          )                      
-          
+          # Social media activation, instances and alert detection are managed via
+          # episomer::setup(), not from this form, so there is nothing to save here.
+
           # Saving properties.json
           save_config(
             data_dir = conf$data_dir,
@@ -2430,358 +2688,385 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
           # Forcing update on properties dependant refresh (e.g. time slots)
           cd$properties_refresh_flag(Sys.time())
+        },
+        ignoreInit = TRUE
+      )
 
-        }, ignoreInit = TRUE)
+      # the social media table: one row per family, all set up via episomer::setup()
+      output$social_media_table <- DT::renderDataTable({
+        # Adding a dependency to config refresh (e.g. instances added by episomer::setup())
+        cd$properties_refresh_flag()
 
-        ######### IMPORTANT USERS LOGIC ###########
-        # downloading current important users file
-        output$conf_users_download <- shiny::downloadHandler(
-          filename = function() "users.xlsx",
-          content = function(file) {
-            file.copy(get_known_users_path(), file)
-          }
-        )
-
-        # downloading default important users file
-        output$conf_orig_users_download <- shiny::downloadHandler(
-          filename = function() "users.xlsx",
-          content = function(file) {
-            file.copy(get_default_known_users_path(), file)
-          }
-        )
-
-        # uploading new important users
-        shiny::observe({
-          df <- input$conf_users_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            uploaded <- df$datapath[[1]]
-            file.copy(
-              uploaded,
-              paste(conf$data_dir, "users.xlsx", sep = "/"),
-              overwrite = TRUE
-            )
-          }
-        })
-
-        ######### LANGUAGE LOGIC ##################
-        # rendering languages each time a change is registered on languges
-        output$config_langs <- DT::renderDataTable({
-          # Adding dependency with lang refresh
-          cd$langs_refresh_flag()
-          DT::datatable(cd$langs)
-        })
-
-        # downloading current languages
-        output$conf_lang_download <- shiny::downloadHandler(
-          filename = function() "languages.xlsx",
-          content = function(file) {
-            file.copy(get_available_languages_path(), file)
-          }
-        )
-
-        # downloading original languages file
-        output$conf_orig_lang_download <- shiny::downloadHandler(
-          filename = function() "languages.xlsx",
-          content = function(file) {
-            file.copy(get_default_available_languages_path(), file)
-          }
-        )
-
-        # uploading new language file
-        shiny::observe({
-          df <- input$conf_lang_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            uploaded <- df$datapath[[1]]
-            file.copy(
-              uploaded,
-              paste(conf$data_dir, "languages.xlsx", sep = "/"),
-              overwrite = TRUE
-            )
-            refresh_config_data(e = cd, limit = list("langs"))
-          }
-        })
-
-        # rendering active languages when something has changed on languages
-        output$lang_items_0 <- shiny::renderUI({
-          # Adding a dependency to lang refresh
-          cd$langs_refresh_flag()
-          shiny::selectInput(
-            "lang_items",
-            label = NULL,
-            multiple = FALSE,
-            choices = cd$lang_items
-          )
-        })
-
-        # adding the current language
-        shiny::observeEvent(input$conf_lang_add, {
-          add_config_language(input$lang_items, cd$lang_names[input$lang_items])
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          refresh_config_data(e = cd, limit = list("langs"))
-        })
-
-        #removing a language
-        shiny::observeEvent(input$conf_lang_remove, {
-          remove_config_language(input$lang_items)
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          refresh_config_data(e = cd, limit = list("langs"))
-        })
-
-        ######### TASKS LOGIC ##################
-        # rendering the tasks each time something changes in the tasks
-        output$tasks_df <- DT::renderDataTable({
-          # Adding dependency with tasks refresh
-          cd$tasks_refresh_flag()
-          DT::datatable(cd$tasks_df)
-        })
-
-        ######### TOPICS LOGIC ##################
-        # rendering the topics only on first load update is done on next statement
-        output$config_topics <- DT::renderDataTable({
-          `%>%` <- magrittr::`%>%`
-          cd$topics_df %>%
-            DT::datatable(
-              colnames = c(
-                "Query length" = "QueryLength",
-                "Active plans" = "ActivePlans",
-                "Progress" = "Progress",
-                "Requests" = "Requests",
-                "Signal alpha (FPR)" = "Alpha",
-                "Outlier alpha (FPR)" = "OutliersAlpha"
-              ),
-              filter = "top",
-              escape = TRUE
-            ) %>%
-            DT::formatPercentage(columns = c("Progress"))
-        })
-        # this is for updating the topics
-        shiny::observe({
-          # Adding a dependency to topics refresh or plans refresh
-          cd$topics_refresh_flag()
-          cd$plans_refresh_flag()
-          DT::replaceData(DT::dataTableProxy('config_topics'), cd$topics_df)
-        })
-
-        # download the current topics file
-        output$conf_topics_download <- shiny::downloadHandler(
-          filename = function() "topics.xlsx",
-          content = function(file) {
-            file.copy(get_user_topics_path(), file)
-          }
-        )
-
-        #download the original topics file
-        output$conf_orig_topics_download <- shiny::downloadHandler(
-          filename = function() "topics.xlsx",
-          content = function(file) {
-            file.copy(get_default_topics_path(), file)
-          }
-        )
-
-        # uploading a new topics file
-        shiny::observe({
-          df <- input$conf_topics_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            uploaded <- df$datapath[[1]]
-            if(file.exists(uploaded)) {
-              file.copy(
-                uploaded,
-                paste(conf$data_dir, "topics.xlsx", sep = "/"),
-                overwrite = TRUE
+        families <- social_media_families()
+        df <- data.frame(
+          "Social media" = vapply(
+            families,
+            function(family) {
+              paste0(
+                toupper(substr(family, 1, 1)),
+                substr(family, 2, nchar(family))
               )
-	      file.remove(uploaded)
-              refresh_config_data(e = cd, limit = list("topics"))
-	      d$topics_refresh_flag(cd$topics_refresh_flag())
-	    }
-          }
-        })
-        # action to dismiss past posts
-        shiny::observeEvent(input$conf_dismiss_past_posts, {
-          # Setting values on the configuration so the search loop knows history needs to be dismissed
-          conf$dismiss_past_request <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
-          # saving configuration so the Requirements & alerts pipeline will see the changes
-          save_config(
-            data_dir = conf$data_dir,
-            properties = TRUE,
-            sm_topics = list()
-          )
-          # refreshing the tasks data
-        })
-
-        ######### SUBSCRIBERS LOGIC ##################
-        # rendering subscribers (first run update on next statement)
-        output$config_subscribers <- DT::renderDataTable({
-          `%>%` <- magrittr::`%>%`
-          get_subscribers() %>%
-            DT::datatable(
-              colnames = c(
-                "User" = "User",
-                "Email" = "Email",
-                "Topics" = "Topics",
-                "Excluded topics" = "Excluded Topics",
-                "Immediate topics" = "Real time Topics",
-                "Regions" = "Regions",
-                "Immediate regions" = "Real time Regions",
-                "Alert category" = "Alert category",
-                "Alert slots" = "Alert Slots"
-              ),
-              filter = "top",
-              escape = TRUE
-            )
-        })
-
-        # updating the subscriber table on change of subscribers file
-        shiny::observe({
-          # Adding a dependency to subscribers refresh
-          cd$subscribers_refresh_flag()
-          DT::replaceData(
-            DT::dataTableProxy('config_subscribers'),
-            get_subscribers()
-          )
-        })
-
-        # downloading subscribers default file
-        output$conf_orig_subscribers_download <- shiny::downloadHandler(
-          filename = function() "subscribers.xlsx",
-          content = function(file) {
-            file.copy(get_default_subscribers_path(), file)
-          }
+            },
+            character(1)
+          ),
+          "Activated for search" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_activated_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          "Instances" = vapply(
+            families,
+            function(family) {
+              if (!sm_is_federated(family)) {
+                return("-")
+              }
+              instances <- sm_instances_of(family)
+              if (length(instances) == 0) {
+                "None configured yet"
+              } else {
+                paste(instances, collapse = ", ")
+              }
+            },
+            character(1)
+          ),
+          "Alert detection activated" = vapply(
+            families,
+            function(family) {
+              if (isTRUE(conf[[sprintf("sm_alerts_%s", family)]])) {
+                "Yes"
+              } else {
+                "No"
+              }
+            },
+            character(1)
+          ),
+          check.names = FALSE
         )
 
-        # downloading subscriber current file
-        output$conf_subscribers_download <- shiny::downloadHandler(
-          filename = function() "subscribers.xlsx",
-          content = function(file) {
-            file.copy(get_subscribers_path(), file)
-          }
+        DT::datatable(
+          df,
+          rownames = FALSE,
+          options = list(dom = "t", paging = FALSE, ordering = FALSE)
         )
+      })
 
-        # uploading subscribers file
-        shiny::observe({
-          df <- input$conf_subscribers_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            uploaded <- df$datapath[[1]]
-            file.copy(
+      ######### IMPORTANT USERS LOGIC ###########
+      # downloading current important users file
+      output$conf_users_download <- shiny::downloadHandler(
+        filename = function() "users.xlsx",
+        content = function(file) {
+          epifile.copy(get_known_users_path(), file)
+        }
+      )
+
+      # downloading default important users file
+      output$conf_orig_users_download <- shiny::downloadHandler(
+        filename = function() "users.xlsx",
+        content = function(file) {
+          epifile.copy(get_default_known_users_path(), file)
+        }
+      )
+
+      # rendering important users (first run update on next statement)
+      output$config_users <- DT::renderDataTable({
+        DT::datatable(
+          epiread_excel(get_known_users_path()),
+          rownames = FALSE,
+          filter = "top",
+          escape = TRUE
+        )
+      })
+
+      # updating the important users table on change of the users file
+      shiny::observe({
+        # Adding a dependency to users refresh
+        cd$users_refresh_flag()
+        DT::replaceData(
+          DT::dataTableProxy('config_users'),
+          epiread_excel(get_known_users_path()),
+          rownames = FALSE
+        )
+      })
+
+      # uploading new important users
+      shiny::observe({
+        df <- input$conf_users_upload
+        if (!is.null(df) && nrow(df) > 0) {
+          uploaded <- df$datapath[[1]]
+          epifile.copy(
+            uploaded,
+            epipath("users.xlsx"),
+            overwrite = TRUE
+          )
+          cd$users_refresh_flag(Sys.time())
+        }
+      })
+
+      ######### LANGUAGE LOGIC ##################
+      # rendering languages each time a change is registered on languges
+      output$config_langs <- DT::renderDataTable({
+        # Adding dependency with lang refresh
+        cd$langs_refresh_flag()
+        DT::datatable(cd$langs)
+      })
+
+      ######### TASKS LOGIC ##################
+      # rendering the tasks each time something changes in the tasks
+      output$tasks_df <- DT::renderDataTable({
+        # Adding dependency with tasks refresh
+        cd$tasks_refresh_flag()
+        DT::datatable(cd$tasks_df)
+      })
+
+      ######### TOPICS LOGIC ##################
+      # rendering the topics only on first load update is done on next statement
+      output$config_topics <- DT::renderDataTable({
+        `%>%` <- magrittr::`%>%`
+        cd$topics_df %>%
+          DT::datatable(
+            colnames = c(
+              "Query length" = "QueryLength",
+              "Active plans" = "ActivePlans",
+              "Progress" = "Progress",
+              "Requests" = "Requests",
+              "Signal alpha (FPR)" = "Alpha",
+              "Outlier alpha (FPR)" = "OutliersAlpha"
+            ),
+            filter = "top",
+            escape = TRUE
+          ) %>%
+          DT::formatPercentage(columns = c("Progress"))
+      })
+      # this is for updating the topics
+      shiny::observe({
+        # Adding a dependency to topics refresh or plans refresh
+        cd$topics_refresh_flag()
+        cd$plans_refresh_flag()
+        DT::replaceData(DT::dataTableProxy('config_topics'), cd$topics_df)
+      })
+
+      # download the current topics file
+      output$conf_topics_download <- shiny::downloadHandler(
+        filename = function() "topics.xlsx",
+        content = function(file) {
+          epifile.copy(get_user_topics_path(), file)
+        }
+      )
+
+      #download the original topics file
+      output$conf_orig_topics_download <- shiny::downloadHandler(
+        filename = function() "topics.xlsx",
+        content = function(file) {
+          epifile.copy(get_default_topics_path(), file)
+        }
+      )
+
+      # uploading a new topics file
+      shiny::observe({
+        df <- input$conf_topics_upload
+        if (!is.null(df) && nrow(df) > 0) {
+          uploaded <- df$datapath[[1]]
+          if (epifile.exists(uploaded)) {
+            epifile.copy(
               uploaded,
-              paste(conf$data_dir, "subscribers.xlsx", sep = "/"),
+              epipath("topics.xlsx"),
               overwrite = TRUE
             )
-            cd$subscribers_refresh_flag(Sys.time())
+            file.remove(uploaded)
+            refresh_config_data(e = cd, limit = list("topics"))
+            d$topics_refresh_flag(cd$topics_refresh_flag())
           }
-        })
+        }
+      })
+      # action to dismiss past posts
+      shiny::observeEvent(input$conf_dismiss_past_posts, {
+        # Setting values on the configuration so the search loop knows history needs to be dismissed
+        conf$dismiss_past_request <- strftime(Sys.time(), "%Y-%m-%d %H:%M:%S")
+        # saving configuration so the Requirements & alerts pipeline will see the changes
+        save_config(
+          data_dir = conf$data_dir,
+          properties = TRUE,
+          sm_topics = list()
+        )
+        # refreshing the tasks data
+      })
 
-        ######### REGIONS LOGIC ##################
-        # rendering reguions for the first time (update on next statement)
-        output$config_regions <- DT::renderDataTable({
+      ######### SUBSCRIBERS LOGIC ##################
+      # rendering subscribers (first run update on next statement)
+      output$config_subscribers <- DT::renderDataTable({
+        `%>%` <- magrittr::`%>%`
+        get_subscribers() %>%
+          DT::datatable(
+            colnames = c(
+              "User" = "User",
+              "Email" = "Email",
+              "Topics" = "Topics",
+              "Excluded topics" = "Excluded Topics",
+              "Immediate topics" = "Real time Topics",
+              "Regions" = "Regions",
+              "Immediate regions" = "Real time Regions",
+              "Alert category" = "Alert category",
+              "Alert slots" = "Alert Slots"
+            ),
+            filter = "top",
+            escape = TRUE
+          )
+      })
+
+      # updating the subscriber table on change of subscribers file
+      shiny::observe({
+        # Adding a dependency to subscribers refresh
+        cd$subscribers_refresh_flag()
+        DT::replaceData(
+          DT::dataTableProxy('config_subscribers'),
+          get_subscribers()
+        )
+      })
+
+      # downloading subscribers default file
+      output$conf_orig_subscribers_download <- shiny::downloadHandler(
+        filename = function() "subscribers.xlsx",
+        content = function(file) {
+          epifile.copy(get_default_subscribers_path(), file)
+        }
+      )
+
+      # downloading subscriber current file
+      output$conf_subscribers_download <- shiny::downloadHandler(
+        filename = function() "subscribers.xlsx",
+        content = function(file) {
+          epifile.copy(get_subscribers_path(), file)
+        }
+      )
+
+      # uploading subscribers file
+      shiny::observe({
+        df <- input$conf_subscribers_upload
+        if (!is.null(df) && nrow(df) > 0) {
+          uploaded <- df$datapath[[1]]
+          epifile.copy(
+            uploaded,
+            epipath("subscribers.xlsx"),
+            overwrite = TRUE
+          )
+          cd$subscribers_refresh_flag(Sys.time())
+        }
+      })
+
+      ######### REGIONS LOGIC ##################
+      # rendering reguions for the first time (update on next statement)
+      output$config_regions <- DT::renderDataTable({
+        `%>%` <- magrittr::`%>%`
+        get_regions_df() %>%
+          DT::datatable(
+            colnames = c(
+              "Name" = "Name",
+              "Codes" = "Codes",
+              "Level" = "Level",
+              "Min. lat." = "MinLatitude",
+              "Max. lat." = "MaxLatitude",
+              "Min. long." = "MinLongitude",
+              "Max. long." = "MaxLingityde"
+            ),
+            filter = "top",
+            escape = TRUE
+          )
+      })
+
+      # Updating regions when the new file is uploaded
+      shiny::observe({
+        # Adding a dependency to country refresh
+        cd$countries_refresh_flag()
+        DT::replaceData(DT::dataTableProxy('config_regions'), get_regions_df())
+      })
+
+      # Download the current country file
+      output$conf_countries_download <- shiny::downloadHandler(
+        filename = function() "countries.xlsx",
+        content = function(file) {
+          epifile.copy(get_countries_path(), file)
+        }
+      )
+
+      # Dowload the original country file
+      output$conf_orig_countries_download <- shiny::downloadHandler(
+        filename = function() "countries.xlsx",
+        content = function(file) {
+          epifile.copy(get_default_countries_path(), file)
+        }
+      )
+
+      #Update the new country file
+      shiny::observe({
+        df <- input$conf_countries_upload
+        if (!is.null(df) && nrow(df) > 0) {
+          uploaded <- df$datapath[[1]]
+          epifile.copy(
+            uploaded,
+            epipath("countries.xlsx"),
+            overwrite = TRUE
+          )
+          # get_country_items() memoises the parsed file for the whole session, so a new upload is
+          # only visible once its entries are dropped.
+          drop_country_items_cache()
+          cd$countries_refresh_flag(Sys.time())
+        }
+      })
+
+      ######### ALERTS LOGIC ##################
+      # rendering the alerts
+      # updates are launched automatically when any input value changes
+
+      # setting default value for number of alerts to return depending on wether we are displaying posts or not
+      shiny::observe({
+        # Can also set the label and select items
+        shiny::updateSelectInput(
+          session,
+          "alerts_limit",
+          selected = if (input$alerts_display == "posts") "10" else "0"
+        )
+      })
+
+      shiny::observeEvent(input$alerts_search, {
+        shiny::updateTextInput(
+          session,
+          "alerts_show_search",
+          label = NULL,
+          value = "true"
+        )
+        output$alerts_table <- DT::renderDataTable({
           `%>%` <- magrittr::`%>%`
-          get_regions_df() %>%
-            DT::datatable(
-              colnames = c(
-                "Name" = "Name",
-                "Codes" = "Codes",
-                "Level" = "Level",
-                "Min. lat." = "MinLatitude",
-                "Max. lat." = "MaxLatitude",
-                "Min. long." = "MinLongitude",
-                "Max. long." = "MaxLingityde"
-              ),
-              filter = "top",
-              escape = TRUE
+          shiny::isolate({
+            topposts <- if (input$alerts_display == "posts") 10 else 0
+            progress_start("Getting alerts")
+            alerts <- get_alerts(
+              topic = input$alerts_topics,
+              countries = as.numeric(input$alerts_countries),
+              from = input$alerts_period[[1]],
+              until = input$alerts_period[[2]],
+              topposts = topposts,
+              limit = as.integer(input$alerts_limit),
+              progress = function(value, message) {
+                progress_set(value = value, message = message)
+              }
             )
-        })
-
-        # Updating regions when the new file is uploaded
-        shiny::observe({
-          # Adding a dependency to country refresh
-          cd$countries_refresh_flag()
-          DT::replaceData(DT::dataTableProxy('config_regions'), get_regions_df())
-        })
-
-        # Download the current country file
-        output$conf_countries_download <- shiny::downloadHandler(
-          filename = function() "countries.xlsx",
-          content = function(file) {
-            file.copy(get_countries_path(), file)
-          }
-        )
-
-        # Dowload the original country file
-        output$conf_orig_countries_download <- shiny::downloadHandler(
-          filename = function() "countries.xlsx",
-          content = function(file) {
-            file.copy(get_default_countries_path(), file)
-          }
-        )
-
-        #Update the new country file
-        shiny::observe({
-          df <- input$conf_countries_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            uploaded <- df$datapath[[1]]
-            file.copy(
-              uploaded,
-              paste(conf$data_dir, "countries.xlsx", sep = "/"),
-              overwrite = TRUE
+          })
+          shiny::validate(
+            shiny::need(
+              !is.null(alerts),
+              'No alerts generated for the selected period'
             )
-            cd$countries_refresh_flag(Sys.time())
-          }
-        })
-
-        ######### ALERTS LOGIC ##################
-        # rendering the alerts
-        # updates are launched automatically when any input value changes
-
-        # setting default value for number of alerts to return depending on wether we are displaying posts or not
-        shiny::observe({
-          # Can also set the label and select items
-          shiny::updateSelectInput(
-            session,
-            "alerts_limit",
-            selected = if (input$alerts_display == "posts") "10" else "0"
           )
-        })
-
-        shiny::observeEvent(input$alerts_search, {
-          shiny::updateTextInput(
-            session,
-            "alerts_show_search",
-            label = NULL,
-            value = "true"
-          )
-          output$alerts_table <- DT::renderDataTable({
-            `%>%` <- magrittr::`%>%`
-            shiny::isolate({
-              topposts <- if (input$alerts_display == "posts") 10 else 0
-              progress_start("Getting alerts")
-              alerts <- get_alerts(
-                topic = input$alerts_topics,
-                countries = as.numeric(input$alerts_countries),
-                from = input$alerts_period[[1]],
-                until = input$alerts_period[[2]],
-                topposts = topposts,
-                limit = as.integer(input$alerts_limit),
-                progress = function(value, message) {
-                  progress_set(value = value, message = message)
-                }
-              )
-            })
-            shiny::validate(
-              shiny::need(
-                !is.null(alerts),
-                'No alerts generated for the selected period'
-              )
-            )
-            if (topposts == 0) {
-            dt <-   alerts %>%
-                dplyr::select(
+          if (topposts == 0) {
+            dt <- alerts %>%
+              dplyr::select(
+                dplyr::any_of(c(
                   "date",
                   "hour",
                   "topic",
@@ -2799,62 +3084,73 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "alpha",
                   "alpha_outlier",
                   "k_decay"
-                ) %>%
-                DT::datatable(
-                  colnames = c(
-                    "Date" = "date",
-                    "Hour" = "hour",
-                    "Topic" = "topic",
-                    "Region" = "country",
-                    "Category" = "episomer_category",
-                    "Tops" = "tops",
-                    "Posts" = "number_of_posts",
-                    "% from important user" = "known_ratio",
-                    "Threshold" = "limit",
-                    "Baseline" = "no_historic",
-                    "Bonf. corr." = "bonferroni_correction",
-                    "Same weekday baseline" = "same_weekday_baseline",
-                    "Day rank" = "rank",
-                    "With quotes" = "with_quotes",
-                    "Alert FPR (alpha)" = "alpha",
-                    "Outlier FPR (alpha)" = "alpha_outlier",
-                    "Downweight strenght" = "k_decay"
-                  ),
-                  filter = "top",
-                  escape = FALSE
-                )
-            } else {
-              alerts$topposts <- sapply(alerts$topposts, function(postsbylang) {
-                if (length(postsbylang) == 0) "" else {
-                  paste(
-                    "<UL>",
-                    lapply(1:length(postsbylang), function(i) {
-                      paste(
-                        "<LI>",
-                        names(postsbylang)[[i]],
-                        "<OL>",
-                        paste(
-                          lapply(postsbylang[[i]], function(t) {
-                            paste0(
-                              "<LI>",
-                              htmltools::htmlEscape(t),
-                              "</LI>"
-                            )
-                          }),
-                          collapse = ""
-                        ),
-                        "</OL>",
-                        "</LI>"
-                      )
-                    }),
-                    "</UL>",
-                    collapse = ""
-                  )
-                }
-              })
+                ))
+              )
 
-              dt <- alerts %>%
-                dplyr::select(
+            cleaned_colnames_dt <- c(
+              "Date" = "date",
+              "Hour" = "hour",
+              "Topic" = "topic",
+              "Region" = "country",
+              "Category" = "episomer_category",
+              "Tops" = "tops",
+              "Posts" = "number_of_posts",
+              "% from important user" = "known_ratio",
+              "Threshold" = "limit",
+              "Baseline" = "no_historic",
+              "Bonf. corr." = "bonferroni_correction",
+              "Same weekday baseline" = "same_weekday_baseline",
+              "Day rank" = "rank",
+              "With quotes" = "with_quotes",
+              "Alert FPR (alpha)" = "alpha",
+              "Outlier FPR (alpha)" = "alpha_outlier",
+              "Downweight strenght" = "k_decay"
+            )
+            cleaned_colnames_dt <- cleaned_colnames_dt[
+              cleaned_colnames_dt %in% colnames(dt)
+            ]
+
+            my_dt <- dt %>%
+              DT::datatable(
+                colnames = cleaned_colnames_dt,
+                filter = "top",
+                escape = FALSE
+              )
+          } else {
+            alerts$topposts <- sapply(alerts$topposts, function(postsbylang) {
+              if (length(postsbylang) == 0) {
+                ""
+              } else {
+                paste(
+                  "<UL>",
+                  lapply(1:length(postsbylang), function(i) {
+                    paste(
+                      "<LI>",
+                      names(postsbylang)[[i]],
+                      "<OL>",
+                      paste(
+                        lapply(postsbylang[[i]], function(t) {
+                          paste0(
+                            "<LI>",
+                            htmltools::htmlEscape(t),
+                            "</LI>"
+                          )
+                        }),
+                        collapse = ""
+                      ),
+                      "</OL>",
+                      "</LI>"
+                    )
+                  }),
+                  "</UL>",
+                  collapse = ""
+                )
+              }
+            })
+
+            dt <- alerts %>%
+              dplyr::select(
+                dplyr::any_of(c(
                   "date",
                   "hour",
                   "topic",
@@ -2863,570 +3159,641 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
                   "tops",
                   "number_of_posts",
                   "topposts"
-                ) %>%
-                DT::datatable(
-                  colnames = c(
-                    "Date" = "date",
-                    "Hour" = "hour",
-                    "Topic" = "topic",
-                    "Region" = "country",
-                    "Category" = "episomer_category",
-                    "Tops" = "tops",
-                    "Posts" = "number_of_posts",
-                    "Top posts" = "topposts"
-                  ),
-                  filter = "top",
-                  escape = FALSE
-                )
-            }
-            progress_close()
-            dt
-          })
-        })
-
-        shiny::observeEvent(input$alerts_close, {
-          shiny::updateTextInput(
-            session,
-            "alerts_show_search",
-            label = NULL,
-            value = "false"
-          )
-        })
-
-        shiny::observeEvent(input$alertsdb_search, {
-          shiny::updateTextInput(
-            session,
-            "alertsdb_show",
-            label = NULL,
-            value = "true"
-          )
-          output$alertsdb_table <- DT::renderDataTable(
-            get_alertsdb_html() %>%
-              DT::datatable(
-                colnames = c(
-                  "Date" = "date",
-                  "Topic" = "topic",
-                  "Region" = "country",
-                  "Top words" = "topwords",
-                  "Posts" = "number_of_posts",
-                  "Top posts" = "topposts",
-                  "Given Category" = "given_category",
-                  "Episomer Category" = "episomer_category"
-                ),
-                filter = "top",
-                escape = FALSE
+                ))
               )
-          )
 
-          output$alertsdb_runs_table <- DT::renderDataTable(
-            get_alertsdb_runs_html() %>%
-              DT::datatable(
-                colnames = c(
-                  "Ranking" = "ranking",
-                  "Models" = "models",
-                  "Alerts" = "alerts",
-                  "Runs" = "runs",
-                  "F1Score" = "f1score",
-                  "Accuracy" = "accuracy",
-                  "Precision By Class" = "precision_by_class",
-                  "Sensitivity By Class" = "sensitivity_by_class",
-                  "FScore By Class" = "fscore_by_class",
-                  "Last run" = "last_run",
-                  "Balance classes" = "balance_classes",
-                  "Force to use" = "force_to_use",
-                  "Active" = "active",
-                  "Documentation" = "documentation",
-                  "Custom Parameters" = "custom_parameters"
-                ),
-                filter = "top",
-                escape = FALSE
-              )
-          )
-        })
-        shiny::observeEvent(input$alertsdb_close, {
-          shiny::updateTextInput(
-            session,
-            "alertsdb_show",
-            label = NULL,
-            value = "false"
-          )
-        })
-        output$alertsdb_download <- shiny::downloadHandler(
-          filename = function() "alert-training.xlsx",
-          content = function(file) {
-            progress_start("updating geo training dataset for download")
-            #updating geotraining file before downloading
-            tryCatch(
-              {
-                if (
-                  get_alert_training_path() == get_default_alert_training_path()
-                ) {
-                  alerts <- get_alerts(
-                    topic = input$alerts_topics,
-                    countries = as.numeric(input$alerts_countries),
-                    from = input$alerts_period[[1]],
-                    until = input$alerts_period[[2]],
-                    topposts = 10,
-                    limit = if (
-                      !is.na(input$alerts_limit) &&
-                        as.integer(input$alerts_limit) > 0
-                    )
-                      as.integer(input$alerts_limit) else 20,
-                    progress = function(value, message) {
-                      progress_set(value = value, message = message)
-                    }
-                  )
-                  if (!is.null(alerts)) {
-                    alerts$given_category <- NA
-                    write_alert_training_db(alerts)
-                    cd$alert_training_refresh_flag(Sys.time())
-                    progress_close()
-                    file.copy(get_alert_training_path(), file)
-                  } else
-                    app_error(
-                      "Cannot download alerts since no alerts where found with the selected filters",
-                      env = cd
-                    )
-                } else {
-                  progress_close()
-                  file.copy(get_alert_training_path(), file)
-                }
-              },
-              error = function(w) {
-                app_error(w, env = cd)
-              }
+            cleaned_colnames_dt <- c(
+              "Date" = "date",
+              "Hour" = "hour",
+              "Topic" = "topic",
+              "Region" = "country",
+              "Category" = "episomer_category",
+              "Tops" = "tops",
+              "Posts" = "number_of_posts",
+              "Top posts" = "topposts"
             )
+            cleaned_colnames_dt <- cleaned_colnames_dt[
+              cleaned_colnames_dt %in% colnames(dt)
+            ]
+
+            my_dt <- dt %>%
+              DT::datatable(
+                colnames = cleaned_colnames_dt,
+                filter = "top",
+                escape = FALSE
+              )
           }
+          progress_close()
+          my_dt
+        })
+      })
+
+      shiny::observeEvent(input$alerts_close, {
+        shiny::updateTextInput(
+          session,
+          "alerts_show_search",
+          label = NULL,
+          value = "false"
+        )
+      })
+
+      shiny::observeEvent(input$alertsdb_search, {
+        shiny::updateTextInput(
+          session,
+          "alertsdb_show",
+          label = NULL,
+          value = "true"
+        )
+        output$alertsdb_table <- DT::renderDataTable(
+          get_alertsdb_html() %>%
+            DT::datatable(
+              colnames = c(
+                "Date" = "date",
+                "Topic" = "topic",
+                "Region" = "country",
+                "Top words" = "topwords",
+                "Posts" = "number_of_posts",
+                "Top posts" = "topposts",
+                "Given Category" = "given_category",
+                "Episomer Category" = "episomer_category"
+              ),
+              filter = "top",
+              escape = FALSE
+            )
         )
 
-        shiny::observeEvent(input$alertsdb_add, {
-          progress_start("Adding new alerts to the alert database")
+        output$alertsdb_runs_table <- DT::renderDataTable(
+          get_alertsdb_runs_html() %>%
+            DT::datatable(
+              colnames = c(
+                "Ranking" = "ranking",
+                "Models" = "models",
+                "Alerts" = "alerts",
+                "Runs" = "runs",
+                "F1Score" = "f1score",
+                "Accuracy" = "accuracy",
+                "Precision By Class" = "precision_by_class",
+                "Sensitivity By Class" = "sensitivity_by_class",
+                "FScore By Class" = "fscore_by_class",
+                "Last run" = "last_run",
+                "Balance classes" = "balance_classes",
+                "Force to use" = "force_to_use",
+                "Active" = "active",
+                "Documentation" = "documentation",
+                "Custom Parameters" = "custom_parameters"
+              ),
+              filter = "top",
+              escape = FALSE
+            )
+        )
+      })
+      shiny::observeEvent(input$alertsdb_close, {
+        shiny::updateTextInput(
+          session,
+          "alertsdb_show",
+          label = NULL,
+          value = "false"
+        )
+      })
+      output$alertsdb_download <- shiny::downloadHandler(
+        filename = function() "alert-training.xlsx",
+        content = function(file) {
+          progress_start("updating geo training dataset for download")
           #updating geotraining file before downloading
           tryCatch(
             {
-              new_alerts <- get_alerts(
-                topic = input$alerts_topics,
-                countries = as.numeric(input$alerts_countries),
-                from = input$alerts_period[[1]],
-                until = input$alerts_period[[2]],
-                topposts = 10,
-                limit = if (
-                  !is.na(input$alerts_limit) && as.integer(input$alerts_limit) > 0
-                )
-                  as.integer(input$alerts_limit) else 20,
-                progress = function(value, message) {
-                  progress_set(value = value, message = message)
-                }
-              )
-
-              existing_alerts <- get_alert_training_df()
-              if (!is.null(new_alerts) && nrow(new_alerts) > 0) {
-                new_alerts$given_category <- NA
-                alerts <- Reduce(
-                  x = list(existing_alerts, new_alerts),
-                  f = function(df1, df2) {
-                    dplyr::bind_rows(df1, df2)
+              if (
+                get_alert_training_path() == get_default_alert_training_path()
+              ) {
+                alerts <- get_alerts(
+                  topic = input$alerts_topics,
+                  countries = as.numeric(input$alerts_countries),
+                  from = input$alerts_period[[1]],
+                  until = input$alerts_period[[2]],
+                  topposts = 10,
+                  limit = if (
+                    !is.na(input$alerts_limit) &&
+                      as.integer(input$alerts_limit) > 0
+                  ) {
+                    as.integer(input$alerts_limit)
+                  } else {
+                    20
+                  },
+                  progress = function(value, message) {
+                    progress_set(value = value, message = message)
                   }
                 )
-                write_alert_training_db(alerts)
-                cd$alert_training_refresh_flag(Sys.time())
+                if (!is.null(alerts)) {
+                  alerts$given_category <- NA
+                  write_alert_training_db(alerts)
+                  cd$alert_training_refresh_flag(Sys.time())
+                  progress_close()
+                  epifile.copy(get_alert_training_path(), file)
+                } else {
+                  app_error(
+                    "Cannot download alerts since no alerts where found with the selected filters",
+                    env = cd
+                  )
+                }
               } else {
-                app_error(
-                  "Cannot add alerts to classify. No alerts where found with the selected filters",
-                  env = cd
-                )
+                progress_close()
+                epifile.copy(get_alert_training_path(), file)
               }
             },
             error = function(w) {
               app_error(w, env = cd)
             }
           )
-        })
-
-        # uploading alerts training file
-        shiny::observe({
-          df <- input$alertsdb_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            progress_start("processing new training set")
-            uploaded <- df$datapath[[1]]
-            #copying file and making a backup of existing one
-            if (file.exists(get_user_alert_training_path()))
-              file.copy(
-                get_user_alert_training_path(),
-                paste(get_user_alert_training_path(), ".bak", sep = ""),
-                overwrite = TRUE
-              )
-            file.copy(uploaded, get_user_alert_training_path(), overwrite = TRUE)
-            #updating geotraining df taking in condideration new uploaded file
-
-            tryCatch(
-              {
-                retrain_alert_classifier(progress_set)
-                cd$alert_training_refresh_flag(Sys.time())
-              },
-              warning = function(w) {
-                app_error(w, env = cd)
-              },
-              error = function(w) {
-                app_error(w, env = cd)
-              }
-            )
-          }
-        })
-
-        # updating alerts table on change of geotraining file
-        shiny::observe({
-          # Adding a dependency to alert refresh
-          cd$alert_training_refresh_flag()
-          DT::replaceData(DT::dataTableProxy('alertsdb_table'), get_alertsdb_html())
-          DT::replaceData(
-            DT::dataTableProxy('alertsdb_runs_table'),
-            get_alertsdb_runs_html()
-          )
-          progress_close()
-        })
-
-        ######### GEOTRAINING EVALUATION DATAFRAME ####
-        # rendering a dataframe showing evaluation metrics
-        output$geotraining_eval_df <- DT::renderDataTable({
-          df <- get_geotraining_eval_df()
-          DT::datatable(df, escape = TRUE)
-        })
-
-        get_geotraining_eval_df <- function() {
-          `%>%` <- dplyr::`%>%`
-          ret <- data.frame(
-            Category = character(),
-            `True positives` = integer(),
-            `False positives` = integer(),
-            `True negatives` = integer(),
-            `False negatives` = integer(),
-            `Precision` = double(),
-            `Sensitivity` = double(),
-            `F1Score` = double(),
-            check.names = FALSE
-          )
-          if (file.exists(get_geotraining_evaluation_path())) {
-            df <- jsonlite::fromJSON(
-              get_geotraining_evaluation_path(),
-              flatten = TRUE
-            )
-            df <- as.data.frame(df)
-            if (nrow(df) > 0) {
-              ret <- df %>%
-                dplyr::select(
-                  .data$test,
-                  .data$tp,
-                  .data$tn,
-                  .data$fp,
-                  .data$fn
-                ) %>%
-                dplyr::group_by(.data$test) %>%
-                dplyr::summarise(
-                  tp = sum(.data$tp),
-                  fp = sum(.data$fp),
-                  tn = sum(.data$tn),
-                  fn = sum(.data$fn)
-                ) %>%
-                janitor::adorn_totals("row") %>%
-                dplyr::mutate(
-                  Precision = round(.data$tp / (.data$tp + .data$fp), 3)
-                ) %>%
-                dplyr::mutate(
-                  Sensitivity = round(.data$tp / (.data$tp + .data$fn), 3)
-                ) %>%
-                dplyr::mutate(
-                  F1Score = round(
-                    (2 * .data$tp) / (2 * .data$tp + .data$fn + .data$fp),
-                    3
-                  )
-                ) %>%
-                dplyr::rename(Category = .data$test) %>%
-                dplyr::rename("True positives" = .data$tp) %>%
-                dplyr::rename("False positives" = .data$fp) %>%
-                dplyr::rename("True negatives" = .data$tn) %>%
-                dplyr::rename("False negatives" = .data$fn)
-            }
-          }
-          ret
         }
+      )
 
-        ######### GEOTEST LOGIC ##################
-        # rendering geotest data, updates are done automatically whenever an input changes
-        output$geotraining_table <- DT::renderDataTable({
-          `%>%` <- magrittr::`%>%`
-          df <- get_geotraining_df()
-          df %>%
-            DT::datatable(
-              filter = "top",
-              escape = TRUE
-            )
-        })
-        # uploading geotagging training file
-        shiny::observe({
-          df <- input$geotraining_upload
-          if (!is.null(df) && nrow(df) > 0) {
-            progress_start("processing new training set")
-            uploaded <- df$datapath[[1]]
-            #copying file and making a backup of existing one
-            if (file.exists(get_user_geotraining_path()))
-              file.copy(
-                get_user_geotraining_path(),
-                paste(get_user_geotraining_path(), ".bak", sep = ""),
-                overwrite = TRUE
-              )
-            file.copy(uploaded, get_user_geotraining_path(), overwrite = TRUE)
-            #updating geotraining df taking in condideration new uploaded file
-
-            tryCatch(
-              {
-                #update_geotraining_df(input$geotraining_posts2add, progress = function(value, message) {progress_set(value = value /3, message = message)})
-                progress_set(
-                  value = 0.5,
-                  message = "Retraining models and evaluating"
-                )
-                retrain_languages()
-                update_geotraining_df(
-                  input$geotraining_posts2add,
-                  progress = function(value, message) {
-                    progress_set(value = 0.5 + value / 2, message = message)
-                  }
-                )
-                cd$geotraining_refresh_flag(Sys.time())
-                #TO DO : afficher les résultats + observe qui met à jour si de nouveelles données sont uploadées
+      shiny::observeEvent(input$alertsdb_add, {
+        progress_start("Adding new alerts to the alert database")
+        #updating geotraining file before downloading
+        tryCatch(
+          {
+            new_alerts <- get_alerts(
+              topic = input$alerts_topics,
+              countries = as.numeric(input$alerts_countries),
+              from = input$alerts_period[[1]],
+              until = input$alerts_period[[2]],
+              topposts = 10,
+              limit = if (
+                !is.na(input$alerts_limit) && as.integer(input$alerts_limit) > 0
+              ) {
+                as.integer(input$alerts_limit)
+              } else {
+                20
               },
-              error = function(w) {
-                app_error(w, env = cd)
+              progress = function(value, message) {
+                progress_set(value = value, message = message)
               }
             )
+
+            existing_alerts <- get_alert_training_df()
+            if (!is.null(new_alerts) && nrow(new_alerts) > 0) {
+              new_alerts$given_category <- NA
+              alerts <- Reduce(
+                x = list(existing_alerts, new_alerts),
+                f = function(df1, df2) {
+                  dplyr::bind_rows(df1, df2)
+                }
+              )
+              write_alert_training_db(alerts)
+              cd$alert_training_refresh_flag(Sys.time())
+            } else {
+              app_error(
+                "Cannot add alerts to classify. No alerts where found with the selected filters",
+                env = cd
+              )
+            }
+          },
+          error = function(w) {
+            app_error(w, env = cd)
           }
-        })
-        # Updating geolocation data
-        shiny::observeEvent(input$geotraining_update, {
-          progress_start("updating geo training dataset")
+        )
+      })
+
+      # uploading alerts training file
+      # observeEvent, not observe: the body has to run on the upload and on nothing else. A plain
+      # observe takes a dependency on every reactive it reads, and each re-run copies the
+      # previously uploaded file over the training set again and launches another full retraining -
+      # minutes of JVM work nobody asked for. Same reason as the geotraining upload below.
+      shiny::observeEvent(input$alertsdb_upload, {
+        df <- input$alertsdb_upload
+        if (!is.null(df) && nrow(df) > 0) {
+          progress_start("processing new training set")
+          uploaded <- df$datapath[[1]]
+          #copying file and making a backup of existing one
+          if (epifile.exists(get_user_alert_training_path())) {
+            epifile.copy(
+              get_user_alert_training_path(),
+              paste(get_user_alert_training_path(), ".bak", sep = ""),
+              overwrite = TRUE
+            )
+          }
+          epifile.copy(
+            uploaded,
+            get_user_alert_training_path(),
+            overwrite = TRUE
+          )
           #updating geotraining df taking in condideration new uploaded file
+
           tryCatch(
             {
+              retrain_alert_classifier(progress_set)
+              cd$alert_training_refresh_flag(Sys.time())
+            },
+            warning = function(w) {
+              app_error(w, env = cd)
+            },
+            error = function(w) {
+              app_error(w, env = cd)
+            }
+          )
+        }
+      })
+
+      # updating alerts table on change of geotraining file
+      shiny::observe({
+        # Adding a dependency to alert refresh
+        cd$alert_training_refresh_flag()
+        DT::replaceData(
+          DT::dataTableProxy('alertsdb_table'),
+          get_alertsdb_html()
+        )
+        DT::replaceData(
+          DT::dataTableProxy('alertsdb_runs_table'),
+          get_alertsdb_runs_html()
+        )
+        progress_close()
+      })
+
+      ######### GEOTRAINING EVALUATION DATAFRAME ####
+      # rendering a dataframe showing evaluation metrics
+      output$geotraining_eval_df <- DT::renderDataTable({
+        df <- get_geotraining_eval_df()
+        DT::datatable(df, escape = TRUE)
+      })
+
+      get_geotraining_eval_df <- function() {
+        `%>%` <- dplyr::`%>%`
+        ret <- data.frame(
+          Category = character(),
+          `True positives` = integer(),
+          `False positives` = integer(),
+          `True negatives` = integer(),
+          `False negatives` = integer(),
+          `Precision` = double(),
+          `Sensitivity` = double(),
+          `F1Score` = double(),
+          check.names = FALSE
+        )
+        if (epifile.exists(get_geotraining_evaluation_path())) {
+          df <- jsonlite::fromJSON(
+            get_geotraining_evaluation_path(),
+            flatten = TRUE
+          )
+          df <- as.data.frame(df)
+          if (nrow(df) > 0) {
+            ret <- df %>%
+              dplyr::select(
+                "test",
+                "tp",
+                "tn",
+                "fp",
+                "fn"
+              ) %>%
+              dplyr::group_by(.data$test) %>%
+              dplyr::summarise(
+                tp = sum(.data$tp),
+                fp = sum(.data$fp),
+                tn = sum(.data$tn),
+                fn = sum(.data$fn)
+              ) %>%
+              janitor::adorn_totals("row") %>%
+              dplyr::mutate(
+                Precision = round(.data$tp / (.data$tp + .data$fp), 3)
+              ) %>%
+              dplyr::mutate(
+                Sensitivity = round(.data$tp / (.data$tp + .data$fn), 3)
+              ) %>%
+              dplyr::mutate(
+                F1Score = round(
+                  (2 * .data$tp) / (2 * .data$tp + .data$fn + .data$fp),
+                  3
+                )
+              ) %>%
+              dplyr::rename(Category = "test") %>%
+              dplyr::rename("True positives" = "tp") %>%
+              dplyr::rename("False positives" = "fp") %>%
+              dplyr::rename("True negatives" = "tn") %>%
+              dplyr::rename("False negatives" = "fn")
+          }
+        }
+        ret
+      }
+
+      ######### GEOTEST LOGIC ##################
+      # rendering geotest data, updates are done automatically whenever an input changes
+      output$geotraining_table <- DT::renderDataTable({
+        `%>%` <- magrittr::`%>%`
+        df <- get_geotraining_df()
+        df %>%
+          DT::datatable(
+            filter = "top",
+            escape = TRUE
+          )
+      })
+      # uploading geotagging training file
+      # observeEvent, not observe: the body reads input$geotraining_posts2add below, and a plain
+      # observe takes a reactive dependency on everything it reads. Moving the "posts to add"
+      # control therefore re-ran this whole block - copying the previously uploaded file over the
+      # training set again and launching a second full retraining, minutes of JVM work nobody
+      # asked for. observeEvent isolates the body and fires on the upload alone.
+      shiny::observeEvent(input$geotraining_upload, {
+        df <- input$geotraining_upload
+        if (!is.null(df) && nrow(df) > 0) {
+          progress_start("processing new training set")
+          uploaded <- df$datapath[[1]]
+          #copying file and making a backup of existing one
+          if (epifile.exists(get_user_geotraining_path())) {
+            epifile.copy(
+              get_user_geotraining_path(),
+              paste(get_user_geotraining_path(), ".bak", sep = ""),
+              overwrite = TRUE
+            )
+          }
+          epifile.copy(uploaded, get_user_geotraining_path(), overwrite = TRUE)
+          #updating geotraining df taking in condideration new uploaded file
+
+          tryCatch(
+            {
+              #update_geotraining_df(input$geotraining_posts2add, progress = function(value, message) {progress_set(value = value /3, message = message)})
+              progress_set(
+                value = 0.5,
+                message = "Retraining models and evaluating"
+              )
+              retrain_languages()
               update_geotraining_df(
                 input$geotraining_posts2add,
                 progress = function(value, message) {
-                  progress_set(value = value, message = message)
+                  progress_set(value = 0.5 + value / 2, message = message)
                 }
               )
+              # last, after the spreadsheet update just above rewrote the training set: same
+              # ordering as update_languages(), and for the same reason
+              mark_geotraining_evaluated()
+              cd$geotraining_refresh_flag(Sys.time())
+              #TO DO : afficher les résultats + observe qui met à jour si de nouveelles données sont uploadées
+            },
+            error = function(w) {
+              app_error(w, env = cd)
+            }
+          )
+        }
+      })
+      # Updating geolocation data
+      shiny::observeEvent(input$geotraining_update, {
+        progress_start("updating geo training dataset")
+        #updating geotraining df taking in condideration new uploaded file
+        tryCatch(
+          {
+            update_geotraining_df(
+              input$geotraining_posts2add,
+              progress = function(value, message) {
+                progress_set(value = value, message = message)
+              }
+            )
+            cd$geotraining_refresh_flag(Sys.time())
+          },
+          error = function(w) {
+            app_error(w, env = cd)
+          }
+        )
+      })
+
+      # download geotraining data
+      output$geotraining_download <- shiny::downloadHandler(
+        filename = function() "geo-training.xlsx",
+        content = function(file) {
+          progress_start("updating geo training dataset for download")
+          #updating geotraining file before downloading
+          tryCatch(
+            {
+              if (get_geotraining_path() == get_default_geotraining_path()) {
+                update_geotraining_df(
+                  input$geotraining_posts2add,
+                  progress = function(value, message) {
+                    progress_set(value = value, message = message)
+                  }
+                )
+              }
+              epifile.copy(get_geotraining_path(), file)
               cd$geotraining_refresh_flag(Sys.time())
             },
             error = function(w) {
               app_error(w, env = cd)
             }
           )
-        })
+        }
+      )
 
-        # download geotraining data
-        output$geotraining_download <- shiny::downloadHandler(
-          filename = function() "geo-training.xlsx",
-          content = function(file) {
-            progress_start("updating geo training dataset for download")
-            #updating geotraining file before downloading
-            tryCatch(
-              {
-                if (get_geotraining_path() == get_default_geotraining_path()) {
-                  update_geotraining_df(
-                    input$geotraining_posts2add,
-                    progress = function(value, message) {
-                      progress_set(value = value, message = message)
-                    }
-                  )
-                }
-                file.copy(get_geotraining_path(), file)
-                cd$geotraining_refresh_flag(Sys.time())
-              },
-              error = function(w) {
-                app_error(w, env = cd)
-              }
-            )
-          }
+      # updating geotraining table on change of geotraining file
+      shiny::observe({
+        # Adding a dependency to subscribers refresh
+        cd$geotraining_refresh_flag()
+        DT::replaceData(
+          DT::dataTableProxy('geotraining_table'),
+          get_geotraining_df()
         )
+        DT::replaceData(
+          DT::dataTableProxy('geotraining_eval_df'),
+          get_geotraining_eval_df()
+        )
+        progress_close()
+      })
 
-        # updating geotraining table on change of geotraining file
-        shiny::observe({
-          # Adding a dependency to subscribers refresh
-          cd$geotraining_refresh_flag()
-          DT::replaceData(
-            DT::dataTableProxy('geotraining_table'),
-            get_geotraining_df()
+      ######### DATA PROTECTION LOGIC ##################
+      # rendering the data protection search table
+      shiny::observeEvent(input$data_anonymise, {
+        shiny::showModal(shiny::modalDialog(
+          title = "Warning",
+          "Please confirm you want to anonymise the posts matching this search criteria, this action cannot be undone",
+          footer = shiny::tagList(
+            shiny::actionButton(
+              "data_perform_anonymise",
+              "Yes, anonymise posts"
+            ),
+            shiny::modalButton("Cancel")
           )
-          DT::replaceData(
-            DT::dataTableProxy('geotraining_eval_df'),
-            get_geotraining_eval_df()
+        ))
+      })
+
+      shiny::observeEvent(input$data_delete, {
+        shiny::showModal(shiny::modalDialog(
+          title = "Warning",
+          "Please confirm you want to delete the posts matching this search criteria, this action cannot be undone",
+          footer = shiny::tagList(
+            shiny::actionButton("data_perform_delete", "Yes, delete posts"),
+            shiny::modalButton("Cancel")
           )
-          progress_close()
-        })
+        ))
+      })
 
-        ######### DATA PROTECTION LOGIC ##################
-        # rendering the data protection search table
-        shiny::observeEvent(input$data_anonymise, {
-          shiny::showModal(shiny::modalDialog(
-            title = "Warning",
-            "Please confirm you want to anonymise the posts matching this search criteria, this action cannot be undone",
-            footer = shiny::tagList(
-              shiny::actionButton("data_perform_anonymise", "Yes, anonymise posts"),
-              shiny::modalButton("Cancel")
+      shiny::observeEvent(input$data_perform_delete, {
+        search_posts_exp(hide_users = FALSE, action = "delete")
+      })
+      shiny::observeEvent(input$data_perform_anonymise, {
+        search_posts_exp(hide_users = FALSE, action = "anonymise")
+      })
+
+      shiny::observeEvent(input$data_search_ano, {
+        search_posts_exp(hide_users = TRUE)
+      })
+
+      shiny::observeEvent(input$data_search, {
+        search_posts_exp(hide_users = FALSE)
+      })
+      search_posts_exp <- function(hide_users, action = NULL) {
+        output$data_message <- shiny::renderText("")
+        output$data_search_df <- DT::renderDataTable({
+          `%>%` <- magrittr::`%>%`
+          shiny::removeModal()
+          query <- (if (!is.null(action) && action == "anonymise") {
+            "created_at:[0 TO Z] NOT user_name:user"
+          } else {
+            NULL
+          })
+          progress_start("Searching")
+          shiny::isolate({
+            posts <- search_posts(
+              query = query,
+              topic = input$data_topics,
+              from = input$data_period[[1]],
+              to = input$data_period[[2]],
+              countries = as.numeric(input$data_countries),
+              mentioning = if (
+                input$data_mode %in%
+                  c("all", "mentioning") &&
+                  input$data_users != ""
+              ) {
+                strsplit(input$data_users, "\\s+")[[1]]
+              } else {
+                NULL
+              },
+              users = if (
+                input$data_mode %in% c("all", "users") && input$data_users != ""
+              ) {
+                strsplit(input$data_users, "\\s+")[[1]]
+              } else {
+                NULL
+              },
+              hide_users = hide_users,
+              action = action,
+              max = as.integer(input$data_limit)
             )
-          ))
-        })
+          })
 
-        shiny::observeEvent(input$data_delete, {
-          shiny::showModal(shiny::modalDialog(
-            title = "Warning",
-            "Please confirm you want to delete the posts matching this search criteria, this action cannot be undone",
-            footer = shiny::tagList(
-              shiny::actionButton("data_perform_delete", "Yes, delete posts"),
-              shiny::modalButton("Cancel")
-            )
-          ))
-        })
-
-        shiny::observeEvent(input$data_perform_delete, {
-          search_posts_exp(hide_users = FALSE, action = "delete")
-        })
-        shiny::observeEvent(input$data_perform_anonymise, {
-          search_posts_exp(hide_users = FALSE, action = "anonymise")
-        })
-
-        shiny::observeEvent(input$data_search_ano, {
-          search_posts_exp(hide_users = TRUE)
-        })
-
-        shiny::observeEvent(input$data_search, {
-          search_posts_exp(hide_users = FALSE)
-        })
-        search_posts_exp <- function(hide_users, action = NULL) {
-          output$data_message <- shiny::renderText("")
-          output$data_search_df <- DT::renderDataTable({
-            `%>%` <- magrittr::`%>%`
-            shiny::removeModal()
-            query <- (if (!is.null(action) && action == "anonymise")
-              "created_at:[0 TO Z] NOT user_name:user" else NULL)
-            progress_start("Searching")
-            shiny::isolate({
-              posts <- search_posts(
-                query = query,
-                topic = input$data_topics,
-                from = input$data_period[[1]],
-                to = input$data_period[[2]],
-                countries = as.numeric(input$data_countries),
-                mentioning = if (
-                  input$data_mode %in%
-                    c("all", "mentioning") &&
-                    input$data_users != ""
+          if (!is.null(action) && nrow(posts) > 0) {
+            processed <- 0
+            while (nrow(posts) > 0) {
+              processed <- processed + nrow(posts)
+              progress_set(
+                value = 0.5,
+                message = paste(
+                  "Performing",
+                  action,
+                  processed,
+                  "posts processed"
                 )
-                  strsplit(input$data_users, "\\s+")[[1]] else NULL,
-                users = if (
-                  input$data_mode %in% c("all", "users") && input$data_users != ""
-                )
-                  strsplit(input$data_users, "\\s+")[[1]] else NULL,
-                hide_users = hide_users,
-                action = action,
-                max = as.integer(input$data_limit)
               )
-            })
 
-            if (!is.null(action) && nrow(posts) > 0) {
-              processed <- 0
-              while (nrow(posts) > 0) {
-                processed <- processed + nrow(posts)
-                progress_set(
-                  value = 0.5,
-                  message = paste(
-                    "Performing",
-                    action,
-                    processed,
-                    "posts processed"
-                  )
+              shiny::isolate({
+                posts <- search_posts(
+                  query = query,
+                  topic = input$data_topics,
+                  from = input$data_period[[1]],
+                  to = input$data_period[[2]],
+                  countries = as.numeric(input$data_countries),
+                  mentioning = if (
+                    input$data_mode %in%
+                      c("all", "mentioning") &&
+                      input$data_users != ""
+                  ) {
+                    strsplit(input$data_users, "\\s+")[[1]]
+                  } else {
+                    NULL
+                  },
+                  users = if (
+                    input$data_mode %in%
+                      c("all", "users") &&
+                      input$data_users != ""
+                  ) {
+                    strsplit(input$data_users, "\\s+")[[1]]
+                  } else {
+                    NULL
+                  },
+                  hide_users = hide_users,
+                  action = action,
+                  max = as.integer(input$data_limit)
                 )
-
-                shiny::isolate({
-                  posts <- search_posts(
-                    query = query,
-                    topic = input$data_topics,
-                    from = input$data_period[[1]],
-                    to = input$data_period[[2]],
-                    countries = as.numeric(input$data_countries),
-                    mentioning = if (
-                      input$data_mode %in%
-                        c("all", "mentioning") &&
-                        input$data_users != ""
-                    )
-                      strsplit(input$data_users, "\\s+")[[1]] else NULL,
-                    users = if (
-                      input$data_mode %in%
-                        c("all", "users") &&
-                        input$data_users != ""
-                    )
-                      strsplit(input$data_users, "\\s+")[[1]] else NULL,
-                    hide_users = hide_users,
-                    action = action,
-                    max = as.integer(input$data_limit)
-                  )
-                })
-              }
-              progress_close()
-            }
-
-            shiny::validate(
-              shiny::need(
-                !is.null(posts) && nrow(posts) > 0,
-                'No posts found for the provided filters'
-              )
-            )
-            output$data_message <- if (posts$totalCount[[1]] > 1000) {
-              shiny::renderText(paste(
-                "more than ",
-                posts$totalCount[[1]],
-                " posts found"
-              ))
-            } else {
-              shiny::renderText(paste(posts$totalCount[[1]], " posts found"))
-            }
-
-            dt <- {
-              posts$country_code <- if ("text_loc" %in% colnames(posts))
-                posts$text_loc$geo_country_code else ""
-              posts$geo_name <- if ("text_loc" %in% colnames(posts))
-                posts$text_loc$geo_name else ""
-              cols <- c("id","topic","country_code","geo_name","created_at","text","user_name","quoted_text")
-	      for(c in cols) {
-	        if(!(c %in% names(posts)))
-			posts[c] <- ""
-	      }
-	      posts %>%
-                dplyr::select(cols) %>%
-                DT::datatable(
-                  colnames = c(
-                    "Post Id" = "id",
-                    "Topic" = "topic",
-                    "Created" = "created_at",
-                    "Country in text" = "country_code",
-                    "Location in text" = "geo_name",
-                    "User" = "user_name",
-                    "Text" = "text",
-                    "Repost/Quoted text" = "quoted_text"
-                  ),
-                  filter = "top",
-                  escape = TRUE
-                )
+              })
             }
             progress_close()
-            dt
-          })
-        }
+          }
 
-        ######## SNAPSHOT LOGIC ############
-        # creating an snapshot of episomer data for backup or debuging purposes
-        shiny::observeEvent(input$build_snapshot, {
-          `%>%` <- magrittr::`%>%`
-          progress_start("Creating snapshot")
-          shiny::isolate({
+          shiny::validate(
+            shiny::need(
+              !is.null(posts) && nrow(posts) > 0,
+              'No posts found for the provided filters'
+            )
+          )
+          output$data_message <- if (posts$totalCount[[1]] > 1000) {
+            shiny::renderText(paste(
+              "more than ",
+              posts$totalCount[[1]],
+              " posts found"
+            ))
+          } else {
+            shiny::renderText(paste(posts$totalCount[[1]], " posts found"))
+          }
+
+          dt <- {
+            posts$country_code <- if ("text_loc" %in% colnames(posts)) {
+              posts$text_loc$geo_country_code
+            } else {
+              ""
+            }
+            posts$geo_name <- if ("text_loc" %in% colnames(posts)) {
+              posts$text_loc$geo_name
+            } else {
+              ""
+            }
+            cols <- c(
+              "id",
+              "topic",
+              "country_code",
+              "geo_name",
+              "created_at",
+              "text",
+              "user_name",
+              "quoted_text"
+            )
+            for (c in cols) {
+              if (!(c %in% names(posts))) {
+                posts[c] <- ""
+              }
+            }
+            posts %>%
+              dplyr::select(cols) %>%
+              DT::datatable(
+                colnames = c(
+                  "Post Id" = "id",
+                  "Topic" = "topic",
+                  "Created" = "created_at",
+                  "Country in text" = "country_code",
+                  "Location in text" = "geo_name",
+                  "User" = "user_name",
+                  "Text" = "text",
+                  "Repost/Quoted text" = "quoted_text"
+                ),
+                filter = "top",
+                escape = TRUE
+              )
+          }
+          progress_close()
+          dt
+        })
+      }
+
+      ######## SNAPSHOT LOGIC ############
+      # creating an snapshot of episomer data for backup or debuging purposes
+      shiny::observeEvent(input$build_snapshot, {
+        `%>%` <- magrittr::`%>%`
+        progress_start("Creating snapshot")
+        shiny::isolate({
+          tryCatch(
             create_snapshot(
               destination_dir = input$snapshot_folder,
               types = input$snapshot_types,
@@ -3436,37 +3803,45 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
               progress = function(value, message) {
                 progress_set(value = value, message = message)
               }
-            )
-          })
-          progress_close()
-        })
-
-        ######## DIAGNOSTIC LOGIC ############
-        # running the diagnostics when the button is clicked
-        shiny::observeEvent(input$run_diagnostic, {
-          `%>%` <- magrittr::`%>%`
-
-          output$diagnostic_table <- DT::renderDataTable(
-            check_all() %>%
-              DT::datatable(
-                colnames = c(
-                  "Check Code" = "check",
-                  "Passed" = "passed",
-                  "Message" = "message"
-                ),
-                filter = "top",
-                escape = TRUE,
-                rownames = FALSE,
-                options = list(pageLength = 50)
-              ) %>%
-              DT::formatStyle(
-                columns = c("Passed"),
-                valueColumns = c("Passed"),
-                color = DT::styleEqual(c(TRUE, FALSE), c("green", "red"))
+            ),
+            error = function(e) {
+              shiny::showNotification(
+                paste("Snapshot failed:", conditionMessage(e)),
+                type = "error",
+                duration = NULL
               )
+            }
           )
         })
-      }
+        progress_close()
+      })
+
+      ######## DIAGNOSTIC LOGIC ############
+      # running the diagnostics when the button is clicked
+      shiny::observeEvent(input$run_diagnostic, {
+        `%>%` <- magrittr::`%>%`
+
+        output$diagnostic_table <- DT::renderDataTable(
+          check_all() %>%
+            DT::datatable(
+              colnames = c(
+                "Check Code" = "check",
+                "Passed" = "passed",
+                "Message" = "message"
+              ),
+              filter = "top",
+              escape = TRUE,
+              rownames = FALSE,
+              options = list(pageLength = 50)
+            ) %>%
+            DT::formatStyle(
+              columns = c("Passed"),
+              valueColumns = c("Passed"),
+              color = DT::styleEqual(c(TRUE, FALSE), c("green", "red"))
+            )
+        )
+      })
+    }
   }
 
   # Functions for managing calculation progress
@@ -3484,30 +3859,24 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
   }
 
   progress_inc <- function(value, message = "processing", env = cd) {
-    if (!is.null(env$progress$set))
+    if (!is.null(env$progress$set)) {
       env$progress$set(
         value = env$progress$getValue() + value,
         detail = message
       )
+    }
   }
 
   progress_set <- function(value, message = "processing", env = cd) {
-    if (!is.null(env$progress$set))
+    if (!is.null(env$progress$set)) {
       env$progress$set(value = value, detail = message)
+    }
   }
 
   app_error <- function(e, env = cd) {
-    message("000000000000000000000000000")
-    message(class(e))
-    message(paste(e))
-    message("--------------------------------")
-
     message(e)
-    message("11111111111111111111111111")
     progress_close(env = env)
-    message("2222222222222222222222222222")
     shiny::showNotification(paste(e), type = "error")
-    message("33333333333333333333333333333")
   }
 
   # Printing PID
@@ -3517,8 +3886,9 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
   on.exit(options(old))
   shiny::shinyApp(
     ui = ui_app(profile),
-    server = function(input, output, session)
-      server_app(input, output, session, profile),
+    server = function(input, output, session) {
+      server_app(input, output, session, profile)
+    },
     options = options(
       shiny.fullstacktrace = TRUE
     )
@@ -3527,12 +3897,8 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 
 
 #' @rdname episomer_app
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
-#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @return The Shiny server object containing the launched application
-#' @details The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations, 
+#' @details The dashboard app is the user entry point to the episomer package for regular users. This application shows the interactive dashboard with visualisations,
 #' allow export them to Markdown or PDF.
 #'
 #' All its functionality is described on the episomer vignette.
@@ -3540,32 +3906,49 @@ episomer_app <- function(data_dir = NA, profile = c("dashboard", "admin"), host 
 dashboard_app <- function(
   data_dir = NA,
   host = NULL,
-  port = NULL
+  port = NULL,
+  fs_remote = NULL
 ) {
   episomer_app(
     data_dir = data_dir,
     profile = "dashboard",
     host = host,
-    port = port
+    port = port,
+    fs_remote = fs_remote
   )
 }
 
 #' @rdname episomer_app
-#' @param data_dir Path to the 'data directory' containing application settings, models and collected posts.
-#' If not provided the system will try to reuse the existing one from last session call of \code{\link{setup_config}} or use the EPI_HOME environment variable, default: NA
-#' @param host The IP if the network interface to run the Shiny app on, default: NULL (will run on 127.0.0.1)
-#' @param port The port to run the Shiny app on, default: NULL (will run on a random port)
 #' @return The Shiny server object containing the launched application
 #' @details The admin app is contain all functionality for an administrator. It help the user to setup the post collection process, manage all settings,
 #' and setup the alert emails.
 #'
 #' All its functionality is described on the episomer vignette.
 #' @export
-admin_app <- function(data_dir = NA, host = NULL, port = NULL) {
+admin_app <- function(
+  data_dir = NA,
+  host = NULL,
+  port = NULL,
+  fs_remote = NULL
+) {
   episomer_app(
     data_dir = data_dir,
     profile = "admin",
     host = host,
-    port = port
+    port = port,
+    fs_remote = fs_remote
+  )
+}
+
+# TRUE when the embedded database answers its /ping endpoint (a separate function so tests can mock it)
+fs_answers_ping <- function(fs_remote) {
+  tryCatch(
+    httr::GET(
+      url = paste(fs_remote, "ping", sep = "/"),
+      httr::timeout(1.0)
+    )$status_code ==
+      200,
+    error = function(e) FALSE,
+    warning = function(w) FALSE
   )
 }

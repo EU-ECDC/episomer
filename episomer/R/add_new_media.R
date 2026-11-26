@@ -1,4 +1,3 @@
-
 #' internal function for exporting code of necessary functions for creating templates for a new social media
 #' @param file_content char, lines of the script to extract content from
 keep_roxygen_and_function_declarations <- function(file_content) {
@@ -10,7 +9,7 @@ keep_roxygen_and_function_declarations <- function(file_content) {
     is_function_start <- grepl("@function_def_start", l_clean)
     is_function_end <- grepl("@function_def_end", l_clean)
 
-    if (function_body & !is_function_start &!is_function_end) {
+    if (function_body & !is_function_start & !is_function_end) {
       text_to_keep <- c(text_to_keep, l_clean)
     }
 
@@ -22,7 +21,7 @@ keep_roxygen_and_function_declarations <- function(file_content) {
       function_body <- FALSE
       text_to_keep <- c(text_to_keep, l_clean)
       text_to_keep <- c(text_to_keep, "}\n")
-    }    
+    }
   }
   return(text_to_keep)
 }
@@ -64,7 +63,9 @@ create_api_and_plan_files_for_new_social_media <- function(
     " created - please look at the file ",
     paste0("R/sm-", new_media, "-plan.R")
   ))
-  cli::cli_alert_info("To keep the documentation up to date, please run devtools::document()")
+  cli::cli_alert_info(
+    "To keep the documentation up to date, please run devtools::document()"
+  )
 
   return(invisible(TRUE))
 }
@@ -72,7 +73,7 @@ create_api_and_plan_files_for_new_social_media <- function(
 #' Create new social media template files, so a developer can extend episomer and support a new social media.
 #' this function has to be called within episomer subfolder containing thr R subfolder after executing devtools::load_all()
 #' @param social_media Name of the new social media
-#' @param social_media_ref Name of the reference social media 
+#' @param social_media_ref Name of the reference social media
 #' @return TRUE, called for side effects (creation of new social media files).
 #' @export
 add_new_social_media <- function(
@@ -80,8 +81,12 @@ add_new_social_media <- function(
   social_media_ref = "bluesky"
 ) {
   create_api_and_plan_files_for_new_social_media(social_media, social_media_ref)
-  cli::cli_alert_success("Added new social media files in the R/ folder successfully")
-  cli::cli_alert_info("For next steps, please look at the vignette vignettes/add_new_social_media.Rmds")
+  cli::cli_alert_success(
+    "Added new social media files in the R/ folder successfully"
+  )
+  cli::cli_alert_info(
+    "For next steps, please look at the vignette vignettes/add_new_social_media.Rmds"
+  )
   return(invisible(TRUE))
 }
 

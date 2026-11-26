@@ -1,0 +1,21 @@
+#episomer-busy-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(255, 255, 255, 0.45);
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+  cursor: progress;
+}
+#episomer-busy-overlay.active { display: flex; }
+#episomer-busy-overlay .episomer-spinner {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 6px solid #d9d9d9;
+  border-top-color: #337ab7;
+  animation: episomer-spin 0.8s linear infinite;
+}
+@keyframes episomer-spin { to { transform: rotate(360deg); } }

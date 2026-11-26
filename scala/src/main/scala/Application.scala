@@ -51,6 +51,7 @@ trait Application {
     ) match {case b => appName match {case Some(s) =>b.appName(s) case _ => b} }
     ) match {case b => master match {case Some(s) => b.master(s) case _ => b} }
     )
+    .config("spark.hadoop.fs.file.impl", classOf[demy.storage.PermissionlessLocalFileSystem].getName)
     .getOrCreate()
   }
 }

@@ -2,23 +2,18 @@
 % Please edit documentation in R/geo-tagging.R
 \name{update_languages}
 \alias{update_languages}
-\title{Updates local copies of languages}
+\title{Updates language index and retrain models}
 \usage{
-update_languages(tasks = get_tasks(), reuse_downloads = FALSE)
-}
-\arguments{
-\item{tasks}{Tasks object for reporting progress and error messages, default: get_tasks()}
-
-\item{reuse_downloads}{logical indicating if the downloads should be reused if they already exist, default: FALSE}
+update_languages()
 }
 \value{
-The list of tasks updated with produced messages
+Nothing
 }
 \description{
-Downloading and indexing a fresh version of language models tagged for update on the Shiny app configuration tab
+Indexing downloaded languages models and proceed to retrain based on manual or automatic annotations
 }
 \details{
-Run a one shot task to download and index a local fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models}.
+Index locally downloaded fasttext \href{https://fasttext.cc/docs/en/crawl-vectors.html}{pretrained models} and train entity detection models.
 A fasttext model is a collection of vectors for a language automatically produced scrolling a big corpus of text that can be used to capture the semantic of a word.
 
 The URL to download the vectors from are set on the configuration tab of the Shiny app.
@@ -27,10 +22,7 @@ This task will also update SVM models to predict whether a word is a location th
 
 The indexing is developed in SPARK and Lucene.
 
-A prerequisite to this function is that the \code{\link{search_loop}} must already have stored collected posts in the search folder and that the tasks \code{\link{download_dependencies}}
-and \code{\link{update_geonames}} has been run successfully.
-
-Normally this function is not called directly by the user but from the \code{\link{detect_loop}} function.
+Normally this function is not called directly by the user but from the \code{\link{setup}} function.
 }
 \examples{
 \dontrun{

@@ -10,3 +10,10 @@
 ^pkgdown$
 ^.github$
 session.rds
+^TESTING_ROADMAP\.md$
+^dev$
+^app\.R$
+^R/_disable_autoload\.R$
+inst/schema
+inst/qmd
+^img$

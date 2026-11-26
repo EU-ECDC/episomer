@@ -44,8 +44,24 @@ case class Settings(epiHome:String) {
         .elements
         .map(v => v.asInstanceOf[JsObject].fields
           .mapValues(f => f.asInstanceOf[JsString].value)
-        ).map(f => Language(f("name"), f("code"), f("vectors")))
+        ).map(f => Language(f("name"), f("code"), vectorsPathOf(f("vectors"))))
     )
+
+  // properties.json is shared by every instance reading the same data directory, and the "vectors"
+  // field in it is an absolute path written by whichever R process saved the file last. That path
+  // only means something on the machine that wrote it: a host run stores
+  // "/home/someone/EPI_HOME/languages/en.txt.gz", and the container - which mounts that same
+  // directory on /episomer-data - then fails every geolocation and every retraining on
+  //     [PATH_NOT_FOUND] Path does not exist: file:/home/someone/EPI_HOME/languages/en.txt.gz
+  // even though the file is right there under its own EPI_HOME.
+  //
+  // R never sees this because it rebuilds the path from conf$data_dir on every load (config.R,
+  // in read_properties()); this does the same on our side, re-anchoring the stored path on epiHome
+  // exactly as langIndexPath and the geo paths below already do. Only the directory is replaced -
+  // the file name is kept as stored, so a language whose vectors file is not named <code>.txt.gz
+  // keeps working.
+  private def vectorsPathOf(stored:String) =
+    Paths.get(epiHome, "languages", Paths.get(stored.replace("\\", "/")).getFileName.toString).toString
 
   def sparkCores = properties.fields.get("spark_cores").map(v => v.asInstanceOf[JsNumber].value.toInt)
   def sparkMemory =  properties.fields.get("spark_memory").map(v => v.asInstanceOf[JsString].value)
@@ -56,6 +72,8 @@ case class Settings(epiHome:String) {
   def langIndexPath =  Paths.get(epiHome, "geo","lang_vectors.index").toString 
   def togeolocatePath =  Paths.get(epiHome, "geo","togeolocate.json").toString 
   def geolocatingPath =  Paths.get(epiHome, "geo","geolocating.json").toString 
+  // Posts indexed since the last commit of the index, see LuceneActor.journalPosts
+  def commitingPath =  Paths.get(epiHome, "geo","commiting.json").toString 
   def toaggregatePath =  Paths.get(epiHome, "geo","toaggregate.json").toString 
   def aggregatingPath =  Paths.get(epiHome, "geo","aggregating.json").toString 
   def collectionPath =  Paths.get(epiHome, "collections").toString 
@@ -75,6 +93,13 @@ case class Settings(epiHome:String) {
   def fsQueryTimeout = properties.fields.get("fs_query_timeout").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(60)
   def fsLongBatchTimeout = properties.fields.get("fs_long_batch_timeout").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(60*60*24)
   def fsPort = properties.fields.get("fs_port").map(v => v.asInstanceOf[JsNumber].value.toInt).getOrElse(8080)
+  def fsUrl = properties.fields.get("fs_url").map(v => v.asInstanceOf[JsString].value).getOrElse("http://localhost")
+
+  // fs_url as an *interface*, which is what Http().newServerAt() takes (API.scala): fs_url carries
+  // a scheme because every other reader of it calls it, and a scheme is not part of an address to
+  // listen on. R/fs.R has fs_bind_host_only() for the same reason, on the arguments that override
+  // this value for a single run.
+  def fsBindHost = fsUrl.replaceAll("^https?://", "").replaceAll("/+$", "")
   
   def splitter = properties.fields.get("postSplitterRegex").map(v => v.asInstanceOf[JsString].value).getOrElse(Settings.defaultSplitter)
   def forcedGeo = this.loadJson("geo/forced-geo.json").map(json => EpiSerialisation.forcedGeoFormat.read(json)) 

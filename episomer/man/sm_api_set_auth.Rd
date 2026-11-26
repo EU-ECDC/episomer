@@ -4,12 +4,12 @@
 \alias{sm_api_set_auth}
 \title{Save credentials for a social media provider and store them securely}
 \usage{
-sm_api_set_auth(network, shiny_input_list)
+sm_api_set_auth(network, shiny_input_list = NULL)
 }
 \arguments{
 \item{network}{char, the name of the social media}
 
-\item{shiny_input_list}{list, the shiny input object to extract the information from}
+\item{shiny_input_list}{list, the shiny input object to extract the information from if not provided the password will be requested interactively}
 }
 \description{
 Update configuration object and underlying storage with given bluesky username and password. The password is encrypted.
