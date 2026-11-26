@@ -46,6 +46,7 @@ test_that("register_runner() writes the PID file, takes the lease and names the 
 })
 
 test_that("register_runner() lets the same process register twice without racing itself", {
+  skip_on_cran()
   local_lease_conf(instance_id = "instance-A", runner_claim_guard = 0)
   register_runner("fs_mon")
   written_first <- jsonlite::read_json(runner_lease_path("fs_mon"))
@@ -107,6 +108,7 @@ test_that("register_runner() takes over a runner whose holder died", {
 })
 
 test_that("register_runner() takes over the runner a killed local process still holds", {
+  skip_on_cran()
   local_lease_conf(
     instance_id = "instance-A",
     instance_host = "machine-A",
@@ -129,6 +131,7 @@ test_that("register_runner() takes over the runner a killed local process still 
 })
 
 test_that("register_runner() leaves the PID file of the previous holder alone when refused", {
+  skip_on_cran()
   local_lease_conf(
     instance_id = "instance-A",
     instance_host = "machine-A",

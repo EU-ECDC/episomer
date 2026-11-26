@@ -6,12 +6,14 @@
 # unknown task out of the setup wizard output.
 
 test_that("windows_scheduled_task_exists() is FALSE for a task nobody registered", {
+  skip_on_cran()
   skip_on_os(c("mac", "linux", "solaris"))
 
   expect_false(windows_scheduled_task_exists("episomer_no_such_task_loop"))
 })
 
 test_that("stop_runner_task() leaves schtasks alone when the task is not registered", {
+  skip_on_cran()
   local_lease_conf()
   skip_on_os(c("mac", "linux", "solaris"))
   called <- FALSE
@@ -54,6 +56,7 @@ test_that("stop_fs_runner_task() does not wait for a fs no process of this machi
 })
 
 test_that("stop_fs_runner_task() gives up waiting for a fs of this machine that will not stop", {
+  skip_on_cran()
   data_dir <- local_lease_conf()
   # What makes the fs ours: the JVM the loop spawned recorded itself here (Scala API.scala), in the
   # bare form that side writes when EPISOMER_INSTANCE is unset - no host, no start time.

@@ -227,3 +227,20 @@ a_topic_with_one_plan <- function(network = "bluesky") {
     ))
   ))
 }
+
+# Counts the claim attempts made while the calling test runs, and returns a function giving the
+# count. A test asserting "no retry interval was slept" counts attempts rather than reading the
+# clock, which fails on a loaded machine (CRAN Windows) for reasons unrelated to the code.
+local_count_claims <- function(.local_envir = parent.frame()) {
+  attempts <- 0L
+  real_claim <- claim_runner_lease
+  testthat::local_mocked_bindings(
+    claim_runner_lease = function(...) {
+      attempts <<- attempts + 1L
+      real_claim(...)
+    },
+    .package = "episomer",
+    .env = .local_envir
+  )
+  function() attempts
+}

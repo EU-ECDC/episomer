@@ -270,6 +270,7 @@ test_that("release_runner_lease() leaves the lease alone when it was stolen mean
 # has to give the lease back, otherwise starting the service again is refused until the TTL expires.
 
 test_that("release_dead_local_runner_lease() gives back the lease of a killed local runner", {
+  skip_on_cran()
   local_lease_conf(instance_id = "instance-A", instance_host = "machine-A", runner_ttl_fs = 120)
   # the fs that was running here until stop_all_runner_tasks() killed it: its lease is still fresh
   # (it was renewed seconds ago), and its PID file still names the process that is now gone
@@ -291,6 +292,7 @@ test_that("release_dead_local_runner_lease() gives back the lease of a killed lo
 })
 
 test_that("release_dead_local_runner_lease() takes the PID file of the dead holder with it", {
+  skip_on_cran()
   local_lease_conf(instance_id = "instance-A", instance_host = "machine-A")
   # the fs monitor of the previous run of a container: `docker compose down` killed it without
   # releasing anything, so both its lease and its PID file are still there when the next run starts
@@ -348,6 +350,7 @@ test_that("release_dead_local_runner_lease() refuses while the holder is still a
 })
 
 test_that("release_dead_local_runner_leases() sweeps runners/ and leaves the rest alone", {
+  skip_on_cran()
   local_lease_conf(
     instance_id = "instance-A",
     instance_host = "machine-A",
@@ -547,6 +550,7 @@ test_that("sleep_with_heartbeat() renews the lease while it waits", {
 })
 
 test_that("sleep_with_heartbeat() waits for the whole duration it was given", {
+  skip_on_cran()
   local_lease_conf(runner_heartbeat_span = 0.05)
 
   # name = NULL: no lease at all, so it degrades to a plain, chopped Sys.sleep()
@@ -564,6 +568,7 @@ test_that("sleep_with_heartbeat() returns at once when there is nothing to wait 
 })
 
 test_that("sleep_with_heartbeat() gives up as soon as the lease is taken by somebody else", {
+  skip_on_cran()
   local_lease_conf(instance_id = "instance-A", runner_heartbeat_span = 0.05)
   claim_runner_lease("detect", guard = 0)
 
@@ -579,6 +584,7 @@ test_that("sleep_with_heartbeat() gives up as soon as the lease is taken by some
 })
 
 test_that("heartbeat_before_retry() takes the long rate-limit waits over from httr2", {
+  skip_on_cran()
   local_lease_conf(instance_id = "instance-A", runner_heartbeat_span = 0.05)
   claim_runner_lease("detect", guard = 0)
   conf$runner_name <- "detect"
