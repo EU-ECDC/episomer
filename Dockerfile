@@ -50,8 +50,8 @@ RUN mkdir -p /git
 WORKDIR /git
 RUN git clone https://github.com/sbt/sbt.git
 WORKDIR /git/sbt
-RUN git fetch origin 1.12.x
-RUN git checkout origin/1.12.x
+RUN git fetch origin 1.13.x
+RUN git checkout origin/1.13.x
 RUN chown -R ${EPISOMER_USER}:${EPISOMER_USER} /git
 
 ## Installing R package dependencies
