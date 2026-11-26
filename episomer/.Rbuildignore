@@ -12,5 +12,6 @@
 session.rds
 ^TESTING_ROADMAP\.md$
 ^dev$
-episomer/inst/schema
-episomer/inst/qmd
+inst/schema
+inst/qmd
+^img$
